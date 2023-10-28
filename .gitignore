@@ -1,0 +1,26 @@
+# Bytecode and native code executables
+*.byte
+*.native
+
+# Compiled object files
+*.cmi
+*.cmo
+*.cma
+*.cmx
+*.cmxa
+*.o
+*.obj
+
+# Dune build artifacts
+/_build/
+
+# Editor/IDE specific files
+*.merlin
+*.db
+.vscode/
+
+# Dependency management
+/opam-*
+.opam
+.deps
+.locked

@@ -1,0 +1,2 @@
+
+let () = Dartea.Main.hello()

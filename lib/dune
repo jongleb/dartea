@@ -1,0 +1,13 @@
+(ocamllex
+ (modules lexer))
+
+(menhir
+ (flags --strict)
+ (modules parser))
+
+(library
+ (name dartea)
+ (flags
+  (-w -40 -w +26))
+ (preprocess
+  (pps ppx_jane ppx_deriving.show)))

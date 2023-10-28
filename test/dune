@@ -1,0 +1,3 @@
+(test
+ (name dartea_test)
+ (libraries dartea ounit2))
