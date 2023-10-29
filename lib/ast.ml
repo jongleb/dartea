@@ -28,4 +28,15 @@ type type_alias_desc = {
 }
 [@@deriving show]
 
-type elm_ast = Type_alias of type_alias_desc [@@deriving show]
+type type_constr = { id : string; data : type_alias_data list }
+[@@deriving show]
+
+type type_dec = {
+  id : string;
+  constrs : type_constr list;
+  params : string list;
+}
+[@@deriving show]
+
+type elm_ast = Type_alias of type_alias_desc | Type_dec of type_dec
+[@@deriving show]

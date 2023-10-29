@@ -22,7 +22,7 @@ rule token = parse
   | "}"             { RBRACE }
   | ","             { COMMA }
   | ":"             { COLON }
-  | "|"             { ROW_TYPE_PIPE }
+  | "|"             { PIPE }
   | "->"            { ARROW }
   | [' ' '\t' '\n'] { token lexbuf } (* temporary ignore it *)
   | _               { raise (Error (Printf.sprintf "At offset %d: unexpected character.\n" (Lexing.lexeme_start lexbuf))) }

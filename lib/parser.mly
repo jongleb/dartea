@@ -14,7 +14,7 @@
 %token RBRACE
 %token COMMA
 %token COLON
-%token ROW_TYPE_PIPE
+%token PIPE
 %token ARROW
 
 %start <Ast.elm_ast list> prog
@@ -25,7 +25,13 @@ prog:
     lst = list(ty_al_decl); EOF { lst }
 
 ty_al_decl:
-    | TYPE ALIAS id=TYPE_NAME params=list(TYPE_VARIABLE) EQUAL data=ty_al_exp_head { Type_alias({ data; id; params }) }
+    | TYPE ALIAS id=TYPE_NAME params=list(TYPE_VARIABLE) EQUAL data=ty_al_exp_head 
+        { Type_alias({ data; id; params }) }
+    | TYPE id=TYPE_NAME params=list(TYPE_VARIABLE) EQUAL constrs=separated_nonempty_list(PIPE, ty_constrs_data) 
+        { Type_dec({ id; constrs; params; })}
+
+ty_constrs_data:
+    | id=TYPE_NAME data=list(ty_al_exp_roots) {{ id; data; }}
 
 ty_al_exp_head:
     | fn=ty_al_exp_fun { fn }
@@ -46,7 +52,7 @@ ty_al_rec:
     | row_type=ty_al_rec_row_ty values=separated_list(COMMA, ty_al_exp_rec_data_lst) {{ values; row_type=Some(row_type);  }}
 
 ty_al_rec_row_ty:
-    | what=TYPE_VARIABLE ROW_TYPE_PIPE { what }
+    | what=TYPE_VARIABLE PIPE { what }
 
 ty_al_exp_paren:
     |  e1=ty_al_exp e2=preceded(COMMA, separated_nonempty_list(COMMA, ty_al_exp)) { {content=Tuples(e1::e2); params=[]} }
