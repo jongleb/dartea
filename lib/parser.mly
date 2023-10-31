@@ -34,8 +34,8 @@ ty_constrs_data:
     | id=TYPE_NAME data=list(ty_al_exp_roots) {{ id; data; }}
 
 ty_al_exp_head:
-    | fn=ty_al_exp_fun { fn }
     | e=ty_al_exp { e }
+    | fn=ty_al_exp_fun { fn }
 
 ty_al_exp:
     | what=TYPE_NAME params=nonempty_list(ty_al_exp_roots) { {content=Concrete(what); params} }
@@ -55,7 +55,7 @@ ty_al_rec_row_ty:
     | what=TYPE_VARIABLE PIPE { what }
 
 ty_al_exp_paren:
-    |  e1=ty_al_exp e2=preceded(COMMA, separated_nonempty_list(COMMA, ty_al_exp)) { {content=Tuples(e1::e2); params=[]} }
+    |  e1=ty_al_exp_head e2=preceded(COMMA, separated_nonempty_list(COMMA, ty_al_exp_head)) { {content=Tuples(e1::e2); params=[]} }
     |  fn=ty_al_exp_fun { fn }
     |  e=ty_al_exp { e }
 
@@ -64,4 +64,4 @@ ty_al_exp_fun:
          { {content=Function({ arguments=(e1::e2) }); params=[]} }
 
 ty_al_exp_rec_data_lst:
-    | key_name=TYPE_VARIABLE COLON type_name=ty_al_exp { {key=key_name; value=type_name} }
+    | key_name=TYPE_VARIABLE COLON type_name=ty_al_exp_head { {key=key_name; value=type_name} }
