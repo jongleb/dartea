@@ -11,11 +11,19 @@ and record_typ = { values : record_data list; row_type : string option }
 
 and function_typ = { arguments : type_alias_data list } [@@deriving show]
 
+and constr_typ = { constr_name : string; params : body_exprs list }
+[@@deriving show]
+
+and binop = { op_id : string; params : body_exprs * body_exprs }
+[@@deriving show]
+
 and body_exprs =
   | String_constr of string
   | Int_constr of int
   | Float_constr of float
   | List_constr of body_exprs list
+  | Constr of constr_typ
+  | Binop of binop
 [@@deriving show]
 
 and body_part = { name : string; expr : body_exprs } [@@deriving show]

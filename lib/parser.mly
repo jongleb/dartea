@@ -6,6 +6,9 @@
 %token ALIAS
 %token <string> LCNAME
 %token <string> UCNAME
+%token <int> INT
+%token <string> STRING
+%token <float> FLOAT
 // %token <string> DECL_NAME
 %token EQUAL
 %token EOF
@@ -18,6 +21,11 @@
 %token PIPE
 %token ARROW
 %token NEWLINE
+%token <string> BINOP
+%token LBRACKET
+%token RBRACKET
+
+%left BINOP
 
 %start <Ast.elm_ast list> prog
 
@@ -36,14 +44,25 @@ ty_al_decl:
         { Type_dec({ id; constrs; params; })}
 
 value_decl:
-    | type_part_data=ioption(value_decl_type) body_part=value_decl_body 
-        { Declaration ({ type_part_data; body_part }) }
+    | type_part_data=value_decl_type NEWLINE body_part=value_decl_body 
+        { Declaration ({ type_part_data=Some(type_part_data); body_part }) }
 
 value_decl_type:
-    | decl_name=LCNAME COLON type_alias=ty_al_exp_head NEWLINE { { decl_name; type_alias;  } }  
+    | decl_name=LCNAME COLON type_alias=ty_al_exp_head { { decl_name; type_alias;  } }  
 
 value_decl_body:
-    | id=LCNAME EQUAL id2=LCNAME { id } 
+    | id=LCNAME EQUAL value=value_decl_body_exprs_top { { name=id; expr=value;} } 
+
+value_decl_body_exprs_top:
+    | i=UCNAME params=list(value_decl_body_exprs) { Constr({ constr_name=i; params }) }
+    | e1=value_decl_body_exprs_top b=BINOP e2=value_decl_body_exprs_top { Binop({ op_id=b; params=(e1, e2) }) }
+    | LBRACKET e=separated_list(COMMA, value_decl_body_exprs_top) RBRACKET { List_constr(e) }
+    | e=value_decl_body_exprs { e }
+
+value_decl_body_exprs:
+    | i=STRING { String_constr(i) }
+    | i=INT { Int_constr(i) }
+    | i=FLOAT { Float_constr(i) }
 
 ty_constrs_data:
     | id=UCNAME data=list(ty_al_exp_roots) {{ id; data; }}

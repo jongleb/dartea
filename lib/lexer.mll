@@ -3,6 +3,17 @@
   let get = Lexing.lexeme
 
   exception Error of string
+
+  let escaped_characters = [
+    ("\"", "\"");
+    ("\\", "\\");
+    ("\'", "'");
+    ("n", "\n");
+    ("t", "\t");
+    ("b", "\b");
+    ("r", "\r");
+    (" ", " ");
+  ]
 }
 
 let ucname = ['A'-'Z'] ['a'-'z' 'A'-'Z' '0'-'9' '_']*
@@ -10,6 +21,15 @@ let ucname = ['A'-'Z'] ['a'-'z' 'A'-'Z' '0'-'9' '_']*
 let lcname = ['a'-'z'] ['a'-'z' 'A'-'Z' '0'-'9' '_']*
 
 let newline = ('\r' | '\n' | "\r\n")*
+
+let int = ['0'-'9'] ['0'-'9' '_']*
+
+let float =
+  '-'? ['0'-'9'] ['0'-'9' '_']*
+  (('.' ['0'-'9' '_']*) (['e' 'E'] ['+' '-']? ['0'-'9'] ['0'-'9' '_']*)? |
+   ('.' ['0'-'9' '_']*)? (['e' 'E'] ['+' '-']? ['0'-'9'] ['0'-'9' '_']*))
+
+let operators = ('+' | '-')
 
 rule token = parse
   | "type"          { TYPE }
@@ -27,10 +47,28 @@ rule token = parse
   | ")"             { RPAREN }
   | "{"             { LBRACE }
   | "}"             { RBRACE }
+  | "["             {LBRACKET}
+  | "]"             {RBRACKET}
   | ","             { COMMA }
   | ":"             { COLON }
   | "|"             { PIPE }
   | "->"            { ARROW }
+  | operators       { BINOP (Lexing.lexeme lexbuf) }
+  | int             { INT (int_of_string (Lexing.lexeme lexbuf)) }
+  | float               { FLOAT (float_of_string(Lexing.lexeme lexbuf)) }
+  | '"'                 { STRING (string "" lexbuf) }
   | newline         { Lexing.new_line lexbuf; NEWLINE }
   | [' ' '\t']      { token lexbuf } (* temporary ignore it *)
   | _               { raise (Error (Printf.sprintf "At offset %d: unexpected character.\n" (Lexing.lexeme_start lexbuf))) }
+
+  and string acc = parse
+  | '"'                 { acc }
+  | '\\'                { let esc = escaped lexbuf in string (acc ^ esc) lexbuf }
+  | [^'"' '\\']*        { string (acc ^ (Lexing.lexeme lexbuf)) lexbuf }
+  | eof                 { raise (Error "STRINGEOC ERROR") }
+  
+  and escaped = parse
+  | _                   { let str = Lexing.lexeme lexbuf in
+                          try List.assoc str escaped_characters
+                          with Not_found -> raise (Error "ESCAPED NOT_FOUND") 
+                        }
