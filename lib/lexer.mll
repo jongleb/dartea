@@ -5,15 +5,22 @@
   exception Error of string
 }
 
-let type_name = ['A'-'Z'] ['a'-'z' 'A'-'Z' '0'-'9' '_']*
+let ucname = ['A'-'Z'] ['a'-'z' 'A'-'Z' '0'-'9' '_']*
 
-let type_variable = ['a'-'z'] ['a'-'z' 'A'-'Z' '0'-'9' '_']*
+let lcname = ['a'-'z'] ['a'-'z' 'A'-'Z' '0'-'9' '_']*
+
+let newline = ('\r' | '\n' | "\r\n")*
 
 rule token = parse
   | "type"          { TYPE }
   | "alias"         { ALIAS }
-  | type_variable   { TYPE_VARIABLE (Lexing.lexeme lexbuf) }
-  | type_name       { TYPE_NAME (Lexing.lexeme lexbuf) }
+  | lcname          { 
+                      let result = Lexing.lexeme lexbuf in
+                      if result = "type" then 
+                        raise (Error "LCNAME ERROR") 
+                      else LCNAME result
+                    }
+  | ucname          { UCNAME (Lexing.lexeme lexbuf) }
   | '='             { EQUAL }
   | eof             { EOF }
   | "("             { LPAREN }
@@ -24,5 +31,6 @@ rule token = parse
   | ":"             { COLON }
   | "|"             { PIPE }
   | "->"            { ARROW }
-  | [' ' '\t' '\n'] { token lexbuf } (* temporary ignore it *)
+  | newline         { Lexing.new_line lexbuf; NEWLINE }
+  | [' ' '\t']      { token lexbuf } (* temporary ignore it *)
   | _               { raise (Error (Printf.sprintf "At offset %d: unexpected character.\n" (Lexing.lexeme_start lexbuf))) }
