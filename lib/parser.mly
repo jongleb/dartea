@@ -65,9 +65,19 @@ value_decl_body_exprs_top:
     | i=UCNAME params=list(value_decl_body_exprs) { Constr({ constr_name=i; params }) }
     | e1=value_decl_body_exprs_top b=value_decl_body_exprs_binop e2=value_decl_body_exprs_top { Binop({ op_id=b; params=(e1, e2) }) }
     | LBRACKET e=separated_list(COMMA, value_decl_body_exprs_top) RBRACKET { List_constr(e) }
-    | LET id=LCNAME EQUAL body=value_decl_body_exprs_top IN in_=value_decl_body_exprs_top { Let({let_name=id; body; in_; }) }
-    // | i=LCNAME
+    | LET items=separated_nonempty_list(NEWLINE+, value_decl_body_let_def)
+      IN in_=value_decl_body_exprs_top { Let({let_expr_items=items; in_; }) }
     | e=value_decl_body_exprs { e }
+
+value_decl_body_let_def:
+    type_part=ioption(value_decl_body_let_def_type) body_part=value_decl_body_let_body
+        { { type_part; body_part;} }
+
+value_decl_body_let_def_type:
+    name=LCNAME COLON content=ty_al_exp_head NEWLINE+ { { name; content; } }
+
+value_decl_body_let_body:
+    id=LCNAME EQUAL body=value_decl_body_exprs_top { { name=id; body; } }        
 
 %inline
 value_decl_body_exprs_binop:

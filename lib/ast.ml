@@ -17,7 +17,19 @@ and constr_typ = { constr_name : string; params : body_exprs list }
 and binop = { op_id : string; params : body_exprs * body_exprs }
 [@@deriving show]
 
-and let_expr = { let_name : string; body : body_exprs; in_ : body_exprs }
+and let_expr_item_type_part = { name : string; content : type_alias_data }
+[@@deriving show]
+
+and let_expr_item_body_part = { name : string; body : body_exprs }
+[@@deriving show]
+
+and let_expr_item = {
+  type_part : let_expr_item_type_part option;
+  body_part : let_expr_item_body_part;
+}
+[@@deriving show]
+
+and let_expr = { let_expr_items : let_expr_item list; in_ : body_exprs }
 [@@deriving show]
 
 and body_exprs =

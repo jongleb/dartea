@@ -39,8 +39,14 @@ let test_let_in _ =
               expr =
                 Ast.Let
                   {
-                    Ast.let_name = "a";
-                    body = Ast.Int_constr 2;
+                    let_expr_items =
+                      [
+                        {
+                          body_part =
+                            { Ast.name = "a"; body = Ast.Int_constr 2 };
+                          type_part = None;
+                        };
+                      ];
                     in_ = Ast.Int_constr 2;
                   };
             };
@@ -69,8 +75,14 @@ let test_let_in_binop _ =
               expr =
                 Let
                   {
-                    Ast.let_name = "a";
-                    body = Ast.Int_constr 2;
+                    let_expr_items =
+                      [
+                        {
+                          body_part =
+                            { Ast.name = "a"; body = Ast.Int_constr 2 };
+                          type_part = None;
+                        };
+                      ];
                     in_ =
                       Ast.Binop
                         {
@@ -106,20 +118,48 @@ let test_let_in_let_in_let _ =
               expr =
                 Ast.Let
                   {
-                    Ast.let_name = "a";
-                    body =
-                      Ast.Let
+                    Ast.let_expr_items =
+                      [
                         {
-                          Ast.let_name = "b";
-                          body =
-                            Ast.Let
-                              {
-                                Ast.let_name = "c";
-                                body = Ast.Int_constr 3;
-                                in_ = Ast.Int_constr 3;
-                              };
-                          in_ = Ast.Int_constr 3;
+                          type_part = None;
+                          body_part =
+                            {
+                              Ast.name = "a";
+                              body =
+                                Ast.Let
+                                  {
+                                    Ast.let_expr_items =
+                                      [
+                                        {
+                                          type_part = None;
+                                          body_part =
+                                            {
+                                              Ast.name = "b";
+                                              body =
+                                                Ast.Let
+                                                  {
+                                                    Ast.let_expr_items =
+                                                      [
+                                                        {
+                                                          type_part = None;
+                                                          body_part =
+                                                            {
+                                                              Ast.name = "c";
+                                                              body =
+                                                                Ast.Int_constr 3;
+                                                            };
+                                                        };
+                                                      ];
+                                                    in_ = Ast.Int_constr 3;
+                                                  };
+                                            };
+                                        };
+                                      ];
+                                    in_ = Ast.Int_constr 3;
+                                  };
+                            };
                         };
+                      ];
                     in_ = Ast.Int_constr 3;
                   };
             };
@@ -191,10 +231,58 @@ let test_math _ =
   assert_equal expect_data result;
   assert_equal (2 + (3 * 8 / 2)) math_result
 
+let test_multiple_let _ =
+  let expect_data =
+    [
+      Ast.Declaration
+        {
+          Ast.type_part_data =
+            Some
+              {
+                Ast.decl_name = "kek";
+                type_alias = { Ast.params = []; content = Ast.Concrete "Lol" };
+              };
+          body_part =
+            {
+              Ast.name = "kek";
+              expr =
+                Ast.Let
+                  {
+                    Ast.let_expr_items =
+                      [
+                        {
+                          type_part = None;
+                          body_part = { name = "a"; body = Ast.Int_constr 2 };
+                        };
+                        {
+                          type_part = None;
+                          body_part = { name = "b"; body = Ast.Int_constr 3 };
+                        };
+                        {
+                          type_part = None;
+                          body_part = { name = "c"; body = Ast.Int_constr 4 };
+                        };
+                      ];
+                    in_ = Ast.Int_constr 3;
+                  };
+            };
+        };
+    ]
+  in
+  let input =
+    {|kek: Lol                            
+  kek = let a = 2
+  b = 3 
+  c = 4 in 3|}
+  in
+  let result = Parser.prog Lexer.token (Lexing.from_string input) in
+  assert_equal expect_data result
+
 let suite =
   [
     "test_decl_string" >:: test_decl_string;
     "test_let_in_binop" >:: test_let_in_binop;
     "test_let_in_let_in_let" >:: test_let_in_let_in_let;
     "test_math" >:: test_math;
+    "test_multiple_let" >:: test_multiple_let;
   ]
