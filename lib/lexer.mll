@@ -20,20 +20,23 @@ let ucname = ['A'-'Z'] ['a'-'z' 'A'-'Z' '0'-'9' '_']*
 
 let lcname = ['a'-'z'] ['a'-'z' 'A'-'Z' '0'-'9' '_']*
 
-let newline = ('\r' | '\n' | "\r\n")*
+let newline = '\r' | '\n' | "\r\n"
 
 let int = ['0'-'9'] ['0'-'9' '_']*
+
+let space_or_tab = [' ' '\t']*
 
 let float =
   '-'? ['0'-'9'] ['0'-'9' '_']*
   (('.' ['0'-'9' '_']*) (['e' 'E'] ['+' '-']? ['0'-'9'] ['0'-'9' '_']*)? |
    ('.' ['0'-'9' '_']*)? (['e' 'E'] ['+' '-']? ['0'-'9'] ['0'-'9' '_']*))
 
-let operators = ('+' | '-')
 
 rule token = parse
   | "type"          { TYPE }
   | "alias"         { ALIAS }
+  | "let"           { LET }
+  | "in"           { IN }
   | lcname          { 
                       let result = Lexing.lexeme lexbuf in
                       if result = "type" then 
@@ -44,7 +47,7 @@ rule token = parse
   | '='             { EQUAL }
   | eof             { EOF }
   | "("             { LPAREN }
-  | ")"             { RPAREN }
+  | ")"             { RPAREN } 
   | "{"             { LBRACE }
   | "}"             { RBRACE }
   | "["             {LBRACKET}
@@ -53,12 +56,13 @@ rule token = parse
   | ":"             { COLON }
   | "|"             { PIPE }
   | "->"            { ARROW }
-  | operators       { BINOP (Lexing.lexeme lexbuf) }
+  | "+"       { PLUS }
   | int             { INT (int_of_string (Lexing.lexeme lexbuf)) }
   | float               { FLOAT (float_of_string(Lexing.lexeme lexbuf)) }
   | '"'                 { STRING (string "" lexbuf) }
-  | newline         { Lexing.new_line lexbuf; NEWLINE }
-  | [' ' '\t']      { token lexbuf } (* temporary ignore it *)
+  | "\r\n"           { Lexing.new_line lexbuf; token lexbuf;}
+  | '\n'        { Lexing.new_line lexbuf; NEWLINE }
+  | [' ' '\t']      { token lexbuf;  } (* temporary ignore it *)
   | _               { raise (Error (Printf.sprintf "At offset %d: unexpected character.\n" (Lexing.lexeme_start lexbuf))) }
 
   and string acc = parse

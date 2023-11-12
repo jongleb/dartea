@@ -9,7 +9,6 @@
 %token <int> INT
 %token <string> STRING
 %token <float> FLOAT
-// %token <string> DECL_NAME
 %token EQUAL
 %token EOF
 %token LPAREN
@@ -21,24 +20,27 @@
 %token PIPE
 %token ARROW
 %token NEWLINE
-%token <string> BINOP
 %token LBRACKET
 %token RBRACKET
+%token LET
+%token IN
+%token PLUS
 
-%left BINOP
+%nonassoc IN
+%left PLUS
 
 %start <Ast.elm_ast list> prog
 
 %%
 prog: 
-    lst = list(decls); EOF { lst }
+    lst = separated_list(NEWLINE, decls); EOF { lst }
 
 decls:
-    | d=ty_al_decl NEWLINE { d }  
-    | v=value_decl NEWLINE { v }
+    | d=ty_decl { d }
+    | v=value_decl { v }
 
-ty_al_decl:
-    | TYPE ALIAS id=UCNAME params=list(LCNAME) EQUAL data=ty_al_exp_head 
+ty_decl:
+    | TYPE ALIAS id=UCNAME params=list(LCNAME) ioption(NEWLINE) EQUAL data=ty_al_exp_head 
         { Type_alias({ data; id; params }) }
     | TYPE id=UCNAME params=list(LCNAME) EQUAL constrs=separated_nonempty_list(PIPE, ty_constrs_data) 
         { Type_dec({ id; constrs; params; })}
@@ -51,13 +53,19 @@ value_decl_type:
     | decl_name=LCNAME COLON type_alias=ty_al_exp_head { { decl_name; type_alias;  } }  
 
 value_decl_body:
-    | id=LCNAME EQUAL value=value_decl_body_exprs_top { { name=id; expr=value;} } 
+    | id=LCNAME EQUAL value=value_decl_body_exprs_top { { name=id; expr=value;} }
 
 value_decl_body_exprs_top:
     | i=UCNAME params=list(value_decl_body_exprs) { Constr({ constr_name=i; params }) }
-    | e1=value_decl_body_exprs_top b=BINOP e2=value_decl_body_exprs_top { Binop({ op_id=b; params=(e1, e2) }) }
+    | e1=value_decl_body_exprs_top b=value_decl_body_exprs_binop e2=value_decl_body_exprs_top { Binop({ op_id=b; params=(e1, e2) }) }
     | LBRACKET e=separated_list(COMMA, value_decl_body_exprs_top) RBRACKET { List_constr(e) }
+    | LET id=LCNAME EQUAL body=value_decl_body_exprs_top IN in_=value_decl_body_exprs_top { Let({let_name=id; body; in_; }) }
+    // | i=LCNAME
     | e=value_decl_body_exprs { e }
+
+%inline
+value_decl_body_exprs_binop:
+    | PLUS { "+" }
 
 value_decl_body_exprs:
     | i=STRING { String_constr(i) }
@@ -68,6 +76,7 @@ ty_constrs_data:
     | id=UCNAME data=list(ty_al_exp_roots) {{ id; data; }}
 
 ty_al_exp_head:
+    | NEWLINE e=ty_al_exp_head { e }
     | e=ty_al_exp { e }
     | fn=ty_al_exp_fun { fn }
 

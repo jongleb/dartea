@@ -1,34 +1,76 @@
 open OUnit2
 open Dartea
-open Ast
 
 let test_ty_type_with_params_complicated _ =
   let expect_data =
     [
-      Type_alias
+      Ast.Type_dec
         {
-          id = "Complicated";
-          data =
-            {
-              content = Concrete "With";
-              params =
-                [
-                  { content = Concrete "Param1"; params = [] };
-                  {
-                    content = Concrete "Param2";
-                    params =
-                      [
-                        { content = Concrete "Param3"; params = [] };
-                        {
-                          content = Concrete "Param4";
-                          params =
-                            [ { content = Concrete "Param5"; params = [] } ];
-                        };
-                      ];
-                  };
-                ];
-            };
-          params = [];
+          Ast.id = "Complicated";
+          constrs =
+            [
+              {
+                Ast.id = "Constr1";
+                data =
+                  [
+                    { Ast.params = []; content = Ast.Type_var "a" };
+                    {
+                      Ast.params = [];
+                      content =
+                        Ast.Function
+                          {
+                            Ast.arguments =
+                              [
+                                { Ast.params = []; content = Ast.Type_var "a" };
+                                { Ast.params = []; content = Ast.Type_var "a" };
+                              ];
+                          };
+                    };
+                    {
+                      Ast.params = [];
+                      content =
+                        Ast.Record
+                          {
+                            Ast.values =
+                              [
+                                {
+                                  Ast.key = "field";
+                                  value =
+                                    {
+                                      Ast.params = [];
+                                      content =
+                                        Ast.Function
+                                          {
+                                            Ast.arguments =
+                                              [
+                                                {
+                                                  Ast.params =
+                                                    [
+                                                      {
+                                                        Ast.params = [];
+                                                        content =
+                                                          Ast.Type_var "a";
+                                                      };
+                                                    ];
+                                                  content = Ast.Concrete "Maybe";
+                                                };
+                                                {
+                                                  Ast.params = [];
+                                                  content =
+                                                    Ast.Concrete "String";
+                                                };
+                                              ];
+                                          };
+                                    };
+                                };
+                              ];
+                            row_type = Some "a";
+                          };
+                    };
+                  ];
+              };
+            ];
+          params = [ "a" ];
         };
     ]
   in

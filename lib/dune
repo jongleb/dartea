@@ -2,11 +2,12 @@
  (modules lexer))
 
 (menhir
- (flags --strict)
+ (flags --strict --dump --explain)
  (modules parser))
 
 (library
  (name dartea)
+ (libraries menhirLib)
  (flags
   (-w -40 -w +26))
  (preprocess

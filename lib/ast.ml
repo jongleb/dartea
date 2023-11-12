@@ -17,6 +17,9 @@ and constr_typ = { constr_name : string; params : body_exprs list }
 and binop = { op_id : string; params : body_exprs * body_exprs }
 [@@deriving show]
 
+and let_expr = { let_name : string; body : body_exprs; in_ : body_exprs }
+[@@deriving show]
+
 and body_exprs =
   | String_constr of string
   | Int_constr of int
@@ -24,6 +27,7 @@ and body_exprs =
   | List_constr of body_exprs list
   | Constr of constr_typ
   | Binop of binop
+  | Let of let_expr
 [@@deriving show]
 
 and body_part = { name : string; expr : body_exprs } [@@deriving show]
