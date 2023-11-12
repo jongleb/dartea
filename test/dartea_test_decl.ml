@@ -133,9 +133,68 @@ let test_let_in_let_in_let _ =
   let result = Parser.prog Lexer.token (Lexing.from_string input) in
   assert_equal expect_data result
 
+let test_math _ =
+  let expect_data =
+    [
+      Ast.Declaration
+        {
+          Ast.type_part_data =
+            Some
+              {
+                Ast.decl_name = "kek";
+                type_alias = { Ast.params = []; content = Ast.Concrete "Int" };
+              };
+          body_part =
+            {
+              Ast.name = "kek";
+              expr =
+                Ast.Binop
+                  {
+                    Ast.op_id = "+";
+                    params =
+                      ( Ast.Int_constr 2,
+                        Ast.Binop
+                          {
+                            Ast.op_id = "/";
+                            params =
+                              ( Ast.Binop
+                                  {
+                                    Ast.op_id = "*";
+                                    params = (Ast.Int_constr 3, Ast.Int_constr 8);
+                                  },
+                                Ast.Int_constr 2 );
+                          } );
+                  };
+            };
+        };
+    ]
+  in
+  let input =
+    {|kek: Int                            
+    kek = 2 + 3 * 8 / 2|}
+  in
+  let result = Parser.prog Lexer.token (Lexing.from_string input) in
+  let head = List.hd result in
+  let rec calc_binops = function
+    | Binop { op_id = "/"; params = a, b } -> calc_binops a / calc_binops b
+    | Binop { op_id = "*"; params = a, b } -> calc_binops a * calc_binops b
+    | Binop { op_id = "-"; params = a, b } -> calc_binops a - calc_binops b
+    | Binop { op_id = "+"; params = a, b } -> calc_binops a + calc_binops b
+    | Int_constr i -> i
+    | _ -> assert false
+  in
+  let math_result =
+    match head with
+    | Declaration { body_part = { expr; _ }; _ } -> calc_binops expr
+    | _ -> assert false
+  in
+  assert_equal expect_data result;
+  assert_equal (2 + (3 * 8 / 2)) math_result
+
 let suite =
   [
     "test_decl_string" >:: test_decl_string;
     "test_let_in_binop" >:: test_let_in_binop;
     "test_let_in_let_in_let" >:: test_let_in_let_in_let;
+    "test_math" >:: test_math;
   ]

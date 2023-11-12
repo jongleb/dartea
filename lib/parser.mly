@@ -25,9 +25,15 @@
 %token LET
 %token IN
 %token PLUS
+%token MINUS
+%token TIMES
+%token DIV
 
 %nonassoc IN
-%left PLUS
+
+%left PLUS MINUS
+%left TIMES DIV
+// %nonassoc UMINUS
 
 %start <Ast.elm_ast list> prog
 
@@ -66,6 +72,9 @@ value_decl_body_exprs_top:
 %inline
 value_decl_body_exprs_binop:
     | PLUS { "+" }
+    | MINUS { "-" }
+    | DIV { "/" }
+    | TIMES { "*" }
 
 value_decl_body_exprs:
     | i=STRING { String_constr(i) }
