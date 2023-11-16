@@ -36,6 +36,9 @@ rule token = parse
   | "type"          { TYPE }
   | "alias"         { ALIAS }
   | "let"           { LET }
+   | "if"          { IF }
+  | "then"         { THEN }
+  | "else"           { ELSE }
   | "in"           { IN }
   | lcname          { 
                       let result = Lexing.lexeme lexbuf in

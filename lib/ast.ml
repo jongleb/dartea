@@ -32,6 +32,18 @@ and let_expr_item = {
 and let_expr = { let_expr_items : let_expr_item list; in_ : body_exprs }
 [@@deriving show]
 
+and if_then_else = {
+  if_exp : body_exprs;
+  then_exp : body_exprs;
+  else_exp : body_exprs option;
+}
+[@@deriving show]
+
+and record_value_item = { name : string; value : body_exprs } [@@deriving show]
+
+and apply_constr = { ident : body_exprs; args : body_exprs list }
+[@@deriving show]
+
 and body_exprs =
   | String_constr of string
   | Int_constr of int
@@ -40,6 +52,10 @@ and body_exprs =
   | Constr of constr_typ
   | Binop of binop
   | Let of let_expr
+  | If_then_else of if_then_else
+  | Record of record_value_item list
+  | Apply of apply_constr
+  | Ident of string
 [@@deriving show]
 
 and body_part = { name : string; expr : body_exprs } [@@deriving show]

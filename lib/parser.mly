@@ -28,12 +28,17 @@
 %token MINUS
 %token TIMES
 %token DIV
+%token IF
+%token THEN
+%token ELSE
 
 %nonassoc IN
+%nonassoc ELSE
 
 %left PLUS MINUS
 %left TIMES DIV
 // %nonassoc UMINUS
+
 
 %start <Ast.elm_ast list> prog
 
@@ -61,13 +66,37 @@ value_decl_type:
 value_decl_body:
     | id=LCNAME EQUAL value=value_decl_body_exprs_top { { name=id; expr=value;} }
 
-value_decl_body_exprs_top:
-    | i=UCNAME params=list(value_decl_body_exprs) { Constr({ constr_name=i; params }) }
+value_decl_body_exprs_composite:
     | e1=value_decl_body_exprs_top b=value_decl_body_exprs_binop e2=value_decl_body_exprs_top { Binop({ op_id=b; params=(e1, e2) }) }
     | LBRACKET e=separated_list(COMMA, value_decl_body_exprs_top) RBRACKET { List_constr(e) }
     | LET items=separated_nonempty_list(NEWLINE+, value_decl_body_let_def)
       IN in_=value_decl_body_exprs_top { Let({let_expr_items=items; in_; }) }
+    | IF if_exp=value_decl_body_exprs_top 
+        THEN then_exp=value_decl_body_exprs_top
+        ELSE else_exp=ioption(value_decl_body_exprs_top)
+        { If_then_else({ if_exp; then_exp; else_exp; }) }
+    | i=UCNAME params=list(value_decl_body_exprs) { Constr({ constr_name=i; params }) }     
+
+
+value_decl_body_exprs_plain: 
+    | LBRACE lst=separated_list(COMMA, value_decl_body_exprs_record) RBRACE { Record lst }
+    | e=value_decl_body_exprs_ident { e }
     | e=value_decl_body_exprs { e }
+
+value_decl_body_exprs_top:
+    | ident=value_decl_body_exprs_ident args=nonempty_list(value_decl_body_exprs_top_arguments) { Apply { ident; args; } }
+    | e=value_decl_body_exprs_plain { e }
+    | e=value_decl_body_exprs_composite { e }
+
+value_decl_body_exprs_top_arguments:
+    | LPAREN e=value_decl_body_exprs_composite RPAREN { e }
+    | e=value_decl_body_exprs_plain { e }
+
+value_decl_body_exprs_record:
+    name=LCNAME EQUAL value=value_decl_body_exprs_top { {name; value} }
+
+value_decl_body_exprs_ident:
+    | ident=LCNAME { Ident ident }
 
 value_decl_body_let_def:
     type_part=ioption(value_decl_body_let_def_type) body_part=value_decl_body_let_body
