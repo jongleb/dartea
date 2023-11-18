@@ -83,14 +83,21 @@ value_decl_body_exprs_plain:
     | e=value_decl_body_exprs_ident { e }
     | e=value_decl_body_exprs { e }
 
-value_decl_body_exprs_top:
+value_decl_body_exprs_fn:
     | ident=value_decl_body_exprs_ident args=nonempty_list(value_decl_body_exprs_top_arguments) { Apply { ident; args; } }
+
+value_decl_body_exprs_top:
+    | e=value_decl_body_exprs_fn { e }
     | e=value_decl_body_exprs_plain { e }
     | e=value_decl_body_exprs_composite { e }
 
 value_decl_body_exprs_top_arguments:
-    | LPAREN e=value_decl_body_exprs_composite RPAREN { e }
+    | LPAREN e=value_decl_body_exprs_top_arguments_composite RPAREN { e }
     | e=value_decl_body_exprs_plain { e }
+
+value_decl_body_exprs_top_arguments_composite:
+    | e=value_decl_body_exprs_composite { e }
+    | e=value_decl_body_exprs_fn { e }
 
 value_decl_body_exprs_record:
     name=LCNAME EQUAL value=value_decl_body_exprs_top { {name; value} }

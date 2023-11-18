@@ -484,6 +484,89 @@ let test_record _ =
   let result = Parser.prog Lexer.token (Lexing.from_string input) in
   assert_equal expect_data result
 
+let test_call_fn_inside_record _ =
+  let expect_data =
+    [
+      Ast.Declaration
+        {
+          Ast.type_part_data =
+            Some
+              {
+                Ast.decl_name = "lel";
+                type_alias = { Ast.params = []; content = Ast.Concrete "Lol" };
+              };
+          body_part =
+            {
+              Ast.name = "kek";
+              expr =
+                Ast.Record
+                  [
+                    {
+                      Ast.name = "a";
+                      value =
+                        Ast.Apply
+                          {
+                            Ast.ident = Ast.Ident "fn";
+                            args = [ Ast.Int_constr 2; Ast.Int_constr 3 ];
+                          };
+                    };
+                  ];
+            };
+        };
+    ]
+  in
+  let input = {|lel: Lol
+  kek = {a=fn 2 3}|} in
+  let result = Parser.prog Lexer.token (Lexing.from_string input) in
+  assert_equal expect_data result
+
+let test_call_fn_inside_record_plus_fn _ =
+  let expect_data =
+    [
+      Ast.Declaration
+        {
+          Ast.type_part_data =
+            Some
+              {
+                Ast.decl_name = "kek";
+                type_alias = { Ast.params = []; content = Ast.Concrete "Any" };
+              };
+          body_part =
+            {
+              Ast.name = "kek";
+              expr =
+                Ast.Record
+                  [
+                    {
+                      Ast.name = "a";
+                      value =
+                        Ast.Apply
+                          {
+                            Ast.ident = Ast.Ident "fn";
+                            args =
+                              [
+                                Ast.Int_constr 2;
+                                Ast.Apply
+                                  {
+                                    Ast.ident = Ast.Ident "fn2";
+                                    args =
+                                      [ Ast.Int_constr 2; Ast.Int_constr 3 ];
+                                  };
+                              ];
+                          };
+                    };
+                  ];
+            };
+        };
+    ]
+  in
+  let input =
+    {|kek: Any                            
+  kek = {a=fn 2 (fn2 2 3) }|}
+  in
+  let result = Parser.prog Lexer.token (Lexing.from_string input) in
+  assert_equal expect_data result
+
 let suite =
   [
     "test_decl_string" >:: test_decl_string;
@@ -495,4 +578,5 @@ let suite =
     "test_if_then_else" >:: test_if_then_else;
     "test_if_then_else_if_else" >:: test_if_then_else_if_else;
     "test_record" >:: test_record;
+    "test_call_fn_inside_record_plus_fn" >:: test_call_fn_inside_record_plus_fn;
   ]
