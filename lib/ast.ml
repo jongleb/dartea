@@ -44,6 +44,31 @@ and record_value_item = { name : string; value : body_exprs } [@@deriving show]
 and apply_constr = { ident : body_exprs; args : body_exprs list }
 [@@deriving show]
 
+and pattern =
+  | PAnything
+  | PVar of string
+  | PRecord of string list
+  (* | PAlias Pattern Name ?? *)
+  | PUnit
+  (* | PTuple of (pattern * pattern) (Maybe Pattern) *)
+  | PList of pattern list
+  | PCons of (pattern * pattern)
+  (* | PBool Union Bool*)
+  | PChr of string
+  | PStr of string
+  | PInt of int
+  | PCtor
+[@@deriving show]
+
+and pattern_data_item = { pattern : pattern; expr : body_exprs }
+[@@deriving show]
+
+and pattern_data = {
+  expr : body_exprs;
+  pattern_data_items : pattern_data_item list;
+}
+[@@deriving show]
+
 and body_exprs =
   | String_constr of string
   | Int_constr of int
@@ -56,6 +81,7 @@ and body_exprs =
   | Record of record_value_item list
   | Apply of apply_constr
   | Ident of string
+  | Case_of of pattern_data
 [@@deriving show]
 
 and body_part = { name : string; expr : body_exprs } [@@deriving show]

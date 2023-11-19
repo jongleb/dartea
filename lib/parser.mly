@@ -31,9 +31,15 @@
 %token IF
 %token THEN
 %token ELSE
+%token CASE
+%token OF
+%token WILDCARD
+
+%token END_MATCHING
 
 %nonassoc IN
 %nonassoc ELSE
+// %nonassoc ARROW
 
 %left PLUS MINUS
 %left TIMES DIV
@@ -75,7 +81,20 @@ value_decl_body_exprs_composite:
         THEN then_exp=value_decl_body_exprs_top
         ELSE else_exp=ioption(value_decl_body_exprs_top)
         { If_then_else({ if_exp; then_exp; else_exp; }) }
-    | i=UCNAME params=list(value_decl_body_exprs) { Constr({ constr_name=i; params }) }     
+    | i=UCNAME params=list(value_decl_body_exprs) { Constr({ constr_name=i; params }) }
+    | CASE  expr=value_decl_body_exprs_top OF 
+         pattern_data_items=separated_nonempty_list(NEWLINE, value_decl_body_exprs_case) END_MATCHING
+        { Case_of({ expr; pattern_data_items=[] })}
+
+
+value_decl_body_exprs_case:
+    | pattern=value_decl_body_exprs_pattern ARROW expr=value_decl_body_exprs_top
+        { { pattern; expr; } }
+
+value_decl_body_exprs_pattern:
+    | i=STRING { PStr(i) }
+    | i=INT { PInt(i) }
+    | i=WILDCARD { PAnything }
 
 
 value_decl_body_exprs_plain: 

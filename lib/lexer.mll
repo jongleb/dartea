@@ -14,6 +14,8 @@
     ("r", "\r");
     (" ", " ");
   ]
+
+  (* let update *)
 }
 
 let ucname = ['A'-'Z'] ['a'-'z' 'A'-'Z' '0'-'9' '_']*
@@ -35,6 +37,8 @@ let float =
 rule token = parse
   | "type"          { TYPE }
   | "alias"         { ALIAS }
+  | "case"           { CASE }
+  | "of"            { OF }
   | "let"           { LET }
    | "if"          { IF }
   | "then"         { THEN }
@@ -61,6 +65,7 @@ rule token = parse
   | "->"            { ARROW }
   | "+"       { PLUS }
   | "-"       { MINUS }
+  | "_"       { WILDCARD }
   | "*"        {TIMES}
   | "/"        {DIV}
   | int             { INT (int_of_string (Lexing.lexeme lexbuf)) }
