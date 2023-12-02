@@ -577,6 +577,83 @@ kek = {a=fn 2 (fn2 2 3) }|}
   let result = Main.parse (Lexing.from_string input) in
   assert_equal expect_data result
 
+let test_list_pm _ =
+  let expect_data =
+    [
+      Ast.Declaration
+        {
+          Ast.type_part_data =
+            Some
+              {
+                Ast.decl_name = "listTestPM";
+                type_alias = { Ast.params = []; content = Ast.Concrete "Int" };
+              };
+          body_part =
+            {
+              Ast.name = "listTestPM";
+              expr =
+                Ast.Case_of
+                  {
+                    Ast.expr =
+                      Ast.List_constr
+                        [ Ast.Int_constr 1; Ast.Int_constr 2; Ast.Int_constr 4 ];
+                    pattern_data_items =
+                      [
+                        {
+                          Ast.pattern =
+                            Ast.PList
+                              [ Ast.PInt 1; Ast.PInt 3; Ast.PInt 5; Ast.PInt 6 ];
+                          expr = Ast.Int_constr 123;
+                        };
+                        {
+                          Ast.pattern =
+                            Ast.PList
+                              [
+                                Ast.PAnything;
+                                Ast.PAnything;
+                                Ast.PAnything;
+                                Ast.PInt 19;
+                              ];
+                          expr = Ast.Int_constr 60;
+                        };
+                        {
+                          Ast.pattern = Ast.PAnything;
+                          expr =
+                            Ast.Case_of
+                              {
+                                Ast.expr = Ast.Int_constr 2;
+                                pattern_data_items =
+                                  [
+                                    {
+                                      Ast.pattern = Ast.PInt 2;
+                                      expr = Ast.Int_constr 6;
+                                    };
+                                    {
+                                      Ast.pattern = Ast.PAnything;
+                                      expr = Ast.Int_constr 0;
+                                    };
+                                  ];
+                              };
+                        };
+                      ];
+                  };
+            };
+        };
+    ]
+  in
+  let input =
+    {|
+listTestPM: Int                     
+listTestPM = case [1, 2, 4] of
+  [1, 3, 5, 6] -> 123
+  [_, _, _, 19] -> 60
+  _ -> case 2 of
+    2 -> 6
+    _ -> 0|}
+  in
+  let result = Main.parse (Lexing.from_string input) in
+  assert_equal expect_data result
+
 let suite =
   [
     "test_decl_string" >:: test_decl_string;
@@ -589,4 +666,5 @@ let suite =
     "test_if_then_else_if_else" >:: test_if_then_else_if_else;
     "test_record" >:: test_record;
     "test_call_fn_inside_record_plus_fn" >:: test_call_fn_inside_record_plus_fn;
+    "test_list_pm" >:: test_list_pm;
   ]

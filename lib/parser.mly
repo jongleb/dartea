@@ -8,7 +8,6 @@
 %token <string> UCNAME
 %token <int> INT
 %token <string> STRING
-%token <int> SPACE
 %token <float> FLOAT
 %token EQUAL
 %token EOF
@@ -96,6 +95,8 @@ value_decl_body_exprs_pattern:
     | i=STRING { PStr(i) }
     | i=INT { PInt(i) }
     | i=WILDCARD { PAnything }
+    | i=LCNAME { PVar(i) }
+    | LBRACKET lst=separated_list(COMMA, value_decl_body_exprs_pattern) RBRACKET { PList(lst) }
 
 
 value_decl_body_exprs_plain: 
