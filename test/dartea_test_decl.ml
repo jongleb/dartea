@@ -695,7 +695,7 @@ dfsf = case 2 of
   let result = Main.parse (Lexing.from_string input) in
   assert_equal expect_data result
 
-let test_cons_pm _ =
+let test_constr_pm _ =
   let expect_data =
     [
       Ast.Declaration
@@ -749,6 +749,48 @@ abcd = case b of
   let result = Main.parse (Lexing.from_string input) in
   assert_equal expect_data result
 
+let test_cons_pm _ =
+  let expect_data =
+    [
+      Ast.Declaration
+        {
+          Ast.type_part_data =
+            Some
+              {
+                Ast.decl_name = "dsf";
+                type_alias = { Ast.params = []; content = Ast.Concrete "Int" };
+              };
+          body_part =
+            {
+              Ast.name = "dfsf";
+              expr =
+                Ast.Case_of
+                  {
+                    Ast.expr = Ast.Int_constr 2;
+                    pattern_data_items =
+                      [
+                        {
+                          Ast.pattern =
+                            Ast.PCons (Ast.PInt 2, Ast.PList [ Ast.PInt 2 ]);
+                          expr = Ast.Int_constr 3;
+                        };
+                        { Ast.pattern = Ast.PAnything; expr = Ast.Int_constr 5 };
+                      ];
+                  };
+            };
+        };
+    ]
+  in
+  let input =
+    {|
+dsf: Int                           
+dfsf = case 2 of
+    2 :: [2] -> 3
+    _ -> 5|}
+  in
+  let result = Main.parse (Lexing.from_string input) in
+  assert_equal expect_data result
+
 let suite =
   [
     "test_decl_string" >:: test_decl_string;
@@ -763,5 +805,6 @@ let suite =
     "test_call_fn_inside_record_plus_fn" >:: test_call_fn_inside_record_plus_fn;
     "test_list_pm" >:: test_list_pm;
     "test_record_pm" >:: test_record_pm;
+    "test_constr_pm" >:: test_constr_pm;
     "test_cons_pm" >:: test_cons_pm;
   ]

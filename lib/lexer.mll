@@ -66,6 +66,7 @@ rule token = parse
   | "-"       { [MINUS] }
   | "_"       { [WILDCARD] }
   | "*"        {[TIMES]}
+  | "::"      {[CONS]}
   | "/"        {[DIV]}
   | int             { [INT (int_of_string (Lexing.lexeme lexbuf))] }
   | float               { [FLOAT (float_of_string(Lexing.lexeme lexbuf))] }

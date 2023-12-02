@@ -34,6 +34,7 @@
 %token CASE
 %token OF
 %token WILDCARD
+%token CONS
 
 %token INDENT DEDENT
 
@@ -63,8 +64,8 @@ ty_decl:
         { Type_dec({ id; constrs; params; })}
 
 value_decl:
-    | type_part_data=value_decl_type NEWLINE body_part=value_decl_body 
-        { Declaration ({ type_part_data=Some(type_part_data); body_part }) }
+    | type_part_data=ioption(terminated(value_decl_type, NEWLINE)) body_part=value_decl_body 
+        { Declaration ({ type_part_data; body_part }) }
 
 value_decl_type:
     | decl_name=LCNAME COLON type_alias=ty_al_exp_head { { decl_name; type_alias;  } }  
@@ -97,6 +98,7 @@ value_decl_body_exprs_pattern_top:
 
 value_decl_body_exprs_pattern_composite:
     | e=value_decl_body_exprs_pattern_p_ctor { e }
+    | a=value_decl_body_exprs_pattern_plain CONS b=value_decl_body_exprs_pattern_plain { PCons(a, b) }
 
 value_decl_body_exprs_pattern_p_ctor:
     | name=UCNAME lst=list(value_decl_body_exprs_pattern_p_ctor_body) { PCtor(name, lst) }
