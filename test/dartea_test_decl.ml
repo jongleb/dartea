@@ -654,6 +654,101 @@ listTestPM = case [1, 2, 4] of
   let result = Main.parse (Lexing.from_string input) in
   assert_equal expect_data result
 
+let test_record_pm _ =
+  let expect_data =
+    [
+      Ast.Declaration
+        {
+          Ast.type_part_data =
+            Some
+              {
+                Ast.decl_name = "lol";
+                type_alias = { Ast.params = []; content = Ast.Type_var "kek" };
+              };
+          body_part =
+            {
+              Ast.name = "dfsf";
+              expr =
+                Ast.Case_of
+                  {
+                    Ast.expr = Ast.Int_constr 2;
+                    pattern_data_items =
+                      [
+                        {
+                          Ast.pattern = Ast.PRecord [ "a"; "b"; "c" ];
+                          expr = Ast.Int_constr 3;
+                        };
+                        { Ast.pattern = Ast.PAnything; expr = Ast.Int_constr 5 };
+                      ];
+                  };
+            };
+        };
+    ]
+  in
+  let input =
+    {|
+lol: kek                            
+dfsf = case 2 of
+  {a, b, c} -> 3
+  _ -> 5|}
+  in
+  let result = Main.parse (Lexing.from_string input) in
+  assert_equal expect_data result
+
+let test_cons_pm _ =
+  let expect_data =
+    [
+      Ast.Declaration
+        {
+          Ast.type_part_data =
+            Some
+              {
+                Ast.decl_name = "abcd";
+                type_alias = { Ast.params = []; content = Ast.Concrete "Int" };
+              };
+          body_part =
+            {
+              Ast.name = "abcd";
+              expr =
+                Ast.Case_of
+                  {
+                    Ast.expr = Ast.Ident "b";
+                    pattern_data_items =
+                      [
+                        {
+                          Ast.pattern =
+                            Ast.PCtor
+                              ( "F",
+                                [
+                                  Ast.PCtor
+                                    ("C", [ Ast.PCtor ("D", [ Ast.PStr "" ]) ]);
+                                ] );
+                          expr = Ast.Int_constr 3;
+                        };
+                        {
+                          Ast.pattern =
+                            Ast.PCtor
+                              ("F", [ Ast.PCtor ("C", [ Ast.PAnything ]) ]);
+                          expr = Ast.Int_constr 6;
+                        };
+                        { Ast.pattern = Ast.PAnything; expr = Ast.Int_constr 4 };
+                      ];
+                  };
+            };
+        };
+    ]
+  in
+  let input =
+    {|
+abcd: Int                           
+abcd = case b of
+  F (C (D "")) -> 3
+  F (C _) -> 6
+  _ -> 4|}
+  in
+  let result = Main.parse (Lexing.from_string input) in
+  assert_equal expect_data result
+
 let suite =
   [
     "test_decl_string" >:: test_decl_string;
@@ -667,4 +762,6 @@ let suite =
     "test_record" >:: test_record;
     "test_call_fn_inside_record_plus_fn" >:: test_call_fn_inside_record_plus_fn;
     "test_list_pm" >:: test_list_pm;
+    "test_record_pm" >:: test_record_pm;
+    "test_cons_pm" >:: test_cons_pm;
   ]

@@ -57,7 +57,7 @@ and pattern =
   | PChr of string
   | PStr of string
   | PInt of int
-  | PCtor
+  | PCtor of (string * pattern list)
 [@@deriving show]
 
 and pattern_data_item = { pattern : pattern; expr : body_exprs }

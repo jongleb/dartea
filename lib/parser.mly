@@ -88,16 +88,30 @@ value_decl_body_exprs_composite:
 
 
 value_decl_body_exprs_case:
-    | pattern=value_decl_body_exprs_pattern ARROW expr=value_decl_body_exprs_top
+    | pattern=value_decl_body_exprs_pattern_top ARROW expr=value_decl_body_exprs_top
         { { pattern; expr; } }
 
-value_decl_body_exprs_pattern:
+value_decl_body_exprs_pattern_top:
+    | e=value_decl_body_exprs_pattern_composite { e }
+    | e=value_decl_body_exprs_pattern_plain { e }
+
+value_decl_body_exprs_pattern_composite:
+    | e=value_decl_body_exprs_pattern_p_ctor { e }
+
+value_decl_body_exprs_pattern_p_ctor:
+    | name=UCNAME lst=list(value_decl_body_exprs_pattern_p_ctor_body) { PCtor(name, lst) }
+
+value_decl_body_exprs_pattern_p_ctor_body:
+    | LPAREN e=value_decl_body_exprs_pattern_composite RPAREN { e }
+    | e=value_decl_body_exprs_pattern_plain { e }
+
+value_decl_body_exprs_pattern_plain:
     | i=STRING { PStr(i) }
     | i=INT { PInt(i) }
     | i=WILDCARD { PAnything }
     | i=LCNAME { PVar(i) }
-    | LBRACKET lst=separated_list(COMMA, value_decl_body_exprs_pattern) RBRACKET { PList(lst) }
-
+    | LBRACE lst=separated_list(COMMA, LCNAME) RBRACE { PRecord(lst) }
+    | LBRACKET lst=separated_list(COMMA, value_decl_body_exprs_pattern_top) RBRACKET { PList(lst) }
 
 value_decl_body_exprs_plain: 
     | LBRACE lst=separated_list(COMMA, value_decl_body_exprs_record) RBRACE { Record lst }
