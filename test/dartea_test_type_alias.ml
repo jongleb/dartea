@@ -33,7 +33,7 @@ let test_ty_alias_record _ =
     ]
   in
   let input = "type alias User = { name: String, age: Int }" in
-  let result = Parser.prog Lexer.token (Lexing.from_string input) in
+  let result = Main.parse (Lexing.from_string input) in
   assert_equal expect_data result
 
 let test_ty_alias_type_with_params _ =
@@ -69,7 +69,7 @@ let test_ty_alias_type_with_params _ =
   let input =
     "type alias Complicated = With Param1 (Param2 Param3 (Param4 Param5))"
   in
-  let result = Parser.prog Lexer.token (Lexing.from_string input) in
+  let result = Main.parse (Lexing.from_string input) in
   assert_equal expect_data result
 
 let test_ty_alias_type_with_params_and_record_param _ =
@@ -116,7 +116,7 @@ let test_ty_alias_type_with_params_and_record_param _ =
     ]
   in
   let input = "type alias Complicated = With Param1 (Param2 {a: String})" in
-  let result = Parser.prog Lexer.token (Lexing.from_string input) in
+  let result = Main.parse (Lexing.from_string input) in
   assert_equal expect_data result
 
 let test_ty_alias_type_with_params_and_record_param_with_a_lot_of_parens _ =
@@ -165,7 +165,7 @@ let test_ty_alias_type_with_params_and_record_param_with_a_lot_of_parens _ =
   let input =
     "type alias Complicated = With ((Param1)) (Param2 {a: ((((((String))))))})"
   in
-  let result = Parser.prog Lexer.token (Lexing.from_string input) in
+  let result = Main.parse (Lexing.from_string input) in
   assert_equal expect_data result
 
 let test_ty_alias_tuples _ =
@@ -189,7 +189,7 @@ let test_ty_alias_tuples _ =
     ]
   in
   let input = "type alias User = (String, Int)" in
-  let result = Parser.prog Lexer.token (Lexing.from_string input) in
+  let result = Main.parse (Lexing.from_string input) in
   assert_equal expect_data result
 
 let test_ty_alias_and_record_and_plain _ =
@@ -271,7 +271,7 @@ let test_ty_alias_and_record_and_plain _ =
     "type alias MaybeUser = Maybe (String, { age: Int, dog: Maybe {dogName: \
      String} })"
   in
-  let result = Parser.prog Lexer.token (Lexing.from_string input) in
+  let result = Main.parse (Lexing.from_string input) in
   assert_equal expect_data result
 
 let test_ty_alias_and_record_and_plain_and_one_more_tuple _ =
@@ -375,7 +375,7 @@ let test_ty_alias_and_record_and_plain_and_one_more_tuple _ =
     "type alias MaybeUser = Maybe (String, { age: Int, dog: Maybe {dogName: \
      (String, Int, Int)} })"
   in
-  let result = Parser.prog Lexer.token (Lexing.from_string input) in
+  let result = Main.parse (Lexing.from_string input) in
   assert_equal expect_data result
 
 let test_ty_alias_record_with_params_row_type _ =
@@ -405,7 +405,7 @@ let test_ty_alias_record_with_params_row_type _ =
     ]
   in
   let input = "type alias User a = { a | fieldN: String }" in
-  let result = Parser.prog Lexer.token (Lexing.from_string input) in
+  let result = Main.parse (Lexing.from_string input) in
   assert_equal expect_data result
 
 let test_function_types _ =
@@ -432,7 +432,7 @@ let test_function_types _ =
     ]
   in
   let input = "type alias Id a = a -> a" in
-  let result = Parser.prog Lexer.token (Lexing.from_string input) in
+  let result = Main.parse (Lexing.from_string input) in
   assert_equal expect_data result
 
 let test_function_with_function_param_types _ =
@@ -502,14 +502,14 @@ let test_function_with_function_param_types _ =
     "type alias FunName a b c = String -> Int -> (a, b) -> (String -> a -> (b, \
      b, c))"
   in
-  let result = Parser.prog Lexer.token (Lexing.from_string input) in
+  let result = Main.parse (Lexing.from_string input) in
   assert_equal expect_data result
 
 let test_any_fail_if_type_parametr_is_uppecase _ =
   let input = "type alias Id A = A -> A" in
   let res =
     try
-      let _ = Parser.prog Lexer.token (Lexing.from_string input) in
+      let _ = Main.parse (Lexing.from_string input) in
       true
     with _ -> false
   in
@@ -519,7 +519,7 @@ let test_any_fail_if_ty_alias_name_is_lowercase _ =
   let input = "type alias anyName a = a -> a" in
   let res =
     try
-      let _ = Parser.prog Lexer.token (Lexing.from_string input) in
+      let _ = Main.parse (Lexing.from_string input) in
       true
     with _ -> false
   in
@@ -529,7 +529,7 @@ let test_any_fail_if_any_char_in_middle_of_valid_code _ =
   let input = "type alias ValidName - a = a -> a" in
   let res =
     try
-      let _ = Parser.prog Lexer.token (Lexing.from_string input) in
+      let _ = Main.parse (Lexing.from_string input) in
       true
     with _ -> false
   in
@@ -599,7 +599,7 @@ let test_fun_no_lrbraces _ =
         };
     ]
   in
-  let result = Parser.prog Lexer.token (Lexing.from_string input) in
+  let result = Main.parse (Lexing.from_string input) in
   assert_equal expect result
 
 let suite =

@@ -1,9 +1,21 @@
 open Lexer
 
+let parse lexbuf =
+  let queue = Queue.create () in
+
+  Parser.prog
+    (fun i ->
+      if Queue.length queue > 0 then Queue.take queue
+      else
+        let q = i |> Lexer.token |> List.to_seq |> Queue.of_seq in
+        Queue.transfer q queue;
+        Queue.take queue)
+    lexbuf
+
 let hello () =
   let lexbuf = Lexing.from_channel stdin in
   try
-    let cst = Parser.prog Lexer.token lexbuf in
+    let cst = parse lexbuf in
     print_endline "Succesfully parsed";
     List.iter
       (fun i -> i |> Format.asprintf "%a" Ast.pp_elm_ast |> print_endline)

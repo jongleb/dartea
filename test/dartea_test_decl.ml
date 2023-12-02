@@ -17,9 +17,10 @@ let test_decl_string _ =
         };
     ]
   in
-  let input = {|thisIsTheString: String
-    thisIsTheString = "This"|} in
-  let result = Parser.prog Lexer.token (Lexing.from_string input) in
+  let input = {|
+thisIsTheString: String
+thisIsTheString = "This"|} in
+  let result = Main.parse (Lexing.from_string input) in
   assert_equal expect_data result
 
 let test_let_in _ =
@@ -53,9 +54,10 @@ let test_let_in _ =
         };
     ]
   in
-  let input = {|lol: Kek                            
-  lol = let a = 2 in 2|} in
-  let result = Parser.prog Lexer.token (Lexing.from_string input) in
+  let input = {|
+lol: Kek                            
+lol = let a = 2 in 2|} in
+  let result = Main.parse (Lexing.from_string input) in
   assert_equal expect_data result
 
 let test_let_in_binop _ =
@@ -95,10 +97,11 @@ let test_let_in_binop _ =
     ]
   in
   let input =
-    {|lol: Kek                            
-    lol = let a = 2 in 2 + 3|}
+    {|
+lol: Kek                            
+lol = let a = 2 in 2 + 3|}
   in
-  let result = Parser.prog Lexer.token (Lexing.from_string input) in
+  let result = Main.parse (Lexing.from_string input) in
   assert_equal expect_data result
 
 let test_let_in_let_in_let _ =
@@ -167,10 +170,11 @@ let test_let_in_let_in_let _ =
     ]
   in
   let input =
-    {|kek: Lol                            
-  kek = let a = let b = let c = 3 in 3 in 3 in 3|}
+    {|
+kek: Lol                            
+kek = let a = let b = let c = 3 in 3 in 3 in 3|}
   in
-  let result = Parser.prog Lexer.token (Lexing.from_string input) in
+  let result = Main.parse (Lexing.from_string input) in
   assert_equal expect_data result
 
 let test_math _ =
@@ -209,11 +213,10 @@ let test_math _ =
         };
     ]
   in
-  let input =
-    {|kek: Int                            
-    kek = 2 + 3 * 8 / 2|}
-  in
-  let result = Parser.prog Lexer.token (Lexing.from_string input) in
+  let input = {|
+kek: Int                            
+kek = 2 + 3 * 8 / 2|} in
+  let result = Main.parse (Lexing.from_string input) in
   let head = List.hd result in
   let rec calc_binops = function
     | Binop { op_id = "/"; params = a, b } -> calc_binops a / calc_binops b
@@ -270,12 +273,13 @@ let test_multiple_let _ =
     ]
   in
   let input =
-    {|kek: Lol                            
-  kek = let a = 2
-  b = 3 
-  c = 4 in 3|}
+    {|
+kek: Lol                            
+kek = let a = 2
+b = 3 
+c = 4 in 3|}
   in
-  let result = Parser.prog Lexer.token (Lexing.from_string input) in
+  let result = Main.parse (Lexing.from_string input) in
   assert_equal expect_data result
 
 let test_multiple_let_with_types _ =
@@ -338,16 +342,17 @@ let test_multiple_let_with_types _ =
     ]
   in
   let input =
-    {|kek: Lol                            
-    kek = let a = 2
+    {|
+kek: Lol                            
+kek = let a = 2
 
-    b: Int
-    b = 3 
+b: Int
+b = 3 
 
-    c: Int
-    c = 4 in 3|}
+c: Int
+c = 4 in 3|}
   in
-  let result = Parser.prog Lexer.token (Lexing.from_string input) in
+  let result = Main.parse (Lexing.from_string input) in
   assert_equal expect_data result
 
 let test_if_then_else _ =
@@ -388,10 +393,11 @@ let test_if_then_else _ =
     ]
   in
   let input =
-    {|lol: Kek                            
-    lol = if True then 3 + 2 else 4 + 5|}
+    {|
+lol: Kek                            
+lol = if True then 3 + 2 else 4 + 5|}
   in
-  let result = Parser.prog Lexer.token (Lexing.from_string input) in
+  let result = Main.parse (Lexing.from_string input) in
   assert_equal expect_data result
 
 let test_if_then_else_if_else _ =
@@ -447,10 +453,11 @@ let test_if_then_else_if_else _ =
     ]
   in
   let input =
-    {|lol: Kek                            
-    lol = if True then 3 + 2 else if False then 4 else if True then 10 else 155|}
+    {|
+lol: Kek                            
+lol = if True then 3 + 2 else if False then 4 else if True then 10 else 155|}
   in
-  let result = Parser.prog Lexer.token (Lexing.from_string input) in
+  let result = Main.parse (Lexing.from_string input) in
   assert_equal expect_data result
 
 let test_record _ =
@@ -478,10 +485,11 @@ let test_record _ =
     ]
   in
   let input =
-    {|lel: Kek                            
-    lel = { a = "LOL", b = 69 }|}
+    {|
+lel: Kek                            
+lel = { a = "LOL", b = 69 }|}
   in
-  let result = Parser.prog Lexer.token (Lexing.from_string input) in
+  let result = Main.parse (Lexing.from_string input) in
   assert_equal expect_data result
 
 let test_call_fn_inside_record _ =
@@ -515,9 +523,10 @@ let test_call_fn_inside_record _ =
         };
     ]
   in
-  let input = {|lel: Lol
-  kek = {a=fn 2 3}|} in
-  let result = Parser.prog Lexer.token (Lexing.from_string input) in
+  let input = {|
+lel: Lol
+kek = {a=fn 2 3}|} in
+  let result = Main.parse (Lexing.from_string input) in
   assert_equal expect_data result
 
 let test_call_fn_inside_record_plus_fn _ =
@@ -561,10 +570,11 @@ let test_call_fn_inside_record_plus_fn _ =
     ]
   in
   let input =
-    {|kek: Any                            
-  kek = {a=fn 2 (fn2 2 3) }|}
+    {|
+kek: Any                            
+kek = {a=fn 2 (fn2 2 3) }|}
   in
-  let result = Parser.prog Lexer.token (Lexing.from_string input) in
+  let result = Main.parse (Lexing.from_string input) in
   assert_equal expect_data result
 
 let suite =

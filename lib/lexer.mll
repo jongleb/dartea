@@ -14,20 +14,17 @@
     ("r", "\r");
     (" ", " ");
   ]
-
-  (* let update *)
 }
 
 let ucname = ['A'-'Z'] ['a'-'z' 'A'-'Z' '0'-'9' '_']*
 
 let lcname = ['a'-'z'] ['a'-'z' 'A'-'Z' '0'-'9' '_']*
 
-let newline = '\r' | '\n' | "\r\n"
+let whitespace = [' ' '\t']
+
+let indent = '\n' ' '*
 
 let int = ['0'-'9'] ['0'-'9' '_']*
-
-let space_or_tab = [' ' '\t']*
-
 let float =
   '-'? ['0'-'9'] ['0'-'9' '_']*
   (('.' ['0'-'9' '_']*) (['e' 'E'] ['+' '-']? ['0'-'9'] ['0'-'9' '_']*)? |
@@ -35,45 +32,44 @@ let float =
 
 
 rule token = parse
-  | "type"          { TYPE }
-  | "alias"         { ALIAS }
-  | "case"           { CASE }
-  | "of"            { OF }
-  | "let"           { LET }
-   | "if"          { IF }
-  | "then"         { THEN }
-  | "else"           { ELSE }
-  | "in"           { IN }
+  | indent as s     { Indenter.handle_stack (String.length s - 1) }
+  | whitespace+     { token lexbuf }
+  | "type"          { [TYPE] }
+  | "alias"         { [ALIAS ]}
+  | "case"          {[ CASE] }
+  | "of"            { [OF] }
+  | "let"           { [LET] }
+  | "if"            { [IF] }
+  | "then"          { [THEN] }
+  | "else"          {[ ELSE] }
+  | "in"            { [IN] }
   | lcname          { 
                       let result = Lexing.lexeme lexbuf in
                       if result = "type" then 
                         raise (Error "LCNAME ERROR") 
-                      else LCNAME result
+                      else [LCNAME result]
                     }
-  | ucname          { UCNAME (Lexing.lexeme lexbuf) }
-  | '='             { EQUAL }
-  | eof             { EOF }
-  | "("             { LPAREN }
-  | ")"             { RPAREN } 
-  | "{"             { LBRACE }
-  | "}"             { RBRACE }
-  | "["             {LBRACKET}
-  | "]"             {RBRACKET}
-  | ","             { COMMA }
-  | ":"             { COLON }
-  | "|"             { PIPE }
-  | "->"            { ARROW }
-  | "+"       { PLUS }
-  | "-"       { MINUS }
-  | "_"       { WILDCARD }
-  | "*"        {TIMES}
-  | "/"        {DIV}
-  | int             { INT (int_of_string (Lexing.lexeme lexbuf)) }
-  | float               { FLOAT (float_of_string(Lexing.lexeme lexbuf)) }
-  | '"'                 { STRING (string "" lexbuf) }
-  | "\r\n"           { Lexing.new_line lexbuf; token lexbuf;}
-  | '\n'        { Lexing.new_line lexbuf; NEWLINE }
-  | [' ' '\t']      { token lexbuf;  } (* temporary ignore it *)
+  | ucname          { [UCNAME (Lexing.lexeme lexbuf)] }
+  | '='             { [EQUAL] }
+  | eof             { Indenter.on_eof () }
+  | "("             { [LPAREN] }
+  | ")"             { [RPAREN] } 
+  | "{"             { [LBRACE] }
+  | "}"             { [RBRACE] }
+  | "["             {[LBRACKET]}
+  | "]"             {[RBRACKET]}
+  | ","             { [COMMA] }
+  | ":"             { [COLON] }
+  | "|"             { [PIPE] }
+  | "->"            { [ARROW] }
+  | "+"       { [PLUS] }
+  | "-"       { [MINUS] }
+  | "_"       { [WILDCARD] }
+  | "*"        {[TIMES]}
+  | "/"        {[DIV]}
+  | int             { [INT (int_of_string (Lexing.lexeme lexbuf))] }
+  | float               { [FLOAT (float_of_string(Lexing.lexeme lexbuf))] }
+  | '"'                 { [STRING (string "" lexbuf)] }
   | _               { raise (Error (Printf.sprintf "At offset %d: unexpected character.\n" (Lexing.lexeme_start lexbuf))) }
 
   and string acc = parse

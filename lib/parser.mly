@@ -8,6 +8,7 @@
 %token <string> UCNAME
 %token <int> INT
 %token <string> STRING
+%token <int> SPACE
 %token <float> FLOAT
 %token EQUAL
 %token EOF
@@ -35,7 +36,7 @@
 %token OF
 %token WILDCARD
 
-%token END_MATCHING
+%token INDENT DEDENT
 
 %nonassoc IN
 %nonassoc ELSE
@@ -50,7 +51,7 @@
 
 %%
 prog: 
-    lst = separated_list(NEWLINE, decls); EOF { lst }
+    NEWLINE*; lst = separated_list(NEWLINE+, decls); EOF { lst }
 
 decls:
     | d=ty_decl { d }
@@ -82,9 +83,9 @@ value_decl_body_exprs_composite:
         ELSE else_exp=ioption(value_decl_body_exprs_top)
         { If_then_else({ if_exp; then_exp; else_exp; }) }
     | i=UCNAME params=list(value_decl_body_exprs) { Constr({ constr_name=i; params }) }
-    | CASE  expr=value_decl_body_exprs_top OF 
-         pattern_data_items=separated_nonempty_list(NEWLINE, value_decl_body_exprs_case) END_MATCHING
-        { Case_of({ expr; pattern_data_items=[] })}
+    | CASE expr=value_decl_body_exprs_top OF INDENT
+      pattern_data_items=separated_nonempty_list(NEWLINE, value_decl_body_exprs_case) DEDENT
+        { Case_of({ expr; pattern_data_items; })}
 
 
 value_decl_body_exprs_case:
