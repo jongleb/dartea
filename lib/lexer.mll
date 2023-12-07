@@ -68,6 +68,7 @@ rule token = parse
   | "*"        {[TIMES]}
   | "::"      {[CONS]}
   | "/"        {[DIV]}
+  | "()"              {[UNIT]}
   | int             { [INT (int_of_string (Lexing.lexeme lexbuf))] }
   | float               { [FLOAT (float_of_string(Lexing.lexeme lexbuf))] }
   | '"'                 { [STRING (string "" lexbuf)] }

@@ -1,19 +1,27 @@
 open OUnit2
 open Dartea
-open Ast
+open Dartea_ast_2
 
 let test_decl_string _ =
   let expect_data =
     [
-      Declaration
+      Impl.Top_declaration
         {
-          type_part_data =
+          Declaration.type_part_data =
             Some
               {
-                decl_name = "thisIsTheString";
-                type_alias = { content = Concrete "String"; params = [] };
+                Declaration.name = "thisIsTheString";
+                type_alias =
+                  {
+                    Typedef.parameters = [];
+                    body = Typedef.Tkind_concrete "String";
+                  };
               };
-          body_part = { name = "thisIsTheString"; expr = String_constr "This" };
+          body_part =
+            {
+              Declaration.name = "thisIsTheString";
+              expr = Expr.Expr_string "This";
+            };
         };
     ]
   in
@@ -26,29 +34,33 @@ thisIsTheString = "This"|} in
 let test_let_in _ =
   let expect_data =
     [
-      Ast.Declaration
+      Impl.Top_declaration
         {
-          Ast.type_part_data =
+          Declaration.type_part_data =
             Some
               {
-                Ast.decl_name = "lol";
-                type_alias = { Ast.params = []; content = Ast.Concrete "Kek" };
+                Declaration.name = "lol";
+                type_alias =
+                  {
+                    Typedef.parameters = [];
+                    body = Typedef.Tkind_concrete "Kek";
+                  };
               };
           body_part =
             {
-              Ast.name = "lol";
+              Declaration.name = "lol";
               expr =
-                Ast.Let
+                Expr.Expr_let
                   {
-                    let_expr_items =
+                    Expr.bindings =
                       [
                         {
-                          body_part =
-                            { Ast.name = "a"; body = Ast.Int_constr 2 };
-                          type_part = None;
+                          Expr.bind_type = None;
+                          bind_body =
+                            { Expr.name = "a"; body = Expr.Expr_int 2 };
                         };
                       ];
-                    in_ = Ast.Int_constr 2;
+                    body = Expr.Expr_int 2;
                   };
             };
         };
@@ -63,33 +75,37 @@ lol = let a = 2 in 2|} in
 let test_let_in_binop _ =
   let expect_data =
     [
-      Ast.Declaration
+      Impl.Top_declaration
         {
-          Ast.type_part_data =
+          Declaration.type_part_data =
             Some
               {
-                Ast.decl_name = "lol";
-                type_alias = { Ast.params = []; content = Ast.Concrete "Kek" };
+                Declaration.name = "lol";
+                type_alias =
+                  {
+                    Typedef.parameters = [];
+                    body = Typedef.Tkind_concrete "Kek";
+                  };
               };
           body_part =
             {
-              Ast.name = "lol";
+              Declaration.name = "lol";
               expr =
-                Let
+                Expr.Expr_let
                   {
-                    let_expr_items =
+                    Expr.bindings =
                       [
                         {
-                          body_part =
-                            { Ast.name = "a"; body = Ast.Int_constr 2 };
-                          type_part = None;
+                          Expr.bind_type = None;
+                          bind_body =
+                            { Expr.name = "a"; body = Expr.Expr_int 2 };
                         };
                       ];
-                    in_ =
-                      Ast.Binop
+                    body =
+                      Expr.Expr_binop
                         {
-                          Ast.op_id = "+";
-                          params = (Ast.Int_constr 2, Ast.Int_constr 3);
+                          Expr.name = "+";
+                          operands = (Expr.Expr_int 2, Expr.Expr_int 3);
                         };
                   };
             };
@@ -107,63 +123,67 @@ lol = let a = 2 in 2 + 3|}
 let test_let_in_let_in_let _ =
   let expect_data =
     [
-      Ast.Declaration
+      Impl.Top_declaration
         {
-          Ast.type_part_data =
+          Declaration.type_part_data =
             Some
               {
-                Ast.decl_name = "kek";
-                type_alias = { Ast.params = []; content = Ast.Concrete "Lol" };
+                Declaration.name = "kek";
+                type_alias =
+                  {
+                    Typedef.parameters = [];
+                    body = Typedef.Tkind_concrete "Lol";
+                  };
               };
           body_part =
             {
-              Ast.name = "kek";
+              Declaration.name = "kek";
               expr =
-                Ast.Let
+                Expr.Expr_let
                   {
-                    Ast.let_expr_items =
+                    Expr.bindings =
                       [
                         {
-                          type_part = None;
-                          body_part =
+                          Expr.bind_type = None;
+                          bind_body =
                             {
-                              Ast.name = "a";
+                              Expr.name = "a";
                               body =
-                                Ast.Let
+                                Expr.Expr_let
                                   {
-                                    Ast.let_expr_items =
+                                    Expr.bindings =
                                       [
                                         {
-                                          type_part = None;
-                                          body_part =
+                                          Expr.bind_type = None;
+                                          bind_body =
                                             {
-                                              Ast.name = "b";
+                                              Expr.name = "b";
                                               body =
-                                                Ast.Let
+                                                Expr.Expr_let
                                                   {
-                                                    Ast.let_expr_items =
+                                                    Expr.bindings =
                                                       [
                                                         {
-                                                          type_part = None;
-                                                          body_part =
+                                                          Expr.bind_type = None;
+                                                          bind_body =
                                                             {
-                                                              Ast.name = "c";
+                                                              Expr.name = "c";
                                                               body =
-                                                                Ast.Int_constr 3;
+                                                                Expr.Expr_int 3;
                                                             };
                                                         };
                                                       ];
-                                                    in_ = Ast.Int_constr 3;
+                                                    body = Expr.Expr_int 3;
                                                   };
                                             };
                                         };
                                       ];
-                                    in_ = Ast.Int_constr 3;
+                                    body = Expr.Expr_int 3;
                                   };
                             };
                         };
                       ];
-                    in_ = Ast.Int_constr 3;
+                    body = Expr.Expr_int 3;
                   };
             };
         };
@@ -180,33 +200,37 @@ kek = let a = let b = let c = 3 in 3 in 3 in 3|}
 let test_math _ =
   let expect_data =
     [
-      Ast.Declaration
+      Impl.Top_declaration
         {
-          Ast.type_part_data =
+          Declaration.type_part_data =
             Some
               {
-                Ast.decl_name = "kek";
-                type_alias = { Ast.params = []; content = Ast.Concrete "Int" };
+                Declaration.name = "kek";
+                type_alias =
+                  {
+                    Typedef.parameters = [];
+                    body = Typedef.Tkind_concrete "Int";
+                  };
               };
           body_part =
             {
-              Ast.name = "kek";
+              Declaration.name = "kek";
               expr =
-                Ast.Binop
+                Expr.Expr_binop
                   {
-                    Ast.op_id = "+";
-                    params =
-                      ( Ast.Int_constr 2,
-                        Ast.Binop
+                    Expr.name = "+";
+                    operands =
+                      ( Expr.Expr_int 2,
+                        Expr.Expr_binop
                           {
-                            Ast.op_id = "/";
-                            params =
-                              ( Ast.Binop
+                            Expr.name = "/";
+                            operands =
+                              ( Expr.Expr_binop
                                   {
-                                    Ast.op_id = "*";
-                                    params = (Ast.Int_constr 3, Ast.Int_constr 8);
+                                    Expr.name = "*";
+                                    operands = (Expr.Expr_int 3, Expr.Expr_int 8);
                                   },
-                                Ast.Int_constr 2 );
+                                Expr.Expr_int 2 );
                           } );
                   };
             };
@@ -219,16 +243,20 @@ kek = 2 + 3 * 8 / 2|} in
   let result = Main.parse (Lexing.from_string input) in
   let head = List.hd result in
   let rec calc_binops = function
-    | Binop { op_id = "/"; params = a, b } -> calc_binops a / calc_binops b
-    | Binop { op_id = "*"; params = a, b } -> calc_binops a * calc_binops b
-    | Binop { op_id = "-"; params = a, b } -> calc_binops a - calc_binops b
-    | Binop { op_id = "+"; params = a, b } -> calc_binops a + calc_binops b
-    | Int_constr i -> i
+    | Expr.Expr_binop { name = "/"; operands = a, b } ->
+        calc_binops a / calc_binops b
+    | Expr.Expr_binop { name = "*"; operands = a, b } ->
+        calc_binops a * calc_binops b
+    | Expr.Expr_binop { name = "-"; operands = a, b } ->
+        calc_binops a - calc_binops b
+    | Expr.Expr_binop { name = "+"; operands = a, b } ->
+        calc_binops a + calc_binops b
+    | Expr_int i -> i
     | _ -> assert false
   in
   let math_result =
     match head with
-    | Declaration { body_part = { expr; _ }; _ } -> calc_binops expr
+    | Impl.Top_declaration { body_part = { expr; _ }; _ } -> calc_binops expr
     | _ -> assert false
   in
   assert_equal expect_data result;
@@ -237,36 +265,43 @@ kek = 2 + 3 * 8 / 2|} in
 let test_multiple_let _ =
   let expect_data =
     [
-      Ast.Declaration
+      Impl.Top_declaration
         {
-          Ast.type_part_data =
+          Declaration.type_part_data =
             Some
               {
-                Ast.decl_name = "kek";
-                type_alias = { Ast.params = []; content = Ast.Concrete "Lol" };
+                Declaration.name = "kek";
+                type_alias =
+                  {
+                    Typedef.parameters = [];
+                    body = Typedef.Tkind_concrete "Lol";
+                  };
               };
           body_part =
             {
-              Ast.name = "kek";
+              Declaration.name = "kek";
               expr =
-                Ast.Let
+                Expr.Expr_let
                   {
-                    Ast.let_expr_items =
+                    Expr.bindings =
                       [
                         {
-                          type_part = None;
-                          body_part = { name = "a"; body = Ast.Int_constr 2 };
+                          Expr.bind_type = None;
+                          bind_body =
+                            { Expr.name = "a"; body = Expr.Expr_int 2 };
                         };
                         {
-                          type_part = None;
-                          body_part = { name = "b"; body = Ast.Int_constr 3 };
+                          Expr.bind_type = None;
+                          bind_body =
+                            { Expr.name = "b"; body = Expr.Expr_int 3 };
                         };
                         {
-                          type_part = None;
-                          body_part = { name = "c"; body = Ast.Int_constr 4 };
+                          Expr.bind_type = None;
+                          bind_body =
+                            { Expr.name = "c"; body = Expr.Expr_int 4 };
                         };
                       ];
-                    in_ = Ast.Int_constr 3;
+                    body = Expr.Expr_int 3;
                   };
             };
         };
@@ -285,57 +320,61 @@ c = 4 in 3|}
 let test_multiple_let_with_types _ =
   let expect_data =
     [
-      Ast.Declaration
+      Impl.Top_declaration
         {
-          Ast.type_part_data =
+          Declaration.type_part_data =
             Some
               {
-                Ast.decl_name = "kek";
-                type_alias = { Ast.params = []; content = Ast.Concrete "Lol" };
+                Declaration.name = "kek";
+                type_alias =
+                  {
+                    Typedef.parameters = [];
+                    body = Typedef.Tkind_concrete "Lol";
+                  };
               };
           body_part =
             {
-              Ast.name = "kek";
+              Declaration.name = "kek";
               expr =
-                Ast.Let
+                Expr.Expr_let
                   {
-                    Ast.let_expr_items =
+                    Expr.bindings =
                       [
                         {
-                          Ast.type_part = None;
-                          body_part =
-                            { Ast.name = "a"; body = Ast.Int_constr 2 };
+                          Expr.bind_type = None;
+                          bind_body =
+                            { Expr.name = "a"; body = Expr.Expr_int 2 };
                         };
                         {
-                          Ast.type_part =
+                          Expr.bind_type =
                             Some
                               {
-                                Ast.name = "b";
+                                Expr.name = "b";
                                 content =
                                   {
-                                    Ast.params = [];
-                                    content = Ast.Concrete "Int";
+                                    Typedef.parameters = [];
+                                    body = Typedef.Tkind_concrete "Int";
                                   };
                               };
-                          body_part =
-                            { Ast.name = "b"; body = Ast.Int_constr 3 };
+                          bind_body =
+                            { Expr.name = "b"; body = Expr.Expr_int 3 };
                         };
                         {
-                          Ast.type_part =
+                          Expr.bind_type =
                             Some
                               {
-                                Ast.name = "c";
+                                Expr.name = "c";
                                 content =
                                   {
-                                    Ast.params = [];
-                                    content = Ast.Concrete "Int";
+                                    Typedef.parameters = [];
+                                    body = Typedef.Tkind_concrete "Int";
                                   };
                               };
-                          body_part =
-                            { Ast.name = "c"; body = Ast.Int_constr 4 };
+                          bind_body =
+                            { Expr.name = "c"; body = Expr.Expr_int 4 };
                         };
                       ];
-                    in_ = Ast.Int_constr 3;
+                    body = Expr.Expr_int 3;
                   };
             };
         };
@@ -358,34 +397,38 @@ c = 4 in 3|}
 let test_if_then_else _ =
   let expect_data =
     [
-      Ast.Declaration
+      Impl.Top_declaration
         {
-          Ast.type_part_data =
+          Declaration.type_part_data =
             Some
               {
-                Ast.decl_name = "lol";
-                type_alias = { Ast.params = []; content = Ast.Concrete "Kek" };
+                Declaration.name = "lol";
+                type_alias =
+                  {
+                    Typedef.parameters = [];
+                    body = Typedef.Tkind_concrete "Kek";
+                  };
               };
           body_part =
             {
-              Ast.name = "lol";
+              Declaration.name = "lol";
               expr =
-                Ast.If_then_else
+                Expr.Expr_if_then_else
                   {
-                    Ast.if_exp =
-                      Ast.Constr { Ast.constr_name = "True"; params = [] };
+                    Expr.if_exp =
+                      Expr.Expr_constr { Expr.name = "True"; arguments = [] };
                     then_exp =
-                      Ast.Binop
+                      Expr.Expr_binop
                         {
-                          Ast.op_id = "+";
-                          params = (Ast.Int_constr 3, Ast.Int_constr 2);
+                          Expr.name = "+";
+                          operands = (Expr.Expr_int 3, Expr.Expr_int 2);
                         };
                     else_exp =
                       Some
-                        (Ast.Binop
+                        (Expr.Expr_binop
                            {
-                             Ast.op_id = "+";
-                             params = (Ast.Int_constr 4, Ast.Int_constr 5);
+                             Expr.name = "+";
+                             operands = (Expr.Expr_int 4, Expr.Expr_int 5);
                            });
                   };
             };
@@ -403,48 +446,49 @@ lol = if True then 3 + 2 else 4 + 5|}
 let test_if_then_else_if_else _ =
   let expect_data =
     [
-      Ast.Declaration
+      Impl.Top_declaration
         {
-          Ast.type_part_data =
+          Declaration.type_part_data =
             Some
               {
-                Ast.decl_name = "lol";
-                type_alias = { Ast.params = []; content = Ast.Concrete "Kek" };
+                Declaration.name = "lol";
+                type_alias =
+                  {
+                    Typedef.parameters = [];
+                    body = Typedef.Tkind_concrete "Kek";
+                  };
               };
           body_part =
             {
-              Ast.name = "lol";
+              Declaration.name = "lol";
               expr =
-                Ast.If_then_else
+                Expr.Expr_if_then_else
                   {
-                    Ast.if_exp =
-                      Ast.Constr { Ast.constr_name = "True"; params = [] };
+                    Expr.if_exp =
+                      Expr.Expr_constr { Expr.name = "True"; arguments = [] };
                     then_exp =
-                      Ast.Binop
+                      Expr.Expr_binop
                         {
-                          Ast.op_id = "+";
-                          params = (Ast.Int_constr 3, Ast.Int_constr 2);
+                          Expr.name = "+";
+                          operands = (Expr.Expr_int 3, Expr.Expr_int 2);
                         };
                     else_exp =
                       Some
-                        (Ast.If_then_else
+                        (Expr.Expr_if_then_else
                            {
-                             Ast.if_exp =
-                               Ast.Constr
-                                 { Ast.constr_name = "False"; params = [] };
-                             then_exp = Ast.Int_constr 4;
+                             Expr.if_exp =
+                               Expr.Expr_constr
+                                 { Expr.name = "False"; arguments = [] };
+                             then_exp = Expr.Expr_int 4;
                              else_exp =
                                Some
-                                 (Ast.If_then_else
+                                 (Expr.Expr_if_then_else
                                     {
-                                      Ast.if_exp =
-                                        Ast.Constr
-                                          {
-                                            Ast.constr_name = "True";
-                                            params = [];
-                                          };
-                                      then_exp = Ast.Int_constr 10;
-                                      else_exp = Some (Ast.Int_constr 155);
+                                      Expr.if_exp =
+                                        Expr.Expr_constr
+                                          { Expr.name = "True"; arguments = [] };
+                                      then_exp = Expr.Expr_int 10;
+                                      else_exp = Some (Expr.Expr_int 155);
                                     });
                            });
                   };
@@ -463,22 +507,26 @@ lol = if True then 3 + 2 else if False then 4 else if True then 10 else 155|}
 let test_record _ =
   let expect_data =
     [
-      Ast.Declaration
+      Impl.Top_declaration
         {
-          Ast.type_part_data =
+          Declaration.type_part_data =
             Some
               {
-                Ast.decl_name = "lel";
-                type_alias = { Ast.params = []; content = Ast.Concrete "Kek" };
+                Declaration.name = "lel";
+                type_alias =
+                  {
+                    Typedef.parameters = [];
+                    body = Typedef.Tkind_concrete "Kek";
+                  };
               };
           body_part =
             {
-              Ast.name = "lel";
+              Declaration.name = "lel";
               expr =
-                Ast.Record
+                Expr.Expr_record
                   [
-                    { Ast.name = "a"; value = Ast.String_constr "LOL" };
-                    { Ast.name = "b"; value = Ast.Int_constr 69 };
+                    { Expr.name = "a"; value = Expr.Expr_string "LOL" };
+                    { Expr.name = "b"; value = Expr.Expr_int 69 };
                   ];
             };
         };
@@ -495,27 +543,31 @@ lel = { a = "LOL", b = 69 }|}
 let test_call_fn_inside_record _ =
   let expect_data =
     [
-      Ast.Declaration
+      Impl.Top_declaration
         {
-          Ast.type_part_data =
+          Declaration.type_part_data =
             Some
               {
-                Ast.decl_name = "lel";
-                type_alias = { Ast.params = []; content = Ast.Concrete "Lol" };
+                Declaration.name = "lel";
+                type_alias =
+                  {
+                    Typedef.parameters = [];
+                    body = Typedef.Tkind_concrete "Lol";
+                  };
               };
           body_part =
             {
-              Ast.name = "kek";
+              Declaration.name = "kek";
               expr =
-                Ast.Record
+                Expr.Expr_record
                   [
                     {
-                      Ast.name = "a";
+                      Expr.name = "a";
                       value =
-                        Ast.Apply
+                        Expr.Expr_apply
                           {
-                            Ast.ident = Ast.Ident "fn";
-                            args = [ Ast.Int_constr 2; Ast.Int_constr 3 ];
+                            Expr.ident = Expr.Expr_ident "fn";
+                            args = [ Expr.Expr_int 2; Expr.Expr_int 3 ];
                           };
                     };
                   ];
@@ -532,34 +584,37 @@ kek = {a=fn 2 3}|} in
 let test_call_fn_inside_record_plus_fn _ =
   let expect_data =
     [
-      Ast.Declaration
+      Impl.Top_declaration
         {
-          Ast.type_part_data =
+          Declaration.type_part_data =
             Some
               {
-                Ast.decl_name = "kek";
-                type_alias = { Ast.params = []; content = Ast.Concrete "Any" };
+                Declaration.name = "kek";
+                type_alias =
+                  {
+                    Typedef.parameters = [];
+                    body = Typedef.Tkind_concrete "Any";
+                  };
               };
           body_part =
             {
-              Ast.name = "kek";
+              Declaration.name = "kek";
               expr =
-                Ast.Record
+                Expr.Expr_record
                   [
                     {
-                      Ast.name = "a";
+                      Expr.name = "a";
                       value =
-                        Ast.Apply
+                        Expr.Expr_apply
                           {
-                            Ast.ident = Ast.Ident "fn";
+                            Expr.ident = Expr.Expr_ident "fn";
                             args =
                               [
-                                Ast.Int_constr 2;
-                                Ast.Apply
+                                Expr.Expr_int 2;
+                                Expr.Expr_apply
                                   {
-                                    Ast.ident = Ast.Ident "fn2";
-                                    args =
-                                      [ Ast.Int_constr 2; Ast.Int_constr 3 ];
+                                    Expr.ident = Expr.Expr_ident "fn2";
+                                    args = [ Expr.Expr_int 2; Expr.Expr_int 3 ];
                                   };
                               ];
                           };
@@ -580,57 +635,66 @@ kek = {a=fn 2 (fn2 2 3) }|}
 let test_list_pm _ =
   let expect_data =
     [
-      Ast.Declaration
+      Impl.Top_declaration
         {
-          Ast.type_part_data =
+          Declaration.type_part_data =
             Some
               {
-                Ast.decl_name = "listTestPM";
-                type_alias = { Ast.params = []; content = Ast.Concrete "Int" };
+                Declaration.name = "listTestPM";
+                type_alias =
+                  {
+                    Typedef.parameters = [];
+                    body = Typedef.Tkind_concrete "Int";
+                  };
               };
           body_part =
             {
-              Ast.name = "listTestPM";
+              Declaration.name = "listTestPM";
               expr =
-                Ast.Case_of
+                Expr.Expr_pattern
                   {
-                    Ast.expr =
-                      Ast.List_constr
-                        [ Ast.Int_constr 1; Ast.Int_constr 2; Ast.Int_constr 4 ];
+                    Expr.expr =
+                      Expr.Expr_list
+                        [ Expr.Expr_int 1; Expr.Expr_int 2; Expr.Expr_int 4 ];
                     pattern_data_items =
                       [
                         {
-                          Ast.pattern =
-                            Ast.PList
-                              [ Ast.PInt 1; Ast.PInt 3; Ast.PInt 5; Ast.PInt 6 ];
-                          expr = Ast.Int_constr 123;
-                        };
-                        {
-                          Ast.pattern =
-                            Ast.PList
+                          Expr.pattern =
+                            Pattern.P_list
                               [
-                                Ast.PAnything;
-                                Ast.PAnything;
-                                Ast.PAnything;
-                                Ast.PInt 19;
+                                Pattern.P_int 1;
+                                Pattern.P_int 3;
+                                Pattern.P_int 5;
+                                Pattern.P_int 6;
                               ];
-                          expr = Ast.Int_constr 60;
+                          expr = Expr.Expr_int 123;
                         };
                         {
-                          Ast.pattern = Ast.PAnything;
+                          Expr.pattern =
+                            Pattern.P_list
+                              [
+                                Pattern.P_anything;
+                                Pattern.P_anything;
+                                Pattern.P_anything;
+                                Pattern.P_int 19;
+                              ];
+                          expr = Expr.Expr_int 60;
+                        };
+                        {
+                          Expr.pattern = Pattern.P_anything;
                           expr =
-                            Ast.Case_of
+                            Expr.Expr_pattern
                               {
-                                Ast.expr = Ast.Int_constr 2;
+                                Expr.expr = Expr.Expr_int 2;
                                 pattern_data_items =
                                   [
                                     {
-                                      Ast.pattern = Ast.PInt 2;
-                                      expr = Ast.Int_constr 6;
+                                      Expr.pattern = Pattern.P_int 2;
+                                      expr = Expr.Expr_int 6;
                                     };
                                     {
-                                      Ast.pattern = Ast.PAnything;
-                                      expr = Ast.Int_constr 0;
+                                      Expr.pattern = Pattern.P_anything;
+                                      expr = Expr.Expr_int 0;
                                     };
                                   ];
                               };
@@ -657,28 +721,32 @@ listTestPM = case [1, 2, 4] of
 let test_record_pm _ =
   let expect_data =
     [
-      Ast.Declaration
+      Impl.Top_declaration
         {
-          Ast.type_part_data =
+          Declaration.type_part_data =
             Some
               {
-                Ast.decl_name = "lol";
-                type_alias = { Ast.params = []; content = Ast.Type_var "kek" };
+                Declaration.name = "lol";
+                type_alias =
+                  { Typedef.parameters = []; body = Typedef.Tkind_var "kek" };
               };
           body_part =
             {
-              Ast.name = "dfsf";
+              Declaration.name = "dfsf";
               expr =
-                Ast.Case_of
+                Expr.Expr_pattern
                   {
-                    Ast.expr = Ast.Int_constr 2;
+                    Expr.expr = Expr.Expr_int 2;
                     pattern_data_items =
                       [
                         {
-                          Ast.pattern = Ast.PRecord [ "a"; "b"; "c" ];
-                          expr = Ast.Int_constr 3;
+                          Expr.pattern = Pattern.P_record [ "a"; "b"; "c" ];
+                          expr = Expr.Expr_int 3;
                         };
-                        { Ast.pattern = Ast.PAnything; expr = Ast.Int_constr 5 };
+                        {
+                          Expr.pattern = Pattern.P_anything;
+                          expr = Expr.Expr_int 5;
+                        };
                       ];
                   };
             };
@@ -698,40 +766,53 @@ dfsf = case 2 of
 let test_constr_pm _ =
   let expect_data =
     [
-      Ast.Declaration
+      Impl.Top_declaration
         {
-          Ast.type_part_data =
+          Declaration.type_part_data =
             Some
               {
-                Ast.decl_name = "abcd";
-                type_alias = { Ast.params = []; content = Ast.Concrete "Int" };
+                Declaration.name = "abcd";
+                type_alias =
+                  {
+                    Typedef.parameters = [];
+                    body = Typedef.Tkind_concrete "Int";
+                  };
               };
           body_part =
             {
-              Ast.name = "abcd";
+              Declaration.name = "abcd";
               expr =
-                Ast.Case_of
+                Expr.Expr_pattern
                   {
-                    Ast.expr = Ast.Ident "b";
+                    Expr.expr = Expr.Expr_ident "b";
                     pattern_data_items =
                       [
                         {
-                          Ast.pattern =
-                            Ast.PCtor
+                          Expr.pattern =
+                            Pattern.P_ctor
                               ( "F",
                                 [
-                                  Ast.PCtor
-                                    ("C", [ Ast.PCtor ("D", [ Ast.PStr "" ]) ]);
+                                  Pattern.P_ctor
+                                    ( "C",
+                                      [
+                                        Pattern.P_ctor
+                                          ("D", [ Pattern.P_str "" ]);
+                                      ] );
                                 ] );
-                          expr = Ast.Int_constr 3;
+                          expr = Expr.Expr_int 3;
                         };
                         {
-                          Ast.pattern =
-                            Ast.PCtor
-                              ("F", [ Ast.PCtor ("C", [ Ast.PAnything ]) ]);
-                          expr = Ast.Int_constr 6;
+                          Expr.pattern =
+                            Pattern.P_ctor
+                              ( "F",
+                                [ Pattern.P_ctor ("C", [ Pattern.P_anything ]) ]
+                              );
+                          expr = Expr.Expr_int 6;
                         };
-                        { Ast.pattern = Ast.PAnything; expr = Ast.Int_constr 4 };
+                        {
+                          Expr.pattern = Pattern.P_anything;
+                          expr = Expr.Expr_int 4;
+                        };
                       ];
                   };
             };
@@ -752,29 +833,38 @@ abcd = case b of
 let test_cons_pm _ =
   let expect_data =
     [
-      Ast.Declaration
+      Impl.Top_declaration
         {
-          Ast.type_part_data =
+          Declaration.type_part_data =
             Some
               {
-                Ast.decl_name = "dsf";
-                type_alias = { Ast.params = []; content = Ast.Concrete "Int" };
+                Declaration.name = "dsf";
+                type_alias =
+                  {
+                    Typedef.parameters = [];
+                    body = Typedef.Tkind_concrete "Int";
+                  };
               };
           body_part =
             {
-              Ast.name = "dfsf";
+              Declaration.name = "dfsf";
               expr =
-                Ast.Case_of
+                Expr.Expr_pattern
                   {
-                    Ast.expr = Ast.Int_constr 2;
+                    Expr.expr = Expr.Expr_int 2;
                     pattern_data_items =
                       [
                         {
-                          Ast.pattern =
-                            Ast.PCons (Ast.PInt 2, Ast.PList [ Ast.PInt 2 ]);
-                          expr = Ast.Int_constr 3;
+                          Expr.pattern =
+                            Pattern.P_cons
+                              ( Pattern.P_int 2,
+                                Pattern.P_list [ Pattern.P_int 2 ] );
+                          expr = Expr.Expr_int 3;
                         };
-                        { Ast.pattern = Ast.PAnything; expr = Ast.Int_constr 5 };
+                        {
+                          Expr.pattern = Pattern.P_anything;
+                          expr = Expr.Expr_int 5;
+                        };
                       ];
                   };
             };

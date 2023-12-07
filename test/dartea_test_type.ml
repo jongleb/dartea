@@ -1,63 +1,73 @@
 open OUnit2
 open Dartea
+open Dartea_ast_2
 
 let test_ty_type_with_params_complicated _ =
   let expect_data =
     [
-      Ast.Type_dec
+      Impl.Type_dec
         {
-          Ast.id = "Complicated";
-          constrs =
+          Typedecl.name = "Complicated";
+          ctors =
             [
               {
-                Ast.id = "Constr1";
+                Typedecl.id = "Constr1";
                 data =
                   [
-                    { Ast.params = []; content = Ast.Type_var "a" };
+                    { Typedef.parameters = []; body = Typedef.Tkind_var "a" };
                     {
-                      Ast.params = [];
-                      content =
-                        Ast.Function
+                      Typedef.parameters = [];
+                      body =
+                        Typedef.Tkind_function
                           {
-                            Ast.arguments =
+                            Typedef.arguments =
                               [
-                                { Ast.params = []; content = Ast.Type_var "a" };
-                                { Ast.params = []; content = Ast.Type_var "a" };
+                                {
+                                  Typedef.parameters = [];
+                                  body = Typedef.Tkind_var "a";
+                                };
+                                {
+                                  Typedef.parameters = [];
+                                  body = Typedef.Tkind_var "a";
+                                };
                               ];
                           };
                     };
                     {
-                      Ast.params = [];
-                      content =
-                        Ast.Record
+                      Typedef.parameters = [];
+                      body =
+                        Typedef.Tkind_record
                           {
-                            Ast.values =
+                            Typedef.values =
                               [
                                 {
-                                  Ast.key = "field";
-                                  value =
+                                  Typedef.name = "field";
+                                  body =
                                     {
-                                      Ast.params = [];
-                                      content =
-                                        Ast.Function
+                                      Typedef.parameters = [];
+                                      body =
+                                        Typedef.Tkind_function
                                           {
-                                            Ast.arguments =
+                                            Typedef.arguments =
                                               [
                                                 {
-                                                  Ast.params =
+                                                  Typedef.parameters =
                                                     [
                                                       {
-                                                        Ast.params = [];
-                                                        content =
-                                                          Ast.Type_var "a";
+                                                        Typedef.parameters = [];
+                                                        body =
+                                                          Typedef.Tkind_var "a";
                                                       };
                                                     ];
-                                                  content = Ast.Concrete "Maybe";
+                                                  body =
+                                                    Typedef.Tkind_concrete
+                                                      "Maybe";
                                                 };
                                                 {
-                                                  Ast.params = [];
-                                                  content =
-                                                    Ast.Concrete "String";
+                                                  Typedef.parameters = [];
+                                                  body =
+                                                    Typedef.Tkind_concrete
+                                                      "String";
                                                 };
                                               ];
                                           };
@@ -85,60 +95,69 @@ let test_ty_type_with_params_complicated _ =
 let test_types_fn_2 _ =
   let expect_data =
     [
-      Ast.Type_dec
+      Impl.Type_dec
         {
-          Ast.id = "Complicated";
-          constrs =
+          Typedecl.name = "Complicated";
+          ctors =
             [
               {
-                Ast.id = "Constr1";
+                Typedecl.id = "Constr1";
                 data =
                   [
-                    { Ast.params = []; content = Ast.Type_var "a" };
+                    { Typedef.parameters = []; body = Typedef.Tkind_var "a" };
                     {
-                      Ast.params = [];
-                      content =
-                        Ast.Function
+                      Typedef.parameters = [];
+                      body =
+                        Typedef.Tkind_function
                           {
-                            Ast.arguments =
+                            Typedef.arguments =
                               [
-                                { Ast.params = []; content = Ast.Type_var "a" };
-                                { Ast.params = []; content = Ast.Type_var "a" };
+                                {
+                                  Typedef.parameters = [];
+                                  body = Typedef.Tkind_var "a";
+                                };
+                                {
+                                  Typedef.parameters = [];
+                                  body = Typedef.Tkind_var "a";
+                                };
                               ];
                           };
                     };
                     {
-                      Ast.params = [];
-                      content =
-                        Ast.Record
+                      Typedef.parameters = [];
+                      body =
+                        Typedef.Tkind_record
                           {
-                            Ast.values =
+                            Typedef.values =
                               [
                                 {
-                                  Ast.key = "field";
-                                  value =
+                                  Typedef.name = "field";
+                                  body =
                                     {
-                                      Ast.params = [];
-                                      content =
-                                        Ast.Function
+                                      Typedef.parameters = [];
+                                      body =
+                                        Typedef.Tkind_function
                                           {
-                                            Ast.arguments =
+                                            Typedef.arguments =
                                               [
                                                 {
-                                                  Ast.params =
+                                                  Typedef.parameters =
                                                     [
                                                       {
-                                                        Ast.params = [];
-                                                        content =
-                                                          Ast.Type_var "a";
+                                                        Typedef.parameters = [];
+                                                        body =
+                                                          Typedef.Tkind_var "a";
                                                       };
                                                     ];
-                                                  content = Ast.Concrete "Maybe";
+                                                  body =
+                                                    Typedef.Tkind_concrete
+                                                      "Maybe";
                                                 };
                                                 {
-                                                  Ast.params = [];
-                                                  content =
-                                                    Ast.Concrete "String";
+                                                  Typedef.parameters = [];
+                                                  body =
+                                                    Typedef.Tkind_concrete
+                                                      "String";
                                                 };
                                               ];
                                           };
@@ -151,116 +170,138 @@ let test_types_fn_2 _ =
                   ];
               };
               {
-                Ast.id = "Constr2";
+                Typedecl.id = "Constr2";
                 data =
                   [
                     {
-                      Ast.params = [];
-                      content =
-                        Ast.Function
+                      Typedef.parameters = [];
+                      body =
+                        Typedef.Tkind_function
                           {
-                            Ast.arguments =
+                            Typedef.arguments =
                               [
-                                { Ast.params = []; content = Ast.Type_var "a" };
-                                { Ast.params = []; content = Ast.Type_var "a" };
                                 {
-                                  Ast.params = [];
-                                  content = Ast.Concrete "String";
+                                  Typedef.parameters = [];
+                                  body = Typedef.Tkind_var "a";
+                                };
+                                {
+                                  Typedef.parameters = [];
+                                  body = Typedef.Tkind_var "a";
+                                };
+                                {
+                                  Typedef.parameters = [];
+                                  body = Typedef.Tkind_concrete "String";
                                 };
                               ];
                           };
                     };
                     {
-                      Ast.params = [];
-                      content =
-                        Ast.Tuples
+                      Typedef.parameters = [];
+                      body =
+                        Typedef.Tkind_tuple
                           [
-                            { Ast.params = []; content = Ast.Concrete "String" };
                             {
-                              Ast.params = [];
-                              content =
-                                Ast.Function
+                              Typedef.parameters = [];
+                              body = Typedef.Tkind_concrete "String";
+                            };
+                            {
+                              Typedef.parameters = [];
+                              body =
+                                Typedef.Tkind_function
                                   {
-                                    Ast.arguments =
+                                    Typedef.arguments =
                                       [
                                         {
-                                          Ast.params = [];
-                                          content = Ast.Type_var "a";
+                                          Typedef.parameters = [];
+                                          body = Typedef.Tkind_var "a";
                                         };
                                         {
-                                          Ast.params = [];
-                                          content = Ast.Type_var "a";
+                                          Typedef.parameters = [];
+                                          body = Typedef.Tkind_var "a";
                                         };
                                       ];
                                   };
                             };
                           ];
                     };
-                    { Ast.params = []; content = Ast.Concrete "String" };
                     {
-                      Ast.params = [];
-                      content =
-                        Ast.Record
+                      Typedef.parameters = [];
+                      body = Typedef.Tkind_concrete "String";
+                    };
+                    {
+                      Typedef.parameters = [];
+                      body =
+                        Typedef.Tkind_record
                           {
-                            Ast.values =
+                            Typedef.values =
                               [
                                 {
-                                  Ast.key = "field";
-                                  value =
+                                  Typedef.name = "field";
+                                  body =
                                     {
-                                      Ast.params = [];
-                                      content =
-                                        Ast.Tuples
+                                      Typedef.parameters = [];
+                                      body =
+                                        Typedef.Tkind_tuple
                                           [
                                             {
-                                              Ast.params = [];
-                                              content =
-                                                Ast.Function
+                                              Typedef.parameters = [];
+                                              body =
+                                                Typedef.Tkind_function
                                                   {
-                                                    Ast.arguments =
+                                                    Typedef.arguments =
                                                       [
                                                         {
-                                                          Ast.params =
+                                                          Typedef.parameters =
                                                             [
                                                               {
-                                                                Ast.params = [];
-                                                                content =
-                                                                  Ast.Type_var
+                                                                Typedef
+                                                                .parameters = [];
+                                                                body =
+                                                                  Typedef
+                                                                  .Tkind_var
                                                                     "a";
                                                               };
                                                             ];
-                                                          content =
-                                                            Ast.Concrete "Maybe";
+                                                          body =
+                                                            Typedef
+                                                            .Tkind_concrete
+                                                              "Maybe";
                                                         };
                                                         {
-                                                          Ast.params = [];
-                                                          content =
-                                                            Ast.Concrete
+                                                          Typedef.parameters =
+                                                            [];
+                                                          body =
+                                                            Typedef
+                                                            .Tkind_concrete
                                                               "String";
                                                         };
                                                       ];
                                                   };
                                             };
                                             {
-                                              Ast.params = [];
-                                              content = Ast.Type_var "a";
+                                              Typedef.parameters = [];
+                                              body = Typedef.Tkind_var "a";
                                             };
                                             {
-                                              Ast.params = [];
-                                              content =
-                                                Ast.Function
+                                              Typedef.parameters = [];
+                                              body =
+                                                Typedef.Tkind_function
                                                   {
-                                                    Ast.arguments =
+                                                    Typedef.arguments =
                                                       [
                                                         {
-                                                          Ast.params = [];
-                                                          content =
-                                                            Ast.Type_var "a";
+                                                          Typedef.parameters =
+                                                            [];
+                                                          body =
+                                                            Typedef.Tkind_var
+                                                              "a";
                                                         };
                                                         {
-                                                          Ast.params = [];
-                                                          content =
-                                                            Ast.Type_var "a";
+                                                          Typedef.parameters =
+                                                            [];
+                                                          body =
+                                                            Typedef.Tkind_var
+                                                              "a";
                                                         };
                                                       ];
                                                   };
