@@ -1,6 +1,5 @@
 (library
- (name ast)
- (libraries data)
+ (name data)
  (flags
   (-w -40 -w +26))
  (preprocess

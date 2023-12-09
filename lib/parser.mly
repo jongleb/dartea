@@ -1,5 +1,5 @@
 %{ 
-    open Dartea_ast_2 
+    open Ast
 %}
 
 %token TYPE
@@ -36,6 +36,10 @@
 %token WILDCARD
 %token CONS
 %token UNIT
+%token IMPORT
+%token AS
+%token TWO_DOTS
+%token EXPOSING
 
 %token INDENT DEDENT
 
@@ -48,11 +52,20 @@
 // %nonassoc UMINUS
 
 
-%start <Dartea_ast_2.Impl.t list> prog
+%start <Ast.Impl.t list> prog
+
+// import Html
+//     import Html as H
+//     import Html as H exposing (..)
+//     import Html exposing (Html, div, text)
 
 %%
 prog: 
     NEWLINE*; lst = separated_list(NEWLINE+, decls); EOF { lst }
+
+// imports:
+//     | IMPORT name=UCNAME ioption(AS)
+    
 
 decls:
     | d=ty_decl { d }

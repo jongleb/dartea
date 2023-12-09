@@ -1,6 +1,6 @@
 open OUnit2
 open Dartea
-open Dartea_ast_2
+open Ast
 
 let test_ty_alias_record _ =
   let expect_data =

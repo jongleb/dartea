@@ -43,6 +43,9 @@ rule token = parse
   | "then"          { [THEN] }
   | "else"          {[ ELSE] }
   | "in"            { [IN] }
+  | "import"        { [IMPORT] }
+  | "exposing"      { [EXPOSING] }
+  | "as"            { [AS] }
   | lcname          { 
                       let result = Lexing.lexeme lexbuf in
                       if result = "type" then 

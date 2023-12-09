@@ -7,7 +7,7 @@
 
 (library
  (name dartea)
- (libraries menhirLib dartea_ast_2)
+ (libraries menhirLib ast data)
  (flags
   (-w -40 -w +26))
  (preprocess

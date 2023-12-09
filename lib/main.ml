@@ -18,7 +18,7 @@ let hello () =
     let cst = parse lexbuf in
     print_endline "Succesfully parsed";
     List.iter
-      (fun i -> i |> Format.asprintf "%a" Dartea_ast_2.Impl.pp |> print_endline)
+      (fun i -> i |> Format.asprintf "%a" Ast.Impl.pp |> print_endline)
       cst
   with
   | Failure msg -> print_endline ("Failure --- " ^ msg)
