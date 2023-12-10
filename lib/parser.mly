@@ -63,12 +63,13 @@
 
 %%
 prog: 
-    NEWLINE*; 
-    import_things=separated_list(NEWLINE+, import);
-    NEWLINE+;
-    lst = separated_list(NEWLINE+, decls); 
-    EOF { List.concat[import_things; lst] }
+    lst = top_decls; 
+    EOF { lst }
 
+top_decls:
+    | x=import xs=top_decls { List.concat [[x]; xs;] }
+    | NEWLINE xs=top_decls { xs }
+    | xs=separated_list(NEWLINE+, decls) { xs }     
 
 upper_possible_dotted:
     | what=UCNAME { what }
