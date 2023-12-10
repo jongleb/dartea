@@ -18,6 +18,8 @@
 
 let ucname = ['A'-'Z'] ['a'-'z' 'A'-'Z' '0'-'9' '_']*
 
+let ucname_q = ucname ('.' ucname)*
+
 let lcname = ['a'-'z'] ['a'-'z' 'A'-'Z' '0'-'9' '_']*
 
 let whitespace = [' ' '\t']
@@ -52,7 +54,8 @@ rule token = parse
                         raise (Error "LCNAME ERROR") 
                       else [LCNAME result]
                     }
-  | ucname          { [UCNAME (Lexing.lexeme lexbuf)] }
+  | ucname         { [UCNAME (Lexing.lexeme lexbuf)] }
+  | ucname_q       { [UCNAME_PATH (Lexing.lexeme lexbuf)] }
   | '='             { [EQUAL] }
   | eof             { Indenter.on_eof () }
   | "("             { [LPAREN] }
@@ -70,6 +73,7 @@ rule token = parse
   | "_"       { [WILDCARD] }
   | "*"        {[TIMES]}
   | "::"      {[CONS]}
+  | ".."      {[TWO_DOTS]}
   | "/"        {[DIV]}
   | "()"              {[UNIT]}
   | int             { [INT (int_of_string (Lexing.lexeme lexbuf))] }

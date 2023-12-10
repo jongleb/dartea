@@ -1,11 +1,13 @@
 %{ 
     open Ast
+    open Data
 %}
 
 %token TYPE
 %token ALIAS
 %token <string> LCNAME
 %token <string> UCNAME
+%token <string> UCNAME_PATH
 %token <int> INT
 %token <string> STRING
 %token <float> FLOAT
@@ -61,11 +63,36 @@
 
 %%
 prog: 
-    NEWLINE*; lst = separated_list(NEWLINE+, decls); EOF { lst }
+    NEWLINE*; 
+    import_things=separated_list(NEWLINE+, import);
+    NEWLINE+;
+    lst = separated_list(NEWLINE+, decls); 
+    EOF { List.concat[import_things; lst] }
 
-// imports:
-//     | IMPORT name=UCNAME ioption(AS)
-    
+
+upper_possible_dotted:
+    | what=UCNAME { what }
+    | what=UCNAME_PATH { what }
+
+loc(X):
+    what=X { Located.mk what $loc }    
+
+import:
+    | IMPORT name=loc(upper_possible_dotted) alias=ioption(preceded(AS, UCNAME))
+      exposing_opt=ioption(preceded(EXPOSING, import_exposing)) 
+      { 
+        let exposing = Option.value ~default:(Import_thing.Explicit []) exposing_opt in
+        Impl.Import (Import_thing.{ name; alias; exposing;  })
+      }
+
+import_exposing:
+    | LPAREN TWO_DOTS RPAREN { Import_thing.Open }
+    | LPAREN lst=separated_nonempty_list(COMMA, import_exposing_item) RPAREN { Import_thing.Explicit lst }
+
+import_exposing_item:
+    | name=loc(UCNAME) { Import_thing.Upper { name; privacy=Private } }
+    | name=loc(LCNAME) { Import_thing.Upper { name; privacy=Private } }
+    | name=loc(UCNAME) LPAREN TWO_DOTS RPAREN { Import_thing.Upper { name; privacy=Public($loc) } }    
 
 decls:
     | d=ty_decl { d }
@@ -187,11 +214,11 @@ ty_al_exp_head:
     | fn=ty_al_exp_fun { fn }
 
 ty_al_exp:
-    | what=UCNAME parameters=nonempty_list(ty_al_exp_roots) { Typedef.{body=Tkind_concrete(what); parameters} }
+    | what=upper_possible_dotted parameters=nonempty_list(ty_al_exp_roots) { Typedef.{body=Tkind_concrete(what); parameters} }
     | e=ty_al_exp_roots { e }
 
 ty_al_exp_roots:
-    | what=UCNAME { {body=Tkind_concrete(what); parameters=[]} }
+    | what=upper_possible_dotted {{ body=Tkind_concrete(what); parameters=[] }}
     | UNIT { {body=Tkind_unit; parameters=[]} }
     | what=LCNAME { {body=Tkind_var(what); parameters=[]} }
     | LBRACE e=ty_al_rec RBRACE { Typedef.{body=Tkind_record(e); parameters=[]} }
