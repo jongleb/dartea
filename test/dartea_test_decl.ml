@@ -881,6 +881,11 @@ dfsf = case 2 of
   let result = Main.parse (Lexing.from_string input) in
   assert_equal expect_data result
 
+(* let test_import _ =
+   let expect_data = [] in
+   let input = {|import Maybe exposing ( Maybe(..) )|} in
+   () *)
+
 let suite =
   [
     "test_decl_string" >:: test_decl_string;

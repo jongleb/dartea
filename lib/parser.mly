@@ -100,7 +100,7 @@ decls:
     | v=value_decl { v }
 
 ty_decl:
-    | TYPE ALIAS name=UCNAME params=list(LCNAME) ioption(NEWLINE) EQUAL typedef=ty_al_exp_head 
+    | TYPE ALIAS name=loc(UCNAME) params=list(LCNAME) ioption(NEWLINE) EQUAL typedef=ty_al_exp_head 
         { Impl.Type_alias({ typedef; name; params }) }
     | TYPE name=UCNAME params=list(LCNAME) EQUAL ctors=separated_nonempty_list(PIPE, ty_constrs_data) 
         { Impl.Type_dec({ name; ctors; params; })}

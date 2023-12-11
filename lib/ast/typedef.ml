@@ -17,3 +17,11 @@ and type_record = { values : type_record_row list; row_type : string option }
 [@@deriving show]
 
 and type_function = { arguments : t list } [@@deriving show]
+
+let make ?(parameters = []) ~body () = { parameters; body }
+let make_tkind_concrete ~name () = Tkind_concrete name
+let make_tkind_var ~var () = Tkind_var var
+let make_tkind_record ~record () = Tkind_concrete record
+let make_tkind_tuple ~tuple () = Tkind_tuple tuple
+let make_tkind_function ~function_ () = Tkind_function function_
+let make_tkind_unit () = Tkind_unit

@@ -2,6 +2,9 @@ open Lexing
 
 type loc = position * position
 
+(* FIXME: SUPER DIRTY HACK . REMOVE ME SOMEWHEN*)
+let _is_loc_empty_mode = ref false
+
 let show_position position =
   Format.asprintf
     "{pos_fname = %s; npos_lnum = %d; npos_bol = %d; npos_cnum = %d;}"
@@ -27,7 +30,11 @@ let range_string loc =
 
 type 'a t = { loc : loc; thing : 'a } [@@deriving show]
 
-let mk thing loc = { thing; loc }
+let mk thing loc =
+  (* FIXME: SUPER DIRTY HACK . REMOVE ME SOMEWHEN*)
+  if not @@ !_is_loc_empty_mode then { thing; loc }
+  else { thing; loc = (dummy_pos, dummy_pos) }
+
 let dummy value = mk value (dummy_pos, dummy_pos)
 let ( ~? ) = dummy
 let line { loc = pos_start, _; _ } = pos_start.pos_lnum

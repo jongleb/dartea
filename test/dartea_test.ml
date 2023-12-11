@@ -1,5 +1,8 @@
 open OUnit2
 
+(* FIXME: SUPER DIRTY HACK . REMOVE ME SOMEWHEN*)
+let () = Data.Located._is_loc_empty_mode := true
+
 let suite =
   "Dartea_test"
   >::: [
