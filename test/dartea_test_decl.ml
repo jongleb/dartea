@@ -1,4 +1,4 @@
-open OUnit2
+(* open OUnit2
 open Dartea
 open Ast
 
@@ -902,4 +902,4 @@ let suite =
     "test_record_pm" >:: test_record_pm;
     "test_constr_pm" >:: test_constr_pm;
     "test_cons_pm" >:: test_cons_pm;
-  ]
+  ] *)

@@ -3,40 +3,37 @@ open Dartea
 open Ast
 
 let test_ty_alias_record _ =
-  let expect_data =
-    [
-      Utils.make_type_alias_no_loc_top ~name:"User"
-        ~typedef:
-          {
-            Typedef.parameters = [];
-            body =
-              Typedef.Tkind_record
-                {
-                  Typedef.values =
-                    [
-                      {
-                        Typedef.name = "name";
-                        body =
-                          {
-                            Typedef.parameters = [];
-                            body = Typedef.Tkind_concrete "String";
-                          };
-                      };
-                      {
-                        Typedef.name = "age";
-                        body =
-                          {
-                            Typedef.parameters = [];
-                            body = Typedef.Tkind_concrete "Int";
-                          };
-                      };
-                    ];
-                  row_type = None;
-                };
-          }
-        ();
-    ]
+  let typedef =
+    Typedef.(
+      let name =
+        let name_body = Utils.make_tkind ~name:"String" in
+        let name_impl = Utils.make_typedef ~body:name_body () in
+        let name = Data.Located.dummy "name" in
+        Type_record_row.Fields.create ~name ~body:name_impl
+      in
+
+      let age =
+        let age_body = Utils.make_tkind ~name:"Int" in
+        let age_impl = Utils.make_typedef ~body:age_body () in
+        let name = Data.Located.dummy "age" in
+        Type_record_row.Fields.create ~name ~body:age_impl
+      in
+
+      let type_record =
+        Type_record.Fields.create ~values:[ name; age ] ~row_type:None
+      in
+      let tkind_record = Kind.Tkind_record type_record in
+      Impl.Fields.create ~parameters:[] ~body:tkind_record)
   in
+
+  let typealias =
+    Typealias.Fields.create ~typedef ~params:[]
+      ~name:(Data.Located.dummy "User")
+  in
+
+  let top = Impl.Type_alias typealias in
+
+  let expect_data = [ top ] in
   let input = "type alias User = { name: String, age: Int }" in
   let result = Main.parse (Lexing.from_string input) in
   assert_equal expect_data result
@@ -48,44 +45,54 @@ let test_ty_alias_type_with_params _ =
         {
           Typealias.typedef =
             {
-              Typedef.parameters =
+              Typedef.Impl.parameters =
                 [
                   {
-                    Typedef.parameters = [];
-                    body = Typedef.Tkind_concrete "Param1";
+                    Typedef.Impl.parameters = [];
+                    body =
+                      Typedef.Kind.Tkind_concrete (Data.Located.dummy "Param1");
                   };
                   {
-                    Typedef.parameters =
+                    Typedef.Impl.parameters =
                       [
                         {
-                          Typedef.parameters = [];
-                          body = Typedef.Tkind_concrete "Param3";
+                          Typedef.Impl.parameters = [];
+                          body =
+                            Typedef.Kind.Tkind_concrete
+                              (Data.Located.dummy "Param3");
                         };
                         {
-                          Typedef.parameters =
+                          Typedef.Impl.parameters =
                             [
                               {
-                                Typedef.parameters = [];
-                                body = Typedef.Tkind_concrete "Param5";
+                                Typedef.Impl.parameters = [];
+                                body =
+                                  Typedef.Kind.Tkind_concrete
+                                    (Data.Located.dummy "Param5");
                               };
                             ];
-                          body = Typedef.Tkind_concrete "Param4";
+                          body =
+                            Typedef.Kind.Tkind_concrete
+                              (Data.Located.dummy "Param4");
                         };
                       ];
-                    body = Typedef.Tkind_concrete "Param2";
+                    body =
+                      Typedef.Kind.Tkind_concrete (Data.Located.dummy "Param2");
                   };
                 ];
-              body = Typedef.Tkind_concrete "With";
+              body = Typedef.Kind.Tkind_concrete (Data.Located.dummy "With");
             };
           params = [];
-          name = "Complicated";
+          name = Data.Located.dummy "Complicated";
         };
     ]
   in
   let input =
     "type alias Complicated = With Param1 (Param2 Param3 (Param4 Param5))"
   in
-  let result = Main.parse (Lexing.from_string input) in
+  let result =
+    input |> Lexing.from_string |> Main.parse |> List.map Utils.dummify_all_locs
+  in
   assert_equal expect_data result
 
 let test_ty_alias_type_with_params_and_record_param _ =
@@ -95,28 +102,32 @@ let test_ty_alias_type_with_params_and_record_param _ =
         {
           Typealias.typedef =
             {
-              Typedef.parameters =
+              Typedef.Impl.parameters =
                 [
                   {
-                    Typedef.parameters = [];
-                    body = Typedef.Tkind_concrete "Param1";
+                    Typedef.Impl.parameters = [];
+                    body =
+                      Typedef.Kind.Tkind_concrete (Data.Located.dummy "Param1");
                   };
                   {
-                    Typedef.parameters =
+                    Typedef.Impl.parameters =
                       [
                         {
-                          Typedef.parameters = [];
+                          Typedef.Impl.parameters = [];
                           body =
-                            Typedef.Tkind_record
+                            Typedef.Kind.Tkind_record
                               {
-                                Typedef.values =
+                                Typedef.Type_record.values =
                                   [
                                     {
-                                      Typedef.name = "a";
+                                      Typedef.Type_record_row.name =
+                                        Data.Located.dummy "a";
                                       body =
                                         {
-                                          Typedef.parameters = [];
-                                          body = Typedef.Tkind_concrete "String";
+                                          Typedef.Impl.parameters = [];
+                                          body =
+                                            Typedef.Kind.Tkind_concrete
+                                              (Data.Located.dummy "String");
                                         };
                                     };
                                   ];
@@ -124,13 +135,14 @@ let test_ty_alias_type_with_params_and_record_param _ =
                               };
                         };
                       ];
-                    body = Typedef.Tkind_concrete "Param2";
+                    body =
+                      Typedef.Kind.Tkind_concrete (Data.Located.dummy "Param2");
                   };
                 ];
-              body = Typedef.Tkind_concrete "With";
+              body = Typedef.Kind.Tkind_concrete (Data.Located.dummy "With");
             };
           params = [];
-          name = "Complicated";
+          name = Data.Located.dummy "Complicated";
         };
     ]
   in
@@ -145,28 +157,32 @@ let test_ty_alias_type_with_params_and_record_param_with_a_lot_of_parens _ =
         {
           Typealias.typedef =
             {
-              Typedef.parameters =
+              Typedef.Impl.parameters =
                 [
                   {
-                    Typedef.parameters = [];
-                    body = Typedef.Tkind_concrete "Param1";
+                    Typedef.Impl.parameters = [];
+                    body =
+                      Typedef.Kind.Tkind_concrete (Data.Located.dummy "Param1");
                   };
                   {
-                    Typedef.parameters =
+                    Typedef.Impl.parameters =
                       [
                         {
-                          Typedef.parameters = [];
+                          Typedef.Impl.parameters = [];
                           body =
-                            Typedef.Tkind_record
+                            Typedef.Kind.Tkind_record
                               {
-                                Typedef.values =
+                                Typedef.Type_record.values =
                                   [
                                     {
-                                      Typedef.name = "a";
+                                      Typedef.Type_record_row.name =
+                                        Data.Located.dummy "a";
                                       body =
                                         {
-                                          Typedef.parameters = [];
-                                          body = Typedef.Tkind_concrete "String";
+                                          Typedef.Impl.parameters = [];
+                                          body =
+                                            Typedef.Kind.Tkind_concrete
+                                              (Data.Located.dummy "String");
                                         };
                                     };
                                   ];
@@ -174,13 +190,14 @@ let test_ty_alias_type_with_params_and_record_param_with_a_lot_of_parens _ =
                               };
                         };
                       ];
-                    body = Typedef.Tkind_concrete "Param2";
+                    body =
+                      Typedef.Kind.Tkind_concrete (Data.Located.dummy "Param2");
                   };
                 ];
-              body = Typedef.Tkind_concrete "With";
+              body = Typedef.Kind.Tkind_concrete (Data.Located.dummy "With");
             };
           params = [];
-          name = "Complicated";
+          name = Data.Located.dummy "Complicated";
         };
     ]
   in
@@ -197,22 +214,25 @@ let test_ty_alias_tuples _ =
         {
           Typealias.typedef =
             {
-              Typedef.parameters = [];
+              Typedef.Impl.parameters = [];
               body =
-                Typedef.Tkind_tuple
+                Typedef.Kind.Tkind_tuple
                   [
                     {
-                      Typedef.parameters = [];
-                      body = Typedef.Tkind_concrete "String";
+                      Typedef.Impl.parameters = [];
+                      body =
+                        Typedef.Kind.Tkind_concrete
+                          (Data.Located.dummy "String");
                     };
                     {
-                      Typedef.parameters = [];
-                      body = Typedef.Tkind_concrete "Int";
+                      Typedef.Impl.parameters = [];
+                      body =
+                        Typedef.Kind.Tkind_concrete (Data.Located.dummy "Int");
                     };
                   ];
             };
           params = [];
-          name = "User";
+          name = Data.Located.dummy "User";
         };
     ]
   in
@@ -227,57 +247,70 @@ let test_ty_alias_and_record_and_plain _ =
         {
           Typealias.typedef =
             {
-              Typedef.parameters =
+              Typedef.Impl.parameters =
                 [
                   {
-                    Typedef.parameters = [];
+                    Typedef.Impl.parameters = [];
                     body =
-                      Typedef.Tkind_tuple
+                      Typedef.Kind.Tkind_tuple
                         [
                           {
-                            Typedef.parameters = [];
-                            body = Typedef.Tkind_concrete "String";
+                            Typedef.Impl.parameters = [];
+                            body =
+                              Typedef.Kind.Tkind_concrete
+                                (Data.Located.dummy "String");
                           };
                           {
-                            Typedef.parameters = [];
+                            Typedef.Impl.parameters = [];
                             body =
-                              Typedef.Tkind_record
+                              Typedef.Kind.Tkind_record
                                 {
-                                  Typedef.values =
+                                  Typedef.Type_record.values =
                                     [
                                       {
-                                        Typedef.name = "age";
+                                        Typedef.Type_record_row.name =
+                                          Data.Located.dummy "age";
                                         body =
                                           {
-                                            Typedef.parameters = [];
-                                            body = Typedef.Tkind_concrete "Int";
+                                            Typedef.Impl.parameters = [];
+                                            body =
+                                              Typedef.Kind.Tkind_concrete
+                                                (Data.Located.dummy "Int");
                                           };
                                       };
                                       {
-                                        Typedef.name = "dog";
+                                        Typedef.Type_record_row.name =
+                                          Data.Located.dummy "dog";
                                         body =
                                           {
-                                            Typedef.parameters =
+                                            Typedef.Impl.parameters =
                                               [
                                                 {
-                                                  Typedef.parameters = [];
+                                                  Typedef.Impl.parameters = [];
                                                   body =
-                                                    Typedef.Tkind_record
+                                                    Typedef.Kind.Tkind_record
                                                       {
-                                                        Typedef.values =
+                                                        Typedef.Type_record
+                                                        .values =
                                                           [
                                                             {
-                                                              Typedef.name =
-                                                                "dogName";
+                                                              Typedef
+                                                              .Type_record_row
+                                                              .name =
+                                                                Data.Located
+                                                                .dummy "dogName";
                                                               body =
                                                                 {
-                                                                  Typedef
+                                                                  Typedef.Impl
                                                                   .parameters =
                                                                     [];
                                                                   body =
-                                                                    Typedef
+                                                                    Typedef.Kind
                                                                     .Tkind_concrete
-                                                                      "String";
+                                                                      (Data
+                                                                       .Located
+                                                                       .dummy
+                                                                         "String");
                                                                 };
                                                             };
                                                           ];
@@ -286,7 +319,8 @@ let test_ty_alias_and_record_and_plain _ =
                                                 };
                                               ];
                                             body =
-                                              Typedef.Tkind_concrete "Maybe";
+                                              Typedef.Kind.Tkind_concrete
+                                                (Data.Located.dummy "Maybe");
                                           };
                                       };
                                     ];
@@ -296,10 +330,10 @@ let test_ty_alias_and_record_and_plain _ =
                         ];
                   };
                 ];
-              body = Typedef.Tkind_concrete "Maybe";
+              body = Typedef.Kind.Tkind_concrete (Data.Located.dummy "Maybe");
             };
           params = [];
-          name = "MaybeUser";
+          name = Data.Located.dummy "MaybeUser";
         };
     ]
   in
@@ -317,83 +351,108 @@ let test_ty_alias_and_record_and_plain_and_one_more_tuple _ =
         {
           Typealias.typedef =
             {
-              Typedef.parameters =
+              Typedef.Impl.parameters =
                 [
                   {
-                    Typedef.parameters = [];
+                    Typedef.Impl.parameters = [];
                     body =
-                      Typedef.Tkind_tuple
+                      Typedef.Kind.Tkind_tuple
                         [
                           {
-                            Typedef.parameters = [];
-                            body = Typedef.Tkind_concrete "String";
+                            Typedef.Impl.parameters = [];
+                            body =
+                              Typedef.Kind.Tkind_concrete
+                                (Data.Located.dummy "String");
                           };
                           {
-                            Typedef.parameters = [];
+                            Typedef.Impl.parameters = [];
                             body =
-                              Typedef.Tkind_record
+                              Typedef.Kind.Tkind_record
                                 {
-                                  Typedef.values =
+                                  Typedef.Type_record.values =
                                     [
                                       {
-                                        Typedef.name = "age";
+                                        Typedef.Type_record_row.name =
+                                          Data.Located.dummy "age";
                                         body =
                                           {
-                                            Typedef.parameters = [];
-                                            body = Typedef.Tkind_concrete "Int";
+                                            Typedef.Impl.parameters = [];
+                                            body =
+                                              Typedef.Kind.Tkind_concrete
+                                                (Data.Located.dummy "Int");
                                           };
                                       };
                                       {
-                                        Typedef.name = "dog";
+                                        Typedef.Type_record_row.name =
+                                          Data.Located.dummy "dog";
                                         body =
                                           {
-                                            Typedef.parameters =
+                                            Typedef.Impl.parameters =
                                               [
                                                 {
-                                                  Typedef.parameters = [];
+                                                  Typedef.Impl.parameters = [];
                                                   body =
-                                                    Typedef.Tkind_record
+                                                    Typedef.Kind.Tkind_record
                                                       {
-                                                        Typedef.values =
+                                                        Typedef.Type_record
+                                                        .values =
                                                           [
                                                             {
-                                                              Typedef.name =
-                                                                "dogName";
+                                                              Typedef
+                                                              .Type_record_row
+                                                              .name =
+                                                                Data.Located
+                                                                .dummy "dogName";
                                                               body =
                                                                 {
-                                                                  Typedef
+                                                                  Typedef.Impl
                                                                   .parameters =
                                                                     [];
                                                                   body =
-                                                                    Typedef
+                                                                    Typedef.Kind
                                                                     .Tkind_tuple
                                                                       [
                                                                         {
                                                                           Typedef
+                                                                          .Impl
                                                                           .parameters =
                                                                             [];
                                                                           body =
                                                                             Typedef
+                                                                            .Kind
                                                                             .Tkind_concrete
-                                                                              "String";
+                                                                              (Data
+                                                                               .Located
+                                                                               .dummy
+                                                                                "String");
                                                                         };
                                                                         {
                                                                           Typedef
+                                                                          .Impl
                                                                           .parameters =
                                                                             [];
                                                                           body =
                                                                             Typedef
+                                                                            .Kind
                                                                             .Tkind_concrete
-                                                                              "Int";
+                                                                              (Data
+                                                                               .Located
+                                                                               .dummy
+                                                                                "Int");
                                                                         };
                                                                         {
                                                                           Typedef
+                                                                          .Impl
                                                                           .parameters =
                                                                             [];
                                                                           body =
                                                                             Typedef
+                                                                            .Kind
                                                                             .Tkind_concrete
-                                                                              "Int";
+                                                                              (Data
+                                                                               .Located
+                                                                               .dummy
+                                                                                "Int");
                                                                         };
                                                                       ];
                                                                 };
@@ -404,7 +463,8 @@ let test_ty_alias_and_record_and_plain_and_one_more_tuple _ =
                                                 };
                                               ];
                                             body =
-                                              Typedef.Tkind_concrete "Maybe";
+                                              Typedef.Kind.Tkind_concrete
+                                                (Data.Located.dummy "Maybe");
                                           };
                                       };
                                     ];
@@ -414,10 +474,10 @@ let test_ty_alias_and_record_and_plain_and_one_more_tuple _ =
                         ];
                   };
                 ];
-              body = Typedef.Tkind_concrete "Maybe";
+              body = Typedef.Kind.Tkind_concrete (Data.Located.dummy "Maybe");
             };
           params = [];
-          name = "MaybeUser";
+          name = Data.Located.dummy "MaybeUser";
         };
     ]
   in
@@ -435,26 +495,29 @@ let test_ty_alias_record_with_params_row_type _ =
         {
           Typealias.typedef =
             {
-              Typedef.parameters = [];
+              Typedef.Impl.parameters = [];
               body =
-                Typedef.Tkind_record
+                Typedef.Kind.Tkind_record
                   {
-                    Typedef.values =
+                    Typedef.Type_record.values =
                       [
                         {
-                          Typedef.name = "fieldN";
+                          Typedef.Type_record_row.name =
+                            Data.Located.dummy "fieldN";
                           body =
                             {
-                              Typedef.parameters = [];
-                              body = Typedef.Tkind_concrete "String";
+                              Typedef.Impl.parameters = [];
+                              body =
+                                Typedef.Kind.Tkind_concrete
+                                  (Data.Located.dummy "String");
                             };
                         };
                       ];
-                    row_type = Some "a";
+                    row_type = Some (Data.Located.dummy "a");
                   };
             };
-          params = [ "a" ];
-          name = "User";
+          params = [ Data.Located.dummy "a" ];
+          name = Data.Located.dummy "User";
         };
     ]
   in
@@ -469,25 +532,25 @@ let test_function_types _ =
         {
           Typealias.typedef =
             {
-              Typedef.parameters = [];
+              Typedef.Impl.parameters = [];
               body =
-                Typedef.Tkind_function
+                Typedef.Kind.Tkind_function
                   {
-                    Typedef.arguments =
+                    Typedef.Type_function.arguments =
                       [
                         {
-                          Typedef.parameters = [];
-                          body = Typedef.Tkind_var "a";
+                          Typedef.Impl.parameters = [];
+                          body = Typedef.Kind.Tkind_var (Data.Located.dummy "a");
                         };
                         {
-                          Typedef.parameters = [];
-                          body = Typedef.Tkind_var "a";
+                          Typedef.Impl.parameters = [];
+                          body = Typedef.Kind.Tkind_var (Data.Located.dummy "a");
                         };
                       ];
                   };
             };
-          params = [ "a" ];
-          name = "Id";
+          params = [ Data.Located.dummy "a" ];
+          name = Data.Located.dummy "Id";
         };
     ]
   in
@@ -502,66 +565,84 @@ let test_function_with_function_param_types _ =
         {
           Typealias.typedef =
             {
-              Typedef.parameters = [];
+              Typedef.Impl.parameters = [];
               body =
-                Typedef.Tkind_function
+                Typedef.Kind.Tkind_function
                   {
-                    Typedef.arguments =
+                    Typedef.Type_function.arguments =
                       [
                         {
-                          Typedef.parameters = [];
-                          body = Typedef.Tkind_concrete "String";
-                        };
-                        {
-                          Typedef.parameters = [];
-                          body = Typedef.Tkind_concrete "Int";
-                        };
-                        {
-                          Typedef.parameters = [];
+                          Typedef.Impl.parameters = [];
                           body =
-                            Typedef.Tkind_tuple
+                            Typedef.Kind.Tkind_concrete
+                              (Data.Located.dummy "String");
+                        };
+                        {
+                          Typedef.Impl.parameters = [];
+                          body =
+                            Typedef.Kind.Tkind_concrete
+                              (Data.Located.dummy "Int");
+                        };
+                        {
+                          Typedef.Impl.parameters = [];
+                          body =
+                            Typedef.Kind.Tkind_tuple
                               [
                                 {
-                                  Typedef.parameters = [];
-                                  body = Typedef.Tkind_var "a";
+                                  Typedef.Impl.parameters = [];
+                                  body =
+                                    Typedef.Kind.Tkind_var
+                                      (Data.Located.dummy "a");
                                 };
                                 {
-                                  Typedef.parameters = [];
-                                  body = Typedef.Tkind_var "b";
+                                  Typedef.Impl.parameters = [];
+                                  body =
+                                    Typedef.Kind.Tkind_var
+                                      (Data.Located.dummy "b");
                                 };
                               ];
                         };
                         {
-                          Typedef.parameters = [];
+                          Typedef.Impl.parameters = [];
                           body =
-                            Typedef.Tkind_function
+                            Typedef.Kind.Tkind_function
                               {
-                                Typedef.arguments =
+                                Typedef.Type_function.arguments =
                                   [
                                     {
-                                      Typedef.parameters = [];
-                                      body = Typedef.Tkind_concrete "String";
-                                    };
-                                    {
-                                      Typedef.parameters = [];
-                                      body = Typedef.Tkind_var "a";
-                                    };
-                                    {
-                                      Typedef.parameters = [];
+                                      Typedef.Impl.parameters = [];
                                       body =
-                                        Typedef.Tkind_tuple
+                                        Typedef.Kind.Tkind_concrete
+                                          (Data.Located.dummy "String");
+                                    };
+                                    {
+                                      Typedef.Impl.parameters = [];
+                                      body =
+                                        Typedef.Kind.Tkind_var
+                                          (Data.Located.dummy "a");
+                                    };
+                                    {
+                                      Typedef.Impl.parameters = [];
+                                      body =
+                                        Typedef.Kind.Tkind_tuple
                                           [
                                             {
-                                              Typedef.parameters = [];
-                                              body = Typedef.Tkind_var "b";
+                                              Typedef.Impl.parameters = [];
+                                              body =
+                                                Typedef.Kind.Tkind_var
+                                                  (Data.Located.dummy "b");
                                             };
                                             {
-                                              Typedef.parameters = [];
-                                              body = Typedef.Tkind_var "b";
+                                              Typedef.Impl.parameters = [];
+                                              body =
+                                                Typedef.Kind.Tkind_var
+                                                  (Data.Located.dummy "b");
                                             };
                                             {
-                                              Typedef.parameters = [];
-                                              body = Typedef.Tkind_var "c";
+                                              Typedef.Impl.parameters = [];
+                                              body =
+                                                Typedef.Kind.Tkind_var
+                                                  (Data.Located.dummy "c");
                                             };
                                           ];
                                     };
@@ -571,8 +652,13 @@ let test_function_with_function_param_types _ =
                       ];
                   };
             };
-          params = [ "a"; "b"; "c" ];
-          name = "FunName";
+          params =
+            [
+              Data.Located.dummy "a";
+              Data.Located.dummy "b";
+              Data.Located.dummy "c";
+            ];
+          name = Data.Located.dummy "FunName";
         };
     ]
   in
@@ -621,65 +707,74 @@ let test_fun_no_lrbraces _ =
         {
           Typealias.typedef =
             {
-              Typedef.parameters = [];
+              Typedef.Impl.parameters = [];
               body =
-                Typedef.Tkind_tuple
+                Typedef.Kind.Tkind_tuple
                   [
                     {
-                      Typedef.parameters = [];
+                      Typedef.Impl.parameters = [];
                       body =
-                        Typedef.Tkind_function
+                        Typedef.Kind.Tkind_function
                           {
-                            Typedef.arguments =
+                            Typedef.Type_function.arguments =
                               [
                                 {
-                                  Typedef.parameters = [];
-                                  body = Typedef.Tkind_var "a";
+                                  Typedef.Impl.parameters = [];
+                                  body =
+                                    Typedef.Kind.Tkind_var
+                                      (Data.Located.dummy "a");
                                 };
                                 {
-                                  Typedef.parameters = [];
-                                  body = Typedef.Tkind_var "a";
+                                  Typedef.Impl.parameters = [];
+                                  body =
+                                    Typedef.Kind.Tkind_var
+                                      (Data.Located.dummy "a");
                                 };
                               ];
                           };
                     };
                     {
-                      Typedef.parameters = [];
+                      Typedef.Impl.parameters = [];
                       body =
-                        Typedef.Tkind_record
+                        Typedef.Kind.Tkind_record
                           {
-                            Typedef.values =
+                            Typedef.Type_record.values =
                               [
                                 {
-                                  Typedef.name = "field";
+                                  Typedef.Type_record_row.name =
+                                    Data.Located.dummy "field";
                                   body =
                                     {
-                                      Typedef.parameters = [];
+                                      Typedef.Impl.parameters = [];
                                       body =
-                                        Typedef.Tkind_function
+                                        Typedef.Kind.Tkind_function
                                           {
-                                            Typedef.arguments =
+                                            Typedef.Type_function.arguments =
                                               [
                                                 {
-                                                  Typedef.parameters = [];
-                                                  body = Typedef.Tkind_var "a";
+                                                  Typedef.Impl.parameters = [];
+                                                  body =
+                                                    Typedef.Kind.Tkind_var
+                                                      (Data.Located.dummy "a");
                                                 };
                                                 {
-                                                  Typedef.parameters = [];
-                                                  body = Typedef.Tkind_var "a";
+                                                  Typedef.Impl.parameters = [];
+                                                  body =
+                                                    Typedef.Kind.Tkind_var
+                                                      (Data.Located.dummy "a");
                                                 };
                                               ];
                                           };
                                     };
                                 };
                               ];
-                            row_type = Some "a";
+                            row_type = Some (Data.Located.dummy "a");
                           };
                     };
                   ];
             };
-          params = [ "a" ];
-          name = "Fun1";
+          params = [ Data.Located.dummy "a" ];
+          name = Data.Located.dummy "Fun1";
         };
     ]
   in
@@ -689,26 +784,26 @@ let test_fun_no_lrbraces _ =
 let suite =
   [
     "test_ty_alias_record" >:: test_ty_alias_record;
-    (* "test_ty_alias_type_with_params" >:: test_ty_alias_type_with_params;
-       "test_ty_alias_type_with_params_and_record_param"
-       >:: test_ty_alias_type_with_params_and_record_param;
-       "test_ty_alias_type_with_params_and_record_param_with_a_lot_of_parens"
-       >:: test_ty_alias_type_with_params_and_record_param_with_a_lot_of_parens;
-       "test_ty_alias_tuples" >:: test_ty_alias_tuples;
-       "test_ty_alias_and_record_and_Concrete"
-       >:: test_ty_alias_and_record_and_plain;
-       "test_ty_alias_and_record_and_plain_and_one_more_tuple"
-       >:: test_ty_alias_and_record_and_plain_and_one_more_tuple;
-       "test_ty_alias_record_with_params_row_type"
-       >:: test_ty_alias_record_with_params_row_type;
-       "test_function_types" >:: test_function_types;
-       "test_function_with_function_param_types"
-       >:: test_function_with_function_param_types;
-       "test_fail_if_type_parametr_is_uppecase"
-       >:: test_any_fail_if_type_parametr_is_uppecase;
-       "test_any_fail_if_ty_alias_name_is_lowercase"
-       >:: test_any_fail_if_ty_alias_name_is_lowercase;
-       "test_any_fail_if_any_char_in_middle_of_valid_code"
-       >:: test_any_fail_if_any_char_in_middle_of_valid_code;
-       "test_fun_no_lrbraces" >:: test_fun_no_lrbraces; *)
+    "test_ty_alias_type_with_params" >:: test_ty_alias_type_with_params;
+    "test_ty_alias_type_with_params_and_record_param"
+    >:: test_ty_alias_type_with_params_and_record_param;
+    "test_ty_alias_type_with_params_and_record_param_with_a_lot_of_parens"
+    >:: test_ty_alias_type_with_params_and_record_param_with_a_lot_of_parens;
+    "test_ty_alias_tuples" >:: test_ty_alias_tuples;
+    "test_ty_alias_and_record_and_Concrete"
+    >:: test_ty_alias_and_record_and_plain;
+    "test_ty_alias_and_record_and_plain_and_one_more_tuple"
+    >:: test_ty_alias_and_record_and_plain_and_one_more_tuple;
+    "test_ty_alias_record_with_params_row_type"
+    >:: test_ty_alias_record_with_params_row_type;
+    "test_function_types" >:: test_function_types;
+    "test_function_with_function_param_types"
+    >:: test_function_with_function_param_types;
+    "test_fail_if_type_parametr_is_uppecase"
+    >:: test_any_fail_if_type_parametr_is_uppecase;
+    "test_any_fail_if_ty_alias_name_is_lowercase"
+    >:: test_any_fail_if_ty_alias_name_is_lowercase;
+    "test_any_fail_if_any_char_in_middle_of_valid_code"
+    >:: test_any_fail_if_any_char_in_middle_of_valid_code;
+    "test_fun_no_lrbraces" >:: test_fun_no_lrbraces;
   ]

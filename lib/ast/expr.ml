@@ -20,7 +20,7 @@ and expr_constr = { name : string; arguments : t list } [@@deriving show]
 and expr_binop = { name : string; operands : t * t } [@@deriving show]
 (*  Binops [(Expr, A.Located Name)] Expr *)
 
-and expr_let_binding_type = { name : string; content : Typedef.t }
+and expr_let_binding_type = { name : string; content : Typedef.Impl.t }
 [@@deriving show]
 
 and expr_let_binding_body = { name : string; body : t } [@@deriving show]

@@ -100,7 +100,7 @@ decls:
     | v=value_decl { v }
 
 ty_decl:
-    | TYPE ALIAS name=loc(UCNAME) params=list(LCNAME) ioption(NEWLINE) EQUAL typedef=ty_al_exp_head 
+    | TYPE ALIAS name=loc(UCNAME) params=list(loc(LCNAME)) ioption(NEWLINE) EQUAL typedef=ty_al_exp_head 
         { Impl.Type_alias({ typedef; name; params }) }
     | TYPE name=UCNAME params=list(LCNAME) EQUAL ctors=separated_nonempty_list(PIPE, ty_constrs_data) 
         { Impl.Type_dec({ name; ctors; params; })}
@@ -110,10 +110,10 @@ value_decl:
         { Impl.Top_declaration ({ type_part_data; body_part }) }
 
 value_decl_type:
-    | name=LCNAME COLON type_alias=ty_al_exp_head { Declaration.{ name; type_alias; } }  
+    | name=loc(LCNAME) COLON type_alias=ty_al_exp_head { Declaration.{ name; type_alias; } }  
 
 value_decl_body:
-    | name=LCNAME EQUAL expr=value_decl_body_exprs_top {Declaration.{ name; expr; }}
+    | name=loc(LCNAME) EQUAL expr=value_decl_body_exprs_top {Declaration.{ name; expr; }}
 
 value_decl_body_exprs_composite:
     | e1=value_decl_body_exprs_top name=value_decl_body_exprs_binop e2=value_decl_body_exprs_top { Expr_binop({ name; operands=(e1, e2) }) }
@@ -215,30 +215,32 @@ ty_al_exp_head:
     | fn=ty_al_exp_fun { fn }
 
 ty_al_exp:
-    | what=upper_possible_dotted parameters=nonempty_list(ty_al_exp_roots) { Typedef.{body=Tkind_concrete(what); parameters} }
+    | what=loc(upper_possible_dotted) parameters=nonempty_list(ty_al_exp_roots) { Typedef.Kind.{body=Tkind_concrete(what); parameters} }
     | e=ty_al_exp_roots { e }
 
 ty_al_exp_roots:
-    | what=upper_possible_dotted {{ body=Tkind_concrete(what); parameters=[] }}
+    | what=loc(upper_possible_dotted) {{ body=Tkind_concrete(what); parameters=[] }}
     | UNIT { {body=Tkind_unit; parameters=[]} }
-    | what=LCNAME { {body=Tkind_var(what); parameters=[]} }
-    | LBRACE e=ty_al_rec RBRACE { Typedef.{body=Tkind_record(e); parameters=[]} }
+    | what=loc(LCNAME) { {body=Tkind_var(what); parameters=[]} }
+    | LBRACE e=ty_al_rec RBRACE 
+        { Typedef.(Impl.Fields.create ~parameters:[] ~body:(Kind.Tkind_record e) ) }
     | LPAREN e=ty_al_exp_paren RPAREN { e }
 
 ty_al_rec:
-    | row_type=ioption(ty_al_rec_row_ty) values=separated_list(COMMA, ty_al_exp_rec_data_lst) { Typedef.{ values; row_type;  } }
+    | row_type=ioption(ty_al_rec_row_ty) values=separated_list(COMMA, ty_al_exp_rec_data_lst) { Typedef.Type_record.Fields.create ~values ~row_type }
 
 ty_al_rec_row_ty:
-    | what=LCNAME PIPE { what }
+    | what=loc(LCNAME) PIPE { what }
 
 ty_al_exp_paren:
-    |  e1=ty_al_exp_head e2=preceded(COMMA, separated_nonempty_list(COMMA, ty_al_exp_head)) {{ Typedef.body=Tkind_tuple(e1::e2); parameters=[] }}
+    |  e1=ty_al_exp_head e2=preceded(COMMA, separated_nonempty_list(COMMA, ty_al_exp_head))
+         { Typedef.(Impl.Fields.create ~parameters:[] ~body:(Tkind_tuple(e1::e2)) ) }
     |  fn=ty_al_exp_fun { fn }
     |  e=ty_al_exp { e }
 
 ty_al_exp_fun:
     |  e1=ty_al_exp e2=preceded(ARROW, separated_nonempty_list(ARROW, ty_al_exp))
-         { Typedef.{body=Tkind_function({ arguments=(e1::e2) }); parameters=[] }}
+         { Typedef.Kind.{body=Tkind_function({ arguments=(e1::e2) }); parameters=[] }}
 
 ty_al_exp_rec_data_lst:
-    | name=LCNAME COLON body=ty_al_exp_head {{ name; body; }}
+    | name=loc(LCNAME) COLON body=ty_al_exp_head {{ name; body; }}
