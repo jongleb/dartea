@@ -23,7 +23,8 @@ and expr_binop = { name : string; operands : t * t } [@@deriving show]
 and expr_let_binding_type = { name : string; content : Typedef.Impl.t }
 [@@deriving show]
 
-and expr_let_binding_body = { name : string; body : t } [@@deriving show]
+and expr_let_binding_body = { name : string Data.Located.t; body : t }
+[@@deriving show]
 
 and expr_let_binding = {
   bind_type : expr_let_binding_type option;

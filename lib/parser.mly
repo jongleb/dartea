@@ -113,7 +113,7 @@ value_decl_type:
     | name=loc(LCNAME) COLON type_alias=ty_al_exp_head { Declaration.{ name; type_alias; } }  
 
 value_decl_body:
-    | name=loc(LCNAME) EQUAL expr=value_decl_body_exprs_top {Declaration.{ name; expr; }}
+    | name=loc(LCNAME) EQUAL expr=loc(value_decl_body_exprs_top) {Declaration.{ name; expr; }}
 
 value_decl_body_exprs_composite:
     | e1=value_decl_body_exprs_top name=value_decl_body_exprs_binop e2=value_decl_body_exprs_top { Expr_binop({ name; operands=(e1, e2) }) }
@@ -192,7 +192,7 @@ value_decl_body_let_def_type:
     name=LCNAME COLON content=ty_al_exp_head NEWLINE+ {Expr.{ name; content; }}
 
 value_decl_body_let_body:
-    id=LCNAME EQUAL body=value_decl_body_exprs_top {{ name=id; body; }}        
+    name=loc(LCNAME) EQUAL body=value_decl_body_exprs_top {{ name; body; }}        
 
 %inline
 value_decl_body_exprs_binop:
