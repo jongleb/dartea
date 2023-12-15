@@ -95,6 +95,29 @@ module Typealias_util = struct
     }
 end
 
+module Import_thing_util = struct
+  open Import_thing
+
+  let dummify_privacy = function
+    | Public _ -> Public Data.Located.dummy_pair
+    | Private -> Private
+
+  let dummify_upper { name; privacy } =
+    { name = dummify_thing name; privacy = dummify_privacy privacy }
+
+  let dummify_exposed = function
+    | Lower str -> Lower (dummify_thing str)
+    | Upper u -> Upper (dummify_upper u)
+
+  let dummify_exposing = function
+    | Open -> Open
+    | Explicit lst -> Explicit (List.map dummify_exposed lst)
+
+  let dummify { name; alias; exposing } =
+    { name = dummify_thing name; alias; exposing = dummify_exposing exposing }
+end
+
 let dummify_all_locs = function
   | Impl.Type_alias alias -> Impl.Type_alias (Typealias_util.dummify alias)
+  | Import thing -> Impl.Import (Import_thing_util.dummify thing)
   | _ -> assert false

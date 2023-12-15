@@ -35,6 +35,7 @@ let mk thing loc =
   if not @@ !_is_loc_empty_mode then { thing; loc }
   else { thing; loc = (dummy_pos, dummy_pos) }
 
-let dummy value = mk value (dummy_pos, dummy_pos)
+let dummy_pair = (dummy_pos, dummy_pos)
+let dummy value = mk value dummy_pair
 let ( ~? ) = dummy
 let line { loc = pos_start, _; _ } = pos_start.pos_lnum

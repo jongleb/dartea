@@ -898,10 +898,77 @@ dfsf = case 2 of
   let result = Main.parse (Lexing.from_string input) in
   assert_equal expect_data result
 
-(* let test_import _ =
-   let expect_data = [] in
-   let input = {|import Maybe exposing ( Maybe(..) )|} in
-   () *)
+let test_import_maybe_two_dots _ =
+  let expect_data =
+    [
+      Impl.Import
+        {
+          Import_thing.name = ~?"Maybe";
+          alias = None;
+          exposing =
+            Import_thing.Explicit
+              [
+                Import_thing.Upper
+                  {
+                    Import_thing.name = ~?"Maybe";
+                    privacy = Import_thing.Public dummy_pair;
+                  };
+              ];
+        };
+    ]
+  in
+  let input = {|import Maybe exposing ( Maybe(..) )|} in
+  let result =
+    input |> Lexing.from_string |> Main.parse |> List.map Utils.dummify_all_locs
+  in
+  assert_equal expect_data result
+
+let test_import_maybe_as_m _ =
+  let expect_data =
+    [
+      Impl.Import
+        {
+          Import_thing.name = ~?"Maybe";
+          alias = Some "M";
+          exposing = Import_thing.Explicit [];
+        };
+    ]
+  in
+  let input = {|import Maybe as M|} in
+  let result =
+    input |> Lexing.from_string |> Main.parse |> List.map Utils.dummify_all_locs
+  in
+  assert_equal expect_data result
+
+let test_import_maybe_enum _ =
+  let expect_data =
+    [
+      Impl.Import
+        {
+          Import_thing.name = ~?"List";
+          alias = None;
+          exposing =
+            Import_thing.Explicit
+              [
+                Import_thing.Upper
+                  {
+                    Import_thing.name = ~?"map";
+                    privacy = Import_thing.Private;
+                  };
+                Import_thing.Upper
+                  {
+                    Import_thing.name = ~?"foldl";
+                    privacy = Import_thing.Private;
+                  };
+              ];
+        };
+    ]
+  in
+  let input = {|import List exposing ( map, foldl )|} in
+  let result =
+    input |> Lexing.from_string |> Main.parse |> List.map Utils.dummify_all_locs
+  in
+  assert_equal expect_data result
 
 let suite =
   [
@@ -919,4 +986,7 @@ let suite =
     "test_record_pm" >:: test_record_pm;
     "test_constr_pm" >:: test_constr_pm;
     "test_cons_pm" >:: test_cons_pm;
+    "test_import_maybe_two_dots" >:: test_import_maybe_two_dots;
+    "test_import_maybe_as_m" >:: test_import_maybe_as_m;
+    "test_import_maybe_enum" >:: test_import_maybe_enum;
   ]
