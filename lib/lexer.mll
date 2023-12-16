@@ -74,8 +74,13 @@ rule token = parse
   | "*"        {[TIMES]}
   | "::"      {[CONS]}
   | ".."      {[TWO_DOTS]}
+  | "."      {[DOT]}
   | "/"        {[DIV]}
   | "()"              {[UNIT]}
+  | "=="            {[EQ_EQ]}
+  | ">"            {[GT]}
+  | "<"            {[LT]}
+  | whitespace "." lcname     {[ACCESSOR (String.sub (Lexing.lexeme lexbuf) 2 (String.length (Lexing.lexeme lexbuf) - 2))]}
   | int             { [INT (int_of_string (Lexing.lexeme lexbuf))] }
   | float               { [FLOAT (float_of_string(Lexing.lexeme lexbuf))] }
   | '"'                 { [STRING (string "" lexbuf)] }

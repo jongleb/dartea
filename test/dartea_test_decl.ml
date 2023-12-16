@@ -970,6 +970,60 @@ let test_import_maybe_enum _ =
   in
   assert_equal expect_data result
 
+let test_access _ =
+  let expect_data =
+    [
+      Impl.Top_declaration
+        {
+          Declaration.type_part_data = None;
+          body_part =
+            {
+              Declaration.name = ~?"abcd";
+              expr =
+                ~?(Expr.Expr_access
+                     {
+                       Expr.expr =
+                         Expr.Expr_access
+                           {
+                             Expr.expr = Expr.Expr_ident "test";
+                             field = ~?"lol";
+                           };
+                       field = ~?"kek";
+                     });
+            };
+        };
+    ]
+  in
+  let input = {|abcd = test.lol.kek|} in
+  let result = input |> Lexing.from_string |> Main.parse in
+  assert_equal expect_data result
+
+let test_accessor _ =
+  let expect_data =
+    [
+      Impl.Top_declaration
+        {
+          Declaration.type_part_data = None;
+          body_part =
+            {
+              Declaration.name = ~?"abcd";
+              expr =
+                ~?(Expr.Expr_apply
+                     {
+                       Expr.ident = Expr.Expr_ident "map";
+                       args =
+                         [
+                           Expr.Expr_accessor ~?"xField"; Expr.Expr_ident "list";
+                         ];
+                     });
+            };
+        };
+    ]
+  in
+  let input = {|abcd = map .xField list|} in
+  let result = input |> Lexing.from_string |> Main.parse in
+  assert_equal expect_data result
+
 let suite =
   [
     "test_decl_string" >:: test_decl_string;
@@ -989,4 +1043,6 @@ let suite =
     "test_import_maybe_two_dots" >:: test_import_maybe_two_dots;
     "test_import_maybe_as_m" >:: test_import_maybe_as_m;
     "test_import_maybe_enum" >:: test_import_maybe_enum;
+    "test_access" >:: test_access;
+    "test_accessor" >:: test_accessor;
   ]

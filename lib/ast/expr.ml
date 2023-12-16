@@ -12,6 +12,8 @@ type t =
   | Expr_apply of expr_apply
   | Expr_ident of string
   | Expr_pattern of expr_pattern
+  | Expr_accessor of string Data.Located.t
+  | Expr_access of expr_access
 [@@deriving show]
 
 and expr_constr = { name : string; arguments : t list } [@@deriving show]
@@ -44,3 +46,5 @@ and expr_pattern_case = { pattern : Pattern.t; expr : t } [@@deriving show]
 
 and expr_pattern = { expr : t; pattern_data_items : expr_pattern_case list }
 [@@deriving show]
+
+and expr_access = { expr : t; field : string Data.Located.t } [@@deriving show]

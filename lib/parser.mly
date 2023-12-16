@@ -8,6 +8,7 @@
 %token <string> LCNAME
 %token <string> UCNAME
 %token <string> UCNAME_PATH
+%token <string> ACCESSOR
 %token <int> INT
 %token <string> STRING
 %token <float> FLOAT
@@ -40,10 +41,13 @@
 %token UNIT
 %token IMPORT
 %token AS
+%token DOT
 %token TWO_DOTS
 %token EXPOSING
+%token EQ_EQ GT LT
 
 %token INDENT DEDENT
+
 
 %nonassoc IN
 %nonassoc ELSE
@@ -51,6 +55,9 @@
 
 %left PLUS MINUS
 %left TIMES DIV
+%left EQ_EQ
+%left GT LT
+%left DOT
 // %nonassoc UMINUS
 
 
@@ -117,7 +124,6 @@ value_decl_body:
 
 value_decl_body_exprs_composite:
     | e1=value_decl_body_exprs_top name=value_decl_body_exprs_binop e2=value_decl_body_exprs_top { Expr_binop({ name; operands=(e1, e2) }) }
-    | LBRACKET e=separated_list(COMMA, value_decl_body_exprs_top) RBRACKET { Expr_list(e) }
     | LET bindings=separated_nonempty_list(NEWLINE+, value_decl_body_let_def)
       IN body=value_decl_body_exprs_top { Expr_let { bindings; body; } }
     | IF if_exp=value_decl_body_exprs_top 
@@ -128,6 +134,7 @@ value_decl_body_exprs_composite:
     | CASE expr=value_decl_body_exprs_top OF INDENT
       pattern_data_items=separated_nonempty_list(NEWLINE, value_decl_body_exprs_case) DEDENT
         { Expr_pattern({ expr; pattern_data_items; })}
+    | expr=value_decl_body_exprs_top DOT field=loc(LCNAME) { Expr_access { expr; field } }
 
 
 value_decl_body_exprs_case:
@@ -159,6 +166,8 @@ value_decl_body_exprs_pattern_plain:
 
 value_decl_body_exprs_plain: 
     | LBRACE lst=separated_list(COMMA, value_decl_body_exprs_record) RBRACE { Expr_record lst }
+    | e=loc(ACCESSOR) { Expr_accessor e }
+    | LBRACKET e=separated_list(COMMA, value_decl_body_exprs_top) RBRACKET { Expr_list(e) }
     | e=value_decl_body_exprs_ident { e }
     | e=value_decl_body_exprs { e }
 
@@ -200,6 +209,9 @@ value_decl_body_exprs_binop:
     | MINUS { "-" }
     | DIV { "/" }
     | TIMES { "*" }
+    | EQ_EQ { "==" }
+    | GT     {">"}
+    | LT     {"<"}
 
 value_decl_body_exprs:
     | i=STRING { Expr_string i }
