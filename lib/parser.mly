@@ -64,11 +64,6 @@
 
 %start <Ast.Impl.t list> prog
 
-// import Html
-//     import Html as H
-//     import Html as H exposing (..)
-//     import Html exposing (Html, div, text)
-
 %%
 prog:
     m=ioption(terminated(module_, NEWLINE)) // FIXME: I am not sure if it's optional, but not now..

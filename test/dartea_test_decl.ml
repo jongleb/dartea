@@ -1018,6 +1018,13 @@ let test_accessor _ =
   let result = input |> Lexing.from_string |> Main.parse in
   assert_equal expect_data result
 
+let test_module_export_all _ =
+  let expect_data = [ Impl.ModuleName ~?"Lol"; Impl.Export Exposing.Open ] in
+  let input = "module Lol exposing (..)\n" in
+  (* FIXME: \n terminated (think about it) *)
+  let result = input |> Lexing.from_string |> Main.parse in
+  assert_equal expect_data result
+
 let suite =
   [
     "test_decl_string" >:: test_decl_string;
@@ -1039,4 +1046,5 @@ let suite =
     "test_import_maybe_enum" >:: test_import_maybe_enum;
     "test_access" >:: test_access;
     "test_accessor" >:: test_accessor;
+    "test_module_export_all" >:: test_module_export_all;
   ]
