@@ -71,10 +71,9 @@
 
 %%
 prog:
-    m=module_
-    NEWLINE
+    m=ioption(terminated(module_, NEWLINE)) // FIXME: I am not sure if it's optional, but not now..
     lst = top_decls; 
-    EOF { List.concat [m; lst;]  }
+    EOF { List.concat [Option.value ~default:[] m; lst;]  }
 
 top_decls:
     | x=import xs=top_decls { List.concat [[x]; xs;] }

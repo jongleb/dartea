@@ -906,12 +906,12 @@ let test_import_maybe_two_dots _ =
           Import_thing.name = ~?"Maybe";
           alias = None;
           exposing =
-            Import_thing.Explicit
+            Exposing.Explicit
               [
-                Import_thing.Upper
+                Exposing.Upper
                   {
-                    Import_thing.name = ~?"Maybe";
-                    privacy = Import_thing.Public dummy_pair;
+                    Exposing.name = ~?"Maybe";
+                    privacy = Exposing.Public dummy_pair;
                   };
               ];
         };
@@ -930,7 +930,7 @@ let test_import_maybe_as_m _ =
         {
           Import_thing.name = ~?"Maybe";
           alias = Some "M";
-          exposing = Import_thing.Explicit [];
+          exposing = Exposing.Explicit [];
         };
     ]
   in
@@ -948,18 +948,12 @@ let test_import_maybe_enum _ =
           Import_thing.name = ~?"List";
           alias = None;
           exposing =
-            Import_thing.Explicit
+            Exposing.Explicit
               [
-                Import_thing.Upper
-                  {
-                    Import_thing.name = ~?"map";
-                    privacy = Import_thing.Private;
-                  };
-                Import_thing.Upper
-                  {
-                    Import_thing.name = ~?"foldl";
-                    privacy = Import_thing.Private;
-                  };
+                Exposing.Upper
+                  { Exposing.name = ~?"map"; privacy = Exposing.Private };
+                Exposing.Upper
+                  { Exposing.name = ~?"foldl"; privacy = Exposing.Private };
               ];
         };
     ]
