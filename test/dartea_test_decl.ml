@@ -1,8 +1,8 @@
 open OUnit2
-open Dartea
-open Ast
+open Ast.Kind.Frontend
 open Data
 open Located
+module Main = Parse.Main
 
 let test_decl_string _ =
   let expect_data =

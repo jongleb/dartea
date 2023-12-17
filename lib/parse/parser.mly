@@ -1,5 +1,5 @@
 %{ 
-    open Ast
+    open Ast.Kind.Frontend
     open Data
 %}
 
@@ -62,7 +62,7 @@
 // %nonassoc UMINUS
 
 
-%start <Ast.Impl.t list> prog
+%start <Ast.Kind.Frontend.Impl.t list> prog
 
 %%
 prog:

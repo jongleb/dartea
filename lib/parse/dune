@@ -1,0 +1,14 @@
+(ocamllex
+ (modules lexer))
+
+(menhir
+ (flags --strict --dump --explain)
+ (modules parser))
+
+(library
+ (name parse)
+ (libraries menhirLib ast data)
+ (flags
+  (-w -40 -w +26))
+ (preprocess
+  (pps ppx_jane ppx_deriving.show ppx_deriving.make)))

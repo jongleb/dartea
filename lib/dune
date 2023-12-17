@@ -1,13 +1,6 @@
-(ocamllex
- (modules lexer))
-
-(menhir
- (flags --strict --dump --explain)
- (modules parser))
-
 (library
  (name dartea)
- (libraries menhirLib ast data)
+ (libraries parse ast data)
  (flags
   (-w -40 -w +26))
  (preprocess

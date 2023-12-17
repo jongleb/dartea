@@ -1,8 +1,8 @@
 open OUnit2
-open Dartea
-open Ast
+open Ast.Kind.Frontend
 open Data
 open Located
+module Main = Parse.Main
 
 let test_ty_type_with_params_complicated _ =
   let expect_data =

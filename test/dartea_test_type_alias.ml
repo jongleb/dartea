@@ -1,6 +1,6 @@
 open OUnit2
-open Dartea
-open Ast
+open Ast.Kind.Frontend
+module Main = Parse.Main
 
 let test_ty_alias_record _ =
   let typedef =

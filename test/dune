@@ -1,3 +1,3 @@
 (test
  (name dartea_test)
- (libraries dartea ast data ounit2))
+ (libraries dartea parse ast data ounit2))

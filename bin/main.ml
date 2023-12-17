@@ -1,1 +1,1 @@
-let () = Dartea.Main.hello ()
+let () = Dartea.Main.main ()

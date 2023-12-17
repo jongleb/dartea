@@ -1,4 +1,4 @@
-open Ast
+open Ast.Kind.Frontend
 open Data
 
 let make_name_no_loc ~name = Located.dummy name
