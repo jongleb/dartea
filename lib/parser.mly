@@ -45,6 +45,7 @@
 %token TWO_DOTS
 %token EXPOSING
 %token EQ_EQ GT LT
+%token MODULE_
 
 %token INDENT DEDENT
 
@@ -69,9 +70,11 @@
 //     import Html exposing (Html, div, text)
 
 %%
-prog: 
+prog:
+    m=module_
+    NEWLINE
     lst = top_decls; 
-    EOF { lst }
+    EOF { List.concat [m; lst;]  }
 
 top_decls:
     | x=import xs=top_decls { List.concat [[x]; xs;] }
@@ -83,24 +86,28 @@ upper_possible_dotted:
     | what=UCNAME_PATH { what }
 
 loc(X):
-    what=X { Located.mk what $loc }    
+    what=X { Located.mk what $loc }
+
+module_:
+    | MODULE_ name=loc(upper_possible_dotted) EXPOSING exposing=exposing
+        { [Impl.ModuleName name; Impl.Export exposing] }       
 
 import:
     | IMPORT name=loc(upper_possible_dotted) alias=ioption(preceded(AS, UCNAME))
-      exposing_opt=ioption(preceded(EXPOSING, import_exposing)) 
+      exposing_opt=ioption(preceded(EXPOSING, exposing)) 
       { 
-        let exposing = Option.value ~default:(Import_thing.Explicit []) exposing_opt in
+        let exposing = Option.value ~default:(Exposing.Explicit []) exposing_opt in
         Impl.Import (Import_thing.{ name; alias; exposing;  })
       }
 
-import_exposing:
-    | LPAREN TWO_DOTS RPAREN { Import_thing.Open }
-    | LPAREN lst=separated_nonempty_list(COMMA, import_exposing_item) RPAREN { Import_thing.Explicit lst }
+exposing:
+    | LPAREN TWO_DOTS RPAREN { Exposing.Open }
+    | LPAREN lst=separated_nonempty_list(COMMA, exposing_item) RPAREN { Exposing.Explicit lst }
 
-import_exposing_item:
-    | name=loc(UCNAME) { Import_thing.Upper { name; privacy=Private } }
-    | name=loc(LCNAME) { Import_thing.Upper { name; privacy=Private } }
-    | name=loc(UCNAME) LPAREN TWO_DOTS RPAREN { Import_thing.Upper { name; privacy=Public($loc) } }    
+exposing_item:
+    | name=loc(UCNAME) { Exposing.Upper { name; privacy=Private } }
+    | name=loc(LCNAME) { Exposing.Upper { name; privacy=Private } }
+    | name=loc(UCNAME) LPAREN TWO_DOTS RPAREN { Exposing.Upper { name; privacy=Public($loc) } }    
 
 decls:
     | d=ty_decl { d }

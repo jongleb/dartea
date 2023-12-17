@@ -3,4 +3,6 @@ type t =
   | Type_dec of Typedecl.t
   | Top_declaration of Declaration.t  (** fixme: rename it *)
   | Import of Import_thing.t
+  | ModuleName of string Data.Located.t
+  | Export of Exposing.t
 [@@deriving show]

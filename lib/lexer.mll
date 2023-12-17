@@ -48,6 +48,7 @@ rule token = parse
   | "import"        { [IMPORT] }
   | "exposing"      { [EXPOSING] }
   | "as"            { [AS] }
+  | "module"        {[MODULE_]}
   | lcname          { 
                       let result = Lexing.lexeme lexbuf in
                       if result = "type" then 
