@@ -1,0 +1,4 @@
+(executable
+ (public_name playground_1)
+ (name main)
+ (libraries dartea))

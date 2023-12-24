@@ -25,3 +25,7 @@ let main () =
   | Failure msg -> print_endline ("Failure --- " ^ msg)
   | Parsing.Parse_error -> print_endline "Parse error"
   | End_of_file -> print_endline "Parse error: unexpected end of string"
+
+let parse () =
+  let lexbuf = Lexing.from_channel stdin in
+  parse lexbuf

@@ -1,6 +1,6 @@
 (library
- (name dartea)
- (libraries parse canonicalization ast file_loader data)
+ (name canonicalization)
+ (libraries canonical data)
  (flags
   (-w -40 -w +26))
  (preprocess
