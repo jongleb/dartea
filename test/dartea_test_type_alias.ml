@@ -35,8 +35,8 @@ let test_ty_alias_record _ =
 
   let expect_data = [ top ] in
   let input = "type alias User = { name: String, age: Int }" in
-  let result = Main.parse (Lexing.from_string input) in
-  assert_equal expect_data result
+  let result = Main.parse input in
+  assert_equal (Ok expect_data) result
 
 let test_ty_alias_type_with_params _ =
   let expect_data =
@@ -91,7 +91,7 @@ let test_ty_alias_type_with_params _ =
     "type alias Complicated = With Param1 (Param2 Param3 (Param4 Param5))"
   in
   let result =
-    input |> Lexing.from_string |> Main.parse |> List.map Utils.dummify_all_locs
+    input |> Main.parse |> Result.get_ok |> List.map Utils.dummify_all_locs
   in
   assert_equal expect_data result
 
@@ -147,8 +147,8 @@ let test_ty_alias_type_with_params_and_record_param _ =
     ]
   in
   let input = "type alias Complicated = With Param1 (Param2 {a: String})" in
-  let result = Main.parse (Lexing.from_string input) in
-  assert_equal expect_data result
+  let result = Main.parse input in
+  assert_equal (Ok expect_data) result
 
 let test_ty_alias_type_with_params_and_record_param_with_a_lot_of_parens _ =
   let expect_data =
@@ -204,8 +204,8 @@ let test_ty_alias_type_with_params_and_record_param_with_a_lot_of_parens _ =
   let input =
     "type alias Complicated = With ((Param1)) (Param2 {a: ((((((String))))))})"
   in
-  let result = Main.parse (Lexing.from_string input) in
-  assert_equal expect_data result
+  let result = Main.parse input in
+  assert_equal (Ok expect_data) result
 
 let test_ty_alias_tuples _ =
   let expect_data =
@@ -237,8 +237,8 @@ let test_ty_alias_tuples _ =
     ]
   in
   let input = "type alias User = (String, Int)" in
-  let result = Main.parse (Lexing.from_string input) in
-  assert_equal expect_data result
+  let result = Main.parse input in
+  assert_equal (Ok expect_data) result
 
 let test_ty_alias_and_record_and_plain _ =
   let expect_data =
@@ -341,8 +341,8 @@ let test_ty_alias_and_record_and_plain _ =
     "type alias MaybeUser = Maybe (String, { age: Int, dog: Maybe {dogName: \
      String} })"
   in
-  let result = Main.parse (Lexing.from_string input) in
-  assert_equal expect_data result
+  let result = Main.parse input in
+  assert_equal (Ok expect_data) result
 
 let test_ty_alias_and_record_and_plain_and_one_more_tuple _ =
   let expect_data =
@@ -485,8 +485,8 @@ let test_ty_alias_and_record_and_plain_and_one_more_tuple _ =
     "type alias MaybeUser = Maybe (String, { age: Int, dog: Maybe {dogName: \
      (String, Int, Int)} })"
   in
-  let result = Main.parse (Lexing.from_string input) in
-  assert_equal expect_data result
+  let result = Main.parse input in
+  assert_equal (Ok expect_data) result
 
 let test_ty_alias_record_with_params_row_type _ =
   let expect_data =
@@ -522,8 +522,8 @@ let test_ty_alias_record_with_params_row_type _ =
     ]
   in
   let input = "type alias User a = { a | fieldN: String }" in
-  let result = Main.parse (Lexing.from_string input) in
-  assert_equal expect_data result
+  let result = Main.parse input in
+  assert_equal (Ok expect_data) result
 
 let test_function_types _ =
   let expect_data =
@@ -555,8 +555,8 @@ let test_function_types _ =
     ]
   in
   let input = "type alias Id a = a -> a" in
-  let result = Main.parse (Lexing.from_string input) in
-  assert_equal expect_data result
+  let result = Main.parse input in
+  assert_equal (Ok expect_data) result
 
 let test_function_with_function_param_types _ =
   let expect_data =
@@ -666,38 +666,23 @@ let test_function_with_function_param_types _ =
     "type alias FunName a b c = String -> Int -> (a, b) -> (String -> a -> (b, \
      b, c))"
   in
-  let result = Main.parse (Lexing.from_string input) in
-  assert_equal expect_data result
+  let result = Main.parse input in
+  assert_equal (Ok expect_data) result
 
 let test_any_fail_if_type_parametr_is_uppecase _ =
   let input = "type alias Id A = A -> A" in
-  let res =
-    try
-      let _ = Main.parse (Lexing.from_string input) in
-      true
-    with _ -> false
-  in
-  assert_equal false res
+  let res = Main.parse input in
+  assert_equal false (Result.is_ok res)
 
 let test_any_fail_if_ty_alias_name_is_lowercase _ =
   let input = "type alias anyName a = a -> a" in
-  let res =
-    try
-      let _ = Main.parse (Lexing.from_string input) in
-      true
-    with _ -> false
-  in
-  assert_equal false res
+  let res = Main.parse input in
+  assert_equal false (Result.is_ok res)
 
 let test_any_fail_if_any_char_in_middle_of_valid_code _ =
   let input = "type alias ValidName - a = a -> a" in
-  let res =
-    try
-      let _ = Main.parse (Lexing.from_string input) in
-      true
-    with _ -> false
-  in
-  assert_equal false res
+  let res = Main.parse input in
+  assert_equal false (Result.is_ok res)
 
 let test_fun_no_lrbraces _ =
   let input = "type alias Fun1 a = (a -> a, { a| field: a -> a })" in
@@ -778,8 +763,8 @@ let test_fun_no_lrbraces _ =
         };
     ]
   in
-  let result = Main.parse (Lexing.from_string input) in
-  assert_equal expect result
+  let result = Main.parse input in
+  assert_equal expect (Result.get_ok result)
 
 let suite =
   [

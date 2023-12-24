@@ -12,8 +12,8 @@ import Ab as A exposing (someThing)
 
 someData = Maybe 2|}
   in
-  let result = Main.parse (Lexing.from_string input) in
-  let module_ = Module.of_impl result in
+  let result = Main.parse input in
+  let module_ = Module.of_impl (Result.get_ok result) in
 
   let expect_import_name = "Abcd" in
   let expect_imports =

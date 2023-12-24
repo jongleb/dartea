@@ -30,8 +30,8 @@ let test_decl_string _ =
   let input = {|
 thisIsTheString: String
 thisIsTheString = "This"|} in
-  let result = Main.parse (Lexing.from_string input) in
-  assert_equal expect_data result
+  let result = Main.parse input in
+  assert_equal (Ok expect_data) result
 
 let test_let_in _ =
   let expect_data =
@@ -71,8 +71,8 @@ let test_let_in _ =
   let input = {|
 lol: Kek                            
 lol = let a = 2 in 2|} in
-  let result = Main.parse (Lexing.from_string input) in
-  assert_equal expect_data result
+  let result = Main.parse input in
+  assert_equal (Ok expect_data) result
 
 let test_let_in_binop _ =
   let expect_data =
@@ -119,8 +119,8 @@ let test_let_in_binop _ =
 lol: Kek                            
 lol = let a = 2 in 2 + 3|}
   in
-  let result = Main.parse (Lexing.from_string input) in
-  assert_equal expect_data result
+  let result = Main.parse input in
+  assert_equal (Ok expect_data) result
 
 let test_let_in_let_in_let _ =
   let expect_data =
@@ -199,8 +199,8 @@ let test_let_in_let_in_let _ =
 kek: Lol                            
 kek = let a = let b = let c = 3 in 3 in 3 in 3|}
   in
-  let result = Main.parse (Lexing.from_string input) in
-  assert_equal expect_data result
+  let result = Main.parse input in
+  assert_equal expect_data (Result.get_ok result)
 
 let test_math _ =
   let expect_data =
@@ -246,8 +246,8 @@ let test_math _ =
   let input = {|
 kek: Int                            
 kek = 2 + 3 * 8 / 2|} in
-  let result = Main.parse (Lexing.from_string input) in
-  let head = List.hd result in
+  let result = Main.parse input in
+  let head = List.hd (Result.get_ok result) in
   let rec calc_binops = function
     | Expr.Expr_binop { name = "/"; operands = a, b } ->
         calc_binops a / calc_binops b
@@ -266,7 +266,7 @@ kek = 2 + 3 * 8 / 2|} in
         calc_binops thing
     | _ -> assert false
   in
-  assert_equal expect_data result;
+  assert_equal expect_data (Result.get_ok result);
   assert_equal (2 + (3 * 8 / 2)) math_result
 
 let test_multiple_let _ =
@@ -321,8 +321,8 @@ kek = let a = 2
 b = 3 
 c = 4 in 3|}
   in
-  let result = Main.parse (Lexing.from_string input) in
-  assert_equal expect_data result
+  let result = Main.parse input in
+  assert_equal expect_data (Result.get_ok result)
 
 let test_multiple_let_with_types _ =
   let expect_data =
@@ -400,8 +400,8 @@ b = 3
 c: Int
 c = 4 in 3|}
   in
-  let result = Main.parse (Lexing.from_string input) in
-  assert_equal expect_data result
+  let result = Main.parse input in
+  assert_equal expect_data (Result.get_ok result)
 
 let test_if_then_else _ =
   let expect_data =
@@ -449,8 +449,8 @@ let test_if_then_else _ =
 lol: Kek                            
 lol = if True then 3 + 2 else 4 + 5|}
   in
-  let result = Main.parse (Lexing.from_string input) in
-  assert_equal expect_data result
+  let result = Main.parse input in
+  assert_equal expect_data (Result.get_ok result)
 
 let test_if_then_else_if_else _ =
   let expect_data =
@@ -513,8 +513,8 @@ let test_if_then_else_if_else _ =
 lol: Kek                            
 lol = if True then 3 + 2 else if False then 4 else if True then 10 else 155|}
   in
-  let result = Main.parse (Lexing.from_string input) in
-  assert_equal expect_data result
+  let result = Main.parse input in
+  assert_equal expect_data (Result.get_ok result)
 
 let test_record _ =
   let expect_data =
@@ -549,8 +549,8 @@ let test_record _ =
 lel: Kek                            
 lel = { a = "LOL", b = 69 }|}
   in
-  let result = Main.parse (Lexing.from_string input) in
-  assert_equal expect_data result
+  let result = Main.parse input in
+  assert_equal expect_data (Result.get_ok result)
 
 let test_call_fn_inside_record _ =
   let expect_data =
@@ -590,8 +590,8 @@ let test_call_fn_inside_record _ =
   let input = {|
 lel: Lol
 kek = {a=fn 2 3}|} in
-  let result = Main.parse (Lexing.from_string input) in
-  assert_equal expect_data result
+  let result = Main.parse input in
+  assert_equal expect_data (Result.get_ok result)
 
 let test_call_fn_inside_record_plus_fn _ =
   let expect_data =
@@ -642,8 +642,8 @@ let test_call_fn_inside_record_plus_fn _ =
 kek: Any                            
 kek = {a=fn 2 (fn2 2 3) }|}
   in
-  let result = Main.parse (Lexing.from_string input) in
-  assert_equal expect_data result
+  let result = Main.parse input in
+  assert_equal expect_data (Result.get_ok result)
 
 let test_list_pm _ =
   let expect_data =
@@ -728,8 +728,8 @@ listTestPM = case [1, 2, 4] of
     2 -> 6
     _ -> 0|}
   in
-  let result = Main.parse (Lexing.from_string input) in
-  assert_equal expect_data result
+  let result = Main.parse input in
+  assert_equal expect_data (Result.get_ok result)
 
 let test_record_pm _ =
   let expect_data =
@@ -776,8 +776,8 @@ dfsf = case 2 of
   {a, b, c} -> 3
   _ -> 5|}
   in
-  let result = Main.parse (Lexing.from_string input) in
-  assert_equal expect_data result
+  let result = Main.parse input in
+  assert_equal expect_data (Result.get_ok result)
 
 let test_constr_pm _ =
   let expect_data =
@@ -844,8 +844,8 @@ abcd = case b of
   F (C _) -> 6
   _ -> 4|}
   in
-  let result = Main.parse (Lexing.from_string input) in
-  assert_equal expect_data result
+  let result = Main.parse input in
+  assert_equal expect_data (Result.get_ok result)
 
 let test_cons_pm _ =
   let expect_data =
@@ -895,8 +895,8 @@ dfsf = case 2 of
     2 :: [2] -> 3
     _ -> 5|}
   in
-  let result = Main.parse (Lexing.from_string input) in
-  assert_equal expect_data result
+  let result = Main.parse input in
+  assert_equal expect_data (Result.get_ok result)
 
 let test_import_maybe_two_dots _ =
   let expect_data =
@@ -919,7 +919,7 @@ let test_import_maybe_two_dots _ =
   in
   let input = {|import Maybe exposing ( Maybe(..) )|} in
   let result =
-    input |> Lexing.from_string |> Main.parse |> List.map Utils.dummify_all_locs
+    input |> Main.parse |> Result.get_ok |> List.map Utils.dummify_all_locs
   in
   assert_equal expect_data result
 
@@ -936,7 +936,7 @@ let test_import_maybe_as_m _ =
   in
   let input = {|import Maybe as M|} in
   let result =
-    input |> Lexing.from_string |> Main.parse |> List.map Utils.dummify_all_locs
+    input |> Main.parse |> Result.get_ok |> List.map Utils.dummify_all_locs
   in
   assert_equal expect_data result
 
@@ -960,7 +960,7 @@ let test_import_maybe_enum _ =
   in
   let input = {|import List exposing ( map, foldl )|} in
   let result =
-    input |> Lexing.from_string |> Main.parse |> List.map Utils.dummify_all_locs
+    input |> Main.parse |> Result.get_ok |> List.map Utils.dummify_all_locs
   in
   assert_equal expect_data result
 
@@ -989,8 +989,8 @@ let test_access _ =
     ]
   in
   let input = {|abcd = test.lol.kek|} in
-  let result = input |> Lexing.from_string |> Main.parse in
-  assert_equal expect_data result
+  let result = input |> Main.parse in
+  assert_equal expect_data (Result.get_ok result)
 
 let test_accessor _ =
   let expect_data =
@@ -1015,15 +1015,15 @@ let test_accessor _ =
     ]
   in
   let input = {|abcd = map .xField list|} in
-  let result = input |> Lexing.from_string |> Main.parse in
-  assert_equal expect_data result
+  let result = input |> Main.parse in
+  assert_equal expect_data (Result.get_ok result)
 
 let test_module_export_all _ =
   let expect_data = [ Impl.ModuleName ~?"Lol"; Impl.Export Exposing.Open ] in
   let input = "module Lol exposing (..)\n" in
   (* FIXME: \n terminated (think about it) *)
-  let result = input |> Lexing.from_string |> Main.parse in
-  assert_equal expect_data result
+  let result = input |> Main.parse in
+  assert_equal expect_data (Result.get_ok result)
 
 let suite =
   [

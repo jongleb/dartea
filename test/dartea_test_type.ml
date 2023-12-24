@@ -94,8 +94,8 @@ let test_ty_type_with_params_complicated _ =
   let input =
     "type Complicated a = Constr1 a (a -> a) {a | field: Maybe a -> String}"
   in
-  let result = Main.parse (Lexing.from_string input) in
-  assert_equal expect_data result
+  let result = Main.parse input in
+  assert_equal (Ok expect_data) result
 
 (** I am bothered thinking up the names of these functions. *)
 
@@ -343,8 +343,8 @@ let test_types_fn_2 _ =
      Constr2 (a -> a -> String) (String, a -> a) String {a | field: (Maybe a \
      -> String, a, a -> a)}"
   in
-  let result = Main.parse (Lexing.from_string input) in
-  assert_equal expect_data result
+  let result = Main.parse input in
+  assert_equal (Ok expect_data) result
 
 let suite =
   [

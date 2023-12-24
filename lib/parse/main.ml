@@ -12,20 +12,9 @@ let parse lexbuf =
         Queue.take queue)
     lexbuf
 
-let main () =
-  let lexbuf = Lexing.from_channel stdin in
+let parse content =
+  let lexbuf = Lexing.from_string content in
   try
     let cst = parse lexbuf in
-    print_endline "Succesfully parsed";
-    List.iter
-      (fun i ->
-        i |> Format.asprintf "%a" Ast.Kind.Frontend.Impl.pp |> print_endline)
-      cst
-  with
-  | Failure msg -> print_endline ("Failure --- " ^ msg)
-  | Parsing.Parse_error -> print_endline "Parse error"
-  | End_of_file -> print_endline "Parse error: unexpected end of string"
-
-let parse () =
-  let lexbuf = Lexing.from_channel stdin in
-  parse lexbuf
+    Ok cst
+  with _ -> Error "parse error"
