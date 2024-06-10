@@ -126,7 +126,7 @@ value_decl_body:
 value_decl_body_exprs_composite:
     | e1=value_decl_body_exprs_top name=value_decl_body_exprs_binop e2=value_decl_body_exprs_top { Expr_binop({ name; operands=(e1, e2) }) }
     | LET bindings=separated_nonempty_list(NEWLINE+, value_decl_body_let_def)
-      IN body=value_decl_body_exprs_top { Expr_let { bindings; body; } }
+      IN body=value_decl_body_exprs_top { Expr.make_expr_let ~bindings:(Non_empty_list.of_list_exn bindings) body  }
     | IF if_exp=value_decl_body_exprs_top 
         THEN then_exp=value_decl_body_exprs_top
         ELSE else_exp=ioption(value_decl_body_exprs_top)
@@ -173,7 +173,7 @@ value_decl_body_exprs_plain:
     | e=value_decl_body_exprs { e }
 
 value_decl_body_exprs_fn:
-    | ident=value_decl_body_exprs_ident args=nonempty_list(value_decl_body_exprs_top_arguments) { Expr_apply { ident; args; } }
+    | fn=value_decl_body_exprs_ident args=nonempty_list(value_decl_body_exprs_top_arguments) { Expr.make_expr_apply ~args fn }
 
 value_decl_body_exprs_top:
     | e=value_decl_body_exprs_fn { e }
@@ -217,7 +217,7 @@ value_decl_body_exprs_binop:
 value_decl_body_exprs:
     | i=STRING { Expr_string i }
     | i=INT { Expr_int i }
-    | i=FLOAT { Expr_Float i }
+    | i=FLOAT { Expr_float i }
 
 ty_constrs_data:
     | id=UCNAME data=list(ty_al_exp_roots) {{ id; data; }}
@@ -228,7 +228,8 @@ ty_al_exp_head:
     | fn=ty_al_exp_fun { fn }
 
 ty_al_exp:
-    | what=loc(upper_possible_dotted) parameters=nonempty_list(ty_al_exp_roots) { Typedef.Kind.{body=Tkind_concrete(what); parameters} }
+    | what=loc(upper_possible_dotted) parameters=nonempty_list(ty_al_exp_roots) 
+        { Typedef.Kind.{ body=Tkind_concrete(what); parameters }}
     | e=ty_al_exp_roots { e }
 
 ty_al_exp_roots:

@@ -2,7 +2,7 @@ type t =
   | Expr_char of string (* elm type: Chr ES.String, NEED IMPLEMENT *)
   | Expr_string of string (* Chr ES.String *)
   | Expr_int of int
-  | Expr_Float of float (* EF.Float *)
+  | Expr_float of float (* EF.Float *)
   | Expr_list of t list
   | Expr_constr of expr_constr
   | Expr_binop of expr_binop
@@ -34,17 +34,27 @@ and expr_let_binding = {
 }
 [@@deriving show]
 
-and expr_let = { bindings : expr_let_binding list; body : t } [@@deriving show]
+and expr_let = { binding : expr_let_binding; body : t } [@@deriving show]
 (*Let [A.Located Def] Expr *)
 
 and expr_if_then_else = { if_exp : t; then_exp : t; else_exp : t option }
 [@@deriving show]
 
 and expr_record_row = { name : string; value : t } [@@deriving show]
-and expr_apply = { ident : t; args : t list } [@@deriving show]
+and expr_apply = { fn : t; arg : t } [@@deriving show]
 and expr_pattern_case = { pattern : Pattern.t; expr : t } [@@deriving show]
 
 and expr_pattern = { expr : t; pattern_data_items : expr_pattern_case list }
 [@@deriving show]
 
 and expr_access = { expr : t; field : string Data.Located.t } [@@deriving show]
+
+let make_expr_let ~bindings body =
+  Non_empty_list.fold_right ~init:body
+    ~f:(fun binding body -> Expr_let { body; binding })
+    bindings
+
+let make_expr_apply ~args fn =
+  Non_empty_list.reduce
+    ~f:(fun fn arg -> Expr_apply { fn; arg })
+    Non_empty_list.(fn :: args)

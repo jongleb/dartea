@@ -1,3 +1,5 @@
+open Data
+
 module rec Impl : sig
   type t = { parameters : t list; body : Kind.t } [@@deriving show, fields]
 end = struct
@@ -6,7 +8,7 @@ end
 
 and Kind : sig
   type t =
-    | Tkind_concrete of string Data.Located.t
+    | Tkind_concrete of string Located.t
     | Tkind_var of string Data.Located.t
     | Tkind_record of Type_record.t
     | Tkind_tuple of Impl.t list
@@ -15,7 +17,7 @@ and Kind : sig
   [@@deriving show]
 end = struct
   type t =
-    | Tkind_concrete of string Data.Located.t
+    | Tkind_concrete of string Located.t
     (* A.Region Name [Type] *)
     | Tkind_var of string Data.Located.t (* Name *)
     | Tkind_record of Type_record.t
