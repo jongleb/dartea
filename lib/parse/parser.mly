@@ -129,7 +129,7 @@ value_decl_body_exprs_composite:
       IN body=value_decl_body_exprs_top { Expr.make_expr_let ~bindings:(Non_empty_list.of_list_exn bindings) body  }
     | IF if_exp=value_decl_body_exprs_top 
         THEN then_exp=value_decl_body_exprs_top
-        ELSE else_exp=ioption(value_decl_body_exprs_top)
+        ELSE else_exp=value_decl_body_exprs_top
         { Expr_if_then_else({ if_exp; then_exp; else_exp; }) }
     | name=UCNAME arguments=list(value_decl_body_exprs) { Expr_constr({ name; arguments }) }
     | CASE expr=value_decl_body_exprs_top OF INDENT

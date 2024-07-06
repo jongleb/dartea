@@ -1,3 +1,6 @@
+open Ppx_compare_lib.Builtin
+open Base.Export
+
 type t =
   | P_anything
   | P_var of string
@@ -12,4 +15,4 @@ type t =
   | P_str of string
   | P_int of int
   | P_ctor of (string * t list)
-[@@deriving show]
+[@@deriving show, compare, equal, hash]

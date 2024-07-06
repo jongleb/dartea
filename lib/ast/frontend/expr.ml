@@ -37,7 +37,7 @@ and expr_let_binding = {
 and expr_let = { binding : expr_let_binding; body : t } [@@deriving show]
 (*Let [A.Located Def] Expr *)
 
-and expr_if_then_else = { if_exp : t; then_exp : t; else_exp : t option }
+and expr_if_then_else = { if_exp : t; then_exp : t; else_exp : t }
 [@@deriving show]
 
 and expr_record_row = { name : string; value : t } [@@deriving show]

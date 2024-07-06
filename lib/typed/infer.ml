@@ -1,70 +1,64 @@
-module Ast = struct
-  type typ =
-    | TVar of string
-    | TInt
-    | TBool
-    | TUnit
-    | TFun of typ * typ
-    | TTup of typ list
-  [@@deriving show]
-
-  type scheme = Scheme of string list * typ [@@deriving show]
-end
-
-open Ast
+open Type
 module Map = Map.Make (String)
 
 type ctx = scheme Map.t
 
+let typs : (string * scheme) list =
+  [
+    ("=", Scheme ([ "'a" ], TFun (TVar "'a", TFun (TVar "'a", TBool))));
+    ("<>", Scheme ([ "'a" ], TFun (TVar "'a", TFun (TVar "'a", TBool))));
+    ("&&", Scheme ([], TFun (TBool, TFun (TBool, TBool))));
+    ("||", Scheme ([], TFun (TBool, TFun (TBool, TBool))));
+    ("+", Scheme ([], TFun (TInt, TFun (TInt, TInt))));
+    ("plus", Scheme ([], TFun (TInt, TFun (TInt, TInt))));
+    ("int_to_string", Scheme ([], TFun (TInt, TStr)));
+    (* while operators aren't supported *)
+    ("-", Scheme ([], TFun (TInt, TFun (TInt, TInt))));
+    ("*", Scheme ([], TFun (TInt, TFun (TInt, TInt))));
+    ("/", Scheme ([], TFun (TInt, TFun (TInt, TInt))));
+    ("id", Scheme ([ "'a" ], TFun (TVar "'a", TVar "'a")));
+    ( "const",
+      Scheme ([ "'a"; "'b" ], TFun (TVar "'a", TFun (TVar "'b", TVar "'a"))) );
+    ( "pair",
+      Scheme
+        ( [ "'a"; "'b" ],
+          TFun (TVar "'a", TFun (TVar "'b", TTup [ TVar "'a"; TVar "'b" ])) ) );
+    ( "fst",
+      Scheme ([ "'a"; "'b" ], TFun (TTup [ TVar "'a"; TVar "'b" ], TVar "'a"))
+    );
+    ( "snd",
+      Scheme ([ "'a"; "'b" ], TFun (TTup [ TVar "'a"; TVar "'b" ], TVar "'b"))
+    );
+  ]
+
 let ctx : ctx =
-  let typs : (string * scheme) list =
-    [
-      ("=", Scheme ([ "'a" ], TFun (TVar "'a", TFun (TVar "'a", TBool))));
-      ("<>", Scheme ([ "'a" ], TFun (TVar "'a", TFun (TVar "'a", TBool))));
-      ("&&", Scheme ([], TFun (TBool, TFun (TBool, TBool))));
-      ("||", Scheme ([], TFun (TBool, TFun (TBool, TBool))));
-      ("+", Scheme ([], TFun (TInt, TFun (TInt, TInt))));
-      ("plus", Scheme ([], TFun (TInt, TFun (TInt, TInt))));
-      (* while operators aren't supported *)
-      ("-", Scheme ([], TFun (TInt, TFun (TInt, TInt))));
-      ("*", Scheme ([], TFun (TInt, TFun (TInt, TInt))));
-      ("/", Scheme ([], TFun (TInt, TFun (TInt, TInt))));
-      ("id", Scheme ([ "'a" ], TFun (TVar "'a", TVar "'a")));
-      ( "const",
-        Scheme ([ "'a"; "'b" ], TFun (TVar "'a", TFun (TVar "'b", TVar "'a")))
-      );
-      ( "pair",
-        Scheme
-          ( [ "'a"; "'b" ],
-            TFun (TVar "'a", TFun (TVar "'b", TTup [ TVar "'a"; TVar "'b" ])) )
-      );
-      ( "fst",
-        Scheme ([ "'a"; "'b" ], TFun (TTup [ TVar "'a"; TVar "'b" ], TVar "'a"))
-      );
-      ( "snd",
-        Scheme ([ "'a"; "'b" ], TFun (TTup [ TVar "'a"; TVar "'b" ], TVar "'b"))
-      );
-    ]
-  in
   let f acc (v, scheme) = Map.add v scheme acc in
   List.fold_left f Map.empty typs
 
 open Frontend.Expr
-module Set = Set.Make (String)
+module Str_set = Set.Make (String)
 
 let rec ftv_typ = function
-  | TVar v -> Set.singleton v
-  | TInt | TBool | TUnit -> Set.empty
-  | TFun (p, r) -> Set.union (ftv_typ p) (ftv_typ r)
+  | TVar v -> Str_set.singleton v
+  | TInt | TBool | TStr | TUnit -> Str_set.empty
+  | TFun (p, r) -> Str_set.union (ftv_typ p) (ftv_typ r)
   | TTup l ->
-      List.fold_left (fun acc ty -> Set.union (ftv_typ ty) acc) Set.empty l
+      List.fold_left
+        (fun acc ty -> Str_set.union (ftv_typ ty) acc)
+        Str_set.empty l
+  | TCustom (_, typs) ->
+      List.fold_left
+        (fun acc ty -> Str_set.union (ftv_typ ty) acc)
+        Str_set.empty typs
 
 let rec apply_typ ty s =
   match ty with
   | TVar v -> ( match Map.find_opt v s with Some t -> t | None -> ty)
-  | TInt | TBool | TUnit -> ty
+  | TInt | TBool | TStr | TUnit -> ty
   | TFun (p, r) -> TFun (apply_typ p s, apply_typ r s)
   | TTup l -> TTup (List.map (fun ty -> apply_typ ty s) l)
+  | TCustom (name, typs) ->
+      TCustom (name, List.map (fun ty -> apply_typ ty s) typs)
 
 let string_of_typ ty =
   let rec str_simple ty =
@@ -73,6 +67,7 @@ let string_of_typ ty =
     | TInt -> "int"
     | TBool -> "bool"
     | TUnit -> "unit"
+    | TStr -> "string"
     | TFun (p, r) -> str_paren p ^ " -> " ^ str_simple r
     | TTup l ->
         let buf = Buffer.create 50 in
@@ -87,6 +82,16 @@ let string_of_typ ty =
         in
         iter l;
         Buffer.to_bytes buf |> Bytes.to_string
+    | TCustom (name, args) ->
+        let args_str =
+          match args with
+          | [] -> ""
+          | _ ->
+              let args_list = List.map str_paren args in
+              let args_str = String.concat ", " args_list in
+              "<" ^ args_str ^ ">"
+        in
+        name ^ args_str
   and str_paren ty =
     match ty with
     | TFun (_, _) | TTup _ -> "(" ^ str_simple ty ^ ")"
@@ -103,13 +108,15 @@ let apply_scheme scheme s =
 let apply_ctx ctx s = Map.map (fun scheme -> apply_scheme scheme s) ctx
 
 let ftv_scheme = function
-  | Scheme (vars, ty) -> Set.diff (ftv_typ ty) (Set.of_list vars)
+  | Scheme (vars, ty) -> Str_set.diff (ftv_typ ty) (Str_set.of_list vars)
 
 let ftv_ctx ctx =
-  Map.fold (fun _ scheme acc -> Set.union acc (ftv_scheme scheme)) ctx Set.empty
+  Map.fold
+    (fun _ scheme acc -> Str_set.union acc (ftv_scheme scheme))
+    ctx Str_set.empty
 
 let generalize ty ctx =
-  let vars = Set.diff (ftv_typ ty) (ftv_ctx ctx) |> Set.to_seq in
+  let vars = Str_set.diff (ftv_typ ty) (ftv_ctx ctx) |> Str_set.to_seq in
   Scheme (List.of_seq vars, ty)
 
 let compose s1 s2 =
@@ -134,7 +141,7 @@ let bind_var ty v =
   match ty with
   | TVar v' when v = v' -> Map.empty
   | _ ->
-      if Set.mem v (ftv_typ ty) then
+      if Str_set.mem v (ftv_typ ty) then
         Printf.sprintf "Occurs check failed for %s in %s" v (string_of_typ ty)
         |> failwith
       else Map.singleton v ty
@@ -147,6 +154,7 @@ let unify ty1 ty2 =
   let rec unify' = function
     | TVar v, ty | ty, TVar v -> bind_var ty v
     | TInt, TInt -> Map.empty
+    | TStr, TStr -> Map.empty
     | TBool, TBool -> Map.empty
     | TUnit, TUnit -> Map.empty
     | TFun (p, r), TFun (p', r') ->
@@ -160,8 +168,16 @@ let unify ty1 ty2 =
             (fun acc ty1 ty2 ->
               unify' (apply_typ ty1 acc, apply_typ ty2 acc) ++ acc)
             Map.empty l l'
+    | TCustom (name1, args1), TCustom (name2, args2) ->
+        if name1 = name2 then
+          List.fold_left2
+            (fun acc ty1 ty2 ->
+              unify' (apply_typ ty1 acc, apply_typ ty2 acc) ++ acc)
+            Map.empty args1 args2
+        else unify_err ty1 ty2
     | ty1, ty2 -> unify_err ty1 ty2
   in
+
   unify' (ty1, ty2)
 
 let istantiate = function
@@ -169,9 +185,23 @@ let istantiate = function
       let vars' = vars |> List.map (fun _ -> new_var "a") in
       List.combine vars vars' |> List.to_seq |> Map.of_seq |> apply_typ ty
 
+let rec typedef_to_type =
+  Frontend.Typedef.(
+    Kind.(
+      Impl.(
+        function
+        | { body = Tkind_var _; parameters = [] } -> new_var "a"
+        | { body = Tkind_concrete { thing = "Int" }; parameters = [] } -> TInt
+        | { body = Tkind_concrete { thing = "String" }; parameters = [] } ->
+            TStr
+        | { body = Tkind_concrete { thing }; parameters } ->
+            TCustom (thing, List.map typedef_to_type parameters)
+        | _ -> assert false)))
+
 let rec infer exp ctx =
   match exp with
   | Expr_int _ -> (Map.empty, TInt)
+  | Expr_string _ -> (Map.empty, TStr)
   | Expr_let { binding = { bind_body; _ }; body } ->
       let s1, ty1 = infer bind_body.body ctx in
       let ctx1 = Map.remove bind_body.name.thing ctx in
@@ -189,28 +219,146 @@ let rec infer exp ctx =
       match Map.find_opt v ctx with
       | Some scheme -> (Map.empty, istantiate scheme)
       | None -> Printf.sprintf "Unbound variable %s" v |> failwith)
+  | Expr_if_then_else { if_exp; then_exp; else_exp } ->
+      let s1, cond = infer if_exp ctx in
+      let s2, ty1 = infer then_exp (apply_ctx ctx s1) in
+      let s3, ty2 = infer else_exp (apply_ctx ctx s1) in
+      let s4 = unify (apply_typ cond s1) TBool in
+      let s5 = unify (apply_typ ty1 s3) (apply_typ ty2 s3) in
+      (s5 ++ s4 ++ s3 ++ s2 ++ s1, apply_typ ty1 s4)
+  | Expr_pattern { expr; pattern_data_items } ->
+      let s0, match_ = infer expr ctx in
+      let arities = Hashtbl.create 10 in
+      let rec m_pattern =
+        Pattern.Typed.(
+          function
+          | Frontend.Pattern.P_str s ->
+              (Map.empty, { typ = TStr; pattern = P_T_str s })
+          | P_int i -> (Map.empty, { typ = TInt; pattern = P_T_int i })
+          | P_anything ->
+              (Map.empty, { typ = new_var "a"; pattern = P_T_anything })
+          | P_ctor (name, list) -> (
+              let decl =
+                let open Frontend.Typedecl in
+                List.find_map
+                  (fun type_ ->
+                    List.find_map
+                      (fun ctor ->
+                        if name = ctor.id then Some (type_, ctor) else None)
+                      type_.ctors)
+                  Fake_types.test_custom_definitions
+              in
+              match decl with
+              | Some (type_, d) ->
+                  let s, resolved_types, patterns =
+                    List.fold_left2
+                      (fun (acc, m, patterns) (pattern : Frontend.Pattern.t)
+                           (ctor : Frontend.Typedef.Impl.t) ->
+                        let s, ty_arg = m_pattern pattern in
+                        (* let ty_def = typedef_to_type ctor in
+                           let s2 =
+                             unify (apply_typ ty_arg s) (apply_typ ty_def s)
+                           in *)
+                        ( (* acc ++ s ++ s2, *)
+                          acc ++ s,
+                          (match ctor.body with
+                          | Frontend.Typedef.Kind.Tkind_var v ->
+                              Map.add v.thing ty_arg.typ m
+                          | _ -> m),
+                          ty_arg :: patterns ))
+                      (Map.empty, Map.empty, []) list d.data
+                  in
+                  Hashtbl.add arities type_.name (List.length d.data);
+                  let args =
+                    List.map
+                      (fun p ->
+                        resolved_types |> Map.find_opt p
+                        |> CCOption.get_lazy (fun () -> new_var "a"))
+                      type_.params
+                  in
+                  ( s,
+                    {
+                      typ = TCustom (type_.name, args);
+                      pattern = P_T_ctor (name, List.rev patterns);
+                    } )
+              | None -> assert false)
+          | _ -> assert false)
+      in
+      let fn (patterns, (s0, ty0), (s1, ty1)) { pattern; expr = case_expr } =
+        let fn_apply (s2, ty2) =
+          let s3, ty3 = infer case_expr (apply_ctx ctx s2) in
+          let s4 =
+            unify (apply_typ ty2.Pattern.Typed.typ s2) (apply_typ ty0 s0)
+          in
+          let s5 = unify (apply_typ ty3 s3) (apply_typ ty1 s1) in
+          ( ty2 :: patterns,
+            (s4 ++ s3 ++ s2 ++ s1 ++ s0, apply_typ ty2.typ s2),
+            (s5 ++ s4 ++ s3 ++ s2 ++ s1 ++ s0, apply_typ ty3 s5) )
+        in
+        pattern |> m_pattern |> fn_apply
+      in
+      let patterns, (s1, _), (s2, ty2) =
+        match pattern_data_items with
+        | hd :: rest ->
+            List.fold_left fn
+              (fn ([], (s0, match_), (Map.empty, new_var "a")) hd)
+              rest
+        | [] -> raise (failwith "no patterns")
+      in
+
+      (* print_endline @@ Type.show @@ apply_typ match_ (s2 ++ s1);
+         print_endline
+         @@ print
+              (Match_compile.compile arities
+                 { v = Base "initial"; ty = apply_typ match_ (s2 ++ s1) }
+                 (List.map Match_compile.make_ml_style_constrs patterns)); *)
+      (s2 ++ s1, ty2)
+  | Expr_constr { name; arguments } -> (
+      let decl =
+        let open Frontend.Typedecl in
+        List.find_map
+          (fun type_ ->
+            List.find_map
+              (fun ctor -> if name = ctor.id then Some (type_, ctor) else None)
+              type_.ctors)
+          Fake_types.test_custom_definitions
+      in
+      match decl with
+      | Some (type_, d) ->
+          let s, resolved_types =
+            List.fold_left2
+              (fun (acc, m) (ctor : Frontend.Typedef.Impl.t) arg ->
+                let s, ty_arg = infer arg ctx in
+                (* let ty_def = typedef_to_type ctor in *)
+                (* let s2 = unify (apply_typ ty_arg s) (apply_typ ty_def s) in *)
+                ( acc ++ s,
+                  (* acc ++ s ++ s2, *)
+                  match ctor.body with
+                  | Frontend.Typedef.Kind.Tkind_var v ->
+                      Map.add v.thing ty_arg m
+                  | Tkind_concrete _ | Tkind_record _ | Tkind_tuple _
+                  | Tkind_function _ | Tkind_unit ->
+                      m ))
+              (Map.empty, Map.empty) d.data arguments
+          in
+          let args =
+            List.map
+              (fun p ->
+                match Map.find_opt p resolved_types with
+                | Some t -> t
+                | None ->
+                    (* get rid of it *)
+                    Printf.sprintf "Unknown type variable %s" p |> failwith)
+              type_.params
+          in
+          (s, TCustom (type_.name, args))
+      | None -> Printf.sprintf "Unknown constructor %s" name |> failwith)
   | _ -> assert false
-
-(**
-             Например вывод для let a = 2 in a + 1
-
-             print_endline (Printf.sprintf "r: %s" (Ast.show_typ r));
-             print_endline (Printf.sprintf "apply_typ ty s2: %s" (Ast.show_typ (apply_typ ty s2)));
-             print_endline (Printf.sprintf "TFun (p, r) ty s2: %s" (Ast.show_typ (TFun (p, r))));
-
-             Let a (Int 2) (App (App (Var +) (Var a)) (Int 1))
-             r: (Ast.TVar "a0")
-             apply_typ ty s2: (Ast.TFun (Ast.TInt, (Ast.TFun (Ast.TInt, Ast.TInt))))
-             TFun (p, r) ty s2: (Ast.TFun (Ast.TInt, (Ast.TVar "a0")))
-             r: (Ast.TVar "a1")
-             apply_typ ty s2: (Ast.TFun (Ast.TInt, Ast.TInt))
-             TFun (p, r) ty s2: (Ast.TFun (Ast.TInt, (Ast.TVar "a1")))
-
-         *)
 
 let infer_exp exp ctx =
   State.reset ();
   let s, ty = infer exp ctx in
   apply_typ ty s
 
+let infer' = infer
 let infer exp = infer_exp exp ctx

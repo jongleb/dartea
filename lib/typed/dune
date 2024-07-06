@@ -1,6 +1,6 @@
 (library
  (name typed)
- (libraries canonical data)
+ (libraries canonical frontend containers-data data vector)
  (flags
   (-w -40 -w +26))
  (preprocess
