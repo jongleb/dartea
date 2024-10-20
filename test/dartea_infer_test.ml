@@ -672,27 +672,26 @@ let test_no_errors_compile_exhaustive_2 _ =
 
 let suite =
   [
-    (* "test_a_plus_5" >:: test_a_plus_5;
-       "test_id" >:: test_id; *)
-    (* "test_pattern_matching_returning_ignore_exhaustive"
-       >:: test_pattern_matching_returning_ignore_exhaustive;
-       "test_pattern_matching_returning_ignore_exhaustive_2"
-       >:: test_pattern_matching_returning_ignore_exhaustive_2;
-       "test_pattern_matching_returning_ignore_exhaustive_3"
-       >:: test_pattern_matching_returning_ignore_exhaustive_3;
-       "test_pattern_matching_returning_exhaustive_4"
-       >:: test_pattern_matching_returning_exhaustive_4;
-       "test_pattern_matching_returning_ignore_exhaustive_resolve_type_while_matching_case_3"
-       >:: test_pattern_matching_returning_ignore_exhaustive_resolve_type_while_matching_case_3;
-       "test_pattern_matching_returning_ignore_exhaustive_resolve_type_while_matching_case_4"
-       >:: test_pattern_matching_returning_ignore_exhaustive_resolve_type_while_matching_case_4; *)
-    (* "test_pattern_matching_returning_ignore_exhaustive_try_invalid_reuse"
-       >:: test_pattern_matching_returning_ignore_exhaustive_try_invalid_reuse; *)
-    (* "test_pattern_matching_returning_ignore_exhaustive_resolve_type_while_matching_case_4_2"
-       >:: test_pattern_matching_returning_ignore_exhaustive_resolve_type_while_matching_case_4_2; *)
-    (* "test_constr_infer" >:: test_constr_infer; *)
-    (* "test_pattern_trie1" >:: test_pattern_trie1; *)
-    (* "test_unify" >:: test_unify; *)
+    "test_a_plus_5" >:: test_a_plus_5;
+    "test_id" >:: test_id;
+    "test_pattern_matching_returning_ignore_exhaustive"
+    >:: test_pattern_matching_returning_ignore_exhaustive;
+    "test_pattern_matching_returning_ignore_exhaustive_2"
+    >:: test_pattern_matching_returning_ignore_exhaustive_2;
+    "test_pattern_matching_returning_ignore_exhaustive_3"
+    >:: test_pattern_matching_returning_ignore_exhaustive_3;
+    "test_pattern_matching_returning_exhaustive_4"
+    >:: test_pattern_matching_returning_exhaustive_4;
+    "test_pattern_matching_returning_ignore_exhaustive_resolve_type_while_matching_case_3"
+    >:: test_pattern_matching_returning_ignore_exhaustive_resolve_type_while_matching_case_3;
+    "test_pattern_matching_returning_ignore_exhaustive_resolve_type_while_matching_case_4"
+    >:: test_pattern_matching_returning_ignore_exhaustive_resolve_type_while_matching_case_4;
+    "test_pattern_matching_returning_ignore_exhaustive_try_invalid_reuse"
+    >:: test_pattern_matching_returning_ignore_exhaustive_try_invalid_reuse;
+    "test_pattern_matching_returning_ignore_exhaustive_resolve_type_while_matching_case_4_2"
+    >:: test_pattern_matching_returning_ignore_exhaustive_resolve_type_while_matching_case_4_2;
+    "test_constr_infer" >:: test_constr_infer;
+    "test_unify" >:: test_unify;
     "test_specialization_tree" >:: test_specialization_tree;
     "test_defaulting_tree" >:: test_defaulting_tree;
     "test_no_errors_compile" >:: test_no_errors_compile;
