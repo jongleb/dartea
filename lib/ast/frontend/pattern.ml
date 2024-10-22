@@ -7,7 +7,7 @@ type t =
   | P_record of string list
   (* | PAlias Pattern Name ?? *)
   | P_unit
-  (* | PTuple of (pattern * pattern) (Maybe Pattern) *)
+  | P_tuple of t list
   | P_list of t list
   | P_cons of (t * t)
   (* | PBool Union Bool*)

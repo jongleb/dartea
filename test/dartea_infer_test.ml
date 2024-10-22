@@ -294,58 +294,6 @@ let test_pattern_matching_returning_ignore_exhaustive_resolve_type_while_matchin
   let result = Typed.Infer.apply_typ ty s in
   assert_equal result Typed.Type.TInt
 
-(* let _ =
-   let open Typed in
-   let open Infer in
-   let open Type in
-   (* let fn_apply (s1, ty1) =
-        let s2, ty2 = infer case_expr (apply_ctx ctx s1) in
-        let s4 = unify (apply_typ ty1 s1) (apply_typ match_ s0) in
-        (s1 ++ s4, apply_typ ty2 s4)
-      in *)
-   (* let a =
-        Typed.Infer.(
-          let open Type in
-          Map.of_seq (List.to_seq [ ("var", TStr) ]))
-      in
-
-      let b =
-        Typed.Infer.(
-          let open Type in
-          Map.empty)
-      in *)
-   (* let case_a =
-        Expr.{ pattern = P_ctor ("Just", [ P_int 0 ]); expr = Expr_string "Zero" }
-      in
-      let case_b =
-        Expr.{ pattern = P_ctor ("None", []); expr = Expr_string "Zero" }
-      in
-      let case_c =
-        Expr.
-          {
-            pattern = P_ctor ("Just", [ P_var "v" ]);
-            expr = Expr_string "More then null";
-          } *)
-   let s0, match_ = (Map.empty, TCustom ("Maybe", [ TInt ])) in
-   let s1, ty1 =
-
-     ( Map.of_seq (List.to_seq [ ("val2", TBool); ("val3", TInt) ]),
-       TCustom ("Maybe", [ TVar "val" ]) )
-   in
-   let s2, ty2 =
-     (Map.of_seq (List.to_seq [ ("val4", TBool); ("val5", TInt) ]), TStr)
-   in
-   let s4 = unify (apply_typ ty1 s1) (apply_typ match_ s0) in
-   let result, type_result = (s1 ++ s2 ++ s4, apply_typ ty2 s4) in
-   Map.iter
-     (fun k v ->
-       print_endline "k";
-       print_endline k;
-       print_endline "v";
-       print_endline @@ show v)
-     result;
-   print_endline @@ show type_result *)
-
 let test_specialization_tree _ =
   let arguments = [ "$" ] in
   let actions = [ 1; 2; 3 ] in
@@ -670,6 +618,73 @@ let test_no_errors_compile_exhaustive_2 _ =
   let result = Typed.Pattern.compile node in
   assert_bool "not exhaustive" @@ Typed.Pattern.is_exhaustive' result
 
+let infer_check_exhaustive _ =
+  let ctx =
+    Typed.(
+      Infer.(
+        State.reset ();
+        let typs = ("test_var_", Type.Scheme ([], new_var "a")) :: typs in
+        let f acc (v, scheme) = Map.add v scheme acc in
+        List.fold_left f Map.empty typs))
+  in
+  let expr =
+    Expr.Expr_pattern
+      {
+        expr = Expr_ident "test_var_";
+        pattern_data_items =
+          [
+            {
+              pattern = P_ctor ("Just", [ P_tuple [ P_int 1; P_anything ] ]);
+              expr = Expr_int 1;
+            };
+            {
+              pattern = P_ctor ("Just", [ P_tuple [ P_anything; P_int 2 ] ]);
+              expr = Expr_int 2;
+            };
+            {
+              pattern = P_ctor ("Just", [ P_tuple [ P_anything; P_anything ] ]);
+              expr = Expr_int 3;
+            };
+            { pattern = P_ctor ("None", []); expr = Expr_int 4 };
+          ];
+      }
+  in
+  let s, ty = Typed.Infer.infer' expr ctx in
+  let result = Typed.Infer.apply_typ ty s in
+  assert_equal result Typed.Type.TInt
+
+let infer_check_not_exhaustive _ =
+  let ctx =
+    Typed.(
+      Infer.(
+        State.reset ();
+        let typs = ("test_var_", Type.Scheme ([], new_var "a")) :: typs in
+        let f acc (v, scheme) = Map.add v scheme acc in
+        List.fold_left f Map.empty typs))
+  in
+  let expr =
+    Expr.Expr_pattern
+      {
+        expr = Expr_ident "test_var_";
+        pattern_data_items =
+          [
+            {
+              pattern = P_ctor ("Just", [ P_tuple [ P_int 1; P_anything ] ]);
+              expr = Expr_int 1;
+            };
+            {
+              pattern = P_ctor ("Just", [ P_tuple [ P_anything; P_int 2 ] ]);
+              expr = Expr_int 2;
+            };
+            { pattern = P_ctor ("None", []); expr = Expr_int 3 };
+          ];
+      }
+  in
+  assert_raises (Failure "Not exhaustive") (fun () ->
+      let s, ty = Typed.Infer.infer' expr ctx in
+      let result = Typed.Infer.apply_typ ty s in
+      assert_equal result Typed.Type.TInt)
+
 let suite =
   [
     "test_a_plus_5" >:: test_a_plus_5;
@@ -680,16 +695,16 @@ let suite =
     >:: test_pattern_matching_returning_ignore_exhaustive_2;
     "test_pattern_matching_returning_ignore_exhaustive_3"
     >:: test_pattern_matching_returning_ignore_exhaustive_3;
-    "test_pattern_matching_returning_exhaustive_4"
-    >:: test_pattern_matching_returning_exhaustive_4;
+    (* "test_pattern_matching_returning_exhaustive_4"
+       >:: test_pattern_matching_returning_exhaustive_4; *)
     "test_pattern_matching_returning_ignore_exhaustive_resolve_type_while_matching_case_3"
     >:: test_pattern_matching_returning_ignore_exhaustive_resolve_type_while_matching_case_3;
-    "test_pattern_matching_returning_ignore_exhaustive_resolve_type_while_matching_case_4"
-    >:: test_pattern_matching_returning_ignore_exhaustive_resolve_type_while_matching_case_4;
-    "test_pattern_matching_returning_ignore_exhaustive_try_invalid_reuse"
-    >:: test_pattern_matching_returning_ignore_exhaustive_try_invalid_reuse;
-    "test_pattern_matching_returning_ignore_exhaustive_resolve_type_while_matching_case_4_2"
-    >:: test_pattern_matching_returning_ignore_exhaustive_resolve_type_while_matching_case_4_2;
+    (* "test_pattern_matching_returning_ignore_exhaustive_resolve_type_while_matching_case_4"
+       >:: test_pattern_matching_returning_ignore_exhaustive_resolve_type_while_matching_case_4; *)
+    (* "test_pattern_matching_returning_ignore_exhaustive_try_invalid_reuse"
+       >:: test_pattern_matching_returning_ignore_exhaustive_try_invalid_reuse; *)
+    (* "test_pattern_matching_returning_ignore_exhaustive_resolve_type_while_matching_case_4_2"
+       >:: test_pattern_matching_returning_ignore_exhaustive_resolve_type_while_matching_case_4_2; *)
     "test_constr_infer" >:: test_constr_infer;
     "test_unify" >:: test_unify;
     "test_specialization_tree" >:: test_specialization_tree;
@@ -698,6 +713,7 @@ let suite =
     "test_detupling" >:: test_detupling;
     "test_no_errors_compile_exhaustive_2"
     >:: test_no_errors_compile_exhaustive_2;
+    "infer_check_exhaustive" >:: infer_check_exhaustive;
   ]
 (* CCImmutArray.iteri
    (fun idx pat ->

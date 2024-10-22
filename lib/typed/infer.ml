@@ -228,7 +228,6 @@ let rec infer exp ctx =
       (s5 ++ s4 ++ s3 ++ s2 ++ s1, apply_typ ty1 s4)
   | Expr_pattern { expr; pattern_data_items } ->
       let s0, match_ = infer expr ctx in
-      let arities = Hashtbl.create 10 in
       let rec m_pattern =
         Pattern.Typed.(
           function
@@ -237,6 +236,15 @@ let rec infer exp ctx =
           | P_int i -> (Map.empty, { typ = TInt; pattern = P_T_int i })
           | P_anything ->
               (Map.empty, { typ = new_var "a"; pattern = P_T_anything })
+          | P_tuple list ->
+              let map, typs, pats =
+                List.fold_right
+                  (fun pat (map, typs, pats) ->
+                    let map_r, pat = m_pattern pat in
+                    (map_r ++ map, pat.typ :: typs, pat :: pats))
+                  list (Map.empty, [], [])
+              in
+              (map, { typ = TTup (List.rev typs); pattern = P_T_tuple pats })
           | P_ctor (name, list) -> (
               let decl =
                 let open Frontend.Typedecl in
@@ -268,7 +276,6 @@ let rec infer exp ctx =
                           ty_arg :: patterns ))
                       (Map.empty, Map.empty, []) list d.data
                   in
-                  Hashtbl.add arities type_.name (List.length d.data);
                   let args =
                     List.map
                       (fun p ->
@@ -305,13 +312,8 @@ let rec infer exp ctx =
               rest
         | [] -> raise (failwith "no patterns")
       in
-
-      (* print_endline @@ Type.show @@ apply_typ match_ (s2 ++ s1);
-         print_endline
-         @@ print
-              (Match_compile.compile arities
-                 { v = Base "initial"; ty = apply_typ match_ (s2 ++ s1) }
-                 (List.map Match_compile.make_ml_style_constrs patterns)); *)
+      (* TODO FIX ME *)
+      if not @@ Pattern.is_exhaustive patterns then failwith "Not exhaustive";
       (s2 ++ s1, ty2)
   | Expr_constr { name; arguments } -> (
       let decl =
