@@ -148,6 +148,7 @@ value_decl_body_exprs_pattern_top:
 
 value_decl_body_exprs_pattern_composite:
     | e=value_decl_body_exprs_pattern_p_ctor { e }
+    | LPAREN lst=separated_list(COMMA, value_decl_body_exprs_pattern_top) RPAREN { P_tuple lst }
     | a=value_decl_body_exprs_pattern_plain CONS b=value_decl_body_exprs_pattern_plain { P_cons(a, b) }
 
 value_decl_body_exprs_pattern_p_ctor:

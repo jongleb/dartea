@@ -234,29 +234,94 @@ let test_constr_infer _ =
   assert_equal result (Typed.Type.TCustom ("Maybe", [ Option.get !var ]))
 
 let test_pattern_matching_returning_exhaustive_4 _ =
-  let expr =
-    Expr.Expr_pattern
-      {
-        expr =
-          Expr_constr
-            {
-              name = "E";
-              arguments = [ Expr_constr { name = "C"; arguments = [] } ];
-            };
-        pattern_data_items =
-          [
-            { pattern = P_ctor ("E", [ P_ctor ("C", []) ]); expr = Expr_int 1 };
-            { pattern = P_ctor ("F", [ P_ctor ("A", []) ]); expr = Expr_int 1 };
-            { pattern = P_ctor ("G", [ P_int 2 ]); expr = Expr_int 1 };
-            { pattern = P_ctor ("E", [ P_ctor ("D", []) ]); expr = Expr_int 1 };
-            {
-              pattern = P_ctor ("F", [ P_ctor ("B", [ P_str "Word" ]) ]);
-              expr = Expr_int 1;
-            };
-          ];
-      }
+  let ctx =
+    Typed.(
+      Infer.(
+        State.reset ();
+        let typs = ("a", Type.Scheme ([], new_var "a")) :: typs in
+        let f acc (v, scheme) = Map.add v scheme acc in
+        List.fold_left f Map.empty typs))
   in
-  assert_equal (Typed.Infer.infer expr) Typed.Type.TInt
+  let input =
+    {|
+toplevel: Int                           
+toplevel = case a of
+  E (C) -> 1
+  F (A) -> 2
+  G 2   -> 3
+  E (D) -> 4
+  _ -> 5|}
+  in
+  let result = input |> Main.parse in
+  let _expr =
+    match result with
+    | Ok [ Impl.Top_declaration d ] ->
+        let s, ty = Typed.Infer.infer' d.body_part.expr.thing ctx in
+        let result = Typed.Infer.apply_typ ty s in
+        assert_equal result Typed.Type.TInt
+    | Error e -> raise e
+    | _ -> assert false
+  in
+
+  ()
+
+let test_pattern_matching_returning_exhaustive_5 _ =
+  let ctx =
+    Typed.(
+      Infer.(
+        State.reset ();
+        let typs = ("a", Type.Scheme ([], new_var "a")) :: typs in
+        let typs = ("b", Type.Scheme ([], TTup [ TInt; TStr ])) :: typs in
+        let f acc (v, scheme) = Map.add v scheme acc in
+        List.fold_left f Map.empty typs))
+  in
+  let input =
+    {|
+toplevel: Int                           
+toplevel = case a of
+  Just ((1, _)) -> let v = int_of_string "600" in pow v 100
+  Just ((_, 2)) -> fst b
+  None   -> length (concat "ab" "cd")
+  _ -> 5|}
+  in
+  let result = input |> Main.parse in
+  let _expr =
+    match result with
+    | Ok [ Impl.Top_declaration d ] ->
+        let s, ty = Typed.Infer.infer' d.body_part.expr.thing ctx in
+        let result = Typed.Infer.apply_typ ty s in
+        assert_equal result Typed.Type.TInt
+    | Error e -> raise e
+    | _ -> assert false
+  in
+
+  ()
+
+(* assert_equal (Typed.Infer.infer expr) Typed.Type.TInt *)
+
+(* let expr =
+     Expr.Expr_pattern
+       {
+         expr =
+           Expr_constr
+             {
+               name = "E";
+               arguments = [ Expr_constr { name = "C"; arguments = [] } ];
+             };
+         pattern_data_items =
+           [
+             { pattern = P_ctor ("E", [ P_ctor ("C", []) ]); expr = Expr_int 1 };
+             { pattern = P_ctor ("F", [ P_ctor ("A", []) ]); expr = Expr_int 1 };
+             { pattern = P_ctor ("G", [ P_int 2 ]); expr = Expr_int 1 };
+             { pattern = P_ctor ("E", [ P_ctor ("D", []) ]); expr = Expr_int 1 };
+             {
+               pattern = P_ctor ("F", [ P_ctor ("B", [ P_str "Word" ]) ]);
+               expr = Expr_int 1;
+             };
+           ];
+       }
+   in
+   assert_equal (Typed.Infer.infer expr) Typed.Type.TInt *)
 
 let test_unify _ =
   let open Typed.Infer in
@@ -724,24 +789,25 @@ let infer_check_exhaustive_p_var _ =
           ];
       }
   in
-  let s, ty = Typed.Infer.infer' expr ctx in
-  let result = Typed.Infer.apply_typ ty s in
-  assert_equal result Typed.Type.TInt
+  assert_raises (Failure "Unification failed for string and int") (fun () ->
+      let s, ty = Typed.Infer.infer' expr ctx in
+      let result = Typed.Infer.apply_typ ty s in
+      assert_equal result Typed.Type.TInt)
 
 let suite =
   [
-    (* "test_a_plus_5" >:: test_a_plus_5;
-       "test_id" >:: test_id;
-       "test_pattern_matching_returning_ignore_exhaustive"
-       >:: test_pattern_matching_returning_ignore_exhaustive;
-       "test_pattern_matching_returning_ignore_exhaustive_2"
-       >:: test_pattern_matching_returning_ignore_exhaustive_2;
-       "test_pattern_matching_returning_ignore_exhaustive_3"
-       >:: test_pattern_matching_returning_ignore_exhaustive_3;
-       (* "test_pattern_matching_returning_exhaustive_4"
-          >:: test_pattern_matching_returning_exhaustive_4; *)
-       "test_pattern_matching_returning_ignore_exhaustive_resolve_type_while_matching_case_3"
-       >:: test_pattern_matching_returning_ignore_exhaustive_resolve_type_while_matching_case_3; *)
+    "test_a_plus_5" >:: test_a_plus_5;
+    "test_id" >:: test_id;
+    "test_pattern_matching_returning_ignore_exhaustive"
+    >:: test_pattern_matching_returning_ignore_exhaustive;
+    "test_pattern_matching_returning_ignore_exhaustive_2"
+    >:: test_pattern_matching_returning_ignore_exhaustive_2;
+    "test_pattern_matching_returning_ignore_exhaustive_3"
+    >:: test_pattern_matching_returning_ignore_exhaustive_3;
+    "test_pattern_matching_returning_exhaustive_4"
+    >:: test_pattern_matching_returning_exhaustive_4;
+    "test_pattern_matching_returning_ignore_exhaustive_resolve_type_while_matching_case_3"
+    >:: test_pattern_matching_returning_ignore_exhaustive_resolve_type_while_matching_case_3;
     (* "test_pattern_matching_returning_ignore_exhaustive_resolve_type_while_matching_case_4"
        >:: test_pattern_matching_returning_ignore_exhaustive_resolve_type_while_matching_case_4; *)
     (* "test_pattern_matching_returning_ignore_exhaustive_try_invalid_reuse"
@@ -755,9 +821,11 @@ let suite =
        "test_no_errors_compile" >:: test_no_errors_compile;
        "test_detupling" >:: test_detupling;
        "test_no_errors_compile_exhaustive_2"
-       >:: test_no_errors_compile_exhaustive_2;
-       "infer_check_exhaustive" >:: infer_check_exhaustive; *)
+       >:: test_no_errors_compile_exhaustive_2;*)
+    "infer_check_exhaustive" >:: infer_check_exhaustive;
     "infer_check_exhaustive_p_var" >:: infer_check_exhaustive_p_var;
+    "test_pattern_matching_returning_exhaustive_5"
+    >:: test_pattern_matching_returning_exhaustive_5;
   ]
 (* CCImmutArray.iteri
    (fun idx pat ->

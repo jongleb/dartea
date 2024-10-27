@@ -17,4 +17,4 @@ let parse content =
   try
     let cst = parse lexbuf in
     Ok cst
-  with _ -> Error "parse error"
+  with e -> Error e

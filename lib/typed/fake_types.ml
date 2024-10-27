@@ -84,3 +84,7 @@ let test_custom_definitions =
           ];
       };
     ]
+
+(* type T1 = A | B String
+   type T2 = C | D
+   type T3 = E T2 | F T1 | G Int *)

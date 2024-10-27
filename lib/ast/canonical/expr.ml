@@ -106,3 +106,10 @@ let rec of_frontend exports env expr =
     | _ -> failwith @@ "..."
   in
   go env expr
+
+(* FIXME *)
+(* let of_frontend =
+   let rec go env = function
+   | Frontend.Expr.Expr_float i -> Expr_float i
+   | Expr_string s -> Expr_string s
+   | Expr_constr { name; arguments } -> Expr_constr { name; arguments=(List.map (go env) arguments) } *)

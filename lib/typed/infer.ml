@@ -5,6 +5,7 @@ type ctx = scheme Map.t
 
 let typs : (string * scheme) list =
   [
+    ("pow", Scheme ([], TFun (TInt, TFun (TInt, TInt))));
     ("=", Scheme ([ "'a" ], TFun (TVar "'a", TFun (TVar "'a", TBool))));
     ("<>", Scheme ([ "'a" ], TFun (TVar "'a", TFun (TVar "'a", TBool))));
     ("&&", Scheme ([], TFun (TBool, TFun (TBool, TBool))));
@@ -14,6 +15,7 @@ let typs : (string * scheme) list =
     ("concat", Scheme ([], TFun (TStr, TFun (TStr, TStr))));
     ("length", Scheme ([], TFun (TStr, TInt)));
     ("int_to_string", Scheme ([], TFun (TInt, TStr)));
+    ("int_of_string", Scheme ([], TFun (TStr, TInt)));
     (* while operators aren't supported *)
     ("-", Scheme ([], TFun (TInt, TFun (TInt, TInt))));
     ("*", Scheme ([], TFun (TInt, TFun (TInt, TInt))));
@@ -246,7 +248,7 @@ let rec infer exp ctx =
           | P_var name ->
               let typ = new_var "a" in
               let ctx1 = Map.remove name ctx in
-              let scheme = apply_ctx ctx1 Map.empty |> generalize typ in
+              let scheme = Type.Scheme ([], typ) in
               let ctx2 = Map.add name scheme ctx1 in
               (Map.empty, { typ; pattern = P_T_var name }, ctx2)
           | P_tuple list ->
@@ -315,18 +317,14 @@ let rec infer exp ctx =
           | _ -> assert false)
       in
       let fn (patterns, (s0, ty0), (s1, ty1)) { pattern; expr = case_expr } =
-        (* let s1, ty1 = infer bind_body.body ctx in
-           let ctx1 = Map.remove bind_body.name.thing ctx in
-           let scheme = apply_ctx ctx1 s1 |> generalize ty1 in
-           let ctx2 = Map.add bind_body.name.thing scheme ctx1 in
-           let s2, ty2 = infer body (apply_ctx ctx2 s1) in *)
         let fn_apply (s2, ty2, ctx') =
           let ctx = Map.union (fun _ _ b -> Some b) ctx ctx' in
           let s3, ty3 = infer case_expr (apply_ctx ctx s2) in
           let s4 =
-            unify (apply_typ ty2.Pattern.Typed.typ s2) (apply_typ ty0 s0)
+            unify
+              (apply_typ ty2.Pattern.Typed.typ (s3 ++ s2))
+              (apply_typ ty0 s0)
           in
-          (* let s6, ty6 = (s3 ++ s4, ty3) in *)
           let s5 = unify (apply_typ ty3 s3) (apply_typ ty1 s1) in
           let s4' = s4 ++ s3 ++ s2 ++ s1 ++ s0 in
           ( ty2 :: patterns,
@@ -335,7 +333,7 @@ let rec infer exp ctx =
         in
         pattern |> m_pattern |> fn_apply
       in
-      let patterns, (s1, _), (s2, ty2) =
+      let patterns, (s1, t1), (s2, ty2) =
         match pattern_data_items with
         | hd :: rest ->
             List.fold_left fn
