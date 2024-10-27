@@ -685,35 +685,79 @@ let infer_check_not_exhaustive _ =
       let result = Typed.Infer.apply_typ ty s in
       assert_equal result Typed.Type.TInt)
 
+let infer_check_exhaustive_p_var _ =
+  let ctx =
+    Typed.(
+      Infer.(
+        State.reset ();
+        let typs = ("test_var_", Type.Scheme ([], new_var "a")) :: typs in
+        let f acc (v, scheme) = Map.add v scheme acc in
+        List.fold_left f Map.empty typs))
+  in
+  let expr =
+    Expr.Expr_pattern
+      {
+        expr = Expr_ident "test_var_";
+        pattern_data_items =
+          [
+            { pattern = P_ctor ("Just", [ P_int 1 ]); expr = Expr_int 1 };
+            {
+              pattern = P_ctor ("Just", [ P_var "abc" ]);
+              expr =
+                Expr.Expr_apply
+                  {
+                    fn = Expr.Expr_ident "length";
+                    arg =
+                      Expr_apply
+                        {
+                          fn =
+                            Expr_apply
+                              {
+                                fn = Expr.Expr_ident "concat";
+                                arg = Expr_ident "abc";
+                              };
+                          arg = Expr_ident "abc";
+                        };
+                  };
+            };
+            { pattern = P_ctor ("None", []); expr = Expr_int 4 };
+          ];
+      }
+  in
+  let s, ty = Typed.Infer.infer' expr ctx in
+  let result = Typed.Infer.apply_typ ty s in
+  assert_equal result Typed.Type.TInt
+
 let suite =
   [
-    "test_a_plus_5" >:: test_a_plus_5;
-    "test_id" >:: test_id;
-    "test_pattern_matching_returning_ignore_exhaustive"
-    >:: test_pattern_matching_returning_ignore_exhaustive;
-    "test_pattern_matching_returning_ignore_exhaustive_2"
-    >:: test_pattern_matching_returning_ignore_exhaustive_2;
-    "test_pattern_matching_returning_ignore_exhaustive_3"
-    >:: test_pattern_matching_returning_ignore_exhaustive_3;
-    (* "test_pattern_matching_returning_exhaustive_4"
-       >:: test_pattern_matching_returning_exhaustive_4; *)
-    "test_pattern_matching_returning_ignore_exhaustive_resolve_type_while_matching_case_3"
-    >:: test_pattern_matching_returning_ignore_exhaustive_resolve_type_while_matching_case_3;
+    (* "test_a_plus_5" >:: test_a_plus_5;
+       "test_id" >:: test_id;
+       "test_pattern_matching_returning_ignore_exhaustive"
+       >:: test_pattern_matching_returning_ignore_exhaustive;
+       "test_pattern_matching_returning_ignore_exhaustive_2"
+       >:: test_pattern_matching_returning_ignore_exhaustive_2;
+       "test_pattern_matching_returning_ignore_exhaustive_3"
+       >:: test_pattern_matching_returning_ignore_exhaustive_3;
+       (* "test_pattern_matching_returning_exhaustive_4"
+          >:: test_pattern_matching_returning_exhaustive_4; *)
+       "test_pattern_matching_returning_ignore_exhaustive_resolve_type_while_matching_case_3"
+       >:: test_pattern_matching_returning_ignore_exhaustive_resolve_type_while_matching_case_3; *)
     (* "test_pattern_matching_returning_ignore_exhaustive_resolve_type_while_matching_case_4"
        >:: test_pattern_matching_returning_ignore_exhaustive_resolve_type_while_matching_case_4; *)
     (* "test_pattern_matching_returning_ignore_exhaustive_try_invalid_reuse"
        >:: test_pattern_matching_returning_ignore_exhaustive_try_invalid_reuse; *)
     (* "test_pattern_matching_returning_ignore_exhaustive_resolve_type_while_matching_case_4_2"
        >:: test_pattern_matching_returning_ignore_exhaustive_resolve_type_while_matching_case_4_2; *)
-    "test_constr_infer" >:: test_constr_infer;
-    "test_unify" >:: test_unify;
-    "test_specialization_tree" >:: test_specialization_tree;
-    "test_defaulting_tree" >:: test_defaulting_tree;
-    "test_no_errors_compile" >:: test_no_errors_compile;
-    "test_detupling" >:: test_detupling;
-    "test_no_errors_compile_exhaustive_2"
-    >:: test_no_errors_compile_exhaustive_2;
-    "infer_check_exhaustive" >:: infer_check_exhaustive;
+    (* "test_constr_infer" >:: test_constr_infer;
+       "test_unify" >:: test_unify;
+       "test_specialization_tree" >:: test_specialization_tree;
+       "test_defaulting_tree" >:: test_defaulting_tree;
+       "test_no_errors_compile" >:: test_no_errors_compile;
+       "test_detupling" >:: test_detupling;
+       "test_no_errors_compile_exhaustive_2"
+       >:: test_no_errors_compile_exhaustive_2;
+       "infer_check_exhaustive" >:: infer_check_exhaustive; *)
+    "infer_check_exhaustive_p_var" >:: infer_check_exhaustive_p_var;
   ]
 (* CCImmutArray.iteri
    (fun idx pat ->

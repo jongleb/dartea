@@ -11,6 +11,8 @@ let typs : (string * scheme) list =
     ("||", Scheme ([], TFun (TBool, TFun (TBool, TBool))));
     ("+", Scheme ([], TFun (TInt, TFun (TInt, TInt))));
     ("plus", Scheme ([], TFun (TInt, TFun (TInt, TInt))));
+    ("concat", Scheme ([], TFun (TStr, TFun (TStr, TStr))));
+    ("length", Scheme ([], TFun (TStr, TInt)));
     ("int_to_string", Scheme ([], TFun (TInt, TStr)));
     (* while operators aren't supported *)
     ("-", Scheme ([], TFun (TInt, TFun (TInt, TInt))));
@@ -198,6 +200,8 @@ let rec typedef_to_type =
             TCustom (thing, List.map typedef_to_type parameters)
         | _ -> assert false)))
 
+let merge_ctx = Map.union (fun _key _val1 _val2 -> failwith "Ambigous")
+
 let rec infer exp ctx =
   match exp with
   | Expr_int _ -> (Map.empty, TInt)
@@ -232,19 +236,34 @@ let rec infer exp ctx =
         Pattern.Typed.(
           function
           | Frontend.Pattern.P_str s ->
-              (Map.empty, { typ = TStr; pattern = P_T_str s })
-          | P_int i -> (Map.empty, { typ = TInt; pattern = P_T_int i })
+              (Map.empty, { typ = TStr; pattern = P_T_str s }, Map.empty)
+          | P_int i ->
+              (Map.empty, { typ = TInt; pattern = P_T_int i }, Map.empty)
           | P_anything ->
-              (Map.empty, { typ = new_var "a"; pattern = P_T_anything })
+              ( Map.empty,
+                { typ = new_var "a"; pattern = P_T_anything },
+                Map.empty )
+          | P_var name ->
+              let typ = new_var "a" in
+              let ctx1 = Map.remove name ctx in
+              let scheme = apply_ctx ctx1 Map.empty |> generalize typ in
+              let ctx2 = Map.add name scheme ctx1 in
+              (Map.empty, { typ; pattern = P_T_var name }, ctx2)
           | P_tuple list ->
-              let map, typs, pats =
+              let map, typs, pats, ctx =
                 List.fold_right
-                  (fun pat (map, typs, pats) ->
-                    let map_r, pat = m_pattern pat in
-                    (map_r ++ map, pat.typ :: typs, pat :: pats))
-                  list (Map.empty, [], [])
+                  (fun pat (fv, typs, pats, ctx_map) ->
+                    let map_r, pat, ctx = m_pattern pat in
+                    ( map_r ++ fv,
+                      pat.typ :: typs,
+                      pat :: pats,
+                      merge_ctx ctx ctx_map ))
+                  list
+                  (Map.empty, [], [], Map.empty)
               in
-              (map, { typ = TTup (List.rev typs); pattern = P_T_tuple pats })
+              ( map,
+                { typ = TTup (List.rev typs); pattern = P_T_tuple pats },
+                ctx )
           | P_ctor (name, list) -> (
               let decl =
                 let open Frontend.Typedecl in
@@ -258,11 +277,12 @@ let rec infer exp ctx =
               in
               match decl with
               | Some (type_, d) ->
-                  let s, resolved_types, patterns =
+                  let s, resolved_types, patterns, ctx =
                     List.fold_left2
-                      (fun (acc, m, patterns) (pattern : Frontend.Pattern.t)
+                      (fun (acc, m, patterns, ctx)
+                           (pattern : Frontend.Pattern.t)
                            (ctor : Frontend.Typedef.Impl.t) ->
-                        let s, ty_arg = m_pattern pattern in
+                        let s, ty_arg, ctx' = m_pattern pattern in
                         (* let ty_def = typedef_to_type ctor in
                            let s2 =
                              unify (apply_typ ty_arg s) (apply_typ ty_def s)
@@ -273,8 +293,10 @@ let rec infer exp ctx =
                           | Frontend.Typedef.Kind.Tkind_var v ->
                               Map.add v.thing ty_arg.typ m
                           | _ -> m),
-                          ty_arg :: patterns ))
-                      (Map.empty, Map.empty, []) list d.data
+                          ty_arg :: patterns,
+                          merge_ctx ctx ctx' ))
+                      (Map.empty, Map.empty, [], Map.empty)
+                      list d.data
                   in
                   let args =
                     List.map
@@ -287,20 +309,29 @@ let rec infer exp ctx =
                     {
                       typ = TCustom (type_.name, args);
                       pattern = P_T_ctor (name, List.rev patterns);
-                    } )
+                    },
+                    ctx )
               | None -> assert false)
           | _ -> assert false)
       in
       let fn (patterns, (s0, ty0), (s1, ty1)) { pattern; expr = case_expr } =
-        let fn_apply (s2, ty2) =
+        (* let s1, ty1 = infer bind_body.body ctx in
+           let ctx1 = Map.remove bind_body.name.thing ctx in
+           let scheme = apply_ctx ctx1 s1 |> generalize ty1 in
+           let ctx2 = Map.add bind_body.name.thing scheme ctx1 in
+           let s2, ty2 = infer body (apply_ctx ctx2 s1) in *)
+        let fn_apply (s2, ty2, ctx') =
+          let ctx = Map.union (fun _ _ b -> Some b) ctx ctx' in
           let s3, ty3 = infer case_expr (apply_ctx ctx s2) in
           let s4 =
             unify (apply_typ ty2.Pattern.Typed.typ s2) (apply_typ ty0 s0)
           in
+          (* let s6, ty6 = (s3 ++ s4, ty3) in *)
           let s5 = unify (apply_typ ty3 s3) (apply_typ ty1 s1) in
+          let s4' = s4 ++ s3 ++ s2 ++ s1 ++ s0 in
           ( ty2 :: patterns,
-            (s4 ++ s3 ++ s2 ++ s1 ++ s0, apply_typ ty2.typ s2),
-            (s5 ++ s4 ++ s3 ++ s2 ++ s1 ++ s0, apply_typ ty3 s5) )
+            (s4', apply_typ ty2.typ s2),
+            (s5 ++ s4', apply_typ ty3 s5) )
         in
         pattern |> m_pattern |> fn_apply
       in
