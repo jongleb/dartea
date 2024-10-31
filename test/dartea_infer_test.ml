@@ -277,6 +277,7 @@ toplevel: Int
 toplevel = case a of
   Just ((1, _)) -> let v = int_of_string "600" in pow v 100
   Just ((_, 2)) -> fst b
+  Just ((k, 2)) -> pow k 100
   None   -> length (concat "ab" "cd")
   _ -> 5|}
   in
