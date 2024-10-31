@@ -342,7 +342,8 @@ let rec infer exp ctx =
         | [] -> raise (failwith "no patterns")
       in
       (* TODO FIX ME *)
-      if not @@ Pattern.is_exhaustive patterns then failwith "Not exhaustive";
+      if not @@ Pattern.is_exhaustive (List.rev patterns) then
+        failwith "Not exhaustive";
       (s2 ++ s1, ty2)
   | Expr_constr { name; arguments } -> (
       let decl =

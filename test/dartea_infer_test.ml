@@ -253,17 +253,13 @@ toplevel = case a of
   _ -> 5|}
   in
   let result = input |> Main.parse in
-  let _expr =
-    match result with
-    | Ok [ Impl.Top_declaration d ] ->
-        let s, ty = Typed.Infer.infer' d.body_part.expr.thing ctx in
-        let result = Typed.Infer.apply_typ ty s in
-        assert_equal result Typed.Type.TInt
-    | Error e -> raise e
-    | _ -> assert false
-  in
-
-  ()
+  match result with
+  | Ok [ Impl.Top_declaration d ] ->
+      let s, ty = Typed.Infer.infer' d.body_part.expr.thing ctx in
+      let result = Typed.Infer.apply_typ ty s in
+      assert_equal result Typed.Type.TInt
+  | Error e -> raise e
+  | _ -> assert false
 
 let test_pattern_matching_returning_exhaustive_5 _ =
   let ctx =
@@ -360,7 +356,6 @@ let test_pattern_matching_returning_ignore_exhaustive_resolve_type_while_matchin
   assert_equal result Typed.Type.TInt
 
 let test_specialization_tree _ =
-  let arguments = [ "$" ] in
   let actions = [ 1; 2; 3 ] in
   let patterns =
     Typed.Pattern.Typed.
@@ -397,7 +392,7 @@ let test_specialization_tree _ =
         ];
       ]
   in
-  let node = Typed.Pattern.Compile_state.{ arguments; patterns; actions } in
+  let node = Typed.Pattern.Compile_state.{ patterns; actions } in
   let result =
     Typed.Pattern.specialization node
       {
@@ -411,8 +406,6 @@ let test_specialization_tree _ =
               ] );
       }
   in
-  assert_bool "arguments are not equal"
-    (List.equal String.equal result.arguments [ "[$].0" ]);
 
   assert_bool "actions are not equal"
     (List.equal Int.equal result.actions [ 1; 2 ]);
@@ -437,7 +430,6 @@ let test_specialization_tree _ =
     (List.equal patterns_equal result.patterns expected_patterns)
 
 let test_defaulting_tree _ =
-  let arguments = [ "[$].0" ] in
   let actions = [ 1; 2 ] in
   let patterns =
     Typed.(
@@ -454,10 +446,8 @@ let test_defaulting_tree _ =
             ];
           ]))
   in
-  let node = { Typed.Pattern.Compile_state.arguments; patterns; actions } in
+  let node = { Typed.Pattern.Compile_state.patterns; actions } in
   let result = Typed.Pattern.defaulting node in
-  assert_bool "arguments are not equal"
-    (List.equal String.equal result.arguments [ "[$].0" ]);
   assert_bool "actions are not equal"
     (List.equal Int.equal result.actions [ 2 ]);
   let expected_patterns =
@@ -475,7 +465,6 @@ let test_defaulting_tree _ =
     (List.equal patterns_equal result.patterns expected_patterns)
 
 let test_no_errors_compile _ =
-  let arguments = [ "$" ] in
   let actions = [ 1; 2; 3 ] in
   let patterns =
     Typed.Pattern.Typed.
@@ -512,7 +501,7 @@ let test_no_errors_compile _ =
         ];
       ]
   in
-  let node = Typed.Pattern.Compile_state.{ arguments; patterns; actions } in
+  let node = Typed.Pattern.Compile_state.{ patterns; actions } in
   let result = Typed.Pattern.compile node in
   assert_bool "exhaustive" @@ not @@ Typed.Pattern.is_exhaustive' result
 
@@ -609,7 +598,6 @@ let test_detupling _ =
        nextresult)
 
 let test_no_errors_compile_exhaustive_2 _ =
-  let arguments = [ "$" ] in
   let actions = [ 1; 2; 3; 4 ] in
   let patterns =
     Typed.Pattern.Typed.
@@ -679,7 +667,7 @@ let test_no_errors_compile_exhaustive_2 _ =
         ];
       ]
   in
-  let node = Typed.Pattern.Compile_state.{ arguments; patterns; actions } in
+  let node = Typed.Pattern.Compile_state.{ patterns; actions } in
   let result = Typed.Pattern.compile node in
   assert_bool "not exhaustive" @@ Typed.Pattern.is_exhaustive' result
 

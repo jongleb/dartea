@@ -57,19 +57,6 @@ module Matrix = struct
       lst
 end
 
-module Arguments = struct
-  open Type
-
-  type t = string List.t
-
-  let name = "$"
-
-  let of_type = function
-    | TTup list ->
-        list |> List.mapi (fun i _ -> Printf.sprintf "[%s].%n" name i)
-    | t -> [ name ]
-end
-
 module Actions = struct
   type t = int List.t
 
@@ -77,13 +64,12 @@ module Actions = struct
 end
 
 module Compile_state = struct
-  type t = { arguments : Arguments.t; patterns : Matrix.t; actions : Actions.t }
+  type t = { patterns : Matrix.t; actions : Actions.t }
 
   let make rows =
     let actions = Actions.of_records rows in
     let patterns = Matrix.of_typed_list rows in
-    let arguments = Arguments.of_type (List.hd rows).typ in
-    { actions; patterns; arguments }
+    { actions; patterns }
 end
 
 module Decision_tree = struct
@@ -124,7 +110,7 @@ let specialization state pat =
       (fun acc row action ->
         let remaining_rows, remaining_actions = acc in
         let pat' = List.hd row in
-        if is_equal_signature pat' pat then
+        if is_equal_signature pat' pat || Matrix.is_irrefutable pat' then
           let row =
             match (pat, pat') with
             | ( { pattern = P_T_ctor (_, list); _ },
@@ -144,18 +130,7 @@ let specialization state pat =
         else acc)
       ([], []) state.patterns state.actions
   in
-  let arguments =
-    let size = patterns |> List.hd |> List.length in
-    List.concat
-      [
-        List.init
-          (let initial = size - (List.length @@ List.hd state.patterns) in
-           if initial < 0 then 0 else initial)
-          (fun i -> Printf.sprintf "[%s].%n" (List.hd state.arguments) i);
-        state.arguments |> List.tl;
-      ]
-  in
-  { arguments; patterns = List.rev patterns; actions = List.rev actions }
+  { patterns = List.rev patterns; actions = List.rev actions }
 
 let defaulting state =
   let patterns, actions =
@@ -169,7 +144,7 @@ let defaulting state =
       ([], []) state.patterns state.actions
   in
 
-  { state with patterns = patterns |> List.rev; actions = actions |> List.rev }
+  { patterns = patterns |> List.rev; actions = actions |> List.rev }
 
 let swap node i j =
   {
@@ -204,7 +179,12 @@ let first_refutable node =
 let arities = function
   | { pattern = P_T_ctor (name, _) } -> (
       (*TODO FIX ME*)
-      match name with "None" | "Just" -> 2 | _ -> failwith "no implemented")
+      match name with
+      | "None" | "Just" -> 2
+      | "A" | "B" -> 2
+      | "C" | "D" -> 2
+      | "E" | "F" | "G" -> 3
+      | _ -> failwith "no implemented")
   | p when Matrix.is_irrefutable p -> 0
   | _ -> Int.max_int
 
