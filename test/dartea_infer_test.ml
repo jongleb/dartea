@@ -233,7 +233,7 @@ let test_constr_infer _ =
   let result = Typed.Infer.apply_typ ty s in
   assert_equal result (Typed.Type.TCustom ("Maybe", [ Option.get !var ]))
 
-let test_expr exp_str ctx expected =
+let test_expr exp_str ctx expected ?on_success ?(negate = false) ?withfail () =
   let input =
     {|
 toplevel: Int                           
@@ -241,12 +241,28 @@ toplevel =|} ^ exp_str
   in
   let result = input |> Main.parse in
   match result with
-  | Ok [ Impl.Top_declaration d ] ->
-      let s, ty = Typed.Infer.infer' d.body_part.expr.thing ctx in
-      let result = Typed.Infer.apply_typ ty s in
-      assert_equal result expected
+  | Ok [ Impl.Top_declaration d ] -> (
+      match withfail with
+      | Some r ->
+          assert_raises r (fun () ->
+              let s, ty = Typed.Infer.infer' d.body_part.expr.thing ctx in
+              ignore @@ Typed.Infer.apply_typ ty s)
+      | None -> (
+          let s, ty = Typed.Infer.infer' d.body_part.expr.thing ctx in
+          let result = Typed.Infer.apply_typ ty s in
+          match on_success with
+          | Some cb -> cb result
+          | None ->
+              if negate then
+                assert_bool "unexpected equal" @@ not (result = expected)
+              else assert_equal result expected))
   | Error e -> raise e
   | _ -> assert false
+
+let test_expr' exp_str ctx expected = test_expr exp_str ctx expected ()
+
+let test_expr_wrong exp_str ctx expected withfail =
+  test_expr exp_str ctx expected ~withfail ()
 
 let test_pattern_matching_returning_exhaustive_4 _ =
   let ctx =
@@ -265,7 +281,7 @@ let test_pattern_matching_returning_exhaustive_4 _ =
   E (D) -> 4
   _ -> 5|}
   in
-  test_expr exp_str ctx Typed.Type.TInt
+  test_expr' exp_str ctx Typed.Type.TInt
 
 let test_pattern_matching_returning_exhaustive_5 _ =
   let ctx =
@@ -806,7 +822,49 @@ let test_expr_access_with_type_infer _ =
         List.fold_left f Map.empty typs))
   in
   let exp_str = {|a.abc|} in
-  test_expr exp_str ctx TInt
+  test_expr' exp_str ctx TInt
+
+let test_expr_access_with_type_infer_negate _ =
+  let ctx =
+    Typed.(
+      Infer.(
+        State.reset ();
+        let typs =
+          ( "a",
+            Type.Scheme
+              ( [],
+                Type.TRecord
+                  (Type.TRowExtend ("abc", Type.TInt, Type.TRowEmpty)) ) )
+          :: typs
+        in
+        let f acc (v, scheme) = Map.add v scheme acc in
+        List.fold_left f Map.empty typs))
+  in
+  let exp_str = {|a.abc|} in
+  test_expr exp_str ctx TStr ~negate:true ()
+
+let test_expr_small_program _ =
+  let ctx =
+    Typed.(
+      Infer.(
+        State.reset ();
+        let typs =
+          ( "a",
+            Type.Scheme
+              ( [],
+                Type.TRecord
+                  (Type.TRowExtend ("abc", Type.TInt, Type.TRowEmpty)) ) )
+          :: typs
+        in
+        let f acc (v, scheme) = Map.add v scheme acc in
+        List.fold_left f Map.empty typs))
+  in
+  let exp_str = {|
+    let a = 3 in
+    let b = 5 in
+    let c = {  }
+  |} in
+  test_expr exp_str ctx TStr ~negate:true ()
 
 let suite =
   [
@@ -841,6 +899,8 @@ let suite =
     "test_pattern_matching_returning_exhaustive_5"
     >:: test_pattern_matching_returning_exhaustive_5;
     "test_expr_access_with_type_infer" >:: test_expr_access_with_type_infer;
+    "test_expr_access_with_type_infer_negate"
+    >:: test_expr_access_with_type_infer_negate;
   ]
 (* CCImmutArray.iteri
    (fun idx pat ->
