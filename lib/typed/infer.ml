@@ -44,7 +44,7 @@ module Str_set = Set.Make (String)
 
 let rec ftv_typ = function
   | TVar v -> Str_set.singleton v
-  | TInt | TBool | TStr | TUnit -> Str_set.empty
+  | TInt | TBool | TStr | TUnit | TRowEmpty -> Str_set.empty
   | TFun (p, r) -> Str_set.union (ftv_typ p) (ftv_typ r)
   | TTup l ->
       List.fold_left
@@ -54,15 +54,19 @@ let rec ftv_typ = function
       List.fold_left
         (fun acc ty -> Str_set.union (ftv_typ ty) acc)
         Str_set.empty typs
+  | TRecord typ -> ftv_typ typ
+  | TRowExtend (_l, t, r) -> Str_set.union (ftv_typ r) (ftv_typ t)
 
 let rec apply_typ ty s =
   match ty with
   | TVar v -> ( match Map.find_opt v s with Some t -> t | None -> ty)
-  | TInt | TBool | TStr | TUnit -> ty
+  | TInt | TBool | TStr | TUnit | TRowEmpty -> ty
   | TFun (p, r) -> TFun (apply_typ p s, apply_typ r s)
   | TTup l -> TTup (List.map (fun ty -> apply_typ ty s) l)
   | TCustom (name, typs) ->
       TCustom (name, List.map (fun ty -> apply_typ ty s) typs)
+  | TRecord t -> TRecord (apply_typ t s)
+  | TRowExtend (l, t, r) -> TRowExtend (l, apply_typ t s, apply_typ r s)
 
 let string_of_typ ty =
   let rec str_simple ty =
@@ -96,6 +100,10 @@ let string_of_typ ty =
               "<" ^ args_str ^ ">"
         in
         name ^ args_str
+    | TRecord r -> Printf.sprintf "{ %s }" (str_simple r)
+    | TRowExtend (label, typ, row) ->
+        Printf.sprintf "%s = %s | %s" label (str_simple typ) (str_simple row)
+    | TRowEmpty -> "{}"
   and str_paren ty =
     match ty with
     | TFun (_, _) | TTup _ -> "(" ^ str_simple ty ^ ")"
@@ -150,6 +158,23 @@ let bind_var ty v =
         |> failwith
       else Map.singleton v ty
 
+let rec rewrite_row row label =
+  match row with
+  | TRowEmpty -> failwith (Printf.sprintf "label %s cannot be inserted" label)
+  | TRowExtend (label2, ty, tail) when label = label2 -> (ty, tail, Map.empty)
+  | TRowExtend (label2, ty, tail) -> (
+      match tail with
+      | TVar a ->
+          let new_r = new_var "r" in
+          let new_a = new_var "a" in
+          ( new_a,
+            TRowExtend (label2, ty, new_r),
+            Map.singleton a (TRowExtend (label, new_a, new_r)) )
+      | _ ->
+          let ty2, tail2, s = rewrite_row tail label in
+          (ty2, TRowExtend (label2, ty, tail2), s))
+  | _ -> failwith (Printf.sprintf "Unexpected type: %s" (Type.show row))
+
 let unify ty1 ty2 =
   let unify_err ty1 ty2 =
     let ty1' = string_of_typ ty1 and ty2' = string_of_typ ty2 in
@@ -157,10 +182,12 @@ let unify ty1 ty2 =
   in
   let rec unify' = function
     | TVar v, ty | ty, TVar v -> bind_var ty v
-    | TInt, TInt -> Map.empty
-    | TStr, TStr -> Map.empty
-    | TBool, TBool -> Map.empty
-    | TUnit, TUnit -> Map.empty
+    | TInt, TInt
+    | TStr, TStr
+    | TBool, TBool
+    | TRowEmpty, TRowEmpty
+    | TUnit, TUnit ->
+        Map.empty
     | TFun (p, r), TFun (p', r') ->
         let s1 = unify' (p, p') in
         let s2 = unify' (apply_typ r s1, apply_typ r' s1) in
@@ -179,6 +206,26 @@ let unify ty1 ty2 =
               unify' (apply_typ ty1 acc, apply_typ ty2 acc) ++ acc)
             Map.empty args1 args2
         else unify_err ty1 ty2
+    | TRecord ty1, TRecord ty2 -> unify' (ty1, ty2)
+    | TRowExtend (l1, ty1, rt1), (TRowExtend (_, _, _) as row2) -> (
+        let ty2, rt2, s1 = rewrite_row row2 l1 in
+        let rec to_list ty =
+          match ty with
+          | TVar name -> ([], Some name)
+          | TRowEmpty -> ([], None)
+          | TRowExtend (l, t, r) ->
+              let ls, mv = to_list r in
+              ((l, t) :: ls, mv)
+          | _ -> failwith (Printf.sprintf "invalid row tail %s" (Type.show ty))
+        in
+        let result = to_list rt1 in
+        match snd result with
+        | Some tv when Map.mem tv s1 -> failwith "recursive row type"
+        | _ ->
+            let s2 = unify' (apply_typ ty1 s1, apply_typ ty2 s1) in
+            let s3 = s2 ++ s1 in
+            let s4 = unify' (apply_typ rt1 s3, apply_typ rt2 s3) in
+            s4 ++ s3)
     | ty1, ty2 -> unify_err ty1 ty2
   in
 
@@ -204,7 +251,14 @@ let rec typedef_to_type =
 
 let merge_ctx = Map.union (fun _key _val1 _val2 -> failwith "Ambigous")
 
-let rec infer exp ctx =
+let rec infer_fn_apply inferred_fn arg ctx =
+  let s1, ty = inferred_fn in
+  let s2, p = infer arg (apply_ctx ctx s1) in
+  let r = new_var "a" in
+  let s3 = unify (apply_typ ty s2) (TFun (p, r)) in
+  (s3 ++ s2 ++ s1, apply_typ r s3)
+
+and infer exp ctx =
   match exp with
   | Expr_int _ -> (Map.empty, TInt)
   | Expr_string _ -> (Map.empty, TStr)
@@ -215,12 +269,7 @@ let rec infer exp ctx =
       let ctx2 = Map.add bind_body.name.thing scheme ctx1 in
       let s2, ty2 = infer body (apply_ctx ctx2 s1) in
       (s2 ++ s1, ty2)
-  | Expr_apply { fn; arg } ->
-      let s1, ty = infer fn ctx in
-      let s2, p = infer arg (apply_ctx ctx s1) in
-      let r = new_var "a" in
-      let s3 = unify (apply_typ ty s2) (TFun (p, r)) in
-      (s3 ++ s2 ++ s1, apply_typ r s3)
+  | Expr_apply { fn; arg } -> infer_fn_apply (infer fn ctx) arg ctx
   | Expr_ident v -> (
       match Map.find_opt v ctx with
       | Some scheme -> (Map.empty, istantiate scheme)
@@ -385,6 +434,11 @@ let rec infer exp ctx =
           in
           (s, TCustom (type_.name, args))
       | None -> Printf.sprintf "Unknown constructor %s" name |> failwith)
+  | Expr_access { expr; field } ->
+      let a = new_var "a" in
+      let r = new_var "r" in
+      let fn = TFun (TRecord (TRowExtend (field.thing, a, r)), a) in
+      infer_fn_apply (Map.empty, fn) expr ctx
   | _ -> assert false
 
 let infer_exp exp ctx =

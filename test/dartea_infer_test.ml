@@ -233,6 +233,21 @@ let test_constr_infer _ =
   let result = Typed.Infer.apply_typ ty s in
   assert_equal result (Typed.Type.TCustom ("Maybe", [ Option.get !var ]))
 
+let test_expr exp_str ctx expected =
+  let input =
+    {|
+toplevel: Int                           
+toplevel =|} ^ exp_str
+  in
+  let result = input |> Main.parse in
+  match result with
+  | Ok [ Impl.Top_declaration d ] ->
+      let s, ty = Typed.Infer.infer' d.body_part.expr.thing ctx in
+      let result = Typed.Infer.apply_typ ty s in
+      assert_equal result expected
+  | Error e -> raise e
+  | _ -> assert false
+
 let test_pattern_matching_returning_exhaustive_4 _ =
   let ctx =
     Typed.(
@@ -242,24 +257,15 @@ let test_pattern_matching_returning_exhaustive_4 _ =
         let f acc (v, scheme) = Map.add v scheme acc in
         List.fold_left f Map.empty typs))
   in
-  let input =
-    {|
-toplevel: Int                           
-toplevel = case a of
+  let exp_str =
+    {|case a of
   E (C) -> 1
   F (A) -> 2
   G 2   -> 3
   E (D) -> 4
   _ -> 5|}
   in
-  let result = input |> Main.parse in
-  match result with
-  | Ok [ Impl.Top_declaration d ] ->
-      let s, ty = Typed.Infer.infer' d.body_part.expr.thing ctx in
-      let result = Typed.Infer.apply_typ ty s in
-      assert_equal result Typed.Type.TInt
-  | Error e -> raise e
-  | _ -> assert false
+  test_expr exp_str ctx Typed.Type.TInt
 
 let test_pattern_matching_returning_exhaustive_5 _ =
   let ctx =
@@ -783,6 +789,25 @@ let infer_check_exhaustive_p_var _ =
       let result = Typed.Infer.apply_typ ty s in
       assert_equal result Typed.Type.TInt)
 
+let test_expr_access_with_type_infer _ =
+  let ctx =
+    Typed.(
+      Infer.(
+        State.reset ();
+        let typs =
+          ( "a",
+            Type.Scheme
+              ( [],
+                Type.TRecord
+                  (Type.TRowExtend ("abc", Type.TInt, Type.TRowEmpty)) ) )
+          :: typs
+        in
+        let f acc (v, scheme) = Map.add v scheme acc in
+        List.fold_left f Map.empty typs))
+  in
+  let exp_str = {|a.abc|} in
+  test_expr exp_str ctx TInt
+
 let suite =
   [
     "test_a_plus_5" >:: test_a_plus_5;
@@ -815,6 +840,7 @@ let suite =
     "infer_check_exhaustive_p_var" >:: infer_check_exhaustive_p_var;
     "test_pattern_matching_returning_exhaustive_5"
     >:: test_pattern_matching_returning_exhaustive_5;
+    "test_expr_access_with_type_infer" >:: test_expr_access_with_type_infer;
   ]
 (* CCImmutArray.iteri
    (fun idx pat ->
