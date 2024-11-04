@@ -33,13 +33,17 @@ let typs : (string * scheme) list =
     ( "snd",
       Scheme ([ "'a"; "'b" ], TFun (TTup [ TVar "'a"; TVar "'b" ], TVar "'b"))
     );
+    ( "|>",
+      Scheme
+        ( [ "'a"; "'b" ],
+          TFun (TVar "'a", TFun (TFun (TVar "'a", TVar "'b"), TVar "'b")) ) );
   ]
 
 let ctx : ctx =
   let f acc (v, scheme) = Map.add v scheme acc in
   List.fold_left f Map.empty typs
 
-open Frontend.Expr
+open Canonical.Expr
 module Str_set = Set.Make (String)
 
 let rec ftv_typ = function
@@ -237,7 +241,7 @@ let istantiate = function
       List.combine vars vars' |> List.to_seq |> Map.of_seq |> apply_typ ty
 
 let rec typedef_to_type =
-  Frontend.Typedef.(
+  Canonical.Typedef.(
     Kind.(
       Impl.(
         function
@@ -251,14 +255,7 @@ let rec typedef_to_type =
 
 let merge_ctx = Map.union (fun _key _val1 _val2 -> failwith "Ambigous")
 
-let rec infer_fn_apply inferred_fn arg ctx =
-  let s1, ty = inferred_fn in
-  let s2, p = infer arg (apply_ctx ctx s1) in
-  let r = new_var "a" in
-  let s3 = unify (apply_typ ty s2) (TFun (p, r)) in
-  (s3 ++ s2 ++ s1, apply_typ r s3)
-
-and infer exp ctx =
+let rec infer exp ctx =
   match exp with
   | Expr_int _ -> (Map.empty, TInt)
   | Expr_string _ -> (Map.empty, TStr)
@@ -269,7 +266,12 @@ and infer exp ctx =
       let ctx2 = Map.add bind_body.name.thing scheme ctx1 in
       let s2, ty2 = infer body (apply_ctx ctx2 s1) in
       (s2 ++ s1, ty2)
-  | Expr_apply { fn; arg } -> infer_fn_apply (infer fn ctx) arg ctx
+  | Expr_apply { fn; arg } ->
+      let s1, ty = infer fn ctx in
+      let s2, p = infer arg (apply_ctx ctx s1) in
+      let r = new_var "a" in
+      let s3 = unify (apply_typ ty s2) (TFun (p, r)) in
+      (s3 ++ s2 ++ s1, apply_typ r s3)
   | Expr_ident v -> (
       match Map.find_opt v ctx with
       | Some scheme -> (Map.empty, istantiate scheme)
@@ -286,7 +288,7 @@ and infer exp ctx =
       let rec m_pattern =
         Pattern.Typed.(
           function
-          | Frontend.Pattern.P_str s ->
+          | Canonical.Pattern.P_str s ->
               (Map.empty, { typ = TStr; pattern = P_T_str s }, Map.empty)
           | P_int i ->
               (Map.empty, { typ = TInt; pattern = P_T_int i }, Map.empty)
@@ -317,7 +319,7 @@ and infer exp ctx =
                 ctx )
           | P_ctor (name, list) -> (
               let decl =
-                let open Frontend.Typedecl in
+                let open Canonical.Typedecl in
                 List.find_map
                   (fun type_ ->
                     List.find_map
@@ -331,8 +333,8 @@ and infer exp ctx =
                   let s, resolved_types, patterns, ctx =
                     List.fold_left2
                       (fun (acc, m, patterns, ctx)
-                           (pattern : Frontend.Pattern.t)
-                           (ctor : Frontend.Typedef.Impl.t) ->
+                           (pattern : Canonical.Pattern.t)
+                           (ctor : Canonical.Typedef.Impl.t) ->
                         let s, ty_arg, ctx' = m_pattern pattern in
                         (* let ty_def = typedef_to_type ctor in
                            let s2 =
@@ -341,7 +343,7 @@ and infer exp ctx =
                         ( (* acc ++ s ++ s2, *)
                           acc ++ s,
                           (match ctor.body with
-                          | Frontend.Typedef.Kind.Tkind_var v ->
+                          | Canonical.Typedef.Kind.Tkind_var v ->
                               Map.add v.thing ty_arg.typ m
                           | _ -> m),
                           ty_arg :: patterns,
@@ -396,7 +398,7 @@ and infer exp ctx =
       (s2 ++ s1, ty2)
   | Expr_constr { name; arguments } -> (
       let decl =
-        let open Frontend.Typedecl in
+        let open Canonical.Typedecl in
         List.find_map
           (fun type_ ->
             List.find_map
@@ -408,14 +410,14 @@ and infer exp ctx =
       | Some (type_, d) ->
           let s, resolved_types =
             List.fold_left2
-              (fun (acc, m) (ctor : Frontend.Typedef.Impl.t) arg ->
+              (fun (acc, m) (ctor : Canonical.Typedef.Impl.t) arg ->
                 let s, ty_arg = infer arg ctx in
                 (* let ty_def = typedef_to_type ctor in *)
                 (* let s2 = unify (apply_typ ty_arg s) (apply_typ ty_def s) in *)
                 ( acc ++ s,
                   (* acc ++ s ++ s2, *)
                   match ctor.body with
-                  | Frontend.Typedef.Kind.Tkind_var v ->
+                  | Canonical.Typedef.Kind.Tkind_var v ->
                       Map.add v.thing ty_arg m
                   | Tkind_concrete _ | Tkind_record _ | Tkind_tuple _
                   | Tkind_function _ | Tkind_unit ->
@@ -434,11 +436,15 @@ and infer exp ctx =
           in
           (s, TCustom (type_.name, args))
       | None -> Printf.sprintf "Unknown constructor %s" name |> failwith)
-  | Expr_access { expr; field } ->
+  | Expr_record_extend label ->
       let a = new_var "a" in
       let r = new_var "r" in
-      let fn = TFun (TRecord (TRowExtend (field.thing, a, r)), a) in
-      infer_fn_apply (Map.empty, fn) expr ctx
+      (Map.empty, TFun (a, TFun (TRecord r, TRecord (TRowExtend (label, a, r)))))
+  | Expr_record_empty -> (Map.empty, TRecord TRowEmpty)
+  | Expr_record_select label ->
+      let a = new_var "a" in
+      let r = new_var "r" in
+      (Map.empty, TFun (TRecord (TRowExtend (label, a, r)), a))
   | _ -> assert false
 
 let infer_exp exp ctx =

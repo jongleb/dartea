@@ -1,38 +1,54 @@
 type t =
   | Expr_char of string (* elm type: Chr ES.String, NEED IMPLEMENT *)
-  | Expr_string of string
-  (* Chr ES.String *)
+  | Expr_string of string (* Chr ES.String *)
   | Expr_int of int
   | Expr_float of float (* EF.Float *)
   | Expr_list of t list
   | Expr_constr of expr_constr
   | Expr_binop of expr_binop
-  (* | Expr_let of expr_let
-     | Expr_if_then_else of expr_if_then_else *)
+  | Expr_let of expr_let
+  | Expr_if_then_else of expr_if_then_else
   | Expr_record of expr_record_row list
   | Expr_apply of expr_apply
-  | Expr_ident of expr_ident
-  (* | Expr_pattern of expr_pattern
-     | Expr_accessor of string Data.Located.t*)
+  | Expr_ident of string
+  | Expr_pattern of expr_pattern
+  | Expr_accessor of string Data.Located.t
   | Expr_access of expr_access
+  | Expr_record_extend of string
+  | Expr_record_select of string
+  | Expr_record_empty
 [@@deriving show]
 
-and expr_constr = { name : string; arguments : t list; module_name : string }
-[@@deriving show]
+and expr_constr = { name : string; arguments : t list } [@@deriving show]
 (*ConstructorValue { qualifiedness : PossiblyQualified, name : VarName }*)
 
 and expr_binop = { name : string; operands : t * t } [@@deriving show]
 (*  Binops [(Expr, A.Located Name)] Expr *)
 
-and expr_record_row = { name : string; value : t; module_name : string }
+and expr_let_binding_type = { name : string (* content : Typedef.Impl.t *) }
 [@@deriving show]
 
-and expr_apply = { ident : t; args : t list } [@@deriving show]
-and expr_ident = { name : string; module_name : string } [@@deriving show]
-(* and expr_pattern_case = { pattern : Pattern.t; expr : t } [@@deriving show]
+and expr_let_binding_body = { name : string Data.Located.t; body : t }
+[@@deriving show]
 
-   and expr_pattern = { expr : t; pattern_data_items : expr_pattern_case list }
-   [@@deriving show] *)
+and expr_let_binding = {
+  (* bind_type : expr_let_binding_type option; *)
+  bind_body : expr_let_binding_body;
+}
+[@@deriving show]
+
+and expr_let = { binding : expr_let_binding; body : t } [@@deriving show]
+(*Let [A.Located Def] Expr *)
+
+and expr_if_then_else = { if_exp : t; then_exp : t; else_exp : t }
+[@@deriving show]
+
+and expr_record_row = { name : string; value : t } [@@deriving show]
+and expr_apply = { fn : t; arg : t } [@@deriving show]
+and expr_pattern_case = { pattern : Pattern.t; expr : t } [@@deriving show]
+
+and expr_pattern = { expr : t; pattern_data_items : expr_pattern_case list }
+[@@deriving show]
 
 and expr_access = { expr : t; field : string Data.Located.t } [@@deriving show]
 
@@ -44,66 +60,67 @@ let rec of_frontend exports env expr =
   let rec go env = function
     | Frontend.Expr.Expr_float i -> Expr_float i
     | Expr_string s -> Expr_string s
-    | Expr_constr c -> (
-        let find_by_constr_name = function
-          | Frontend.Exposing.Upper upper
-            when Data.Located.unwrap upper.name = c.name ->
-              Some c.name
-          | _ -> None
-        in
-
-        let result =
-          match exports with
-          | Frontend.Exposing.Open -> None
-          | Explicit lst -> List.find_map find_by_constr_name lst
-        in
-
-        match result with
-        | Some r ->
-            Expr_constr
-              {
-                name = c.name;
-                arguments = List.map (go env) c.Frontend.Expr.arguments;
-                module_name = "";
-              }
-        | None -> failwith "..."
-        (* env.constrs |> Str_set.find_opt c.name
-           |> Option.value
-                ~default:
-                  ((* let result = Str_set.se *)
-                     Expr_constr
-                     {
-                       name = c.name;
-                       arguments = List.map (go env) c.Frontend.Expr.arguments;
-                       module_name = "";
-                     }) *))
-    (* | Expr_apply { ident; args } -> (
-        let find exposing =
-          match (exposing, ident) with
-          | Frontend.Exposing.Lower lower, Expr_ident ident
-            when Data.Located.unwrap lower = ident ->
-              Some ident
-          | _ -> None
-        in
-        let result =
-          match exports with
-          | Frontend.Exposing.Open -> None
-          | Explicit lst -> List.find_map find lst
-        in
-        match (result, ident) with
-        | Some r, Expr_ident ident ->
-            Expr_apply
-              {
-                ident = Expr_ident { name = ident; module_name = "" };
-                args = List.map (go env) args;
-              }
-        | _ -> failwith "...") *)
+    | Expr_int i -> Expr_int i
+    | Expr_constr c ->
+        Expr_constr
+          {
+            name = c.name;
+            arguments = List.map (go env) c.Frontend.Expr.arguments;
+            (* module_name = ""; *)
+          }
     | Expr_access { expr; field } -> Expr_access { expr = go env expr; field }
     | Expr_list list -> Expr_list (List.map (go env) list)
     | Expr_binop { name; operands = a, b } ->
-        Expr_binop { name; operands = (go env a, go env b) }
-    (* | Expr_let exp -> Expr_let exp *)
-    | _ -> failwith @@ "..."
+        Expr_apply
+          {
+            fn = Expr_apply { fn = Expr_ident name; arg = go env a };
+            arg = go env b;
+          }
+    | Expr_let
+        {
+          binding = { bind_body = { name; body = bind_body }; bind_type };
+          body;
+        } ->
+        Expr_let
+          {
+            binding = { bind_body = { name; body = go env bind_body } };
+            body = go env body;
+          }
+    | Expr_apply { fn; arg } -> Expr_apply { fn = go env fn; arg = go env arg }
+    | Expr_ident i -> Expr_ident i
+    | Expr_if_then_else { if_exp; then_exp; else_exp } ->
+        Expr_if_then_else
+          {
+            if_exp = go env if_exp;
+            then_exp = go env then_exp;
+            else_exp = go env else_exp;
+          }
+    | Expr_pattern { expr; pattern_data_items } ->
+        Expr_pattern
+          {
+            expr = go env expr;
+            pattern_data_items =
+              List.map
+                (fun Frontend.Expr.{ pattern; expr } ->
+                  { pattern = Pattern.of_frontend pattern; expr = go env expr })
+                pattern_data_items;
+          }
+    | Expr_record r ->
+        List.fold_left
+          (fun acc next ->
+            Expr_apply
+              {
+                fn =
+                  Expr_apply
+                    {
+                      fn = Expr_record_extend next.Frontend.Expr.name;
+                      arg = go env next.value;
+                    };
+                arg = acc;
+              })
+          Expr_record_empty r
+    | e ->
+        failwith @@ Printf.sprintf "not implemented: %s" @@ Frontend.Expr.show e
   in
   go env expr
 

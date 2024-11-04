@@ -1,6 +1,6 @@
 let test_custom_definitions =
   let open Data.Located in
-  Frontend.
+  Canonical.
     [
       {
         Typedecl.name = "Maybe";

@@ -1,3 +1,3 @@
-type t = { params : string list; typedef : Typedef.t }
+type t = { params : string list; typedef : Typedef.Impl.t }
 
-let of_ast = Typedef.of_ast
+(* let of_ast = Typedef.Impl.of_ast *)

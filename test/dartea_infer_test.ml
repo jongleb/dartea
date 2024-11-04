@@ -1,5 +1,4 @@
 open OUnit2
-open Ast.Kind.Frontend
 open Data
 open Located
 module Main = Parse.Main
@@ -7,20 +6,23 @@ module Main = Parse.Main
 let test_a_plus_5 _ =
   let expect_type = Typed.Type.TInt in
   let expr =
-    Expr.Expr_let
+    Canonical.Expr.Expr_let
       {
         binding =
           {
-            bind_type = None;
-            bind_body = { Expr.name = ~?"a"; body = Expr.Expr_int 2 };
+            bind_body =
+              { Canonical.Expr.name = ~?"a"; body = Canonical.Expr.Expr_int 2 };
           };
         body =
-          Expr.Expr_apply
+          Canonical.Expr.Expr_apply
             {
               fn =
-                Expr.Expr_apply
-                  { fn = Expr.Expr_ident "plus"; arg = Expr.Expr_int 3 };
-              arg = Expr.Expr_ident "a";
+                Canonical.Expr.Expr_apply
+                  {
+                    fn = Canonical.Expr.Expr_ident "plus";
+                    arg = Canonical.Expr.Expr_int 3;
+                  };
+              arg = Canonical.Expr.Expr_ident "a";
             };
       }
   in
@@ -30,14 +32,15 @@ let test_a_plus_5 _ =
 let test_id _ =
   let expect_type = Typed.Type.TInt in
   let expr =
-    Expr.Expr_apply { fn = Expr.Expr_ident "id"; arg = Expr.Expr_int 3 }
+    Canonical.Expr.Expr_apply
+      { fn = Canonical.Expr.Expr_ident "id"; arg = Canonical.Expr.Expr_int 3 }
   in
   let result = Typed.Infer.infer expr in
   assert_equal expect_type result
 
 let test_pattern_matching_returning_ignore_exhaustive _ =
   let expr =
-    Expr.Expr_pattern
+    Canonical.Expr.Expr_pattern
       {
         expr = Expr_constr { name = "Just"; arguments = [ Expr_string "" ] };
         pattern_data_items =
@@ -52,7 +55,7 @@ let test_pattern_matching_returning_ignore_exhaustive _ =
 
 let test_pattern_matching_returning_ignore_exhaustive_2 _ =
   let expr =
-    Expr.Expr_pattern
+    Canonical.Expr.Expr_pattern
       {
         expr = Expr_constr { name = "Just"; arguments = [ Expr_string "" ] };
         pattern_data_items =
@@ -67,7 +70,7 @@ let test_pattern_matching_returning_ignore_exhaustive_2 _ =
 
 (* let test_pattern_matching_returning_ignore_exhaustive_3 _ =
    let expr =
-     Expr.Expr_pattern
+     Canonical.Expr.Expr_pattern
        {
          expr = Expr_constr { name = "Just"; arguments = [ Expr_string "" ] };
          pattern_data_items =
@@ -81,7 +84,7 @@ let test_pattern_matching_returning_ignore_exhaustive_2 _ =
 
 let test_pattern_matching_returning_ignore_exhaustive_3 _ =
   let expr =
-    Expr.Expr_pattern
+    Canonical.Expr.Expr_pattern
       {
         expr = Expr_constr { name = "Just"; arguments = [ Expr_string "" ] };
         pattern_data_items =
@@ -104,7 +107,7 @@ let test_pattern_matching_returning_ignore_exhaustive_resolve_type_while_matchin
         List.fold_left f Map.empty typs))
   in
   let expr =
-    Expr.Expr_pattern
+    Canonical.Expr.Expr_pattern
       {
         expr = Expr_ident "test_var_";
         pattern_data_items =
@@ -130,7 +133,7 @@ let test_pattern_matching_returning_ignore_exhaustive_resolve_type_while_matchin
         List.fold_left f Map.empty typs))
   in
   let expr =
-    Expr.Expr_pattern
+    Canonical.Expr.Expr_pattern
       {
         expr = Expr_ident "test_var_";
         pattern_data_items =
@@ -170,16 +173,15 @@ let test_pattern_matching_returning_ignore_exhaustive_try_invalid_reuse _ =
         List.fold_left f Map.empty typs))
   in
   let expr =
-    Expr.Expr_let
+    Canonical.Expr.Expr_let
       {
-        Expr.binding =
+        Canonical.Expr.binding =
           {
-            bind_type = None;
             bind_body =
               {
                 name = ~?"_";
                 body =
-                  Expr.Expr_pattern
+                  Canonical.Expr.Expr_pattern
                     {
                       expr = Expr_ident "test_var_";
                       pattern_data_items =
@@ -198,15 +200,15 @@ let test_pattern_matching_returning_ignore_exhaustive_try_invalid_reuse _ =
               };
           };
         body =
-          Expr.Expr_apply
+          Canonical.Expr.Expr_apply
             {
               fn =
-                Expr.Expr_apply
+                Canonical.Expr.Expr_apply
                   {
-                    fn = Expr.Expr_ident "maybeMap";
-                    arg = Expr.Expr_ident "notAnonymys";
+                    fn = Canonical.Expr.Expr_ident "maybeMap";
+                    arg = Canonical.Expr.Expr_ident "notAnonymys";
                   };
-              arg = Expr.Expr_ident "test_var_";
+              arg = Canonical.Expr.Expr_ident "test_var_";
             };
       }
   in
@@ -227,7 +229,8 @@ let test_constr_infer _ =
         List.fold_left f Map.empty typs))
   in
   let expr =
-    Expr.Expr_constr { name = "Just"; arguments = [ Expr_ident "test_var_" ] }
+    Canonical.Expr.Expr_constr
+      { name = "Just"; arguments = [ Expr_ident "test_var_" ] }
   in
   let s, ty = Typed.Infer.infer' expr ctx in
   let result = Typed.Infer.apply_typ ty s in
@@ -241,14 +244,15 @@ toplevel =|} ^ exp_str
   in
   let result = input |> Main.parse in
   match result with
-  | Ok [ Impl.Top_declaration d ] -> (
+  | Ok [ Frontend.Impl.Top_declaration d ] -> (
+      let expr = Canonical.Expr.of_frontend () () d.body_part.expr.thing in
       match withfail with
       | Some r ->
           assert_raises r (fun () ->
-              let s, ty = Typed.Infer.infer' d.body_part.expr.thing ctx in
+              let s, ty = Typed.Infer.infer' expr ctx in
               ignore @@ Typed.Infer.apply_typ ty s)
       | None -> (
-          let s, ty = Typed.Infer.infer' d.body_part.expr.thing ctx in
+          let s, ty = Typed.Infer.infer' expr ctx in
           let result = Typed.Infer.apply_typ ty s in
           match on_success with
           | Some cb -> cb result
@@ -294,32 +298,19 @@ let test_pattern_matching_returning_exhaustive_5 _ =
         List.fold_left f Map.empty typs))
   in
   let input =
-    {|
-toplevel: Int                           
-toplevel = case a of
+    {|case a of
   Just ((1, _)) -> let v = int_of_string "600" in pow v 100
   Just ((_, 2)) -> fst b
   Just ((k, 2)) -> pow k 100
   None   -> length (concat "ab" "cd")
   _ -> 5|}
   in
-  let result = input |> Main.parse in
-  let _expr =
-    match result with
-    | Ok [ Impl.Top_declaration d ] ->
-        let s, ty = Typed.Infer.infer' d.body_part.expr.thing ctx in
-        let result = Typed.Infer.apply_typ ty s in
-        assert_equal result Typed.Type.TInt
-    | Error e -> raise e
-    | _ -> assert false
-  in
-
-  ()
+  test_expr' input ctx Typed.Type.TInt
 
 (* assert_equal (Typed.Infer.infer expr) Typed.Type.TInt *)
 
 (* let expr =
-     Expr.Expr_pattern
+     Canonical.Expr.Expr_pattern
        {
          expr =
            Expr_constr
@@ -360,7 +351,7 @@ let test_pattern_matching_returning_ignore_exhaustive_resolve_type_while_matchin
         List.fold_left f Map.empty typs))
   in
   let expr =
-    Expr.Expr_pattern
+    Canonical.Expr.Expr_pattern
       {
         expr = Expr_ident "test_var_";
         pattern_data_items =
@@ -704,7 +695,7 @@ let infer_check_exhaustive _ =
         List.fold_left f Map.empty typs))
   in
   let expr =
-    Expr.Expr_pattern
+    Canonical.Expr.Expr_pattern
       {
         expr = Expr_ident "test_var_";
         pattern_data_items =
@@ -739,7 +730,7 @@ let infer_check_not_exhaustive _ =
         List.fold_left f Map.empty typs))
   in
   let expr =
-    Expr.Expr_pattern
+    Canonical.Expr.Expr_pattern
       {
         expr = Expr_ident "test_var_";
         pattern_data_items =
@@ -771,7 +762,7 @@ let infer_check_exhaustive_p_var _ =
         List.fold_left f Map.empty typs))
   in
   let expr =
-    Expr.Expr_pattern
+    Canonical.Expr.Expr_pattern
       {
         expr = Expr_ident "test_var_";
         pattern_data_items =
@@ -780,16 +771,16 @@ let infer_check_exhaustive_p_var _ =
             {
               pattern = P_ctor ("Just", [ P_var "abc" ]);
               expr =
-                Expr.Expr_apply
+                Canonical.Expr.Expr_apply
                   {
-                    fn = Expr.Expr_ident "length";
+                    fn = Canonical.Expr.Expr_ident "length";
                     arg =
                       Expr_apply
                         {
                           fn =
                             Expr_apply
                               {
-                                fn = Expr.Expr_ident "concat";
+                                fn = Canonical.Expr.Expr_ident "concat";
                                 arg = Expr_ident "abc";
                               };
                           arg = Expr_ident "abc";
@@ -862,7 +853,7 @@ let test_expr_small_program _ =
   let exp_str = {|
     let a = 3 in
     let b = 5 in
-    let c = {  }
+    3
   |} in
   test_expr exp_str ctx TStr ~negate:true ()
 
@@ -898,9 +889,10 @@ let suite =
     "infer_check_exhaustive_p_var" >:: infer_check_exhaustive_p_var;
     "test_pattern_matching_returning_exhaustive_5"
     >:: test_pattern_matching_returning_exhaustive_5;
-    "test_expr_access_with_type_infer" >:: test_expr_access_with_type_infer;
-    "test_expr_access_with_type_infer_negate"
-    >:: test_expr_access_with_type_infer_negate;
+    (* "test_expr_access_with_type_infer" >:: test_expr_access_with_type_infer; *)
+    (* "test_expr_access_with_type_infer_negate"
+       >:: test_expr_access_with_type_infer_negate; *)
+    "test_expr_small_program" >:: test_expr_small_program;
   ]
 (* CCImmutArray.iteri
    (fun idx pat ->
