@@ -1,16 +1,7 @@
 open Lexer
+open Indenter_level
 
-let parse lexbuf =
-  let queue = Queue.create () in
-
-  Parser.prog
-    (fun i ->
-      if Queue.length queue > 0 then Queue.take queue
-      else
-        let q = i |> Lexer.token |> List.to_seq |> Queue.of_seq in
-        Queue.transfer q queue;
-        Queue.take queue)
-    lexbuf
+let parse lexbuf = Parser.prog Lexer.token lexbuf
 
 let parse content =
   let lexbuf = Lexing.from_string content in
@@ -18,3 +9,21 @@ let parse content =
     let cst = parse lexbuf in
     Ok cst
   with e -> Error e
+
+(**
+  
+-------  
+INDENTtest = 3 
+DEDENT
+
+
+
+INDENT sfgfd = 2
+  + 3
+DEDENT  
+
+INDENT gfdgdfg f = i +  x
+  - 1
+DEDENT
+
+*)

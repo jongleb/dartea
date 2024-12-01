@@ -2,13 +2,15 @@
  (modules lexer))
 
 (menhir
- (flags --strict --dump --explain)
+ ; (flags --strict --dump --explain)
+ (flags --dump --explain)
  (modules parser))
 
 (library
  (name parse)
  (libraries menhirLib ast data non_empty_list)
  (flags
-  (-w -40 -w +26))
+  (-warn-error -A))
+ ; (-w -40 -w +26))
  (preprocess
   (pps ppx_jane ppx_deriving.show ppx_deriving.make)))

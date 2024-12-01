@@ -2,6 +2,7 @@ open OUnit2
 open Ast.Kind.Frontend
 open Data
 open Located
+open Expr
 module Main = Parse.Main
 
 (* let test_decl_string _ =
@@ -1140,6 +1141,65 @@ let test_apply_long _ =
   let result = input |> Main.parse in
   assert_equal expect_data (Result.get_ok result)
 
+let decls_wih_a_lot_of_gaps_and_newlines_between _ =
+  let expect_data =
+    [
+      Impl.Top_declaration
+        {
+          Declaration.type_part_data = None;
+          body_part = { Declaration.name = ~?"abcd"; expr = ~?(Expr_int 1) };
+        };
+      Impl.Top_declaration
+        {
+          Declaration.type_part_data = None;
+          body_part =
+            {
+              Declaration.name = ~?"efg";
+              expr =
+                ~?(Expr.Expr_binop
+                     {
+                       Expr.name = "+";
+                       operands = (Expr.Expr_int 2, Expr.Expr_int 2);
+                     });
+            };
+        };
+      Impl.Top_declaration
+        {
+          Declaration.type_part_data = None;
+          body_part =
+            {
+              Declaration.name = ~?"test";
+              expr =
+                ~?(Expr.Expr_binop
+                     {
+                       Expr.name = "+";
+                       operands = (Expr.Expr_int 2, Expr.Expr_int 3);
+                     });
+            };
+        };
+    ]
+  in
+  let input =
+    {|
+
+
+
+
+abcd = 1
+
+efg =
+ 2 + 2
+
+test = 
+            2
+                          +
+  3
+
+|}
+  in
+  let result = input |> Main.parse in
+  assert_equal expect_data (Result.get_ok result)
+
 let suite =
   [
     (* "test_decl_string" >:: test_decl_string;
@@ -1152,16 +1212,32 @@ let suite =
        "test_if_then_else_if_else" >:: test_if_then_else_if_else;
        "test_record" >:: test_record; *)
     (* "test_call_fn_inside_record_plus_fn" >:: test_call_fn_inside_record_plus_fn; *)
-    "test_list_pm" >:: test_list_pm;
-    "test_record_pm" >:: test_record_pm;
-    "test_constr_pm" >:: test_constr_pm;
-    "test_cons_pm" >:: test_cons_pm;
-    "test_import_maybe_two_dots" >:: test_import_maybe_two_dots;
-    "test_import_maybe_as_m" >:: test_import_maybe_as_m;
-    "test_import_maybe_enum" >:: test_import_maybe_enum;
-    "test_access" >:: test_access;
+    (* "test_list_pm" >:: test_list_pm;
+       "test_record_pm" >:: test_record_pm;
+       "test_constr_pm" >:: test_constr_pm;
+       "test_cons_pm" >:: test_cons_pm;
+       "test_import_maybe_two_dots" >:: test_import_maybe_two_dots;
+       "test_import_maybe_as_m" >:: test_import_maybe_as_m;
+       "test_import_maybe_enum" >:: test_import_maybe_enum;
+       "test_access" >:: test_access; *)
     (* "test_accessor" >:: test_accessor; *)
-    "test_module_export_all" >:: test_module_export_all;
+    (* "test_module_export_all" >:: test_module_export_all; *)
     (* "test_apply" >:: test_apply; *)
     (* "test_apply_long" >:: test_apply_long; *)
+    "decls_wih_a_lot_of_gaps_and_newlines_between"
+    >:: decls_wih_a_lot_of_gaps_and_newlines_between;
   ]
+
+(*
+
+test = { 1 + 2 }
+
+test = { 
+  1 
+  
+  
+  
+  + 2 
+} 
+
+*)

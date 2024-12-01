@@ -3,6 +3,7 @@ type t =
   | Expr_string of string (* Chr ES.String *)
   | Expr_int of int
   | Expr_float of float (* EF.Float *)
+  | Expr_unit
   | Expr_list of t list
   | Expr_constr of expr_constr
   | Expr_binop of expr_binop
@@ -10,6 +11,7 @@ type t =
   | Expr_if_then_else of expr_if_then_else
   | Expr_record of expr_record_row list
   | Expr_apply of expr_apply
+  | Expr_constr_fixed of string
   | Expr_ident of string
   | Expr_pattern of expr_pattern
   | Expr_accessor of string Data.Located.t
