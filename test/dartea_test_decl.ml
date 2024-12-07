@@ -5,36 +5,36 @@ open Located
 open Expr
 module Main = Parse.Main
 
-(* let test_decl_string _ =
-     let expect_data =
-       [
-         Impl.Top_declaration
-           {
-             Declaration.type_part_data =
-               Some
-                 {
-                   Declaration.name = Data.Located.dummy "thisIsTheString";
-                   type_alias =
-                     {
-                       Typedef.Impl.parameters = [];
-                       body = Typedef.Kind.Tkind_concrete ~?"String";
-                     };
-                 };
-             body_part =
-               {
-                 Declaration.name = ~?"thisIsTheString";
-                 expr = ~?(Expr.Expr_string "This");
-               };
-           };
-       ]
-     in
-     let input = {|
+let test_decl_string _ =
+  let expect_data =
+    [
+      Impl.Top_declaration
+        {
+          Declaration.type_part_data =
+            Some
+              {
+                Declaration.name = Data.Located.dummy "thisIsTheString";
+                type_alias =
+                  {
+                    Typedef.Impl.parameters = [];
+                    body = Typedef.Kind.Tkind_concrete ~?"String";
+                  };
+              };
+          body_part =
+            {
+              Declaration.name = ~?"thisIsTheString";
+              expr = ~?(Expr.Expr_string "This");
+            };
+        };
+    ]
+  in
+  let input = {|
    thisIsTheString: String
    thisIsTheString = "This"|} in
-     let result = Main.parse input in
-     assert_equal (Ok expect_data) result
+  let result = Main.parse input in
+  assert_equal (Ok expect_data) result
 
-   let test_let_in _ =
+(* let test_let_in _ =
      let expect_data =
        [
          Impl.Top_declaration
@@ -1200,6 +1200,149 @@ test =
   let result = input |> Main.parse in
   assert_equal expect_data (Result.get_ok result)
 
+let decl_case_of _ =
+  let expect_data =
+    [
+      Impl.Top_declaration
+        {
+          Declaration.type_part_data = None;
+          body_part =
+            {
+              Declaration.name = ~?"dfsdsf";
+              expr =
+                ~?(Expr.Expr_pattern
+                     {
+                       Expr.expr = Expr.Expr_int 2;
+                       pattern_data_items =
+                         [
+                           {
+                             Expr.pattern = Pattern.P_int 2;
+                             expr = Expr.Expr_int 26;
+                           };
+                           {
+                             Expr.pattern = Pattern.P_int 3;
+                             expr = Expr.Expr_int 4;
+                           };
+                           {
+                             Expr.pattern = Pattern.P_anything;
+                             expr =
+                               Expr.Expr_binop
+                                 {
+                                   Expr.name = "+";
+                                   operands = (Expr.Expr_int 2, Expr.Expr_int 3);
+                                 };
+                           };
+                         ];
+                     });
+            };
+        };
+    ]
+  in
+  let input =
+    {|
+
+
+
+
+dfsdsf = case 2 of
+  2 -> 26
+  3 -> 4
+  _ -> 2
+    + 3
+|}
+  in
+  let result = input |> Main.parse in
+  assert_equal expect_data (Result.get_ok result)
+
+let decl_case_of_plus_case_of _ =
+  let expect_data =
+    [
+      Impl.Top_declaration
+        {
+          Declaration.type_part_data = None;
+          body_part =
+            {
+              Declaration.name = ~?"dfsdsf";
+              expr =
+                ~?(Expr.Expr_pattern
+                     {
+                       Expr.expr = Expr.Expr_int 2;
+                       pattern_data_items =
+                         [
+                           {
+                             Expr.pattern = Pattern.P_int 2;
+                             expr = Expr.Expr_int 26;
+                           };
+                           {
+                             Expr.pattern = Pattern.P_int 3;
+                             expr = Expr.Expr_int 4;
+                           };
+                           {
+                             Expr.pattern = Pattern.P_anything;
+                             expr =
+                               Expr.Expr_binop
+                                 {
+                                   Expr.name = "+";
+                                   operands =
+                                     ( Expr.Expr_int 2,
+                                       Expr.Expr_pattern
+                                         {
+                                           Expr.expr = Expr.Expr_int 211;
+                                           pattern_data_items =
+                                             [
+                                               {
+                                                 Expr.pattern = Pattern.P_int 66;
+                                                 expr = Expr.Expr_int 99;
+                                               };
+                                               {
+                                                 Expr.pattern = Pattern.P_int 77;
+                                                 expr = Expr.Expr_int 0;
+                                               };
+                                               {
+                                                 Expr.pattern =
+                                                   Pattern.P_anything;
+                                                 expr =
+                                                   Expr.Expr_binop
+                                                     {
+                                                       Expr.name = "+";
+                                                       operands =
+                                                         ( Expr.Expr_int 0,
+                                                           Expr.Expr_int 3 );
+                                                     };
+                                               };
+                                             ];
+                                         } );
+                                 };
+                           };
+                         ];
+                     });
+            };
+        };
+    ]
+  in
+  let input =
+    {|
+  
+  
+  
+  
+dfsdsf = case 2 of
+  2 -> 26
+  3 -> 4
+  _ -> 2
+    + case 211 of
+      66 -> 99
+      77 -> 0
+      _ -> 0
+        + 3
+
+
+
+|}
+  in
+  let result = input |> Main.parse in
+  assert_equal expect_data (Result.get_ok result)
+
 let suite =
   [
     (* "test_decl_string" >:: test_decl_string;
@@ -1226,6 +1369,8 @@ let suite =
     (* "test_apply_long" >:: test_apply_long; *)
     "decls_wih_a_lot_of_gaps_and_newlines_between"
     >:: decls_wih_a_lot_of_gaps_and_newlines_between;
+    "decl_case_of" >:: decl_case_of;
+    "decl_case_of_plus_case_of" >:: decl_case_of_plus_case_of;
   ]
 
 (*

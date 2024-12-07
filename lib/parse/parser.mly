@@ -110,14 +110,17 @@ expr:
     | e=expr_app { e }
     | e=expr_binop { e }
     | IF if_exp=expr THEN then_exp=expr ELSE else_exp=expr { Expr_if_then_else { if_exp; then_exp; else_exp; } }
-    // | CASE expr=scrutinee OF INDENT pattern_data_items=list(case_arm) DEDENT { Expr_pattern({ expr; pattern_data_items; }) }
+    | CASE expr=scrutinee OF pattern_data_items=indented(list(case_arm)) { Expr_pattern({ expr; pattern_data_items; }) }
+    // | LET 
+
+// expr_let_enumeration:     
 
 scrutinee:
     | e=expr_app { e }
     | e=expr_binop { e }
 
 case_arm:
-    | pattern=pattern ARROW expr=expr
+    | pattern=pattern ARROW expr=indented(expr)
         {{ pattern; expr; }}    
 
 pattern:

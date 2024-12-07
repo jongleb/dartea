@@ -3,64 +3,58 @@ open Parser
 type indent_context =
   | Let
   | Case
-  | TopLevel (* For top-level declarations *)
+  | Case_arm_expr
+  | Top_level (* For top-level declarations *)
   | Expression (* For expressions and other nested structures *)
+[@@deriving show]
 
 type indent_state = {
-  stack : int Stack.t;
+  stack : (int * indent_context) Stack.t;
   mutable current : int;
-  mutable context : indent_context;
   pending_tokens : token Queue.t;
 }
 
 let create_state () =
-  {
-    stack = Stack.create ();
-    current = 0;
-    context = TopLevel;
-    pending_tokens = Queue.create ();
-  }
+  { stack = Stack.create (); current = 0; pending_tokens = Queue.create () }
 
 let state =
   let state = create_state () in
-  Stack.push 0 state.stack;
+  Stack.push (0, Top_level) state.stack;
+  (* Кладем начальное состояние как пару *)
   state
 
 (* Helper functions for indentation handling *)
 let push_indent level context =
-  Stack.push level state.stack;
-  state.current <- level;
-  state.context <- context
+  Stack.push (level, context) state.stack;
+  state.current <- level
 
-let pop_indent () =
-  match Stack.pop_opt state.stack with
-  | Some level -> state.current <- level
-  | None -> failwith "Invalid stack state"
+(* И добавим функцию для получения текущего контекста *)
+let get_current_context () =
+  match Stack.top_opt state.stack with
+  | Some (_, ctx) -> ctx
+  | None -> Top_level
 
 let get_current_indent () =
-  match Stack.top_opt state.stack with Some level -> level | None -> 0
+  match Stack.top_opt state.stack with
+  | Some (level, _) -> level (* Берем только уровень отступа из пары *)
+  | None -> 0
 
 let dequeue () =
   let token = Queue.take state.pending_tokens in
 
-  if token = DEDENT && Stack.is_empty state.stack then (
-    Stack.push 0 state.stack;
-    state.context <- TopLevel);
+  if token = DEDENT && Stack.is_empty state.stack then
+    Stack.push (0, Top_level) state.stack (* Кладем пару (отступ, контекст) *);
   token
 
 let queue_dedents indent_level =
-  let rec loop () =
-    if Stack.is_empty state.stack then ()
-    else
-      let last_level = Stack.pop state.stack in
-      if last_level <= indent_level then ()
-      else (
-        Queue.add DEDENT state.pending_tokens;
-        loop ())
-  in
-  loop ()
-
+  ()
+  |> Seq.unfold (fun () ->
+         state.stack |> Stack.pop_opt |> Option.map (fun i -> (i, ())))
+  |> Seq.take_while (fun (last_level, indent_context) ->
+         last_level > indent_level)
+  |> Seq.iter (fun _ -> Queue.add DEDENT state.pending_tokens)
 (* Count spaces at the beginning of line *)
+
 let count_indent str =
   str |> String.to_seq |> List.of_seq
   |> List.partition (( = ) '\n')
@@ -69,8 +63,8 @@ let count_indent str =
 
 let handle_newline nl token lexbuf =
   let indent_level = count_indent nl in
-  match state.context with
-  | TopLevel ->
+  match get_current_context () with
+  | Top_level ->
       if indent_level = 0 then token lexbuf
       else (
         state.current <- indent_level;
@@ -81,30 +75,51 @@ let handle_newline nl token lexbuf =
         queue_dedents indent_level;
         dequeue ())
       else token lexbuf
-  | Let | Case ->
+  | Case_arm_expr ->
       let current = get_current_indent () in
-      if indent_level < current then (
+      if indent_level = current then (
+        (* На том же уровне отступа - возвращаемся к Case *)
+        ignore @@ Stack.pop state.stack;
+        (* Убираем текущий Case_arm_expr *)
+        DEDENT)
+      else if indent_level < current then (
         queue_dedents indent_level;
         dequeue ())
-      else if indent_level > current then (
-        push_indent indent_level Expression;
-        Queue.add INDENT state.pending_tokens;
-        token lexbuf)
+      else token lexbuf
+  | Let | Case ->
+      let current = get_current_indent () in
+      (if indent_level > current then
+         let _, l = Stack.pop state.stack in
+         push_indent indent_level l);
+      if indent_level < current then (
+        queue_dedents indent_level;
+        if not (Queue.is_empty state.pending_tokens) then dequeue ()
+        else token lexbuf)
       else token lexbuf
 
 let handle_equal lexbuf =
-  (match state.context with
-  | TopLevel ->
+  (match get_current_context () with
+  | Top_level ->
       push_indent 1 Expression;
       Queue.add INDENT state.pending_tokens
-  (* | Let ->
-      (* For let expressions, we need to track the specific indent level *)
-      let current_indent = get_current_indent () in
-      push_indent (current_indent + 2) Expression;
-      Queue.add INDENT !state.pending_tokens;
-      EQUAL *)
-  | _ -> ());
+  | Let | Case | Case_arm_expr | Expression -> ());
   EQUAL
+
+let handle_case_of lexbuf =
+  push_indent (get_current_indent ()) Case;
+  (* Заменили присваивание на push *)
+  Queue.add INDENT state.pending_tokens;
+  OF
+
+let handle_arrow lexbuf =
+  let current_context = get_current_context () in
+  (match current_context with
+  | Case ->
+      push_indent (get_current_indent ()) Case_arm_expr;
+      (* Заменили присваивание на push *)
+      Queue.add INDENT state.pending_tokens
+  | Let | Top_level | Case_arm_expr | Expression -> ());
+  ARROW
 
 let next_token token lexbuf =
   if Queue.is_empty state.pending_tokens then token lexbuf else dequeue ()

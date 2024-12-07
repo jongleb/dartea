@@ -39,7 +39,7 @@ rule token = parse
   | "type"          { TYPE }
   | "alias"         { ALIAS }
   | "case"          { CASE }
-  | "of"            { OF }
+  | "of"            { Indenter.handle_case_of lexbuf }
   | "let"           { LET }
   | "if"            { IF }
   | "then"          { THEN }
@@ -68,7 +68,7 @@ rule token = parse
   | ","             { COMMA }
   | ":"             { COLON }
   | "|"             { PIPE }
-  | "->"            { ARROW }
+  | "->"            { Indenter.handle_arrow lexbuf }
   | "+"             { PLUS }
   | "-"             { MINUS }
   | "_"             { WILDCARD }

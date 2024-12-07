@@ -9,21 +9,3 @@ let parse content =
     let cst = parse lexbuf in
     Ok cst
   with e -> Error e
-
-(**
-  
--------  
-INDENTtest = 3 
-DEDENT
-
-
-
-INDENT sfgfd = 2
-  + 3
-DEDENT  
-
-INDENT gfdgdfg f = i +  x
-  - 1
-DEDENT
-
-*)
