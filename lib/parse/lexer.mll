@@ -40,21 +40,16 @@ rule token = parse
   | "alias"         { ALIAS }
   | "case"          { CASE }
   | "of"            { Indenter.handle_case_of lexbuf }
-  | "let"           { LET }
+  | "let"           { Indenter.handle_let lexbuf }
   | "if"            { IF }
   | "then"          { THEN }
   | "else"          { ELSE }
-  | "in"            { IN }
+  | "in"            { Indenter.handle_in() }
   | "import"        { IMPORT }
   | "exposing"      { EXPOSING }
   | "as"            { AS }
   | "module"        { MODULE }
-  | lcname          { 
-                      let result = Lexing.lexeme lexbuf in
-                      if result = "type" then 
-                        raise (Error "LCNAME ERROR") 
-                      else LCNAME result
-                    }
+  | lcname          { Indenter.handle_let_def lexbuf }
   | ucname          { UCNAME (Lexing.lexeme lexbuf) }
   | ucname_q        { UCNAME_PATH (Lexing.lexeme lexbuf) }
   | '='             { Indenter.handle_equal lexbuf }

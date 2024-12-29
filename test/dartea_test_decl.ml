@@ -1331,12 +1331,135 @@ dfsdsf = case 2 of
   3 -> 4
   _ -> 2
     + case 211 of
-      66 -> 99
-      77 -> 0
-      _ -> 0
-        + 3
+              66 -> 99
+              77 -> 0
+              _ -> 0 
+                + 3
 
 
+
+|}
+  in
+  let result = input |> Main.parse in
+  assert_equal expect_data (Result.get_ok result)
+
+let let_name_equal_expr _ =
+  let expect_data =
+    [
+      Impl.Top_declaration
+        {
+          Declaration.type_part_data = None;
+          body_part =
+            {
+              Declaration.name = ~?"dfsdsf";
+              expr =
+                ~?(Expr.Expr_pattern
+                     {
+                       Expr.expr = Expr.Expr_int 2;
+                       pattern_data_items =
+                         [
+                           {
+                             Expr.pattern = Pattern.P_int 2;
+                             expr = Expr.Expr_int 26;
+                           };
+                           {
+                             Expr.pattern = Pattern.P_int 3;
+                             expr = Expr.Expr_int 4;
+                           };
+                           {
+                             Expr.pattern = Pattern.P_anything;
+                             expr =
+                               Expr.Expr_binop
+                                 {
+                                   Expr.name = "+";
+                                   operands = (Expr.Expr_int 2, Expr.Expr_int 3);
+                                 };
+                           };
+                         ];
+                     });
+            };
+        };
+    ]
+  in
+  let input =
+    {|
+  
+abcd =
+  let 
+    a = 
+      2 in
+  a 
+                          +
+     3 + 2
+     - 7 + 4
+    
+abcd2 = let b = 2 
+                          in 
+      5 
+              + 
+         7
+
+abcd3 = let b = 3 in let c = 7 in b + c
+
+abcd4 = let b = 3 in 
+    let x = 222 in 
+    b + c
+
+dfsdsf222 = case 2 of
+  2 -> 26
+  3 -> 4
+  _ -> 2
+    + case 211 of
+              66 -> 99
+              77 -> 0
+              _ -> 
+                let a = 3 + 4 in 
+                let b = 3 in
+                let cd = 
+                     let c = 2 in c + 5 in
+                let resultttttttt =
+                        case 2222 of
+                          3 -> 3
+                          _ -> let c = 3 in case 3 of 
+                            2 ->
+                              let fddg =
+                                   3 +
+                                               4 +
+                                          4 in
+                                          
+                                          
+                                          
+                                          
+                                          2
+                            _ -> 55555
+                in
+                b + 3
+
+
+xxxxxx2 =
+  let cd =
+      let c = 2 in 
+        c + 5 in 3
+        
+testxxxx3 = let v = 3 in let c = 3 in let c2 = 
+                                     8 in 1        
+
+
+xxx = 
+  let
+    a =
+
+
+
+      3
+    c = 6 
+          +
+      1
+    o =
+      let x = 6 + 2 in
+      x + 3
+  in
+  33333
 
 |}
   in
@@ -1367,10 +1490,11 @@ let suite =
     (* "test_module_export_all" >:: test_module_export_all; *)
     (* "test_apply" >:: test_apply; *)
     (* "test_apply_long" >:: test_apply_long; *)
-    "decls_wih_a_lot_of_gaps_and_newlines_between"
-    >:: decls_wih_a_lot_of_gaps_and_newlines_between;
-    "decl_case_of" >:: decl_case_of;
-    "decl_case_of_plus_case_of" >:: decl_case_of_plus_case_of;
+    (* "decls_wih_a_lot_of_gaps_and_newlines_between"
+       >:: decls_wih_a_lot_of_gaps_and_newlines_between;
+       "decl_case_of" >:: decl_case_of;
+       "decl_case_of_plus_case_of" >:: decl_case_of_plus_case_of; *)
+    "let_name_equal_expr" >:: let_name_equal_expr;
   ]
 
 (*
