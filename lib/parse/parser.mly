@@ -111,11 +111,11 @@ expr:
     | e=expr_binop { e }
     | IF if_exp=expr THEN then_exp=expr ELSE else_exp=expr { Expr_if_then_else { if_exp; then_exp; else_exp; } }
     | CASE expr=scrutinee OF pattern_data_items=indented(list(case_arm)) { Expr_pattern({ expr; pattern_data_items; }) }
-    | LET name=loc(LCNAME) EQUAL body=expr IN e=expr { make_expr_let ~bindings:[{ bind_type = None; bind_body={ name; body; } }] e }
+    | LET binding=expr_let_name_bind IN e=expr { make_expr_let ~bindings:[binding] e }
     | LET INDENT bindings=expr_let_defs DEDENT IN e=expr { make_expr_let ~bindings e }
 
 expr_let_name_bind:
-    name=loc(LCNAME) INDENT EQUAL body=expr DEDENT {{ bind_type = None; bind_body={ name; body; } }}
+    name=loc(LCNAME) EQUAL INDENT body=expr DEDENT {{ bind_type = None; bind_body={ name; body; } }}
 
 expr_let_defs: lst=nonempty_list(expr_let_name_bind) { lst }
 

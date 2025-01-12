@@ -1433,7 +1433,7 @@ dfsdsf222 = case 2 of
                 let cd = 
                      let c = 2 in c + 5 in
                 let resultttttttt =
-                        case 2222 of
+                     case 2222 of
                           3 -> 3
                           _ -> let c = 3 in case 3 of 
                             2 ->
@@ -1449,12 +1449,6 @@ dfsdsf222 = case 2 of
                             _ -> 55555
                 in
                 b + 3
-
-
-xxxxxx2 =
-  let cd =
-      let c = 2 in 
-        c + 5 in 3
         
 testxxxx3 = let v = 3 in let c = 3 in 
   let c2 = 

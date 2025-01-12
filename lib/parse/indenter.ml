@@ -115,7 +115,13 @@ let close_until ident next_token =
     | None ->
         prerr_endline "Stack.pop_opt -> None";
         Stack.push (0, Top_level) state.stack
-    | Some ((_, (Let | Let_inline)) as x) -> Stack.push x state.stack
+    | Some ((_, Let) as x) ->
+        prerr_endline "Some ((_, Let) as x)";
+        Stack.push x state.stack
+    | Some ((_, Let_inline) as x) ->
+        prerr_endline "Some ((_, Let_inline) as x)";
+        Stack.push x state.stack;
+        Queue.add DEDENT state.queue
     | Some (ident', ctx) when ident < ident' ->
         prerr_endline
         @@ Printf.sprintf
@@ -211,6 +217,9 @@ let handle_newline nl token lexbuf =
     | Let_def ->
         prerr_endline "Let_def";
         token lexbuf
+    | Let_inline when indent_level < current ->
+        prerr_endline "Let_inline when indent_level < current";
+        DEDENT
     | Let_inline ->
         prerr_endline "Let_inline";
         token lexbuf
@@ -229,6 +238,8 @@ let handle_equal lexbuf =
     prerr_endline "handle_equal, Top_level branch";
     push_indent 1 Expression;
     Queue.add INDENT state.queue);
+  if get_current_context () = Let_def then Queue.add INDENT state.queue;
+  if get_current_context () = Let_inline then Queue.add INDENT state.queue;
   EQUAL
 
 let handle_case_of lexbuf =
@@ -279,20 +290,19 @@ let handle_let_def lexbuf =
       push_indent
         (lexbuf.Lexing.lex_start_p.pos_cnum - state.current_string_cnum)
         Let_def;
-      Queue.add INDENT state.queue;
       LCNAME (Lexing.lexeme lexbuf)
   | Let_def when state.ident_compare = 0 ->
+      prerr_endline "Let_def when state.ident_compare = 0";
       ignore @@ Stack.pop state.stack;
       push_indent
-        (lexbuf.Lexing.lex_start_p.pos_cnum - state.current_string_cnum)
+        (lexbuf.Lexing.lex_start_p.pos_cnum - state.current_string_cnum + 1)
         Let_def;
       Queue.add (LCNAME (Lexing.lexeme lexbuf)) state.queue;
-      Queue.add INDENT state.queue;
       DEDENT
   | Let_inline ->
       ignore @@ Stack.pop state.stack;
       push_indent
-        (lexbuf.Lexing.lex_start_p.pos_cnum - state.current_string_cnum)
+        (lexbuf.Lexing.lex_start_p.pos_cnum - state.current_string_cnum + 1)
         Let_inline;
       LCNAME (Lexing.lexeme lexbuf)
   | _ -> LCNAME (Lexing.lexeme lexbuf)
@@ -301,9 +311,13 @@ let handle_in () =
   prerr_endline "hanlde_in";
 
   match get_current_context () with
-  | Let_inline ->
+  | Let_inline when state.prev_token = Some DEDENT ->
       ignore @@ Stack.pop state.stack;
       IN
+  | Let_inline ->
+      ignore @@ Stack.pop state.stack;
+      Queue.add IN state.queue;
+      DEDENT
   | _ ->
       if get_current_context () = Let_def then (
         ignore @@ Stack.pop state.stack;
