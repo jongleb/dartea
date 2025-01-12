@@ -52,6 +52,7 @@ let show_token token =
 type indent_context =
   | Let
   | Let_def
+  | Let_inline
   | Case
   | Case_arm_expr
   | Top_level (* For top-level declarations *)
@@ -63,6 +64,7 @@ type indent_state = {
   queue : token Queue.t;
   mutable current_string_cnum : int;
   mutable ident_compare : int;
+  mutable prev_token : token option;
 }
 
 let state =
@@ -72,6 +74,7 @@ let state =
       queue = Queue.create ();
       current_string_cnum = 0;
       ident_compare = 0;
+      prev_token = None;
     }
   in
   Stack.push (0, Top_level) state.stack;
@@ -112,7 +115,7 @@ let close_until ident next_token =
     | None ->
         prerr_endline "Stack.pop_opt -> None";
         Stack.push (0, Top_level) state.stack
-    | Some ((_, Let) as x) -> Stack.push x state.stack
+    | Some ((_, (Let | Let_inline)) as x) -> Stack.push x state.stack
     | Some (ident', ctx) when ident < ident' ->
         prerr_endline
         @@ Printf.sprintf
@@ -208,8 +211,17 @@ let handle_newline nl token lexbuf =
     | Let_def ->
         prerr_endline "Let_def";
         token lexbuf
+    | Let_inline ->
+        prerr_endline "Let_inline";
+        token lexbuf
   in
-  go ()
+  match (state.prev_token, Stack.top_opt state.stack) with
+  | Some LET, Some (_, Let_inline) ->
+      prerr_endline "let multiline";
+      let i, _ = Stack.pop state.stack in
+      push_indent i Let;
+      INDENT
+  | _ -> go ()
 
 let handle_equal lexbuf =
   prerr_endline "handle_equal";
@@ -236,22 +248,25 @@ let next_token token lexbuf =
   prerr_endline
   @@ Printf.sprintf "next_token, lexeme: %s"
   @@ Lexing.lexeme lexbuf;
-  if Queue.is_empty state.queue then (
-    let result = token lexbuf in
-    prerr_endline
-    @@ Printf.sprintf "Queue is empty, result %s" (show_token result);
-    result)
-  else
-    let result = Queue.take state.queue in
-    prerr_endline
-    @@ Printf.sprintf "Queue isn't empty, result %s" (show_token result);
-    result
+  let token =
+    if Queue.is_empty state.queue then (
+      let result = token lexbuf in
+      prerr_endline
+      @@ Printf.sprintf "Queue is empty, result %s" (show_token result);
+      result)
+    else
+      let result = Queue.take state.queue in
+      prerr_endline
+      @@ Printf.sprintf "Queue isn't empty, result %s" (show_token result);
+      result
+  in
+  state.prev_token <- Some token;
+  token
 
 let handle_let lexbuf =
   push_indent
     (lexbuf.Lexing.lex_start_p.pos_cnum - state.current_string_cnum)
-    Let;
-  Queue.add INDENT state.queue;
+    Let_inline;
   LET
 
 let handle_let_def lexbuf =
@@ -274,16 +289,25 @@ let handle_let_def lexbuf =
       Queue.add (LCNAME (Lexing.lexeme lexbuf)) state.queue;
       Queue.add INDENT state.queue;
       DEDENT
+  | Let_inline ->
+      ignore @@ Stack.pop state.stack;
+      push_indent
+        (lexbuf.Lexing.lex_start_p.pos_cnum - state.current_string_cnum)
+        Let_inline;
+      LCNAME (Lexing.lexeme lexbuf)
   | _ -> LCNAME (Lexing.lexeme lexbuf)
 
 let handle_in () =
   prerr_endline "hanlde_in";
 
-  (* match state.ident_compare with
-     | 0 -> pattern *)
-  if get_current_context () = Let_def then (
-    ignore @@ Stack.pop state.stack;
-    Queue.add DEDENT state.queue);
-  ignore @@ Stack.pop state.stack;
-  Queue.add IN state.queue;
-  DEDENT
+  match get_current_context () with
+  | Let_inline ->
+      ignore @@ Stack.pop state.stack;
+      IN
+  | _ ->
+      if get_current_context () = Let_def then (
+        ignore @@ Stack.pop state.stack;
+        Queue.add DEDENT state.queue);
+      ignore @@ Stack.pop state.stack;
+      Queue.add IN state.queue;
+      DEDENT
