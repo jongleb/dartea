@@ -1385,18 +1385,33 @@ let let_name_equal_expr _ =
     {|
   
 abcd =
-  let 
-    a = 
-      2 in
-  a 
+                let a =
+                                                2
+  in
+  a
+                          +
+     3 + 2
+     - 7 + 4
+
+abcd400 =
+                let 
+                  a =
+                                                2
+                  y = 3
+                  d = 300 
+
+  in
+  a
                           +
      3 + 2
      - 7 + 4
     
-abcd2 = let b = 2 
-                          in 
-      5 
-              + 
+abcd2 = let
+          b =
+            2
+                          in
+      5
+              +
          7
 
 abcd3 = let b = 3 in let c = 7 in b + c
@@ -1441,8 +1456,9 @@ xxxxxx2 =
       let c = 2 in 
         c + 5 in 3
         
-testxxxx3 = let v = 3 in let c = 3 in let c2 = 
-                                     8 in 1        
+testxxxx3 = let v = 3 in let c = 3 in 
+  let c2 = 
+                                     8 in 1       
 
 
 xxx = 

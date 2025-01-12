@@ -52,9 +52,7 @@ and expr_pattern = { expr : t; pattern_data_items : expr_pattern_case list }
 and expr_access = { expr : t; field : string Data.Located.t } [@@deriving show]
 
 let make_expr_let ~bindings body =
-  Non_empty_list.fold_right ~init:body
-    ~f:(fun binding body -> Expr_let { body; binding })
-    bindings
+  List.fold_right (fun binding body -> Expr_let { body; binding }) bindings body
 
 let make_expr_apply ~args fn =
   Non_empty_list.reduce

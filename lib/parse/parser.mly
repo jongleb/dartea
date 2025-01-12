@@ -51,7 +51,7 @@
 %token INDENT DEDENT
 
 
-%nonassoc ELSE EQUAL
+%nonassoc ELSE EQUAL IN
 // %nonassoc ARROW
 
 %left PLUS MINUS
@@ -111,18 +111,12 @@ expr:
     | e=expr_binop { e }
     | IF if_exp=expr THEN then_exp=expr ELSE else_exp=expr { Expr_if_then_else { if_exp; then_exp; else_exp; } }
     | CASE expr=scrutinee OF pattern_data_items=indented(list(case_arm)) { Expr_pattern({ expr; pattern_data_items; }) }
-    | LET INDENT e=expr_let_def { e }
+    | LET INDENT bindings=expr_let_defs DEDENT IN e=expr { make_expr_let ~bindings e }
 
 expr_let_name_bind:
-    name=loc(LCNAME) INDENT EQUAL body=expr { { name; body; }  }
+    name=loc(LCNAME) INDENT EQUAL body=expr DEDENT {{ bind_type = None; bind_body={ name; body; } }}
 
-expr_let_def: 
-    | bind_body=expr_let_name_bind IN DEDENT DEDENT e2=expr { 
-        Expr_let { binding = { bind_type = None; bind_body }; body = e2 } 
-      }
-    | bind_body=expr_let_name_bind DEDENT e2=expr_let_def { 
-        Expr_let { binding = { bind_type = None; bind_body }; body = e2 } 
-      }
+expr_let_defs: lst=nonempty_list(expr_let_name_bind) { lst }
 
 scrutinee:
     | e=expr_app { e }
