@@ -1351,7 +1351,206 @@ let let_name_equal_expr _ =
           Declaration.type_part_data = None;
           body_part =
             {
-              Declaration.name = ~?"dfsdsf";
+              Declaration.name = ~?"abcd";
+              expr =
+                ~?(Expr.Expr_let
+                     {
+                       binding =
+                         {
+                           bind_type = None;
+                           bind_body = { name = ~?"a"; body = Expr_int 2 };
+                         };
+                       body =
+                         Expr.Expr_binop
+                           {
+                             Expr.name = "+";
+                             operands =
+                               ( Expr.Expr_binop
+                                   {
+                                     Expr.name = "-";
+                                     operands =
+                                       ( Expr.Expr_binop
+                                           {
+                                             Expr.name = "+";
+                                             operands =
+                                               ( Expr.Expr_binop
+                                                   {
+                                                     Expr.name = "+";
+                                                     operands =
+                                                       ( Expr.Expr_ident "a",
+                                                         Expr.Expr_int 3 );
+                                                   },
+                                                 Expr.Expr_int 2 );
+                                           },
+                                         Expr.Expr_int 7 );
+                                   },
+                                 Expr.Expr_int 4 );
+                           };
+                     });
+            };
+        };
+      Impl.Top_declaration
+        {
+          Declaration.type_part_data = None;
+          body_part =
+            {
+              Declaration.name = ~?"abcd400";
+              expr =
+                ~?(Expr.Expr_let
+                     {
+                       binding =
+                         {
+                           bind_type = None;
+                           bind_body = { name = ~?"a"; body = Expr_int 2 };
+                         };
+                       body =
+                         Expr.Expr_let
+                           {
+                             binding =
+                               {
+                                 bind_type = None;
+                                 bind_body = { name = ~?"y"; body = Expr_int 3 };
+                               };
+                             body =
+                               Expr.Expr_let
+                                 {
+                                   binding =
+                                     {
+                                       bind_type = None;
+                                       bind_body =
+                                         { name = ~?"d"; body = Expr_int 300 };
+                                     };
+                                   body =
+                                     Expr.Expr_binop
+                                       {
+                                         Expr.name = "+";
+                                         operands =
+                                           ( Expr.Expr_binop
+                                               {
+                                                 Expr.name = "-";
+                                                 operands =
+                                                   ( Expr.Expr_binop
+                                                       {
+                                                         Expr.name = "+";
+                                                         operands =
+                                                           ( Expr.Expr_binop
+                                                               {
+                                                                 Expr.name = "+";
+                                                                 operands =
+                                                                   ( Expr
+                                                                     .Expr_ident
+                                                                       "a",
+                                                                     Expr
+                                                                     .Expr_int
+                                                                       3 );
+                                                               },
+                                                             Expr.Expr_int 2 );
+                                                       },
+                                                     Expr.Expr_int 7 );
+                                               },
+                                             Expr.Expr_int 4 );
+                                       };
+                                 };
+                           };
+                     });
+            };
+        };
+      Impl.Top_declaration
+        {
+          Declaration.type_part_data = None;
+          body_part =
+            {
+              Declaration.name = ~?"abcd2";
+              expr =
+                ~?(Expr.Expr_let
+                     {
+                       binding =
+                         {
+                           bind_type = None;
+                           bind_body = { name = ~?"b"; body = Expr_int 2 };
+                         };
+                       body =
+                         Expr.Expr_binop
+                           {
+                             Expr.name = "+";
+                             operands = (Expr.Expr_int 5, Expr.Expr_int 7);
+                           };
+                     });
+            };
+        };
+      Impl.Top_declaration
+        {
+          Declaration.type_part_data = None;
+          body_part =
+            {
+              Declaration.name = ~?"abcd3";
+              expr =
+                ~?(Expr.Expr_let
+                     {
+                       binding =
+                         {
+                           bind_type = None;
+                           bind_body = { name = ~?"b"; body = Expr_int 3 };
+                         };
+                       body =
+                         Expr.Expr_let
+                           {
+                             binding =
+                               {
+                                 bind_type = None;
+                                 bind_body = { name = ~?"c"; body = Expr_int 7 };
+                               };
+                             body =
+                               Expr.Expr_binop
+                                 {
+                                   Expr.name = "+";
+                                   operands =
+                                     (Expr.Expr_ident "b", Expr.Expr_ident "c");
+                                 };
+                           };
+                     });
+            };
+        };
+      Impl.Top_declaration
+        {
+          Declaration.type_part_data = None;
+          body_part =
+            {
+              Declaration.name = ~?"abcd4";
+              expr =
+                ~?(Expr.Expr_let
+                     {
+                       binding =
+                         {
+                           bind_type = None;
+                           bind_body = { name = ~?"b"; body = Expr_int 3 };
+                         };
+                       body =
+                         Expr.Expr_let
+                           {
+                             binding =
+                               {
+                                 bind_type = None;
+                                 bind_body =
+                                   { name = ~?"x"; body = Expr_int 222 };
+                               };
+                             body =
+                               Expr.Expr_binop
+                                 {
+                                   Expr.name = "+";
+                                   operands =
+                                     (Expr.Expr_ident "b", Expr.Expr_ident "c");
+                                 };
+                           };
+                     });
+            };
+        };
+      Impl.Top_declaration
+        {
+          Declaration.type_part_data = None;
+          body_part =
+            {
+              Declaration.name = ~?"dfsdsf222";
               expr =
                 ~?(Expr.Expr_pattern
                      {
@@ -1372,15 +1571,402 @@ let let_name_equal_expr _ =
                                Expr.Expr_binop
                                  {
                                    Expr.name = "+";
-                                   operands = (Expr.Expr_int 2, Expr.Expr_int 3);
+                                   operands =
+                                     ( Expr.Expr_int 2,
+                                       Expr.Expr_pattern
+                                         {
+                                           Expr.expr = Expr.Expr_int 211;
+                                           pattern_data_items =
+                                             [
+                                               {
+                                                 Expr.pattern = Pattern.P_int 66;
+                                                 expr = Expr.Expr_int 99;
+                                               };
+                                               {
+                                                 Expr.pattern = Pattern.P_int 77;
+                                                 expr = Expr.Expr_int 0;
+                                               };
+                                               {
+                                                 Expr.pattern =
+                                                   Pattern.P_anything;
+                                                 expr =
+                                                   Expr.Expr_let
+                                                     {
+                                                       binding =
+                                                         {
+                                                           bind_type = None;
+                                                           bind_body =
+                                                             {
+                                                               name = ~?"a";
+                                                               body =
+                                                                 Expr.Expr_binop
+                                                                   {
+                                                                     Expr.name =
+                                                                       "+";
+                                                                     operands =
+                                                                       ( Expr
+                                                                         .Expr_int
+                                                                           3,
+                                                                         Expr
+                                                                         .Expr_int
+                                                                           4 );
+                                                                   };
+                                                             };
+                                                         };
+                                                       body =
+                                                         Expr.Expr_let
+                                                           {
+                                                             binding =
+                                                               {
+                                                                 bind_type =
+                                                                   None;
+                                                                 bind_body =
+                                                                   {
+                                                                     name =
+                                                                       ~?"b";
+                                                                     body =
+                                                                       Expr_int
+                                                                         3;
+                                                                   };
+                                                               };
+                                                             body =
+                                                               Expr.Expr_let
+                                                                 {
+                                                                   binding =
+                                                                     {
+                                                                       bind_type =
+                                                                         None;
+                                                                       bind_body =
+                                                                         {
+                                                                           name =
+                                                                             ~?"cd";
+                                                                           body =
+                                                                             Expr
+                                                                             .Expr_let
+                                                                               {
+                                                                                binding =
+                                                                                {
+                                                                                bind_type =
+                                                                                None;
+                                                                                bind_body =
+                                                                                {
+                                                                                name =
+                                                                                ~?"c";
+                                                                                body =
+                                                                                Expr_int
+                                                                                2;
+                                                                                };
+                                                                                };
+                                                                                body =
+                                                                                Expr
+                                                                                .Expr_binop
+                                                                                {
+                                                                                Expr
+                                                                                .name =
+                                                                                "+";
+                                                                                operands =
+                                                                                ( 
+                                                                                Expr
+                                                                                .Expr_ident
+                                                                                "c",
+                                                                                Expr
+                                                                                .Expr_int
+                                                                                5
+                                                                                );
+                                                                                };
+                                                                               };
+                                                                         };
+                                                                     };
+                                                                   body =
+                                                                     Expr
+                                                                     .Expr_let
+                                                                       {
+                                                                         binding =
+                                                                           {
+                                                                             bind_type =
+                                                                               None;
+                                                                             bind_body =
+                                                                               {
+                                                                                name =
+                                                                                ~?"resultttttttt";
+                                                                                body =
+                                                                                Expr
+                                                                                .Expr_pattern
+                                                                                {
+                                                                                Expr
+                                                                                .expr =
+                                                                                Expr
+                                                                                .Expr_int
+                                                                                2222;
+                                                                                pattern_data_items =
+                                                                                [
+                                                                                {
+                                                                                Expr
+                                                                                .pattern =
+                                                                                Pattern
+                                                                                .P_int
+                                                                                3;
+                                                                                expr =
+                                                                                Expr
+                                                                                .Expr_int
+                                                                                3;
+                                                                                };
+                                                                                {
+                                                                                Expr
+                                                                                .pattern =
+                                                                                Pattern
+                                                                                .P_anything;
+                                                                                expr =
+                                                                                Expr
+                                                                                .Expr_let
+                                                                                {
+                                                                                binding =
+                                                                                {
+                                                                                bind_type =
+                                                                                None;
+                                                                                bind_body =
+                                                                                {
+                                                                                name =
+                                                                                ~?"c";
+                                                                                body =
+                                                                                Expr_int
+                                                                                3;
+                                                                                };
+                                                                                };
+                                                                                body =
+                                                                                Expr
+                                                                                .Expr_pattern
+                                                                                {
+                                                                                Expr
+                                                                                .expr =
+                                                                                Expr
+                                                                                .Expr_int
+                                                                                3;
+                                                                                pattern_data_items =
+                                                                                [
+                                                                                {
+                                                                                Expr
+                                                                                .pattern =
+                                                                                Pattern
+                                                                                .P_int
+                                                                                2;
+                                                                                expr =
+                                                                                Expr
+                                                                                .Expr_let
+                                                                                {
+                                                                                binding =
+                                                                                {
+                                                                                bind_type =
+                                                                                None;
+                                                                                bind_body =
+                                                                                {
+                                                                                name =
+                                                                                ~?"fddg";
+                                                                                body =
+                                                                                Expr
+                                                                                .Expr_binop
+                                                                                {
+                                                                                Expr
+                                                                                .name =
+                                                                                "+";
+                                                                                operands =
+                                                                                ( 
+                                                                                Expr
+                                                                                .Expr_binop
+                                                                                {
+                                                                                Expr
+                                                                                .name =
+                                                                                "+";
+                                                                                operands =
+                                                                                ( 
+                                                                                Expr
+                                                                                .Expr_int
+                                                                                3,
+                                                                                Expr
+                                                                                .Expr_int
+                                                                                4
+                                                                                );
+                                                                                },
+                                                                                Expr
+                                                                                .Expr_int
+                                                                                4
+                                                                                );
+                                                                                };
+                                                                                };
+                                                                                };
+                                                                                body =
+                                                                                Expr
+                                                                                .Expr_int
+                                                                                2;
+                                                                                };
+                                                                                };
+                                                                                {
+                                                                                Expr
+                                                                                .pattern =
+                                                                                Pattern
+                                                                                .P_anything;
+                                                                                expr =
+                                                                                Expr
+                                                                                .Expr_int
+                                                                                55555;
+                                                                                };
+                                                                                ];
+                                                                                };
+                                                                                };
+                                                                                };
+                                                                                ];
+                                                                                };
+                                                                               };
+                                                                           };
+                                                                         body =
+                                                                           Expr
+                                                                           .Expr_binop
+                                                                             {
+                                                                               Expr
+                                                                               .name =
+                                                                                "+";
+                                                                               operands =
+                                                                                ( 
+                                                                                Expr
+                                                                                .Expr_ident
+                                                                                "b",
+                                                                                Expr
+                                                                                .Expr_int
+                                                                                3
+                                                                                );
+                                                                             };
+                                                                       };
+                                                                 };
+                                                           };
+                                                     };
+                                               };
+                                             ];
+                                         } );
                                  };
                            };
                          ];
                      });
             };
         };
+      Impl.Top_declaration
+        {
+          Declaration.type_part_data = None;
+          body_part =
+            {
+              Declaration.name = ~?"testxxxx3";
+              expr =
+                ~?(Expr.Expr_let
+                     {
+                       binding =
+                         {
+                           bind_type = None;
+                           bind_body = { name = ~?"v"; body = Expr_int 3 };
+                         };
+                       body =
+                         Expr.Expr_let
+                           {
+                             binding =
+                               {
+                                 bind_type = None;
+                                 bind_body = { name = ~?"c"; body = Expr_int 3 };
+                               };
+                             body =
+                               Expr.Expr_let
+                                 {
+                                   binding =
+                                     {
+                                       bind_type = None;
+                                       bind_body =
+                                         { name = ~?"c2"; body = Expr_int 8 };
+                                     };
+                                   body = Expr.Expr_int 1;
+                                 };
+                           };
+                     });
+            };
+        };
+      Impl.Top_declaration
+        {
+          Declaration.type_part_data = None;
+          body_part =
+            {
+              Declaration.name = ~?"xxx";
+              expr =
+                ~?(Expr.Expr_let
+                     {
+                       binding =
+                         {
+                           bind_type = None;
+                           bind_body = { name = ~?"a"; body = Expr_int 3 };
+                         };
+                       body =
+                         Expr.Expr_let
+                           {
+                             binding =
+                               {
+                                 bind_type = None;
+                                 bind_body =
+                                   {
+                                     name = ~?"c";
+                                     body =
+                                       Expr.Expr_binop
+                                         {
+                                           Expr.name = "+";
+                                           operands =
+                                             (Expr.Expr_int 6, Expr.Expr_int 1);
+                                         };
+                                   };
+                               };
+                             body =
+                               Expr.Expr_let
+                                 {
+                                   binding =
+                                     {
+                                       bind_type = None;
+                                       bind_body =
+                                         {
+                                           name = ~?"o";
+                                           body =
+                                             Expr.Expr_let
+                                               {
+                                                 binding =
+                                                   {
+                                                     bind_type = None;
+                                                     bind_body =
+                                                       {
+                                                         name = ~?"x";
+                                                         body =
+                                                           Expr.Expr_binop
+                                                             {
+                                                               Expr.name = "+";
+                                                               operands =
+                                                                 ( Expr.Expr_int
+                                                                     6,
+                                                                   Expr.Expr_int
+                                                                     2 );
+                                                             };
+                                                       };
+                                                   };
+                                                 body =
+                                                   Expr.Expr_binop
+                                                     {
+                                                       Expr.name = "+";
+                                                       operands =
+                                                         ( Expr.Expr_ident "x",
+                                                           Expr.Expr_int 3 );
+                                                     };
+                                               };
+                                         };
+                                     };
+                                   body = Expr.Expr_int 33333;
+                                 };
+                           };
+                     });
+            };
+        };
     ]
   in
+
   let input =
     {|
   
@@ -1500,10 +2086,10 @@ let suite =
     (* "test_module_export_all" >:: test_module_export_all; *)
     (* "test_apply" >:: test_apply; *)
     (* "test_apply_long" >:: test_apply_long; *)
-    (* "decls_wih_a_lot_of_gaps_and_newlines_between"
-       >:: decls_wih_a_lot_of_gaps_and_newlines_between;
-       "decl_case_of" >:: decl_case_of;
-       "decl_case_of_plus_case_of" >:: decl_case_of_plus_case_of; *)
+    "decls_wih_a_lot_of_gaps_and_newlines_between"
+    >:: decls_wih_a_lot_of_gaps_and_newlines_between;
+    "decl_case_of" >:: decl_case_of;
+    "decl_case_of_plus_case_of" >:: decl_case_of_plus_case_of;
     "let_name_equal_expr" >:: let_name_equal_expr;
   ]
 
