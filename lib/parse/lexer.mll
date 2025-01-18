@@ -53,7 +53,7 @@ rule token = parse
   | ucname          { UCNAME (Lexing.lexeme lexbuf) }
   | ucname_q        { UCNAME_PATH (Lexing.lexeme lexbuf) }
   | '='             { Indenter.handle_equal lexbuf }
-  | eof             { EOF }
+  | eof             { Indenter.handle_eof () }
   | "("             { LPAREN }
   | ")"             { RPAREN } 
   | "{"             { LBRACE }
