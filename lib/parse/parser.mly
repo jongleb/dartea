@@ -104,7 +104,7 @@ value_decl:
     | body_part=value_decl_body { Impl.Top_declaration ({ type_part_data=None; body_part }) }
 
 value_decl_body:
-    | name=loc(LCNAME) EQUAL expr=indented(loc(expr)) { Declaration.{ name; expr; } }
+    | name=loc(LCNAME) params=list(loc(LCNAME)) EQUAL expr=indented(loc(expr)) { Declaration.{ name; expr; params } }
    
 expr:    
     | e=expr_app { e }

@@ -24,6 +24,7 @@ let test_decl_string _ =
             {
               Declaration.name = ~?"thisIsTheString";
               expr = ~?(Expr.Expr_string "This");
+              params = [];
             };
         };
     ]
@@ -665,6 +666,7 @@ let test_list_pm _ =
           body_part =
             {
               Declaration.name = ~?"listTestPM";
+              params = [];
               expr =
                 ~?(Expr.Expr_pattern
                      {
@@ -751,6 +753,7 @@ let test_record_pm _ =
           body_part =
             {
               Declaration.name = ~?"dfsf";
+              params = [];
               expr =
                 ~?(Expr.Expr_pattern
                      {
@@ -799,6 +802,7 @@ let test_constr_pm _ =
           body_part =
             {
               Declaration.name = ~?"abcd";
+              params = [];
               expr =
                 ~?(Expr.Expr_pattern
                      {
@@ -867,6 +871,7 @@ let test_cons_pm _ =
           body_part =
             {
               Declaration.name = ~?"dfsf";
+              params = [];
               expr =
                 ~?(Expr.Expr_pattern
                      {
@@ -975,6 +980,7 @@ let test_access _ =
           body_part =
             {
               Declaration.name = ~?"abcd";
+              params = [];
               expr =
                 ~?(Expr.Expr_access
                      {
@@ -1110,6 +1116,7 @@ let test_apply_long _ =
           body_part =
             {
               Declaration.name = ~?"abcd";
+              params = [];
               expr =
                 ~?(Expr.Expr_let
                      {
@@ -1147,7 +1154,8 @@ let decls_wih_a_lot_of_gaps_and_newlines_between _ =
       Impl.Top_declaration
         {
           Declaration.type_part_data = None;
-          body_part = { Declaration.name = ~?"abcd"; expr = ~?(Expr_int 1) };
+          body_part =
+            { Declaration.name = ~?"abcd"; params = []; expr = ~?(Expr_int 1) };
         };
       Impl.Top_declaration
         {
@@ -1155,6 +1163,7 @@ let decls_wih_a_lot_of_gaps_and_newlines_between _ =
           body_part =
             {
               Declaration.name = ~?"efg";
+              params = [];
               expr =
                 ~?(Expr.Expr_binop
                      {
@@ -1169,6 +1178,7 @@ let decls_wih_a_lot_of_gaps_and_newlines_between _ =
           body_part =
             {
               Declaration.name = ~?"test";
+              params = [];
               expr =
                 ~?(Expr.Expr_binop
                      {
@@ -1209,6 +1219,7 @@ let decl_case_of _ =
           body_part =
             {
               Declaration.name = ~?"dfsdsf";
+              params = [];
               expr =
                 ~?(Expr.Expr_pattern
                      {
@@ -1263,6 +1274,7 @@ let decl_case_of_plus_case_of _ =
           body_part =
             {
               Declaration.name = ~?"dfsdsf";
+              params = [];
               expr =
                 ~?(Expr.Expr_pattern
                      {
@@ -1352,6 +1364,7 @@ let let_name_equal_expr _ =
           body_part =
             {
               Declaration.name = ~?"abcd";
+              params = [];
               expr =
                 ~?(Expr.Expr_let
                      {
@@ -1395,6 +1408,7 @@ let let_name_equal_expr _ =
           body_part =
             {
               Declaration.name = ~?"abcd400";
+              params = [];
               expr =
                 ~?(Expr.Expr_let
                      {
@@ -1461,6 +1475,7 @@ let let_name_equal_expr _ =
           body_part =
             {
               Declaration.name = ~?"abcd2";
+              params = [];
               expr =
                 ~?(Expr.Expr_let
                      {
@@ -1484,6 +1499,7 @@ let let_name_equal_expr _ =
           body_part =
             {
               Declaration.name = ~?"abcd3";
+              params = [];
               expr =
                 ~?(Expr.Expr_let
                      {
@@ -1517,6 +1533,7 @@ let let_name_equal_expr _ =
           body_part =
             {
               Declaration.name = ~?"abcd4";
+              params = [];
               expr =
                 ~?(Expr.Expr_let
                      {
@@ -1551,6 +1568,7 @@ let let_name_equal_expr _ =
           body_part =
             {
               Declaration.name = ~?"dfsdsf222";
+              params = [];
               expr =
                 ~?(Expr.Expr_pattern
                      {
@@ -1854,6 +1872,7 @@ let let_name_equal_expr _ =
           body_part =
             {
               Declaration.name = ~?"testxxxx3";
+              params = [];
               expr =
                 ~?(Expr.Expr_let
                      {
@@ -1891,6 +1910,7 @@ let let_name_equal_expr _ =
           body_part =
             {
               Declaration.name = ~?"xxx";
+              params = [];
               expr =
                 ~?(Expr.Expr_let
                      {
@@ -2071,6 +2091,7 @@ let ifthenelse_test _ =
           body_part =
             {
               Declaration.name = ~?"kek";
+              params = [];
               expr =
                 ~?(Expr.Expr_if_then_else
                      {
@@ -2129,6 +2150,7 @@ let giant_merged_test _ =
           body_part =
             {
               Declaration.name = ~?"megaTest";
+              params = [];
               expr =
                 ~?(Expr.Expr_let
                      {
@@ -2582,6 +2604,7 @@ let giant_merged_test2 _ =
           body_part =
             {
               Declaration.name = ~?"mega_test3";
+              params = [];
               expr =
                 ~?(Expr.Expr_let
                      {
