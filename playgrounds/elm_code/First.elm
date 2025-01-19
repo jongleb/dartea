@@ -1,3 +1,1 @@
-module First exposing (FstTypeAlias)
-
-type alias FstTypeAlias = Maybe String
+sum = 1 + 2 - "lol"

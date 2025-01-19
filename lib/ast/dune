@@ -1,6 +1,6 @@
 (library
  (name ast)
- (libraries frontend data)
+ (libraries frontend data canonical)
  (flags
   (-w -40 -w +26))
  (preprocess
