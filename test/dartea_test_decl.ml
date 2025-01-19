@@ -3529,6 +3529,117 @@ mega_test3 =
   let result = input |> Main.parse in
   assert_equal expected_data (Result.get_ok result)
 
+let giant_merged_test3 _ =
+  let input =
+    {|
+    
+  ultimate_mega_test = 
+  let initial = 3 + 7 in
+  let setup = 10 in
+    case initial of
+      10 -> let branch1 = 5 in
+            case branch1 of
+              5 -> if branch1 > 3 then
+                     case setup of
+                       10 -> let deep1 = 7 in
+                            let deep2 = deep1 + 3 in
+                              case deep2 of
+                                10 -> if deep2 > 8 then
+                                       let ultra1 = 15 in
+                                         case ultra1 of
+                                           15 -> let mega1 = ultra1 + 5 in
+                                                if mega1 > 10 then
+                                                  case mega1 of
+                                                    20 -> let final1 = 30 in
+                                                         case final1 of
+                                                           30 -> let result1 = 40 in result1 + 5
+                                                           _ -> let alt1 = 25 in alt1 + 2
+                                                    _ -> let backup1 = 12 in backup1 + 3
+                                                else 0
+                                           _ -> let fallback1 = 8 in fallback1 + 1
+                                     else let simple1 = 5 in simple1 + 2
+                                _ -> let escape1 = 3 in escape1 + 1
+                       _ -> let default1 = 6 in default1 + 2
+                   else 
+                     case 7 of
+                       7 -> let other1 = 9 in
+                           if other1 > 5 then
+                             case other1 of
+                               9 -> let path1 = 12 in
+                                   if path1 > 10 then path1 + 3
+                                   else let alt2 = 8 in alt2 + 2
+                               _ -> let escape2 = 4 in escape2 + 1
+                           else 0
+                       _ -> 0
+              _ -> let default2 = 11 in default2 + 4
+      5 -> case setup + 5 of
+             15 -> let branch2 = 8 in
+                  if branch2 > 5 then
+                    case branch2 of
+                      8 -> let deep3 = 13 in
+                          case deep3 of
+                            13 -> if deep3 > 10 then
+                                   let ultra2 = 18 in
+                                   case ultra2 of
+                                     18 -> let mega2 = 25 in
+                                          if mega2 > 20 then mega2 + 5
+                                          else let alt3 = 15 in alt3 + 2
+                                     _ -> let escape3 = 10 in escape3 + 3
+                                 else 0
+                            _ -> let default3 = 7 in default3 + 1
+                      _ -> let escape4 = 6 in escape4 + 2
+                  else 
+                    let simple2 = 9 in
+                    case simple2 of
+                      9 -> let final2 = 14 in final2 + 3
+                      _ -> let alt4 = 11 in alt4 + 2
+             _ -> let default4 = 16 in 
+                  case default4 of
+                    16 -> let last1 = 20 in
+                          if last1 > 15 then last1 + 4
+                          else let alt5 = 12 in alt5 + 1
+                    _ -> let escape5 = 7 in escape5 + 2
+      _ -> if initial > 8 then
+             let wild1 = 22 in
+             case wild1 of
+               22 -> let deep4 = 27 in
+                    if deep4 > 25 then
+                      case deep4 of
+                        27 -> let ultra3 = 32 in
+                             case ultra3 of
+                               32 -> let mega3 = 40 in
+                                    if mega3 > 35 then
+                                      let final3 = 45 in final3 + 5
+                                    else
+                                      let alt6 = 30 in alt6 + 3
+                               _ -> let escape6 = 25 in escape6 + 2
+                        _ -> let default5 = 20 in default5 + 4
+                    else
+                      let simple3 = 18 in
+                      case simple3 of
+                        18 -> let path2 = 23 in path2 + 2
+                        _ -> let alt7 = 16 in alt7 + 1
+               _ -> let default6 = 15 in default6 + 3
+           else
+             let final4 = 12 in
+             case final4 of
+               12 -> if final4 > 10 then
+                      let ultimate = 50 in
+                      case ultimate of
+                        50 -> let mega_final = 60 in
+                             if mega_final > 55 then mega_final + 10
+                             else let last_chance = 40 in last_chance + 5
+                        _ -> let escape_final = 30 in escape_final + 4
+                    else
+                      let simple4 = 25 in simple4 + 3
+               _ -> let very_last = 35 in very_last + 5
+    
+    
+    |}
+  in
+  let result = input |> Main.parse in
+  assert_bool "Couldn't be parsed" (Result.is_ok result)
+
 let suite =
   [
     (* "test_decl_string" >:: test_decl_string;
@@ -3561,6 +3672,7 @@ let suite =
     "ifthenelse_test" >:: ifthenelse_test;
     "giant_merged_test" >:: giant_merged_test;
     "giant_merged_test2" >:: giant_merged_test2;
+    "giant_merged_test3" >:: giant_merged_test3;
   ]
 
 (*
