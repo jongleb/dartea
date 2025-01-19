@@ -33,27 +33,27 @@ let float =
    ('.' ['0'-'9' '_']*)? (['e' 'E'] ['+' '-']? ['0'-'9'] ['0'-'9' '_']*))
 
 
-rule token = parse
-  | '\n'+ [' ' '\t']* as nl { Indenter.handle_newline nl token lexbuf } 
-  | whitespace      { token lexbuf }
+rule token state = parse
+  | '\n'+ [' ' '\t']* as nl { Indenter.handle_newline state nl token lexbuf } 
+  | whitespace      { token state lexbuf }
   | "type"          { TYPE }
   | "alias"         { ALIAS }
   | "case"          { CASE }
-  | "of"            { Indenter.handle_case_of lexbuf }
-  | "let"           { Indenter.handle_let lexbuf }
-  | "if"            { IF }
+  | "of"            { Indenter.handle_case_of state lexbuf }
+  | "let"           { Indenter.handle_let state lexbuf }
+  | "if"            { Indenter.handle_if state }
   | "then"          { THEN }
-  | "else"          { ELSE }
-  | "in"            { Indenter.handle_in() }
+  | "else"          { Indenter.handle_else state }
+  | "in"            { Indenter.handle_in state }
   | "import"        { IMPORT }
   | "exposing"      { EXPOSING }
   | "as"            { AS }
   | "module"        { MODULE }
-  | lcname          { Indenter.handle_let_def lexbuf }
+  | lcname          { Indenter.handle_let_def state lexbuf }
   | ucname          { UCNAME (Lexing.lexeme lexbuf) }
   | ucname_q        { UCNAME_PATH (Lexing.lexeme lexbuf) }
-  | '='             { Indenter.handle_equal lexbuf }
-  | eof             { Indenter.handle_eof () }
+  | '='             { Indenter.handle_equal state lexbuf }
+  | eof             { Indenter.handle_eof state }
   | "("             { LPAREN }
   | ")"             { RPAREN } 
   | "{"             { LBRACE }
@@ -63,7 +63,7 @@ rule token = parse
   | ","             { COMMA }
   | ":"             { COLON }
   | "|"             { PIPE }
-  | "->"            { Indenter.handle_arrow lexbuf }
+  | "->"            { Indenter.handle_arrow state lexbuf }
   | "+"             { PLUS }
   | "-"             { MINUS }
   | "_"             { WILDCARD }
@@ -94,4 +94,4 @@ rule token = parse
                           with Not_found -> raise (Error "ESCAPED NOT_FOUND") 
                         }
 
-{ let token = Indenter.next_token token }
+{ let token state lexbuf = Indenter.next_token state token lexbuf }
