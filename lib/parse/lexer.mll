@@ -38,7 +38,7 @@ rule token state = parse
   | whitespace      { token state lexbuf }
   | "type"          { TYPE }
   | "alias"         { ALIAS }
-  | "case"          { CASE }
+  | "case"          { Indenter.handle_case state }
   | "of"            { Indenter.handle_case_of state lexbuf }
   | "let"           { Indenter.handle_let state lexbuf }
   | "if"            { Indenter.handle_if state }

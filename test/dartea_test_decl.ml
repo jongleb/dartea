@@ -3663,6 +3663,26 @@ let giant_merged_test3 _ =
   let result = input |> Main.parse in
   assert_bool "Couldn't be parsed" (Result.is_ok result)
 
+let one_more _ =
+  let input =
+    {|
+
+test2 a b c = 
+    let x = 3 in
+    let y = 4 in
+    let z = 2 in
+    let result = x + a in 
+    let result2 = case b of 
+              2 -> 2 + 3
+              _ -> 3 
+    in 
+    concat "a" ""
+  
+|}
+  in
+  let result = input |> Main.parse in
+  assert_bool "Couldn't be parsed" (Result.is_ok result)
+
 let suite =
   [
     (* "test_decl_string" >:: test_decl_string;
@@ -3696,6 +3716,7 @@ let suite =
     "giant_merged_test" >:: giant_merged_test;
     "giant_merged_test2" >:: giant_merged_test2;
     "giant_merged_test3" >:: giant_merged_test3;
+    "one_more" >:: one_more;
   ]
 
 (*

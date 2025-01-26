@@ -9,4 +9,8 @@ test2 a b c =
     let y = 4 in 
     let z = 2 in
     let result = x + a in 
+    let result2 = case b of 
+                    2 -> 2
+                    _ -> 3 
+    in 
     concat "a" ""

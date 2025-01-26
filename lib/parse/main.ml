@@ -12,6 +12,7 @@ let parse content =
       current_string_cnum = 0;
       ident_compare = 0;
       prev_token = None;
+      case_opened = false;
     }
   in
   Stack.push (0, Top_level) state.stack;
