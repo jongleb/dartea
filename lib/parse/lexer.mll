@@ -36,8 +36,8 @@ let float =
 rule token state = parse
   | '\n'+ [' ' '\t']* as nl { Indenter.handle_newline state nl token lexbuf } 
   | whitespace      { token state lexbuf }
-  | "type"          { TYPE }
-  | "alias"         { ALIAS }
+  (* | "type"          { TYPE } *)
+  (* | "alias"         { ALIAS } *)
   | "case"          { Indenter.handle_case state }
   | "of"            { Indenter.handle_case_of state lexbuf }
   | "let"           { Indenter.handle_let state lexbuf }
@@ -45,9 +45,9 @@ rule token state = parse
   | "then"          { THEN }
   | "else"          { Indenter.handle_else state }
   | "in"            { Indenter.handle_in state }
-  | "import"        { IMPORT }
+  (* | "import"        { IMPORT } *)
   | "exposing"      { EXPOSING }
-  | "as"            { AS }
+  (* | "as"            { AS } *)
   | "module"        { MODULE }
   | lcname          { Indenter.handle_let_def state lexbuf }
   | ucname          { UCNAME (Lexing.lexeme lexbuf) }
@@ -61,25 +61,24 @@ rule token state = parse
   | "["             { LBRACKET }
   | "]"             { RBRACKET }
   | ","             { COMMA }
-  | ":"             { COLON }
-  | "|"             { PIPE }
+  (* | ":"             { COLON } *)
+  (* | "|"             { PIPE } *)
   | "->"            { Indenter.handle_arrow state lexbuf }
   | "+"             { PLUS }
   | "-"             { MINUS }
   | "_"             { WILDCARD }
   | "*"             { TIMES }
-  | "::"            { CONS }
+  (* | "::"            { CONS } *)
   | ".."            { TWO_DOTS }
-  | "."             { DOT }
   | "/"             { DIV }
   | "()"            { UNIT }
   | "=="            { EQ_EQ }
   | ">"             { GT }
   | "<"             { LT }
-  | whitespace "." lcname { ACCESSOR (String.sub (Lexing.lexeme lexbuf) 2 (String.length (Lexing.lexeme lexbuf) - 2)) }
   | int             { INT (int_of_string (Lexing.lexeme lexbuf)) }
   | float           { FLOAT (float_of_string(Lexing.lexeme lexbuf)) }
   | '"'             { STRING (string "" lexbuf) }
+  | "." (lcname as n)      {  ACCESS n }
   | _               { raise (Error (Printf.sprintf "At offset %d: unexpected character.\n" (Lexing.lexeme_start lexbuf))) }
 
   and string acc = parse

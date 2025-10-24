@@ -2,12 +2,12 @@ open Parser
 
 let show_token token =
   match token with
-  | TYPE -> "TYPE"
-  | ALIAS -> "ALIAS"
+  (* | TYPE -> "TYPE"
+  | ALIAS -> "ALIAS" *)
   | LCNAME name -> Printf.sprintf "LCNAME(%s)" name
   | UCNAME name -> Printf.sprintf "UCNAME(%s)" name
   | UCNAME_PATH path -> Printf.sprintf "UCNAME_PATH(%s)" path
-  | ACCESSOR accessor -> Printf.sprintf "ACCESSOR(%s)" accessor
+  | ACCESS field -> Printf.sprintf "ACCESS(%s)" field
   | INT value -> Printf.sprintf "INT(%d)" value
   | STRING str -> Printf.sprintf "STRING(%s)" str
   | FLOAT value -> Printf.sprintf "FLOAT(%f)" value
@@ -18,8 +18,8 @@ let show_token token =
   | LBRACE -> "LBRACE"
   | RBRACE -> "RBRACE"
   | COMMA -> "COMMA"
-  | COLON -> "COLON"
-  | PIPE -> "PIPE"
+  (* | COLON -> "COLON" *)
+  (* | PIPE -> "PIPE" *)
   | ARROW -> "ARROW"
   | LBRACKET -> "LBRACKET"
   | RBRACKET -> "RBRACKET"
@@ -35,11 +35,10 @@ let show_token token =
   | CASE -> "CASE"
   | OF -> "OF"
   | WILDCARD -> "WILDCARD"
-  | CONS -> "CONS"
+  (* | CONS -> "CONS" *)
   | UNIT -> "UNIT"
-  | IMPORT -> "IMPORT"
-  | AS -> "AS"
-  | DOT -> "DOT"
+  (* | IMPORT -> "IMPORT" *)
+  (* | AS -> "AS" *)
   | TWO_DOTS -> "TWO_DOTS"
   | EXPOSING -> "EXPOSING"
   | EQ_EQ -> "EQ_EQ"
@@ -353,11 +352,22 @@ let handle_in state =
 
 let handle_eof state =
   prerr_endline "handle_eof";
-  if get_current_context state = Expression then (
-    ignore @@ Stack.pop state.stack;
-    Queue.add EOF state.queue;
-    DEDENT)
-  else EOF
+  (* Close all open indentation contexts up to Top_level, enqueueing DEDENTs *)
+  let rec close_all_to_top () =
+    match Stack.top_opt state.stack with
+    | Some (_, Top_level) -> ()
+    | Some _ ->
+        ignore @@ Stack.pop state.stack;
+        Queue.add DEDENT state.queue;
+        close_all_to_top ()
+    | None ->
+        (* Ensure Top_level exists to keep invariants consistent *)
+        Stack.push (0, Top_level) state.stack
+  in
+  close_all_to_top ();
+  (* After closing, always enqueue EOF so the stream terminates *)
+  Queue.add EOF state.queue;
+  if Queue.is_empty state.queue then EOF else Queue.take state.queue
 
 let handle_if state =
   prerr_endline "handle_if";

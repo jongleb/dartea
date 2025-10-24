@@ -445,6 +445,14 @@ let rec infer exp ctx =
       let a = new_var "a" in
       let r = new_var "r" in
       (Map.empty, TFun (TRecord (TRowExtend (label, a, r)), a))
+  | Expr_access { expr; field } ->
+      let s1, ty = infer expr ctx in
+      let a = new_var "a" in
+      let r = new_var "r" in
+      let s2 =
+        unify (apply_typ ty s1) (TRecord (TRowExtend (field.thing, a, r)))
+      in
+      (s2 ++ s1, apply_typ a s2)
   | _ -> assert false
 
 let infer_exp exp ctx =

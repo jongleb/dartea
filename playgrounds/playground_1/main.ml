@@ -37,7 +37,10 @@ let typs =
   ]
 
 let run_playground typs_ =
-  let result = File_loader.Files.current_folder "playgrounds/elm_code" in
+  let result =
+    try File_loader.Files.current_folder "playgrounds/elm_code"
+    with _ -> File_loader.Files.current_folder "../elm_code"
+  in
   let parsed =
     List.map
       (fun i -> Parse.Main.parse i.File_loader.Files.Elm_file.content)

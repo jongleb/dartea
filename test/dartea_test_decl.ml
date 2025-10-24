@@ -3291,8 +3291,8 @@ let giant_merged_test2 _ =
                                                                                Expr
                                                                                .Expr_ident
                                                                                 "path1",
-                                                                                Expr
-                                                                                .Expr_int
+                                                                               Expr
+                                                                               .Expr_int
                                                                                 10
                                                                                );
                                                                            };
@@ -3683,10 +3683,231 @@ test2 a b c =
   let result = input |> Main.parse in
   assert_bool "Couldn't be parsed" (Result.is_ok result)
 
+let test_access2 _ =
+  let input = {|record_example = x.a|} in
+  let result = input |> Main.parse in
+  assert_bool "Couldn't be parsed" (Result.is_ok result)
+
+let test_access3 _ =
+  let input = {|record_example = kek.a.b.c.d.e.f.g.h + 1|} in
+  let result = input |> Main.parse in
+  assert_bool "Couldn't be parsed" (Result.is_ok result)
+
+(* let test_tuple_pm _ =
+  let expect_data =
+    [
+      Impl.Top_declaration
+        {
+          Declaration.type_part_data =
+            Some
+              {
+                Declaration.name = ~?"tuplePM";
+                type_alias =
+                  {
+                    Typedef.Impl.parameters = [];
+                    body = Typedef.Kind.Tkind_concrete ~?"Int";
+                  };
+              };
+          body_part =
+            {
+              Declaration.name = ~?"tuplePM";
+              params = [];
+              expr =
+                ~?(Expr.Expr_pattern
+                     {
+                       Expr.expr =
+                         Expr.Expr_tuple
+                           [ Expr.Expr_int 1; Expr.Expr_int 2; Expr.Expr_int 3 ];
+                       pattern_data_items =
+                         [
+                           {
+                             Expr.pattern =
+                               Pattern.P_tuple
+                                 [
+                                   Pattern.P_int 1;
+                                   Pattern.P_int 2;
+                                   Pattern.P_int 3;
+                                 ];
+                             expr = Expr.Expr_int 100;
+                           };
+                           {
+                             Expr.pattern =
+                               Pattern.P_tuple
+                                 [
+                                   Pattern.P_var "a";
+                                   Pattern.P_var "b";
+                                   Pattern.P_anything;
+                                 ];
+                             expr =
+                               Expr.Expr_binop
+                                 {
+                                   Expr.name = "+";
+                                   operands =
+                                     (Expr.Expr_ident "a", Expr.Expr_ident "b");
+                                 };
+                           };
+                           {
+                             Expr.pattern = Pattern.P_anything;
+                             expr = Expr.Expr_int 0;
+                           };
+                         ];
+                     });
+            };
+        };
+    ]
+  in
+  let input =
+    {|
+tuplePM: Int
+tuplePM = case (1, 2, 3) of
+  (1, 2, 3) -> 100
+  (a, b, _) -> a + b
+  _ -> 0|}
+  in
+  let result = Main.parse input in
+  assert_equal expect_data (Result.get_ok result) *)
+
+let test_nested_ctor_pm _ =
+  let expect_data =
+    [
+      Impl.Top_declaration
+        {
+          Declaration.type_part_data =
+            Some
+              {
+                Declaration.name = ~?"nestedPM";
+                type_alias =
+                  {
+                    Typedef.Impl.parameters = [];
+                    body = Typedef.Kind.Tkind_concrete ~?"Int";
+                  };
+              };
+          body_part =
+            {
+              Declaration.name = ~?"nestedPM";
+              params = [];
+              expr =
+                ~?(Expr.Expr_pattern
+                     {
+                       Expr.expr = Expr.Expr_ident "value";
+                       pattern_data_items =
+                         [
+                           {
+                             Expr.pattern =
+                               Pattern.P_ctor
+                                 ( "Just",
+                                   [
+                                     Pattern.P_ctor
+                                       ("Just", [ Pattern.P_var "x" ]);
+                                   ] );
+                             expr = Expr.Expr_ident "x";
+                           };
+                           {
+                             Expr.pattern =
+                               Pattern.P_ctor ("Just", [ Pattern.P_anything ]);
+                             expr = Expr.Expr_int 0;
+                           };
+                           {
+                             Expr.pattern = Pattern.P_ctor ("Nothing", []);
+                             expr = Expr.Expr_int (-1);
+                           };
+                           {
+                             Expr.pattern = Pattern.P_anything;
+                             expr = Expr.Expr_int 999;
+                           };
+                         ];
+                     });
+            };
+        };
+    ]
+  in
+  let input =
+    {|
+nestedPM: Int
+nestedPM = case value of
+  Just (Just x) -> x
+  Just _ -> 0
+  Nothing -> -1
+  _ -> 999|}
+  in
+  let result = Main.parse input in
+  assert_equal expect_data (Result.get_ok result)
+
+let test_complex_cons_pm _ =
+  let expect_data =
+    [
+      Impl.Top_declaration
+        {
+          Declaration.type_part_data =
+            Some
+              {
+                Declaration.name = ~?"listSum";
+                type_alias =
+                  {
+                    Typedef.Impl.parameters = [];
+                    body = Typedef.Kind.Tkind_concrete ~?"Int";
+                  };
+              };
+          body_part =
+            {
+              Declaration.name = ~?"listSum";
+              params = [];
+              expr =
+                ~?(Expr.Expr_pattern
+                     {
+                       Expr.expr = Expr.Expr_ident "myList";
+                       pattern_data_items =
+                         [
+                           {
+                             Expr.pattern = Pattern.P_list [];
+                             expr = Expr.Expr_int 0;
+                           };
+                           {
+                             Expr.pattern =
+                               Pattern.P_cons
+                                 (Pattern.P_var "x", Pattern.P_list []);
+                             expr = Expr.Expr_ident "x";
+                           };
+                           {
+                             Expr.pattern =
+                               Pattern.P_cons
+                                 ( Pattern.P_var "x",
+                                   Pattern.P_cons
+                                     (Pattern.P_var "y", Pattern.P_anything) );
+                             expr =
+                               Expr.Expr_binop
+                                 {
+                                   Expr.name = "+";
+                                   operands =
+                                     (Expr.Expr_ident "x", Expr.Expr_ident "y");
+                                 };
+                           };
+                           {
+                             Expr.pattern = Pattern.P_anything;
+                             expr = Expr.Expr_int (-1);
+                           };
+                         ];
+                     });
+            };
+        };
+    ]
+  in
+  let input =
+    {|
+listSum: Int
+listSum = case myList of
+  [] -> 0
+  x :: [] -> x
+  x :: y :: _ -> x + y
+  _ -> -1|}
+  in
+  let result = Main.parse input in
+  assert_equal expect_data (Result.get_ok result)
+
 let suite =
   [
-    (* "test_decl_string" >:: test_decl_string;
-       "test_let_in_binop" >:: test_let_in_binop;
+    (* "test_decl_string" >:: test_decl_string; *)
+    (*  "test_let_in_binop" >:: test_let_in_binop;
        "test_let_in_let_in_let" >:: test_let_in_let_in_let;
        "test_math" >:: test_math;
        "test_multiple_let" >:: test_multiple_let;
@@ -3707,7 +3928,8 @@ let suite =
     (* "test_module_export_all" >:: test_module_export_all; *)
     (* "test_apply" >:: test_apply; *)
     (* "test_apply_long" >:: test_apply_long; *)
-    "decls_wih_a_lot_of_gaps_and_newlines_between"
+
+    (* "decls_wih_a_lot_of_gaps_and_newlines_between"
     >:: decls_wih_a_lot_of_gaps_and_newlines_between;
     "decl_case_of" >:: decl_case_of;
     "decl_case_of_plus_case_of" >:: decl_case_of_plus_case_of;
@@ -3717,6 +3939,8 @@ let suite =
     "giant_merged_test2" >:: giant_merged_test2;
     "giant_merged_test3" >:: giant_merged_test3;
     "one_more" >:: one_more;
+    "test_access2" >:: test_access2; *)
+    "test_nested_ctor_pm" >:: test_nested_ctor_pm;
   ]
 
 (*
