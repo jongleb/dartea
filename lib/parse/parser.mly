@@ -43,9 +43,10 @@
 %token PIPE_GT
 %token UMINUS
 %token CONS
-
+%token BACKSLASH
 
 %nonassoc ELSE IN
+%nonassoc ARROW
 
 %left UMINUS
 %left PIPE_GT
@@ -99,6 +100,8 @@ expr:
     | MINUS e=expr %prec UMINUS { Expr_unop { name = Located.mk "-" $loc; operand = e } }
     | e=expr_app { e }
     | e=expr_binop { e }
+    | BACKSLASH params=nonempty_list(loc(LCNAME)) ARROW body=expr %prec ARROW
+        { Expr_lambda { params; body } }
     | IF if_exp=expr THEN then_exp=expr ELSE else_exp=expr
         { Expr_if_then_else { if_exp; then_exp; else_exp } }
     | CASE expr=scrutinee OF pattern_data_items=indented(list(case_arm))

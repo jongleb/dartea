@@ -3900,6 +3900,157 @@ let test_pipe _ =
   let result = input |> Main.parse in
   assert_equal expect_data (Result.get_ok result)
 
+let test_lambda_simple _ =
+  let expect_data =
+    [
+      Impl.Top_declaration
+        {
+          Declaration.type_part_data = None;
+          body_part =
+            {
+              Declaration.name = ~?"square";
+              params = [];
+              expr =
+                ~?(Expr.Expr_lambda
+                     {
+                       Expr.params = [ ~?"n" ];
+                       body =
+                         Expr.Expr_binop
+                           {
+                             Expr.name = "*";
+                             operands =
+                               (Expr.Expr_ident "n", Expr.Expr_ident "n");
+                           };
+                     });
+            };
+        };
+    ]
+  in
+  let input = {|
+square = 
+  \n -> n * n|} in
+  let result = Main.parse input in
+  assert_equal expect_data (Result.get_ok result)
+
+let test_lambda_multiple_params _ =
+  let expect_data =
+    [
+      Impl.Top_declaration
+        {
+          Declaration.type_part_data = None;
+          body_part =
+            {
+              Declaration.name = ~?"add";
+              params = [];
+              expr =
+                ~?(Expr.Expr_lambda
+                     {
+                       Expr.params = [ ~?"x"; ~?"y" ];
+                       body =
+                         Expr.Expr_binop
+                           {
+                             Expr.name = "+";
+                             operands =
+                               (Expr.Expr_ident "x", Expr.Expr_ident "y");
+                           };
+                     });
+            };
+        };
+    ]
+  in
+  let input = {|
+add = 
+  \x y -> x + y|} in
+  let result = Main.parse input in
+  assert_equal expect_data (Result.get_ok result)
+
+let test_lambda_in_apply _ =
+  let expect_data =
+    [
+      Impl.Top_declaration
+        {
+          Declaration.type_part_data = None;
+          body_part =
+            {
+              Declaration.name = ~?"squares";
+              params = [];
+              expr =
+                ~?(Expr.Expr_apply
+                     {
+                       Expr.fn =
+                         Expr.Expr_apply
+                           {
+                             Expr.fn = Expr.Expr_ident "map";
+                             arg =
+                               Expr.Expr_lambda
+                                 {
+                                   Expr.params = [ ~?"n" ];
+                                   body =
+                                     Expr.Expr_binop
+                                       {
+                                         Expr.name = "*";
+                                         operands =
+                                           ( Expr.Expr_ident "n",
+                                             Expr.Expr_ident "n" );
+                                       };
+                                 };
+                           };
+                       arg = Expr.Expr_ident "list";
+                     });
+            };
+        };
+    ]
+  in
+  let input = {|
+squares = 
+  map (\n -> n * n) list|} in
+  let result = Main.parse input in
+  assert_equal expect_data (Result.get_ok result)
+
+let test_lambda_complex_body _ =
+  let expect_data =
+    [
+      Impl.Top_declaration
+        {
+          Declaration.type_part_data = None;
+          body_part =
+            {
+              Declaration.name = ~?"process";
+              params = [];
+              expr =
+                ~?(Expr.Expr_lambda
+                     {
+                       Expr.params = [ ~?"x" ];
+                       body =
+                         Expr.Expr_if_then_else
+                           {
+                             Expr.if_exp =
+                               Expr.Expr_binop
+                                 {
+                                   Expr.name = ">";
+                                   operands =
+                                     (Expr.Expr_ident "x", Expr.Expr_int 0);
+                                 };
+                             then_exp =
+                               Expr.Expr_binop
+                                 {
+                                   Expr.name = "*";
+                                   operands =
+                                     (Expr.Expr_ident "x", Expr.Expr_int 2);
+                                 };
+                             else_exp = Expr.Expr_int 0;
+                           };
+                     });
+            };
+        };
+    ]
+  in
+  let input = {|
+process = 
+  \x -> if x > 0 then x * 2 else 0|} in
+  let result = Main.parse input in
+  assert_equal expect_data (Result.get_ok result)
+
 let suite =
   [
     (* "test_decl_string" >:: test_decl_string; *)
@@ -3938,6 +4089,10 @@ let suite =
     "test_nested_ctor_pm" >:: test_nested_ctor_pm;
     "test_complex_cons_pm" >:: test_complex_cons_pm;
     "test_pipe" >:: test_pipe;
+    "test_lambda_simple" >:: test_lambda_simple;
+    "test_lambda_multiple_params" >:: test_lambda_multiple_params;
+    "test_lambda_in_apply" >:: test_lambda_in_apply;
+    "test_lambda_complex_body" >:: test_lambda_complex_body;
   ]
 
 (*

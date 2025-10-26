@@ -17,6 +17,10 @@ type t =
   | Expr_accessor of string Data.Located.t
   | Expr_access of expr_access
   | Expr_unop of expr_unop
+  | Expr_lambda of expr_lambda
+[@@deriving show]
+
+and expr_lambda = { params : string Data.Located.t list; body : t }
 [@@deriving show]
 
 and expr_unop = { name : string Data.Located.t; operand : t } [@@deriving show]

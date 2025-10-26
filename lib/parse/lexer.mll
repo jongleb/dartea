@@ -63,6 +63,7 @@ rule token state = parse
   | ","             { COMMA }
   (* | ":"             { COLON } *)
   (* | "|"             { PIPE } *)
+  | "\\"            { BACKSLASH }
   | "->"            { Indenter.handle_arrow state lexbuf }
   | "|>"            { PIPE_GT }
   | "+"             { PLUS }

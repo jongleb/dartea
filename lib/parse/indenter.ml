@@ -31,6 +31,7 @@ let show_token token =
   | TIMES -> "TIMES"
   | DIV -> "DIV"
   | IF -> "IF"
+  | BACKSLASH -> "BACKSLASH"
   | THEN -> "THEN"
   | ELSE -> "ELSE"
   | CASE -> "CASE"
