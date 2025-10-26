@@ -495,3 +495,50 @@ let infer_declaration { Canonical.Declaration.body_part; type_part_data } ctx =
   let new_ctx = Map.add body_part.name.thing scheme ctx in
 
   (s_final, verified_ty, new_ctx)
+
+let infer_toplevel declarations initial_ctx =
+  let ctx_with_names =
+    List.fold_left
+      (fun acc decl ->
+        match decl with
+        | Canonical.Impl.Top_declaration { body_part; _ } ->
+            let fresh_ty = new_var "a" in
+            let scheme = Scheme ([], fresh_ty) in
+            Map.add body_part.name.thing scheme acc)
+      initial_ctx declarations
+  in
+
+  let inferred_types =
+    List.filter_map
+      (fun decl ->
+        match decl with
+        | Canonical.Impl.Top_declaration decl_data ->
+            let s, ty, _ = infer_declaration decl_data ctx_with_names in
+            Some (decl_data.body_part.name.thing, (s, ty)))
+      declarations
+  in
+
+  let final_ctx =
+    List.fold_left
+      (fun acc (name, (s, inferred_ty)) ->
+        match Map.find_opt name ctx_with_names with
+        | Some (Scheme ([], fresh_var)) ->
+            let s_unify = unify fresh_var inferred_ty in
+            let final_ty = apply_typ inferred_ty s_unify in
+            let scheme = generalize final_ty initial_ctx in
+            Map.add name scheme acc
+        | _ -> acc)
+      initial_ctx inferred_types
+  in
+
+  let typed_decls =
+    List.map
+      (fun (name, (_, ty)) ->
+        match Map.find_opt name final_ctx with
+        | Some scheme ->
+            (name, snd (match scheme with Scheme (_, t) -> ([], t)))
+        | None -> (name, ty))
+      inferred_types
+  in
+
+  (final_ctx, typed_decls)

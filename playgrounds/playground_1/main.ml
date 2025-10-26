@@ -64,32 +64,17 @@ let run_playground typs_ =
       (fun x ->
         Result.map
           (fun declarations ->
-            (* Складываем контекст через все декларации *)
-            let _, typed_decls =
-              List.fold_left
-                (fun (ctx, acc) decl ->
-                  match decl with
-                  | Canonical.Impl.Top_declaration { body_part; type_part_data }
-                    ->
-                      let decl_record =
-                        { Canonical.Declaration.body_part; type_part_data }
-                      in
-                      let _, ty, new_ctx =
-                        I.infer_declaration decl_record ctx
-                      in
-                      let name = body_part.name.thing in
-                      (new_ctx, (name, ty) :: acc))
-                (initial_ctx, []) declarations
-            in
-            List.rev typed_decls)
+            I.State.reset ();
+            I.infer_toplevel declarations initial_ctx)
           x)
       canonicalized
   in
 
+  (* Выводим результаты *)
   List.iter
     (fun x ->
       match x with
-      | Ok decls ->
+      | Ok (_, decls) ->
           List.iter
             (fun (name, ty) ->
               Printf.printf "%s : %s\n" name (I.string_of_typ ty))

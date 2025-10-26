@@ -1,8 +1,12 @@
-sum = 1 + 2 - 1
+sum = 1 + 2 - 1 + xxx 80
+
+id a = a
 
 test =
     let x = 2 in 
-    x + 3
+    x + id 3
+
+kekkk = sum + test
 
 test2 a b c kek = 
     let x = 3 in
@@ -28,3 +32,6 @@ testCaseMultipleBranches someValue =
         3 -> 1
         4 -> 2
         _ -> 3
+
+
+xxx x = x |> plus 1 |> plus 2 |> plus 3 |> int_to_string |> id |> concat "Value is: "
