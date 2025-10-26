@@ -114,11 +114,18 @@ case_arm:
         {{ pattern; expr }}    
 
 pattern:
+    | name=UCNAME args=nonempty_list(pattern_atom) { P_ctor(name, args) }
+    | p=pattern_atom { p }
+
+pattern_atom:
     | i=STRING { P_str i }
     | i=INT { P_int i }
     | i=WILDCARD { P_anything }
     | i=LCNAME { P_var i }
+    | name=UCNAME { P_ctor(name, []) }
     | LBRACE lst=separated_list(COMMA, LCNAME) RBRACE { P_record(lst) }
+    | LBRACKET lst=separated_list(COMMA, pattern) RBRACKET { P_list(lst) }
+    | LPAREN p=pattern RPAREN { p }
 
 expr_binop:
     e1=expr name=binop e2=expr { Expr_binop { name; operands=(e1, e2) } }
