@@ -1033,81 +1033,41 @@ let test_module_export_all _ =
   let result = input |> Main.parse in
   assert_equal expect_data (Result.get_ok result)
 
-(* let test_apply _ =
-   let expect_data =
-     [
-       Impl.Top_declaration
-         {
-           Declaration.type_part_data = None;
-           body_part =
-             {
-               Declaration.name = ~?"abcd";
-               expr =
-                 ~?(Expr.Expr_let
-                      {
-                        binding =
-                          {
-                            bind_type = None;
-                            bind_body =
-                              { Expr.name = ~?"a"; body = Expr.Expr_int 2 };
-                          };
-                        body =
-                          Expr.Expr_binop
-                            {
-                              Expr.name = "+";
-                              operands = (Expr.Expr_ident "a", Expr.Expr_int 3);
-                            };
-                      });
-             };
-         };
-     ]
-   in
-   let input = {|abcd = let a = 2 in a + 3|} in
-   let result = input |> Main.parse in
-   assert_equal expect_data (Result.get_ok result) *)
+let test_apply _ =
+  let expect_data =
+    [
+      Impl.Top_declaration
+        {
+          Declaration.type_part_data = None;
+          body_part =
+            {
+              Declaration.name = ~?"abcd";
+              params = [];
+              expr =
+                ~?(Expr.Expr_let
+                     {
+                       binding =
+                         {
+                           bind_type = None;
+                           bind_body =
+                             { Expr.name = ~?"a"; body = Expr.Expr_int 2 };
+                         };
+                       body =
+                         Expr.Expr_binop
+                           {
+                             Expr.name = "+";
+                             operands = (Expr.Expr_ident "a", Expr.Expr_int 3);
+                           };
+                     });
+            };
+        };
+    ]
+  in
+  let input = {|abcd = let a = 2 in a + 3|} in
+  let result = input |> Main.parse in
+  assert_equal expect_data (Result.get_ok result)
 
 let test_apply_long _ =
-  (* let expect_data =
-     [
-       Impl.Top_declaration
-         {
-           Declaration.type_part_data = None;
-           body_part =
-             {
-               Declaration.name = ~?"abcd";
-               expr =
-                 ~?(Expr.Expr_let
-                      {
-                        binding =
-                          {
-                            bind_type = None;
-                            bind_body =
-                              { Expr.name = ~?"a"; body = Expr.Expr_int 2 };
-                          };
-                        body =
-                          Expr.Expr_apply
-                            {
-                              ident = Expr.Expr_ident "eklmn";
-                              args =
-                                [
-                                  Expr.Expr_int 5;
-                                  Expr.Expr_ident "a";
-                                  Expr.Expr_apply
-                                    {
-                                      ident = Expr.Expr_ident "fb";
-                                      args =
-                                        [
-                                          Expr.Expr_int 1;
-                                          Expr.Expr_int 2;
-                                          Expr.Expr_int 3;
-                                        ];
-                                    };
-                                ];
-                            };
-                      });
-             };
-         };
-     ] *)
   let expect_data =
     [
       Impl.Top_declaration
@@ -1132,19 +1092,37 @@ let test_apply_long _ =
                              fn =
                                Expr.Expr_apply
                                  {
-                                   fn = Expr.Expr_ident "eklmn";
-                                   arg = Expr.Expr_int 5;
+                                   fn =
+                                     Expr.Expr_apply
+                                       {
+                                         fn = Expr.Expr_ident "eklmn";
+                                         arg = Expr.Expr_int 5;
+                                       };
+                                   arg = Expr.Expr_ident "a";
                                  };
-                             arg = Expr.Expr_ident "a";
+                             arg =
+                               Expr.Expr_apply
+                                 {
+                                   fn =
+                                     Expr.Expr_apply
+                                       {
+                                         fn =
+                                           Expr.Expr_apply
+                                             {
+                                               fn = Expr.Expr_ident "fb";
+                                               arg = Expr.Expr_int 1;
+                                             };
+                                         arg = Expr.Expr_int 2;
+                                       };
+                                   arg = Expr.Expr_int 3;
+                                 };
                            };
                      });
             };
         };
     ]
   in
-  (* let input = {|abcd = let a = 2 in eklmn 5 a (fb (c + 2) hj (jh 34))|} in *)
-  (* let input = {|abcd = let a = 2 in eklmn 5 a (fb 1 2 3)|} in *)
-  let input = {|abcd = let a = 2 in eklmn 5 a|} in
+  let input = {|abcd = let a = 2 in eklmn 5 a (fb 1 2 3)|} in
   let result = input |> Main.parse in
   assert_equal expect_data (Result.get_ok result)
 
@@ -3772,19 +3750,10 @@ let test_nested_ctor_pm _ =
     [
       Impl.Top_declaration
         {
-          Declaration.type_part_data =
-            Some
-              {
-                Declaration.name = ~?"nestedPM";
-                type_alias =
-                  {
-                    Typedef.Impl.parameters = [];
-                    body = Typedef.Kind.Tkind_concrete ~?"Int";
-                  };
-              };
+          Declaration.type_part_data = None;
           body_part =
             {
-              Declaration.name = ~?"nestedPM";
+              Declaration.name = ~?"nestedPm";
               params = [];
               expr =
                 ~?(Expr.Expr_pattern
@@ -3809,7 +3778,9 @@ let test_nested_ctor_pm _ =
                            };
                            {
                              Expr.pattern = Pattern.P_ctor ("Nothing", []);
-                             expr = Expr.Expr_int (-1);
+                             expr =
+                               Expr.Expr_unop
+                                 { name = ~?"-"; operand = Expr.Expr_int 1 };
                            };
                            {
                              Expr.pattern = Pattern.P_anything;
@@ -3823,8 +3794,7 @@ let test_nested_ctor_pm _ =
   in
   let input =
     {|
-nestedPM: Int
-nestedPM = case value of
+nestedPm = case value of
   Just (Just x) -> x
   Just _ -> 0
   Nothing -> -1
@@ -3838,16 +3808,7 @@ let test_complex_cons_pm _ =
     [
       Impl.Top_declaration
         {
-          Declaration.type_part_data =
-            Some
-              {
-                Declaration.name = ~?"listSum";
-                type_alias =
-                  {
-                    Typedef.Impl.parameters = [];
-                    body = Typedef.Kind.Tkind_concrete ~?"Int";
-                  };
-              };
+          Declaration.type_part_data = None;
           body_part =
             {
               Declaration.name = ~?"listSum";
@@ -3884,7 +3845,9 @@ let test_complex_cons_pm _ =
                            };
                            {
                              Expr.pattern = Pattern.P_anything;
-                             expr = Expr.Expr_int (-1);
+                             expr =
+                               Expr.Expr_unop
+                                 { name = ~?"-"; operand = Expr.Expr_int 1 };
                            };
                          ];
                      });
@@ -3894,7 +3857,6 @@ let test_complex_cons_pm _ =
   in
   let input =
     {|
-listSum: Int
 listSum = case myList of
   [] -> 0
   x :: [] -> x
@@ -3926,10 +3888,9 @@ let suite =
        "test_access" >:: test_access; *)
     (* "test_accessor" >:: test_accessor; *)
     (* "test_module_export_all" >:: test_module_export_all; *)
-    (* "test_apply" >:: test_apply; *)
-    (* "test_apply_long" >:: test_apply_long; *)
-
-    (* "decls_wih_a_lot_of_gaps_and_newlines_between"
+    "test_apply" >:: test_apply;
+    "test_apply_long" >:: test_apply_long;
+    "decls_wih_a_lot_of_gaps_and_newlines_between"
     >:: decls_wih_a_lot_of_gaps_and_newlines_between;
     "decl_case_of" >:: decl_case_of;
     "decl_case_of_plus_case_of" >:: decl_case_of_plus_case_of;
@@ -3939,8 +3900,9 @@ let suite =
     "giant_merged_test2" >:: giant_merged_test2;
     "giant_merged_test3" >:: giant_merged_test3;
     "one_more" >:: one_more;
-    "test_access2" >:: test_access2; *)
+    "test_access2" >:: test_access2;
     "test_nested_ctor_pm" >:: test_nested_ctor_pm;
+    "test_complex_cons_pm" >:: test_complex_cons_pm;
   ]
 
 (*

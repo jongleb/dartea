@@ -21,6 +21,7 @@ let show_token token =
   (* | COLON -> "COLON" *)
   (* | PIPE -> "PIPE" *)
   | ARROW -> "ARROW"
+  | PIPE_GT -> "PIPE_GT"
   | LBRACKET -> "LBRACKET"
   | RBRACKET -> "RBRACKET"
   | LET -> "LET"
@@ -35,7 +36,8 @@ let show_token token =
   | CASE -> "CASE"
   | OF -> "OF"
   | WILDCARD -> "WILDCARD"
-  (* | CONS -> "CONS" *)
+  | UMINUS -> "UMINUS"
+  | CONS -> "CONS"
   | UNIT -> "UNIT"
   (* | IMPORT -> "IMPORT" *)
   (* | AS -> "AS" *)

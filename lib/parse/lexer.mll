@@ -64,11 +64,12 @@ rule token state = parse
   (* | ":"             { COLON } *)
   (* | "|"             { PIPE } *)
   | "->"            { Indenter.handle_arrow state lexbuf }
+  | "|>"            { PIPE_GT }
   | "+"             { PLUS }
   | "-"             { MINUS }
   | "_"             { WILDCARD }
   | "*"             { TIMES }
-  (* | "::"            { CONS } *)
+  | "::"            { CONS }
   | ".."            { TWO_DOTS }
   | "/"             { DIV }
   | "()"            { UNIT }

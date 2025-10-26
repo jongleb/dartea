@@ -16,8 +16,10 @@ type t =
   | Expr_pattern of expr_pattern
   | Expr_accessor of string Data.Located.t
   | Expr_access of expr_access
+  | Expr_unop of expr_unop
 [@@deriving show]
 
+and expr_unop = { name : string Data.Located.t; operand : t } [@@deriving show]
 and expr_constr = { name : string; arguments : t list } [@@deriving show]
 (*ConstructorValue { qualifiedness : PossiblyQualified, name : VarName }*)
 

@@ -37,6 +37,7 @@ let typs =
   ]
 
 let run_playground typs_ =
+  let module I = Typed.Infer in
   let result =
     try File_loader.Files.current_folder "playgrounds/elm_code"
     with _ -> File_loader.Files.current_folder "../elm_code"
@@ -51,34 +52,50 @@ let run_playground typs_ =
       (fun x -> Result.map (List.map Canonical.Impl.of_frontend) x)
       parsed
   in
+
+  (* Инициализируем контекст с базовыми типами *)
+  let initial_ctx =
+    let f acc (v, scheme) = I.Map.add v scheme acc in
+    List.fold_left f I.Map.empty typs_
+  in
+
   let typed =
     List.map
       (fun x ->
         Result.map
-          (List.map (fun x ->
-               match x with
-               | Canonical.Impl.Top_declaration x ->
-                   let ctx =
-                     Typed.(
-                       Infer.(
-                         State.reset ();
-                         let typs =
-                           List.fold_left
-                             (fun acc next ->
-                               ( Data.Located.unwrap next,
-                                 Type.Scheme ([], new_var "a") )
-                               :: acc)
-                             typs_ x.params
-                         in
-                         let f acc (v, scheme) = Map.add v scheme acc in
-                         List.fold_left f Map.empty typs))
-                   in
-                   let s, ty = Typed.Infer.infer' x.expr ctx in
-                   Typed.Infer.apply_typ ty s))
+          (fun declarations ->
+            (* Складываем контекст через все декларации *)
+            let _, typed_decls =
+              List.fold_left
+                (fun (ctx, acc) decl ->
+                  match decl with
+                  | Canonical.Impl.Top_declaration { body_part; type_part_data }
+                    ->
+                      let decl_record =
+                        { Canonical.Declaration.body_part; type_part_data }
+                      in
+                      let _, ty, new_ctx =
+                        I.infer_declaration decl_record ctx
+                      in
+                      let name = body_part.name.thing in
+                      (new_ctx, (name, ty) :: acc))
+                (initial_ctx, []) declarations
+            in
+            List.rev typed_decls)
           x)
       canonicalized
   in
-  List.iter (fun x -> match x with Ok _ -> () | Error x -> raise x) typed;
+
+  List.iter
+    (fun x ->
+      match x with
+      | Ok decls ->
+          List.iter
+            (fun (name, ty) ->
+              Printf.printf "%s : %s\n" name (I.string_of_typ ty))
+            decls
+      | Error x -> raise x)
+    typed;
   prerr_endline "Success!"
 
 let () = run_playground typs

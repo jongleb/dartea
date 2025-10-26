@@ -40,8 +40,15 @@
 %token EQ_EQ GT LT
 %token MODULE
 %token INDENT DEDENT
+%token PIPE_GT
+%token UMINUS
+%token CONS
+
 
 %nonassoc ELSE IN
+
+%left UMINUS
+%left PIPE_GT
 %left PLUS MINUS
 %left TIMES DIV
 %left EQ_EQ
@@ -88,6 +95,8 @@ value_decl_body:
         { Declaration.{ name; expr; params } }
    
 expr:    
+    | e=expr_pipe { e }
+    | MINUS e=expr %prec UMINUS { Expr_unop { name = Located.mk "-" $loc; operand = e } }
     | e=expr_app { e }
     | e=expr_binop { e }
     | IF if_exp=expr THEN then_exp=expr ELSE else_exp=expr
@@ -98,6 +107,9 @@ expr:
         { make_expr_let ~bindings:[binding] e }
     | LET INDENT bindings=expr_let_defs DEDENT IN e=expr
         { make_expr_let ~bindings e }
+
+expr_pipe:
+    | arg=expr PIPE_GT fn=expr { Expr_apply { fn; arg } }
 
 expr_let_name_bind:
     name=loc(LCNAME) EQUAL INDENT body=expr DEDENT
@@ -115,6 +127,7 @@ case_arm:
 
 pattern:
     | name=UCNAME args=nonempty_list(pattern_atom) { P_ctor(name, args) }
+    | head=pattern_atom CONS tail=pattern { P_cons(head, tail) }
     | p=pattern_atom { p }
 
 pattern_atom:

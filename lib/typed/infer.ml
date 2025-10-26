@@ -462,3 +462,36 @@ let infer_exp exp ctx =
 
 let infer' = infer
 let infer exp = infer_exp exp ctx
+
+let infer_declaration { Canonical.Declaration.body_part; type_part_data } ctx =
+  let param_types = List.map (fun _ -> new_var "a") body_part.params in
+  let ctx_with_params =
+    List.fold_left2
+      (fun acc param param_ty ->
+        Map.add param.Data.Located.thing (Scheme ([], param_ty)) acc)
+      ctx body_part.params param_types
+  in
+
+  let s, body_ty = infer' body_part.expr.Data.Located.thing ctx_with_params in
+
+  let param_types' = List.map (fun ty -> apply_typ ty s) param_types in
+
+  let final_ty =
+    List.fold_right
+      (fun param_ty acc -> TFun (param_ty, acc))
+      param_types' (apply_typ body_ty s)
+  in
+
+  let verified_ty, s_final =
+    match type_part_data with
+    | None -> (final_ty, s)
+    | Some type_part ->
+        let declared_ty = typedef_to_type type_part.type_alias in
+        let s_check = unify final_ty declared_ty in
+        (apply_typ final_ty s_check, s_check ++ s)
+  in
+
+  let scheme = generalize verified_ty ctx in
+  let new_ctx = Map.add body_part.name.thing scheme ctx in
+
+  (s_final, verified_ty, new_ctx)
