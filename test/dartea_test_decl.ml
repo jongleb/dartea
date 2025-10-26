@@ -3866,6 +3866,40 @@ listSum = case myList of
   let result = Main.parse input in
   assert_equal expect_data (Result.get_ok result)
 
+let test_pipe _ =
+  let expect_data =
+    [
+      Impl.Top_declaration
+        {
+          Declaration.type_part_data = None;
+          body_part =
+            {
+              Declaration.name = ~?"result";
+              params = [];
+              expr =
+                ~?(Expr.Expr_apply
+                     {
+                       Expr.fn = Expr.Expr_ident "abcd";
+                       arg =
+                         Expr.Expr_apply
+                           {
+                             Expr.fn =
+                               Expr.Expr_apply
+                                 {
+                                   Expr.fn = Expr.Expr_ident "plus";
+                                   arg = Expr.Expr_int 1;
+                                 };
+                             arg = Expr.Expr_int 5;
+                           };
+                     });
+            };
+        };
+    ]
+  in
+  let input = {| result = 5 |> plus 1 |> abcd |} in
+  let result = input |> Main.parse in
+  assert_equal expect_data (Result.get_ok result)
+
 let suite =
   [
     (* "test_decl_string" >:: test_decl_string; *)
@@ -3903,6 +3937,7 @@ let suite =
     "test_access2" >:: test_access2;
     "test_nested_ctor_pm" >:: test_nested_ctor_pm;
     "test_complex_cons_pm" >:: test_complex_cons_pm;
+    "test_pipe" >:: test_pipe;
   ]
 
 (*
