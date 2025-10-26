@@ -453,6 +453,22 @@ let rec infer exp ctx =
         unify (apply_typ ty s1) (TRecord (TRowExtend (field.thing, a, r)))
       in
       (s2 ++ s1, apply_typ a s2)
+  | Expr_lambda { params; body } ->
+      let param_types = List.map (fun _ -> new_var "a") params in
+      let ctx_with_params =
+        List.fold_left2
+          (fun acc param param_ty ->
+            Map.add param.Data.Located.thing (Scheme ([], param_ty)) acc)
+          ctx params param_types
+      in
+      let s, body_ty = infer body ctx_with_params in
+      let param_types' = List.map (fun ty -> apply_typ ty s) param_types in
+      let fn_ty =
+        List.fold_right
+          (fun param_ty acc -> TFun (param_ty, acc))
+          param_types' body_ty
+      in
+      (s, fn_ty)
   | _ -> assert false
 
 let infer_exp exp ctx =

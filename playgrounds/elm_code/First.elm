@@ -35,3 +35,9 @@ testCaseMultipleBranches someValue =
 
 
 xxx x = x |> plus 1 |> plus 2 |> plus 3 |> int_to_string |> id |> concat "Value is: "
+
+
+square =
+  \n -> n * n
+
+testagain = sum |> square |> \n -> n + 1 |> int_to_string

@@ -17,6 +17,10 @@ type t =
   | Expr_record_extend of string
   | Expr_record_select of string
   | Expr_record_empty
+  | Expr_lambda of expr_lambda
+[@@deriving show]
+
+and expr_lambda = { params : string Data.Located.t list; body : t }
 [@@deriving show]
 
 and expr_constr = { name : string; arguments : t list } [@@deriving show]
@@ -112,6 +116,7 @@ let of_frontend expr =
                 arg = acc;
               })
           Expr_record_empty r
+    | Expr_lambda { params; body } -> Expr_lambda { params; body = go body }
     | e ->
         failwith @@ Printf.sprintf "not implemented: %s" @@ Frontend.Expr.show e
   in
