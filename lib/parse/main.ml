@@ -13,6 +13,7 @@ let parse content =
       ident_compare = 0;
       prev_token = None;
       case_opened = false;
+      in_type_decl = false;
     }
   in
   Stack.push (0, Top_level) state.stack;

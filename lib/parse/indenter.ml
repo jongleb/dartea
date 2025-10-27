@@ -56,7 +56,8 @@ type indent_context =
   | If
   | Case
   | Case_arm_expr
-  | Type_alias (* Новый контекст для type alias *)
+  | Type_alias
+  | Type_decl
   | Top_level
   | Expression
 [@@deriving show]
@@ -68,6 +69,7 @@ type indent_state = {
   mutable ident_compare : int;
   mutable prev_token : token option;
   mutable case_opened : bool;
+  mutable in_type_decl : bool;
 }
 
 let close_one state next_token =
@@ -111,6 +113,9 @@ let close_until state ident next_token =
         Stack.push x state.stack
     | Some ((_, Type_alias) as x) ->
         prerr_endline "Some ((_, Type_alias) as x)";
+        Stack.push x state.stack
+    | Some ((_, Type_decl) as x) ->
+        prerr_endline "Some ((_, Type_decl) as x)";
         Stack.push x state.stack
     | Some (ident', ctx) when ident < ident' ->
         prerr_endline
@@ -202,6 +207,15 @@ let handle_newline state nl token lexbuf =
     | Type_alias ->
         prerr_endline "Type_alias";
         next_token state
+    | Type_decl when indent_level > current ->
+        prerr_endline "Type_decl when indent_level > current";
+        next_token state
+    | Type_decl when indent_level < current ->
+        prerr_endline "Type_decl when indent_level < current";
+        close_until state indent_level next_token
+    | Type_decl ->
+        prerr_endline "Type_decl";
+        next_token state
     | Case_arm_expr when indent_level = current ->
         prerr_endline "Case_arm_expr";
         ignore @@ Stack.pop state.stack;
@@ -248,6 +262,9 @@ let handle_equal state lexbuf =
   if get_current_context state = Let_inline then Queue.add INDENT state.queue;
   if get_current_context state = Type_alias then (
     prerr_endline "handle_equal, Type_alias branch";
+    Queue.add INDENT state.queue);
+  if get_current_context state = Type_decl then (
+    prerr_endline "handle_equal, Type_decl branch";
     Queue.add INDENT state.queue);
   EQUAL
 
@@ -305,6 +322,9 @@ let handle_let_def state lexbuf =
     LCNAME (Lexing.lexeme lexbuf))
   else if get_current_context state = Type_alias then (
     prerr_endline "handle_let_def, Type_alias context - just return LCNAME";
+    LCNAME (Lexing.lexeme lexbuf))
+  else if get_current_context state = Type_decl then (
+    prerr_endline "handle_let_def, Type_decl context - just return LCNAME";
     LCNAME (Lexing.lexeme lexbuf))
   else
     match get_current_context state with
@@ -390,8 +410,21 @@ let handle_else state =
   ignore @@ Stack.pop state.stack;
   ELSE
 
-(* Новая функция для обработки type alias *)
 let handle_type_alias state lexbuf =
   prerr_endline "handle_type_alias";
   push_indent state 0 Type_alias;
   ()
+
+let handle_type_decl state lexbuf =
+  prerr_endline "handle_type_decl";
+  push_indent state 0 Type_decl;
+  state.in_type_decl <- true;
+  ()
+
+let handle_alias state =
+  prerr_endline "handle_alias";
+  if get_current_context state = Type_decl then (
+    ignore @@ Stack.pop state.stack;
+    push_indent state 0 Type_alias;
+    state.in_type_decl <- false);
+  ALIAS

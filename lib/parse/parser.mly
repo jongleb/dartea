@@ -78,6 +78,7 @@ top_decls: l=list(top_decl) { l }
 top_decl:
     | d=value_decl { d }
     | d=type_alias_decl { d }
+    | d=type_decl { d }
 
 upper_possible_dotted:
     | what=UCNAME { what }
@@ -103,6 +104,26 @@ exposing_item:
 type_alias_decl:
     | TYPE ALIAS name=loc(UCNAME) params=list(loc(LCNAME)) EQUAL typedef=indented(type_expr)
         { Impl.Type_alias { name; params; typedef } }
+
+(* Type declarations (normal ADTs) *)
+type_decl:
+    | TYPE name=UCNAME params=list(LCNAME) EQUAL ctors=indented(type_constructors)
+        { Impl.Type_dec { Typedecl.name; params; ctors } }
+
+type_constructors:
+    | first=type_constructor rest=list(type_constructor_pipe)
+        { first :: rest }
+
+type_constructor:
+    | id=UCNAME data=list(type_constructor_arg)
+        { { Typedecl.id; data } }
+
+type_constructor_arg:
+    | t=type_atom_no_parens { { Typedef.Impl.parameters = []; body = t } }
+    | t=type_in_parens { t }
+
+type_constructor_pipe:
+    | PIPE ctor=type_constructor { ctor }
 
 (* Type expressions *)
 type_expr:

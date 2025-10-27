@@ -36,8 +36,11 @@ let float =
 rule token state = parse
   | '\n'+ [' ' '\t']* as nl { Indenter.handle_newline state nl token lexbuf } 
   | whitespace      { token state lexbuf }
-  | "type"          { Indenter.handle_type_alias state lexbuf; TYPE }
-  | "alias"         { ALIAS }
+  | "type"          { 
+      Indenter.handle_type_decl state lexbuf;
+      TYPE
+    }
+  | "alias"         { Indenter.handle_alias state }
   | "case"          { Indenter.handle_case state }
   | "of"            { Indenter.handle_case_of state lexbuf }
   | "let"           { Indenter.handle_let state lexbuf }
@@ -45,9 +48,7 @@ rule token state = parse
   | "then"          { THEN }
   | "else"          { Indenter.handle_else state }
   | "in"            { Indenter.handle_in state }
-  (* | "import"        { IMPORT } *)
   | "exposing"      { EXPOSING }
-  (* | "as"            { AS } *)
   | "module"        { MODULE }
   | lcname          { Indenter.handle_let_def state lexbuf }
   | ucname          { UCNAME (Lexing.lexeme lexbuf) }
