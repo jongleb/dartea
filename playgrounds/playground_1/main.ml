@@ -53,7 +53,6 @@ let run_playground typs_ =
       parsed
   in
 
-  (* Инициализируем контекст с базовыми типами *)
   let initial_ctx =
     let f acc (v, scheme) = I.Map.add v scheme acc in
     List.fold_left f I.Map.empty typs_
@@ -70,7 +69,6 @@ let run_playground typs_ =
       canonicalized
   in
 
-  (* Выводим результаты *)
   List.iter
     (fun x ->
       match x with

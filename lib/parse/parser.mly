@@ -44,6 +44,10 @@
 %token UMINUS
 %token CONS
 %token BACKSLASH
+%token TYPE
+%token ALIAS
+%token COLON
+%token PIPE
 
 %nonassoc ELSE IN
 %nonassoc ARROW
@@ -56,7 +60,10 @@
 %left GT LT
 
 %type <Ast.Kind.Frontend.Expr.t> expr
-
+%type <Ast.Kind.Frontend.Typedef.Impl.t> type_expr
+%type <Ast.Kind.Frontend.Typedef.Kind.t> type_atom_no_parens
+%type <Ast.Kind.Frontend.Typedef.Impl.t> type_in_parens
+%type <Ast.Kind.Frontend.Typedef.Impl.t> type_in_parens_content
 
 %start <Ast.Kind.Frontend.Impl.t list> prog
 %%
@@ -66,7 +73,11 @@ prog:
     lst = top_decls;
     EOF { List.concat [Option.value ~default:[] m; lst] }
 
-top_decls: l=list(value_decl) { l }
+top_decls: l=list(top_decl) { l }
+
+top_decl:
+    | d=value_decl { d }
+    | d=type_alias_decl { d }
 
 upper_possible_dotted:
     | what=UCNAME { what }
@@ -88,6 +99,78 @@ exposing_item:
     | name=loc(LCNAME) { Exposing.Upper { name; privacy=Private } }
     | name=loc(UCNAME) LPAREN TWO_DOTS RPAREN { Exposing.Upper { name; privacy=Public($loc) } }    
 
+(* Type alias declarations *)
+type_alias_decl:
+    | TYPE ALIAS name=loc(UCNAME) params=list(loc(LCNAME)) EQUAL typedef=indented(type_expr)
+        { Impl.Type_alias { name; params; typedef } }
+
+(* Type expressions *)
+type_expr:
+    | t=type_function { t }
+
+type_function:
+    | args=separated_nonempty_list(ARROW, type_app)
+        { 
+          match args with
+          | [single] -> single
+          | _ -> { Typedef.Impl.parameters = []; 
+                   body = Typedef.Kind.Tkind_function { Typedef.Type_function.arguments = args } }
+        }
+
+type_app:
+    | t=type_atom_no_parens { { Typedef.Impl.parameters = []; body = t } }
+    | t=type_in_parens { t }
+    | base=type_app arg=type_atom_no_parens 
+        { 
+          { Typedef.Impl.parameters = base.Typedef.Impl.parameters @ [{ Typedef.Impl.parameters = []; body = arg }];
+            body = base.Typedef.Impl.body }
+        }
+    | base=type_app arg=type_in_parens
+        { 
+          { Typedef.Impl.parameters = base.Typedef.Impl.parameters @ [arg];
+            body = base.Typedef.Impl.body }
+        }
+
+type_in_parens:
+    | LPAREN t=type_in_parens_content RPAREN { t }
+
+type_in_parens_content:
+    | (* empty *) { { Typedef.Impl.parameters = []; body = Typedef.Kind.Tkind_unit } }
+    | t=type_function { t }
+    | t=type_function COMMA rest=separated_nonempty_list(COMMA, type_function)
+        { 
+          let all_args = t :: rest in
+          { Typedef.Impl.parameters = []; body = Typedef.Kind.Tkind_tuple all_args }
+        }
+
+type_atom_no_parens:
+    | name=loc(LCNAME) { Typedef.Kind.Tkind_var name }
+    | name=loc(upper_possible_dotted) { Typedef.Kind.Tkind_concrete name }
+    | UNIT { Typedef.Kind.Tkind_unit }
+    | LBRACE fields=type_record_fields RBRACE
+        { fields }
+
+type_record_fields:
+    | row=LCNAME PIPE field=type_record_field rest=type_record_fields_rest
+        { 
+          let fields = field :: rest in
+          Typedef.Kind.Tkind_record { Typedef.Type_record.values = fields; row_type = Some (Located.mk row $loc(row)) } 
+        }
+    | field=type_record_field rest=type_record_fields_rest
+        { 
+          let fields = field :: rest in
+          Typedef.Kind.Tkind_record { Typedef.Type_record.values = fields; row_type = None } 
+        }
+
+type_record_fields_rest:
+    | (* empty *) { [] }
+    | COMMA field=type_record_field rest=type_record_fields_rest { field :: rest }
+
+type_record_field:
+    | name=LCNAME COLON body=type_expr
+        { { Typedef.Type_record_row.name = Located.mk name $loc(name); body } }
+
+(* Value declarations *)
 value_decl:
     | body_part=value_decl_body { Impl.Top_declaration { type_part_data=None; body_part } }
 

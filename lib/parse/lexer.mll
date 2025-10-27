@@ -36,8 +36,8 @@ let float =
 rule token state = parse
   | '\n'+ [' ' '\t']* as nl { Indenter.handle_newline state nl token lexbuf } 
   | whitespace      { token state lexbuf }
-  (* | "type"          { TYPE } *)
-  (* | "alias"         { ALIAS } *)
+  | "type"          { Indenter.handle_type_alias state lexbuf; TYPE }
+  | "alias"         { ALIAS }
   | "case"          { Indenter.handle_case state }
   | "of"            { Indenter.handle_case_of state lexbuf }
   | "let"           { Indenter.handle_let state lexbuf }
@@ -61,8 +61,8 @@ rule token state = parse
   | "["             { LBRACKET }
   | "]"             { RBRACKET }
   | ","             { COMMA }
-  (* | ":"             { COLON } *)
-  (* | "|"             { PIPE } *)
+  | ":"             { COLON }
+  | "|"             { PIPE }
   | "\\"            { BACKSLASH }
   | "->"            { Indenter.handle_arrow state lexbuf }
   | "|>"            { PIPE_GT }

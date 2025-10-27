@@ -41,3 +41,26 @@ square =
   \n -> n * n
 
 testagain = sum |> square |> \n -> n + 1 |> int_to_string
+
+origin = { x = 0, y = 0 }
+
+abcdefg = { l = origin.x + origin.y }
+
+compose f g = \x -> f (g x)
+
+fn x y r = 
+    let abcd = x + 1 in
+    let g = case abcd of
+                2 -> 3
+                _ -> 4
+    in
+    let g1 = case y of 
+                Just 1 -> 2
+                Just _ -> 3
+                None -> 4
+    in
+    let result = g + x in
+    let b = r.w.e.r.t.y + 2 in
+    let idb = id b in
+    let result1 = compose square square 2 in
+    result1
