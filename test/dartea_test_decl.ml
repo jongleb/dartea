@@ -4051,6 +4051,134 @@ process =
   let result = Main.parse input in
   assert_equal expect_data (Result.get_ok result)
 
+(* Type annotation tests *)
+let test_type_annotation_same_line _ =
+  let expect_data =
+    [
+      Impl.Top_declaration
+        {
+          Declaration.type_part_data =
+            Some
+              {
+                Declaration.name = ~?"add";
+                type_alias =
+                  {
+                    Typedef.Impl.parameters = [];
+                    body =
+                      Typedef.Kind.Tkind_function
+                        {
+                          Typedef.Type_function.arguments =
+                            [
+                              {
+                                Typedef.Impl.parameters = [];
+                                body = Typedef.Kind.Tkind_concrete ~?"Int";
+                              };
+                              {
+                                Typedef.Impl.parameters = [];
+                                body = Typedef.Kind.Tkind_concrete ~?"Int";
+                              };
+                              {
+                                Typedef.Impl.parameters = [];
+                                body = Typedef.Kind.Tkind_concrete ~?"Int";
+                              };
+                            ];
+                        };
+                  };
+              };
+          body_part =
+            {
+              Declaration.name = ~?"add";
+              params = [ ~?"x"; ~?"y" ];
+              expr =
+                ~?(Expr.Expr_binop
+                     {
+                       Expr.name = "+";
+                       operands = (Expr.Expr_ident "x", Expr.Expr_ident "y");
+                     });
+            };
+        };
+    ]
+  in
+  let input = {|
+add: Int -> Int -> Int
+add x y = x + y|} in
+  let result = Main.parse input in
+  assert_equal expect_data (Result.get_ok result)
+
+let test_type_annotation_with_indent _ =
+  let expect_data =
+    [
+      Impl.Top_declaration
+        {
+          Declaration.type_part_data =
+            Some
+              {
+                Declaration.name = ~?"multiply";
+                type_alias =
+                  {
+                    Typedef.Impl.parameters = [];
+                    body =
+                      Typedef.Kind.Tkind_function
+                        {
+                          Typedef.Type_function.arguments =
+                            [
+                              {
+                                Typedef.Impl.parameters = [];
+                                body = Typedef.Kind.Tkind_concrete ~?"Int";
+                              };
+                              {
+                                Typedef.Impl.parameters = [];
+                                body = Typedef.Kind.Tkind_concrete ~?"Int";
+                              };
+                              {
+                                Typedef.Impl.parameters = [];
+                                body = Typedef.Kind.Tkind_concrete ~?"Int";
+                              };
+                            ];
+                        };
+                  };
+              };
+          body_part =
+            {
+              Declaration.name = ~?"multiply";
+              params = [ ~?"a"; ~?"b" ];
+              expr =
+                ~?(Expr.Expr_binop
+                     {
+                       Expr.name = "*";
+                       operands = (Expr.Expr_ident "a", Expr.Expr_ident "b");
+                     });
+            };
+        };
+    ]
+  in
+  let input = {|
+multiply: 
+    Int -> Int -> Int
+multiply a b = a * b|} in
+  let result = Main.parse input in
+  assert_equal expect_data (Result.get_ok result)
+
+let test_type_annotation_missing_function_name _ =
+  let input = {|
+someFunc: 
+Int -> String
+= "oops"|} in
+  let result = Main.parse input in
+  match result with
+  | Error _ -> assert_bool "Should return Error" true
+  | Ok _ -> assert_failure "Should have failed to parse"
+
+let test_type_annotation_bad_col _ =
+  let input = {|
+someFunc: 
+Int -> String
+someFunc = "oops"|} in
+  let result = Main.parse input in
+  match result with
+  | Error _ -> assert_bool "Should return Error" true
+  | Ok _ -> assert_failure "Should have failed to parse"
+
 let suite =
   [
     (* "test_decl_string" >:: test_decl_string; *)
@@ -4093,6 +4221,11 @@ let suite =
     "test_lambda_multiple_params" >:: test_lambda_multiple_params;
     "test_lambda_in_apply" >:: test_lambda_in_apply;
     "test_lambda_complex_body" >:: test_lambda_complex_body;
+    "test_type_annotation_same_line" >:: test_type_annotation_same_line;
+    "test_type_annotation_with_indent" >:: test_type_annotation_with_indent;
+    "test_type_annotation_missing_function_name"
+    >:: test_type_annotation_missing_function_name;
+    "test_type_annotation_bad_col" >:: test_type_annotation_bad_col;
   ]
 
 (*

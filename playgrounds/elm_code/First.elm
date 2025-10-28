@@ -48,6 +48,7 @@ abcdefg = { l = origin.x + origin.y }
 
 compose f g = \x -> f (g x)
 
+fn: Int
 fn x y r = 
     let abcd = x + 1 in
     let g = case abcd of

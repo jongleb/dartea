@@ -76,7 +76,7 @@ prog:
 top_decls: l=list(top_decl) { l }
 
 top_decl:
-    | d=value_decl { d }
+    | d=value_decl_with_type { d }
     | d=type_alias_decl { d }
     | d=type_decl { d }
 
@@ -191,13 +191,19 @@ type_record_field:
     | name=LCNAME COLON body=type_expr
         { { Typedef.Type_record_row.name = Located.mk name $loc(name); body } }
 
-(* Value declarations *)
-value_decl:
-    | body_part=value_decl_body { Impl.Top_declaration { type_part_data=None; body_part } }
-
-value_decl_body:
+value_decl_with_type:
+    | name1=loc(LCNAME) COLON INDENT type_alias=type_expr DEDENT
+      name2=loc(LCNAME) params=list(loc(LCNAME)) EQUAL expr=indented(loc(expr))
+        { 
+          let type_part_data = Some Declaration.{ name=name1; type_alias } in
+          let body_part = Declaration.{ name=name2; expr; params } in
+          Impl.Top_declaration { type_part_data; body_part }
+        }
     | name=loc(LCNAME) params=list(loc(LCNAME)) EQUAL expr=indented(loc(expr))
-        { Declaration.{ name; expr; params } }
+        { 
+          let body_part = Declaration.{ name; expr; params } in
+          Impl.Top_declaration { type_part_data=None; body_part }
+        }
    
 expr:    
     | e=expr_pipe { e }

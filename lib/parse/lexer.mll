@@ -17,21 +17,15 @@
 }
 
 let ucname = ['A'-'Z'] ['a'-'z' 'A'-'Z' '0'-'9' '_']*
-
 let ucname_q = ucname ('.' ucname)*
-
 let lcname = ['a'-'z'] ['a'-'z' 'A'-'Z' '0'-'9' '_']*
-
 let whitespace = [' ' '\t']
-
 let indent = '\n' [' ' '\t']*
-
 let int = ['0'-'9'] ['0'-'9' '_']*
 let float =
   '-'? ['0'-'9'] ['0'-'9' '_']*
   (('.' ['0'-'9' '_']*) (['e' 'E'] ['+' '-']? ['0'-'9'] ['0'-'9' '_']*)? |
    ('.' ['0'-'9' '_']*)? (['e' 'E'] ['+' '-']? ['0'-'9'] ['0'-'9' '_']*))
-
 
 rule token state = parse
   | '\n'+ [' ' '\t']* as nl { Indenter.handle_newline state nl token lexbuf } 
@@ -50,7 +44,7 @@ rule token state = parse
   | "in"            { Indenter.handle_in state }
   | "exposing"      { EXPOSING }
   | "module"        { MODULE }
-  | lcname          { Indenter.handle_let_def state lexbuf }
+  | lcname          { Indenter.handle_lcname state lexbuf }
   | ucname          { UCNAME (Lexing.lexeme lexbuf) }
   | ucname_q        { UCNAME_PATH (Lexing.lexeme lexbuf) }
   | '='             { Indenter.handle_equal state lexbuf }
@@ -62,7 +56,7 @@ rule token state = parse
   | "["             { LBRACKET }
   | "]"             { RBRACKET }
   | ","             { COMMA }
-  | ":"             { COLON }
+  | ":"             { Indenter.handle_colon state lexbuf }
   | "|"             { PIPE }
   | "\\"            { BACKSLASH }
   | "->"            { Indenter.handle_arrow state lexbuf }

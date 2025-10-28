@@ -58,6 +58,7 @@ type indent_context =
   | Case_arm_expr
   | Type_alias
   | Type_decl
+  | Type_annotation
   | Top_level
   | Expression
 [@@deriving show]
@@ -70,6 +71,7 @@ type indent_state = {
   mutable prev_token : token option;
   mutable case_opened : bool;
   mutable in_type_decl : bool;
+  mutable need_dedent_after_type : bool;
 }
 
 let close_one state next_token =
@@ -117,6 +119,9 @@ let close_until state ident next_token =
     | Some ((_, Type_decl) as x) ->
         prerr_endline "Some ((_, Type_decl) as x)";
         Stack.push x state.stack
+    | Some ((_, Type_annotation) as x) ->
+        prerr_endline "Some ((_, Type_annotation) as x)";
+        Stack.push x state.stack
     | Some (ident', ctx) when ident < ident' ->
         prerr_endline
         @@ Printf.sprintf
@@ -163,86 +168,14 @@ let handle_newline state nl token lexbuf =
 
   state.current_string_cnum <- pos.Lexing.pos_cnum - count_indent nl;
 
-  let rec go () =
-    prerr_endline "Go called";
-    let current = get_current_indent state in
-    let next_token state = token state lexbuf in
+  if state.need_dedent_after_type then (
+    prerr_endline "Closing virtual type INDENT with DEDENT";
+    state.need_dedent_after_type <- false;
 
-    state.ident_compare <- Int.compare indent_level current;
-
-    prerr_endline @@ Printf.sprintf "Current indent context value %n" current;
-    prerr_endline
-    @@ Printf.sprintf "indent_level < current, %b" (indent_level < current);
-
-    match get_current_context state with
-    | Top_level when indent_level = 0 ->
-        prerr_endline "Top_level when indent_level = 0";
-        token state lexbuf
-    | Top_level ->
-        prerr_endline "Top_level";
-        close_until state indent_level next_token
-    | Expression when indent_level < current ->
-        prerr_endline "Expression when indent_level < current";
-        close_one state next_token
-    | Expression ->
-        prerr_endline "Expression";
-        next_token state
-    | (Case | Let) when indent_level > current ->
-        prerr_endline "(Case | Let), indent_level > current";
-        let _, l = Stack.pop state.stack in
-        push_indent state indent_level l;
-        go ()
-    | (Case | Let) when indent_level < current ->
-        prerr_endline "Case when indent_level < current";
-        close_until state indent_level next_token
-    | Case | Let ->
-        prerr_endline "Case | Let";
-        next_token state
-    | Type_alias when indent_level > current ->
-        prerr_endline "Type_alias when indent_level > current";
-        next_token state
-    | Type_alias when indent_level < current ->
-        prerr_endline "Type_alias when indent_level < current";
-        close_until state indent_level next_token
-    | Type_alias ->
-        prerr_endline "Type_alias";
-        next_token state
-    | Type_decl when indent_level > current ->
-        prerr_endline "Type_decl when indent_level > current";
-        next_token state
-    | Type_decl when indent_level < current ->
-        prerr_endline "Type_decl when indent_level < current";
-        close_until state indent_level next_token
-    | Type_decl ->
-        prerr_endline "Type_decl";
-        next_token state
-    | Case_arm_expr when indent_level = current ->
-        prerr_endline "Case_arm_expr";
-        ignore @@ Stack.pop state.stack;
-        DEDENT
-    | Case_arm_expr when indent_level < current ->
-        prerr_endline "Case_arm_expr when indent_level < current";
-        close_until state indent_level next_token
-    | Case_arm_expr ->
-        prerr_endline "Case_arm_expr";
-        next_token state
-    | Let_def when indent_level < current ->
-        prerr_endline "Let_def when indent_level < current";
-        close_until state indent_level next_token
-    | Let_def ->
-        prerr_endline "Let_def";
-        next_token state
-    | Let_inline when indent_level < current ->
-        prerr_endline "Let_inline when indent_level < current";
-        DEDENT
-    | Let_inline ->
-        prerr_endline "Let_inline";
-        next_token state
-    | If when indent_level > current -> next_token state
-    | If ->
-        prerr_endline "If";
-        next_token state
-  in
+    (match get_current_context state with
+    | Type_annotation -> ignore @@ Stack.pop state.stack
+    | _ -> ());
+    Queue.add DEDENT state.queue);
 
   match (state.prev_token, Stack.top_opt state.stack) with
   | Some LET, Some (_, Let_inline) ->
@@ -250,10 +183,119 @@ let handle_newline state nl token lexbuf =
       let i, _ = Stack.pop state.stack in
       push_indent state i Let;
       INDENT
-  | _ -> go ()
+  | Some COLON, Some (_, Top_level) when indent_level > 0 ->
+      prerr_endline
+        "After COLON with newline - creating Type_annotation context";
+      push_indent state indent_level Type_annotation;
+      INDENT
+  | _ ->
+      let rec go () =
+        prerr_endline "Go called";
+        let current = get_current_indent state in
+        let next_token state = token state lexbuf in
+
+        state.ident_compare <- Int.compare indent_level current;
+
+        prerr_endline
+        @@ Printf.sprintf "Current indent context value %n" current;
+        prerr_endline
+        @@ Printf.sprintf "indent_level < current, %b" (indent_level < current);
+
+        match get_current_context state with
+        | Top_level when indent_level = 0 ->
+            prerr_endline "Top_level when indent_level = 0";
+            token state lexbuf
+        | Top_level ->
+            prerr_endline "Top_level";
+            close_until state indent_level next_token
+        | Expression when indent_level < current ->
+            prerr_endline "Expression when indent_level < current";
+            close_one state next_token
+        | Expression ->
+            prerr_endline "Expression";
+            next_token state
+        | (Case | Let) when indent_level > current ->
+            prerr_endline "(Case | Let), indent_level > current";
+            let _, l = Stack.pop state.stack in
+            push_indent state indent_level l;
+            go ()
+        | (Case | Let) when indent_level < current ->
+            prerr_endline "Case when indent_level < current";
+            close_until state indent_level next_token
+        | Case | Let ->
+            prerr_endline "Case | Let";
+            next_token state
+        | Type_alias when indent_level > current ->
+            prerr_endline "Type_alias when indent_level > current";
+            next_token state
+        | Type_alias when indent_level < current ->
+            prerr_endline "Type_alias when indent_level < current";
+            close_until state indent_level next_token
+        | Type_alias ->
+            prerr_endline "Type_alias";
+            next_token state
+        | Type_decl when indent_level > current ->
+            prerr_endline "Type_decl when indent_level > current";
+            next_token state
+        | Type_decl when indent_level < current ->
+            prerr_endline "Type_decl when indent_level < current";
+            close_until state indent_level next_token
+        | Type_decl ->
+            prerr_endline "Type_decl";
+            next_token state
+        | Type_annotation when indent_level = 0 ->
+            prerr_endline "Type_annotation when indent_level = 0 - closing";
+            ignore @@ Stack.pop state.stack;
+            Queue.add (token state lexbuf) state.queue;
+            DEDENT
+        | Type_annotation when indent_level < current ->
+            prerr_endline
+              "Type_annotation when indent_level < current - closing";
+            ignore @@ Stack.pop state.stack;
+            Queue.add DEDENT state.queue;
+            close_until state indent_level next_token
+        | Type_annotation ->
+            prerr_endline "Type_annotation - continuing";
+            next_token state
+        | Case_arm_expr when indent_level = current ->
+            prerr_endline "Case_arm_expr";
+            ignore @@ Stack.pop state.stack;
+            DEDENT
+        | Case_arm_expr when indent_level < current ->
+            prerr_endline "Case_arm_expr when indent_level < current";
+            close_until state indent_level next_token
+        | Case_arm_expr ->
+            prerr_endline "Case_arm_expr";
+            next_token state
+        | Let_def when indent_level < current ->
+            prerr_endline "Let_def when indent_level < current";
+            close_until state indent_level next_token
+        | Let_def ->
+            prerr_endline "Let_def";
+            next_token state
+        | Let_inline when indent_level < current ->
+            prerr_endline "Let_inline when indent_level < current";
+            DEDENT
+        | Let_inline ->
+            prerr_endline "Let_inline";
+            next_token state
+        | If when indent_level > current -> next_token state
+        | If ->
+            prerr_endline "If";
+            next_token state
+      in
+
+      if Queue.is_empty state.queue then go ()
+      else
+        let result = Queue.take state.queue in
+        prerr_endline
+        @@ Printf.sprintf "Taking from queue: %s" (show_token result);
+        result
 
 let handle_equal state lexbuf =
   prerr_endline "handle_equal";
+  state.need_dedent_after_type <- false;
+
   if get_current_context state = Top_level then (
     prerr_endline "handle_equal, Top_level branch";
     push_indent state 1 Expression;
@@ -268,20 +310,62 @@ let handle_equal state lexbuf =
     Queue.add INDENT state.queue);
   EQUAL
 
+let handle_colon state lexbuf =
+  prerr_endline "handle_colon";
+  match get_current_context state with
+  | Top_level ->
+      prerr_endline "handle_colon in Top_level";
+
+      let pos = lexbuf.Lexing.lex_curr_pos in
+      let has_newline_after =
+        if pos < lexbuf.Lexing.lex_buffer_len then
+          let rec check_whitespace i =
+            if i >= lexbuf.Lexing.lex_buffer_len then false
+            else
+              match Bytes.get lexbuf.Lexing.lex_buffer i with
+              | ' ' | '\t' -> check_whitespace (i + 1)
+              | '\n' -> true
+              | _ -> false
+          in
+          check_whitespace pos
+        else false
+      in
+
+      if has_newline_after then (
+        prerr_endline "Newline after colon - marking for type annotation";
+
+        COLON)
+      else (
+        prerr_endline "Type on same line after colon - creating virtual INDENT";
+        push_indent state 0 Type_annotation;
+        state.need_dedent_after_type <- true;
+        Queue.add INDENT state.queue;
+        COLON)
+  | Type_annotation ->
+      prerr_endline "handle_colon in Type_annotation";
+      COLON
+  | _ -> COLON
+
 let handle_case_of state lexbuf =
   prerr_endline
   @@ Printf.sprintf "handle_case_of, ident: %n" (get_current_indent state);
+  state.need_dedent_after_type <- false;
+
   push_indent state (get_current_indent state) Case;
   Queue.add INDENT state.queue;
   OF
 
 let handle_case state =
   state.case_opened <- true;
+  state.need_dedent_after_type <- false;
+
   CASE
 
 let handle_arrow state lexbuf =
   prerr_endline
   @@ Printf.sprintf "handle_arrow, ident: %n" (get_current_indent state);
+  state.need_dedent_after_type <- false;
+
   if get_current_context state = Case then (
     push_indent state (get_current_indent state) Case_arm_expr;
     Queue.add INDENT state.queue);
@@ -308,6 +392,8 @@ let next_token state token lexbuf =
 
 let handle_let state lexbuf =
   prerr_endline "handle let";
+  state.need_dedent_after_type <- false;
+
   push_indent state
     (lexbuf.Lexing.lex_start_p.pos_cnum - state.current_string_cnum)
     Let_inline;
@@ -317,7 +403,16 @@ let handle_let_def state lexbuf =
   prerr_endline
   @@ Printf.sprintf "handle_let_def, %n" (get_current_indent state);
 
-  if state.case_opened then (
+  if state.need_dedent_after_type then (
+    prerr_endline "Need virtual DEDENT before function definition";
+    state.need_dedent_after_type <- false;
+
+    (match get_current_context state with
+    | Type_annotation -> ignore @@ Stack.pop state.stack
+    | _ -> ());
+    Queue.add (LCNAME (Lexing.lexeme lexbuf)) state.queue;
+    DEDENT)
+  else if state.case_opened then (
     state.case_opened <- false;
     LCNAME (Lexing.lexeme lexbuf))
   else if get_current_context state = Type_alias then (
@@ -326,11 +421,13 @@ let handle_let_def state lexbuf =
   else if get_current_context state = Type_decl then (
     prerr_endline "handle_let_def, Type_decl context - just return LCNAME";
     LCNAME (Lexing.lexeme lexbuf))
+  else if get_current_context state = Type_annotation then (
+    prerr_endline "handle_let_def, Type_annotation context - just return LCNAME";
+    LCNAME (Lexing.lexeme lexbuf))
   else
     match get_current_context state with
     | Let ->
         prerr_endline "handle_let_def, let branch";
-
         push_indent state
           (lexbuf.Lexing.lex_start_p.pos_cnum - state.current_string_cnum)
           Let_def;
@@ -355,8 +452,12 @@ let handle_let_def state lexbuf =
         LCNAME (Lexing.lexeme lexbuf)
     | _ -> LCNAME (Lexing.lexeme lexbuf)
 
+let handle_lcname = handle_let_def
+
 let handle_in state =
   prerr_endline "hanlde_in";
+  state.need_dedent_after_type <- false;
+
   match get_current_context state with
   | Let_inline when state.prev_token = Some DEDENT ->
       prerr_endline "Let_inline when state.prev_token = Some DEDENT";
@@ -387,6 +488,15 @@ let handle_in state =
 
 let handle_eof state =
   prerr_endline "handle_eof";
+
+  if state.need_dedent_after_type then (
+    prerr_endline "Closing virtual type INDENT at EOF";
+    state.need_dedent_after_type <- false;
+    (match get_current_context state with
+    | Type_annotation -> ignore @@ Stack.pop state.stack
+    | _ -> ());
+    Queue.add DEDENT state.queue);
+
   let rec close_all_to_top () =
     match Stack.top_opt state.stack with
     | Some (_, Top_level) -> ()
@@ -402,27 +512,37 @@ let handle_eof state =
 
 let handle_if state =
   prerr_endline "handle_if";
+  state.need_dedent_after_type <- false;
+
   push_indent state (get_current_indent state) If;
   IF
 
 let handle_else state =
   prerr_endline "handle_else";
+  state.need_dedent_after_type <- false;
+
   ignore @@ Stack.pop state.stack;
   ELSE
 
 let handle_type_alias state lexbuf =
   prerr_endline "handle_type_alias";
+  state.need_dedent_after_type <- false;
+
   push_indent state 0 Type_alias;
   ()
 
 let handle_type_decl state lexbuf =
   prerr_endline "handle_type_decl";
+  state.need_dedent_after_type <- false;
+
   push_indent state 0 Type_decl;
   state.in_type_decl <- true;
   ()
 
 let handle_alias state =
   prerr_endline "handle_alias";
+  state.need_dedent_after_type <- false;
+
   if get_current_context state = Type_decl then (
     ignore @@ Stack.pop state.stack;
     push_indent state 0 Type_alias;

@@ -14,6 +14,7 @@ let parse content =
       prev_token = None;
       case_opened = false;
       in_type_decl = false;
+      need_dedent_after_type = false;
     }
   in
   Stack.push (0, Top_level) state.stack;
