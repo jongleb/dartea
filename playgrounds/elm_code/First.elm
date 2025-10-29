@@ -1,6 +1,7 @@
 sum: Int
 sum = 1 + 2 - 1 + xxx 80
 
+id: a -> a
 id a = a
 
 test =

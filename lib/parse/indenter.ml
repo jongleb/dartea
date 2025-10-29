@@ -162,31 +162,27 @@ let count_indent str =
 let handle_newline state nl token lexbuf =
   let indent_level = count_indent nl in
 
-  prerr_endline @@ Printf.sprintf "handle_newline, indent level %n" indent_level;
+  prerr_endline
+  @@ Printf.sprintf
+       "handle_newline, indent level %n, prev_token: %s, context: %s"
+       indent_level
+       (match state.prev_token with Some t -> show_token t | None -> "None")
+       (show_indent_context (get_current_context state));
 
   let pos = lexbuf.Lexing.lex_curr_p in
 
   state.current_string_cnum <- pos.Lexing.pos_cnum - count_indent nl;
 
-  if state.need_dedent_after_type then (
-    prerr_endline "Closing virtual type INDENT with DEDENT";
-    state.need_dedent_after_type <- false;
-
-    (match get_current_context state with
-    | Type_annotation -> ignore @@ Stack.pop state.stack
-    | _ -> ());
-    Queue.add DEDENT state.queue);
-
   match (state.prev_token, Stack.top_opt state.stack) with
-  | Some LET, Some (_, Let_inline) ->
-      prerr_endline "let multiline";
-      let i, _ = Stack.pop state.stack in
-      push_indent state i Let;
-      INDENT
   | Some COLON, Some (_, Top_level) when indent_level > 0 ->
       prerr_endline
         "After COLON with newline - creating Type_annotation context";
       push_indent state indent_level Type_annotation;
+      INDENT
+  | Some LET, Some (_, Let_inline) ->
+      prerr_endline "let multiline";
+      let i, _ = Stack.pop state.stack in
+      push_indent state i Let;
       INDENT
   | _ ->
       let rec go () =
@@ -244,10 +240,10 @@ let handle_newline state nl token lexbuf =
             prerr_endline "Type_decl";
             next_token state
         | Type_annotation when indent_level = 0 ->
-            prerr_endline "Type_annotation when indent_level = 0 - closing";
-            ignore @@ Stack.pop state.stack;
-            Queue.add (token state lexbuf) state.queue;
-            DEDENT
+            prerr_endline
+              "Type_annotation when indent_level = 0 - will close on next \
+               LCNAME";
+            token state lexbuf
         | Type_annotation when indent_level < current ->
             prerr_endline
               "Type_annotation when indent_level < current - closing";
@@ -332,8 +328,7 @@ let handle_colon state lexbuf =
       in
 
       if has_newline_after then (
-        prerr_endline "Newline after colon - marking for type annotation";
-
+        prerr_endline "Newline after colon - will handle in handle_newline";
         COLON)
       else (
         prerr_endline "Type on same line after colon - creating virtual INDENT";
@@ -401,17 +396,38 @@ let handle_let state lexbuf =
 
 let handle_let_def state lexbuf =
   prerr_endline
-  @@ Printf.sprintf "handle_let_def, %n" (get_current_indent state);
+  @@ Printf.sprintf
+       "handle_let_def, lexeme: %s, context: %s, need_dedent: %b, indent: %d"
+       (Lexing.lexeme lexbuf)
+       (show_indent_context (get_current_context state))
+       state.need_dedent_after_type
+       (lexbuf.Lexing.lex_start_p.pos_cnum - state.current_string_cnum);
 
-  if state.need_dedent_after_type then (
-    prerr_endline "Need virtual DEDENT before function definition";
+  if
+    get_current_context state = Type_annotation
+    && lexbuf.Lexing.lex_start_p.pos_cnum - state.current_string_cnum = 0
+  then (
+    prerr_endline "End of type annotation - new top-level declaration";
+    ignore @@ Stack.pop state.stack;
     state.need_dedent_after_type <- false;
-
-    (match get_current_context state with
-    | Type_annotation -> ignore @@ Stack.pop state.stack
-    | _ -> ());
     Queue.add (LCNAME (Lexing.lexeme lexbuf)) state.queue;
     DEDENT)
+  else if get_current_context state = Type_annotation then (
+    prerr_endline "Inside type annotation - part of type expression";
+    LCNAME (Lexing.lexeme lexbuf))
+  else if state.need_dedent_after_type then (
+    prerr_endline "Need virtual DEDENT after inline type";
+    state.need_dedent_after_type <- false;
+
+    match get_current_context state with
+    | Type_annotation ->
+        prerr_endline "Popping inline Type_annotation context";
+        ignore @@ Stack.pop state.stack;
+        Queue.add (LCNAME (Lexing.lexeme lexbuf)) state.queue;
+        DEDENT
+    | _ ->
+        prerr_endline "No Type_annotation context to pop";
+        LCNAME (Lexing.lexeme lexbuf))
   else if state.case_opened then (
     state.case_opened <- false;
     LCNAME (Lexing.lexeme lexbuf))
@@ -420,9 +436,6 @@ let handle_let_def state lexbuf =
     LCNAME (Lexing.lexeme lexbuf))
   else if get_current_context state = Type_decl then (
     prerr_endline "handle_let_def, Type_decl context - just return LCNAME";
-    LCNAME (Lexing.lexeme lexbuf))
-  else if get_current_context state = Type_annotation then (
-    prerr_endline "handle_let_def, Type_annotation context - just return LCNAME";
     LCNAME (Lexing.lexeme lexbuf))
   else
     match get_current_context state with

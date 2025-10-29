@@ -100,12 +100,12 @@ exposing_item:
     | name=loc(LCNAME) { Exposing.Upper { name; privacy=Private } }
     | name=loc(UCNAME) LPAREN TWO_DOTS RPAREN { Exposing.Upper { name; privacy=Public($loc) } }    
 
-(* Type alias declarations *)
+
 type_alias_decl:
     | TYPE ALIAS name=loc(UCNAME) params=list(loc(LCNAME)) EQUAL typedef=indented(type_expr)
         { Impl.Type_alias { name; params; typedef } }
 
-(* Type declarations (normal ADTs) *)
+
 type_decl:
     | TYPE name=UCNAME params=list(LCNAME) EQUAL ctors=indented(type_constructors)
         { Impl.Type_dec { Typedecl.name; params; ctors } }
@@ -125,7 +125,7 @@ type_constructor_arg:
 type_constructor_pipe:
     | PIPE ctor=type_constructor { ctor }
 
-(* Type expressions *)
+
 type_expr:
     | t=type_function { t }
 
@@ -156,7 +156,7 @@ type_in_parens:
     | LPAREN t=type_in_parens_content RPAREN { t }
 
 type_in_parens_content:
-    | (* empty *) { { Typedef.Impl.parameters = []; body = Typedef.Kind.Tkind_unit } }
+    |  { { Typedef.Impl.parameters = []; body = Typedef.Kind.Tkind_unit } }
     | t=type_function { t }
     | t=type_function COMMA rest=separated_nonempty_list(COMMA, type_function)
         { 
@@ -184,7 +184,7 @@ type_record_fields:
         }
 
 type_record_fields_rest:
-    | (* empty *) { [] }
+    |  { [] }
     | COMMA field=type_record_field rest=type_record_fields_rest { field :: rest }
 
 type_record_field:
