@@ -3,20 +3,6 @@ module Map = Map.Make (String)
 
 type ctx = scheme Map.t
 
-(* Field constraints для отложенного разрешения типов записей *)
-type field_constraint = {
-  field_name : string;
-  field_type : t;
-  record_var : string;
-}
-
-(* Результат инференса с constraints *)
-type infer_result = {
-  subst : t Map.t;
-  ty : t;
-  constraints : field_constraint list;
-}
-
 let typs : (string * scheme) list =
   [
     ("pow", Scheme ([], TFun (TInt, TFun (TInt, TInt))));
@@ -72,10 +58,6 @@ let rec ftv_typ = function
         (fun acc ty -> Str_set.union (ftv_typ ty) acc)
         Str_set.empty typs
   | TRecord typ -> ftv_typ typ
-  | TClosedRecord fields ->
-      List.fold_left
-        (fun acc (_, ty) -> Str_set.union (ftv_typ ty) acc)
-        Str_set.empty fields
   | TRowExtend (_l, t, r) -> Str_set.union (ftv_typ r) (ftv_typ t)
 
 let rec apply_typ ty s =
@@ -87,18 +69,16 @@ let rec apply_typ ty s =
   | TCustom (name, typs) ->
       TCustom (name, List.map (fun ty -> apply_typ ty s) typs)
   | TRecord t -> TRecord (apply_typ t s)
-  | TClosedRecord fields ->
-      TClosedRecord (List.map (fun (name, ty) -> (name, apply_typ ty s)) fields)
   | TRowExtend (l, t, r) -> TRowExtend (l, apply_typ t s, apply_typ r s)
 
 let string_of_typ ty =
   let rec str_simple ty =
     match ty with
     | TVar v -> v
-    | TInt -> "int"
-    | TBool -> "bool"
-    | TUnit -> "unit"
-    | TStr -> "string"
+    | TInt -> "Int"
+    | TBool -> "Bool"
+    | TUnit -> "Unit"
+    | TStr -> "String"
     | TFun (p, r) -> str_paren p ^ " -> " ^ str_simple r
     | TTup l ->
         let buf = Buffer.create 50 in
@@ -112,7 +92,7 @@ let string_of_typ ty =
               iter t
         in
         iter l;
-        Buffer.to_bytes buf |> Bytes.to_string
+        Buffer.contents buf
     | TCustom (name, args) ->
         let args_str =
           match args with
@@ -123,18 +103,29 @@ let string_of_typ ty =
               "<" ^ args_str ^ ">"
         in
         name ^ args_str
-    | TRecord r -> Printf.sprintf "{ %s }" (str_simple r)
-    | TClosedRecord fields ->
-        let fields_str =
-          List.map
-            (fun (name, ty) -> Printf.sprintf "%s: %s" name (str_simple ty))
-            fields
-          |> String.concat ", "
+    | TRecord row ->
+        let rec str_row first = function
+          | TRowEmpty -> ""
+          | TVar v -> if first then v ^ " | " else " | " ^ v
+          | TRowExtend (label, typ, rest) -> (
+              match rest with
+              | TVar v ->
+                  let prefix = if first then v ^ " | " else ", " in
+                  prefix ^ Printf.sprintf "%s : %s" label (str_simple typ)
+              | TRowEmpty ->
+                  let sep = if first then "" else ", " in
+                  sep ^ Printf.sprintf "%s : %s" label (str_simple typ)
+              | _ ->
+                  let sep = if first then "" else ", " in
+                  sep
+                  ^ Printf.sprintf "%s : %s" label (str_simple typ)
+                  ^ str_row false rest)
+          | _ -> failwith "Invalid row type in record"
         in
-        Printf.sprintf "{| %s |}" fields_str
+        Printf.sprintf "{ %s }" (str_row true row)
     | TRowExtend (label, typ, row) ->
-        Printf.sprintf "%s = %s | %s" label (str_simple typ) (str_simple row)
-    | TRowEmpty -> "{}"
+        Printf.sprintf "%s : %s | %s" label (str_simple typ) (str_simple row)
+    | TRowEmpty -> ""
   and str_paren ty =
     match ty with
     | TFun (_, _) | TTup _ -> "(" ^ str_simple ty ^ ")"
@@ -206,31 +197,7 @@ let rec rewrite_row row label =
           (ty2, TRowExtend (label2, ty, tail2), s))
   | _ -> failwith (Printf.sprintf "Unexpected type: %s" (Type.show row))
 
-let rec unify_closed_records fields1 fields2 =
-  let sorted1 =
-    List.sort (fun (n1, _) (n2, _) -> String.compare n1 n2) fields1
-  in
-  let sorted2 =
-    List.sort (fun (n1, _) (n2, _) -> String.compare n1 n2) fields2
-  in
-
-  if List.length sorted1 <> List.length sorted2 then
-    failwith "Closed records have different number of fields"
-  else
-    List.fold_left2
-      (fun acc (name1, ty1) (name2, ty2) ->
-        if name1 <> name2 then
-          failwith
-            (Printf.sprintf "Field names don't match: %s vs %s" name1 name2)
-        else
-          let s = unify ty1 ty2 in
-          s ++ acc)
-      Map.empty sorted1 sorted2
-
-and find_field_in_closed_record fields field_name =
-  List.find_opt (fun (name, _) -> name = field_name) fields
-
-and unify ty1 ty2 =
+let rec unify ty1 ty2 =
   let unify_err ty1 ty2 =
     let ty1' = string_of_typ ty1 and ty2' = string_of_typ ty2 in
     Printf.sprintf "Unification failed for %s and %s" ty1' ty2' |> failwith
@@ -262,12 +229,6 @@ and unify ty1 ty2 =
             Map.empty args1 args2
         else unify_err ty1 ty2
     | TRecord ty1, TRecord ty2 -> unify' (ty1, ty2)
-    (* Унификация двух закрытых записей *)
-    | TClosedRecord fields1, TClosedRecord fields2 ->
-        unify_closed_records fields1 fields2
-    (* Закрытая запись не может унифицироваться с row poly *)
-    | TClosedRecord _, TRecord _ | TRecord _, TClosedRecord _ ->
-        unify_err ty1 ty2
     | TRowExtend (l1, ty1, rt1), (TRowExtend (_, _, _) as row2) -> (
         let ty2, rt2, s1 = rewrite_row row2 l1 in
         let rec to_list ty =
@@ -331,111 +292,91 @@ let typedef_to_type typedef =
               (convert return_impl.body) rev_params)
     | Kind.Tkind_unit -> TUnit
     | Kind.Tkind_record fields ->
-        let field_list =
-          List.map
-            (fun (row : Type_record_row.t) ->
-              (row.name.thing, convert row.body.body))
-            fields.values
+        let base =
+          match fields.row_type with
+          | Some row_var ->
+              TVar row_var.thing (* <-- Используем row variable! *)
+          | None -> TRowEmpty (* <-- Закрытая запись *)
         in
-        TClosedRecord field_list
+        let row_type =
+          List.fold_right
+            (fun (row : Type_record_row.t) acc ->
+              TRowExtend (row.name.thing, convert row.body.body, acc))
+            fields.values base (* <-- Передаём base вместо TRowEmpty *)
+        in
+        TRecord row_type
   in
   convert typedef
 
-let rec infer (exp : Canonical.Expr.t) ctx : infer_result =
+let rec infer (exp : Canonical.Expr.t) ctx =
   match exp with
-  | Expr_int _ -> { subst = Map.empty; ty = TInt; constraints = [] }
-  | Expr_float _ -> { subst = Map.empty; ty = TInt; constraints = [] }
-  | Expr_string _ -> { subst = Map.empty; ty = TStr; constraints = [] }
-  | Expr_char _ -> { subst = Map.empty; ty = TStr; constraints = [] }
+  | Expr_int _ -> (Map.empty, TInt)
+  | Expr_float _ -> (Map.empty, TInt)
+  | Expr_string _ -> (Map.empty, TStr)
+  | Expr_char _ -> (Map.empty, TStr)
   | Expr_ident v -> (
       match Map.find_opt v ctx with
       | Some s ->
           let _, ty = instantiate s in
-          { subst = Map.empty; ty; constraints = [] }
+          (Map.empty, ty)
       | None -> Printf.sprintf "Unbound value %s" v |> failwith)
   | Expr_apply { fn; arg } ->
-      let r1 = infer fn ctx in
-      let r2 = infer arg (apply_ctx ctx r1.subst) in
+      let s1, t1 = infer fn ctx in
+      let s2, t2 = infer arg (apply_ctx ctx s1) in
       let ty_res = new_var "a" in
-      let s3 = unify (apply_typ r1.ty r2.subst) (TFun (r2.ty, ty_res)) in
-      let final_subst = s3 ++ r2.subst ++ r1.subst in
-      {
-        subst = final_subst;
-        ty = apply_typ ty_res s3;
-        constraints = r1.constraints @ r2.constraints;
-      }
+      let s3 = unify (apply_typ t1 s2) (TFun (t2, ty_res)) in
+      (s3 ++ s2 ++ s1, apply_typ ty_res s3)
   | Expr_if_then_else { if_exp; then_exp; else_exp } ->
-      let r1 = infer if_exp ctx in
-      let s2 = unify (apply_typ r1.ty r1.subst) TBool in
-      let r3 = infer then_exp (apply_ctx ctx (s2 ++ r1.subst)) in
-      let r4 = infer else_exp (apply_ctx ctx (r3.subst ++ s2 ++ r1.subst)) in
-      let s5 = unify (apply_typ r3.ty r4.subst) r4.ty in
-      let final_subst = s5 ++ r4.subst ++ r3.subst ++ s2 ++ r1.subst in
-      {
-        subst = final_subst;
-        ty = apply_typ r4.ty s5;
-        constraints = r1.constraints @ r3.constraints @ r4.constraints;
-      }
+      let s1, t1 = infer if_exp ctx in
+      let s2 = unify (apply_typ t1 s1) TBool in
+      let s3, t3 = infer then_exp (apply_ctx ctx (s2 ++ s1)) in
+      let s4, t4 = infer else_exp (apply_ctx ctx (s3 ++ s2 ++ s1)) in
+      let s5 = unify (apply_typ t3 s4) t4 in
+      (s5 ++ s4 ++ s3 ++ s2 ++ s1, apply_typ t4 s5)
   | Expr_list l ->
       let elem_type = new_var "a" in
-      let results =
+      let s, ty =
         List.fold_left
-          (fun acc expr ->
-            let r = infer expr (apply_ctx ctx acc.subst) in
-            let s_unify = unify (apply_typ elem_type acc.subst) r.ty in
-            {
-              subst = s_unify ++ r.subst ++ acc.subst;
-              ty = apply_typ elem_type s_unify;
-              constraints = r.constraints @ acc.constraints;
-            })
-          { subst = Map.empty; ty = elem_type; constraints = [] }
-          l
+          (fun (s_acc, ty_acc) expr ->
+            let s, ty = infer expr (apply_ctx ctx s_acc) in
+            let s_unify = unify (apply_typ elem_type s_acc) ty in
+            (s_unify ++ s ++ s_acc, apply_typ elem_type s_unify))
+          (Map.empty, elem_type) l
       in
-      { results with ty = TCustom ("List", [ results.ty ]) }
+      (s, TCustom ("List", [ ty ]))
   | Expr_let { binding = { bind_body = { name; body = rhs } }; body } ->
-      let r1 = infer rhs ctx in
-      let ctx' = apply_ctx ctx r1.subst in
-      let gen_ty = generalize r1.ty ctx' in
+      let s1, t1 = infer rhs ctx in
+      let ctx' = apply_ctx ctx s1 in
+      let gen_ty = generalize t1 ctx' in
       let ctx'' = Map.add name.thing gen_ty ctx' in
-      let r2 = infer body ctx'' in
-      {
-        subst = r2.subst ++ r1.subst;
-        ty = r2.ty;
-        constraints = r1.constraints @ r2.constraints;
-      }
+      let s2, t2 = infer body ctx'' in
+      (s2 ++ s1, t2)
   | Expr_pattern { expr; pattern_data_items } ->
-      let r0 = infer expr ctx in
+      let s0, t0 = infer expr ctx in
       let m_pattern (pattern : Canonical.Pattern.t) =
         let rec go = function
           | Canonical.Pattern.P_var v ->
               ( Map.empty,
                 { Pattern.Typed.typ = new_var "a"; pattern = P_T_var v },
-                Map.singleton v (Scheme ([], new_var "a")),
-                [] )
+                Map.singleton v (Scheme ([], new_var "a")) )
           | P_anything ->
               ( Map.empty,
                 { typ = new_var "a"; pattern = P_T_anything },
-                Map.empty,
-                [] )
+                Map.empty )
           | P_int i ->
-              (Map.empty, { typ = TInt; pattern = P_T_int i }, Map.empty, [])
+              (Map.empty, { typ = TInt; pattern = P_T_int i }, Map.empty)
           | P_str s ->
-              (Map.empty, { typ = TStr; pattern = P_T_str s }, Map.empty, [])
+              (Map.empty, { typ = TStr; pattern = P_T_str s }, Map.empty)
           | P_chr c ->
-              (Map.empty, { typ = TStr; pattern = P_T_chr c }, Map.empty, [])
-          | P_unit ->
-              (Map.empty, { typ = TUnit; pattern = P_T_unit }, Map.empty, [])
+              (Map.empty, { typ = TStr; pattern = P_T_chr c }, Map.empty)
+          | P_unit -> (Map.empty, { typ = TUnit; pattern = P_T_unit }, Map.empty)
           | P_tuple list ->
-              let s, resolved, ctx, constrs =
+              let s, resolved, ctx =
                 List.fold_left
-                  (fun (s_acc, res_acc, ctx_acc, constr_acc) pat ->
-                    let s, ty, ctx', constrs = go pat in
-                    ( s ++ s_acc,
-                      ty :: res_acc,
-                      merge_ctx ctx_acc ctx',
-                      constrs @ constr_acc ))
-                  (Map.empty, [], Map.empty, [])
-                  list
+                  (fun (s_acc, res_acc, ctx_acc) pat ->
+                    let s, ty, ctx' = go pat in
+                    (s ++ s_acc, ty :: res_acc, merge_ctx ctx_acc ctx'))
+                  (Map.empty, [], Map.empty) list
               in
               ( s,
                 {
@@ -443,38 +384,33 @@ let rec infer (exp : Canonical.Expr.t) ctx : infer_result =
                     TTup (List.rev_map (fun t -> t.Pattern.Typed.typ) resolved);
                   pattern = P_T_tuple (List.rev resolved);
                 },
-                ctx,
-                constrs )
+                ctx )
           | P_list list ->
               let elem_type = new_var "a" in
-              let s, resolved, ctx, constrs =
+              let s, resolved, ctx =
                 List.fold_left
-                  (fun (s_acc, res_acc, ctx_acc, constr_acc) pat ->
-                    let s, ty, ctx', constrs = go pat in
+                  (fun (s_acc, res_acc, ctx_acc) pat ->
+                    let s, ty, ctx' = go pat in
                     let s_unify = unify (apply_typ elem_type s) ty.typ in
                     ( s_unify ++ s ++ s_acc,
                       ty :: res_acc,
-                      merge_ctx ctx_acc ctx',
-                      constrs @ constr_acc ))
-                  (Map.empty, [], Map.empty, [])
-                  list
+                      merge_ctx ctx_acc ctx' ))
+                  (Map.empty, [], Map.empty) list
               in
               ( s,
                 {
                   typ = TCustom ("List", [ elem_type ]);
                   pattern = P_T_list (List.rev resolved);
                 },
-                ctx,
-                constrs )
+                ctx )
           | P_cons (head, tail) ->
-              let s1, ty_head, ctx1, constrs1 = go head in
-              let s2, ty_tail, ctx2, constrs2 = go tail in
+              let s1, ty_head, ctx1 = go head in
+              let s2, ty_tail, ctx2 = go tail in
               let list_type = TCustom ("List", [ ty_head.typ ]) in
               let s3 = unify (apply_typ ty_tail.typ s2) list_type in
               ( s3 ++ s2 ++ s1,
                 { typ = list_type; pattern = P_T_cons (ty_head, ty_tail) },
-                merge_ctx ctx1 ctx2,
-                constrs1 @ constrs2 )
+                merge_ctx ctx1 ctx2 )
           | P_ctor (name, list) -> (
               let decl =
                 let open Canonical.Typedecl in
@@ -488,21 +424,20 @@ let rec infer (exp : Canonical.Expr.t) ctx : infer_result =
               in
               match decl with
               | Some (type_, d) ->
-                  let s, resolved_types, patterns, ctx, constrs =
+                  let s, resolved_types, patterns, ctx =
                     List.fold_left2
-                      (fun (acc, m, patterns, ctx, constr_acc)
+                      (fun (acc, m, patterns, ctx)
                            (pattern : Canonical.Pattern.t)
                            (ctor : Canonical.Typedef.Impl.t) ->
-                        let s, ty_arg, ctx', constrs = go pattern in
+                        let s, ty_arg, ctx' = go pattern in
                         ( acc ++ s,
                           (match ctor.body with
                           | Canonical.Typedef.Kind.Tkind_var v ->
                               Map.add v.thing ty_arg.typ m
                           | _ -> m),
                           ty_arg :: patterns,
-                          merge_ctx ctx ctx',
-                          constrs @ constr_acc ))
-                      (Map.empty, Map.empty, [], Map.empty, [])
+                          merge_ctx ctx ctx' ))
+                      (Map.empty, Map.empty, [], Map.empty)
                       list d.data
                   in
                   let args =
@@ -517,61 +452,50 @@ let rec infer (exp : Canonical.Expr.t) ctx : infer_result =
                       typ = TCustom (type_.name, args);
                       pattern = P_T_ctor (name, List.rev patterns);
                     },
-                    ctx,
-                    constrs )
+                    ctx )
               | None -> failwith (Printf.sprintf "Unknown constructor %s" name))
           | P_record fields ->
-              (* Для записей создаем row poly тип *)
-              let field_type = new_var "a" in
               let row_var = new_var "r" in
               let row_type =
                 List.fold_right
                   (fun field_name acc ->
-                    TRowExtend (field_name, field_type, acc))
+                    TRowExtend (field_name, new_var "a", acc))
                   fields row_var
               in
               ( Map.empty,
                 { typ = TRecord row_type; pattern = P_T_record fields },
-                Map.empty,
-                [] )
+                Map.empty )
         in
         go pattern
       in
-      let fn (patterns, (s0, ty0), (s1, ty1), all_constrs)
-          { pattern; expr = case_expr } =
-        let fn_apply (s2, ty2, ctx', constrs) =
+      let fn (patterns, (s0, ty0), (s1, ty1)) { pattern; expr = case_expr } =
+        let fn_apply (s2, ty2, ctx') =
           let ctx = Map.union (fun _ _ b -> Some b) ctx ctx' in
-          let r3 = infer case_expr (apply_ctx ctx s2) in
+          let s3, t3 = infer case_expr (apply_ctx ctx s2) in
           let s4 =
             unify
-              (apply_typ ty2.Pattern.Typed.typ (r3.subst ++ s2))
+              (apply_typ ty2.Pattern.Typed.typ (s3 ++ s2))
               (apply_typ ty0 s0)
           in
-          let s5 = unify (apply_typ r3.ty r3.subst) (apply_typ ty1 s1) in
-          let s4' = s4 ++ r3.subst ++ s2 ++ s1 ++ s0 in
+          let s5 = unify (apply_typ t3 s3) (apply_typ ty1 s1) in
+          let s4' = s4 ++ s3 ++ s2 ++ s1 ++ s0 in
           ( ty2 :: patterns,
             (s4', apply_typ ty2.typ s2),
-            (s5 ++ s4', apply_typ r3.ty s5),
-            constrs @ r3.constraints @ all_constrs )
+            (s5 ++ s4', apply_typ t3 s5) )
         in
         fn_apply @@ m_pattern pattern
       in
-      let patterns, (s1, t1), (s2, ty2), all_constrs =
+      let patterns, (s1, t1), (s2, ty2) =
         match pattern_data_items with
         | hd :: rest ->
             List.fold_left fn
-              (fn
-                 ( [],
-                   (r0.subst, r0.ty),
-                   (Map.empty, new_var "a"),
-                   r0.constraints )
-                 hd)
+              (fn ([], (s0, t0), (Map.empty, new_var "a")) hd)
               rest
         | [] -> raise (failwith "no patterns")
       in
       if not @@ Pattern.is_exhaustive (List.rev patterns) then
         failwith "Not exhaustive";
-      { subst = s2 ++ s1; ty = ty2; constraints = all_constrs }
+      (s2 ++ s1, ty2)
   | Expr_constr { name; arguments } -> (
       let decl =
         let open Canonical.Typedecl in
@@ -584,20 +508,15 @@ let rec infer (exp : Canonical.Expr.t) ctx : infer_result =
       in
       match decl with
       | Some (type_, d) ->
-          let results, resolved_types =
+          let s, resolved_types =
             List.fold_left2
-              (fun (acc, m) (ctor : Canonical.Typedef.Impl.t) arg ->
-                let r = infer arg ctx in
-                ( {
-                    subst = r.subst ++ acc.subst;
-                    ty = acc.ty;
-                    constraints = r.constraints @ acc.constraints;
-                  },
+              (fun (s_acc, m) (ctor : Canonical.Typedef.Impl.t) arg ->
+                let s, ty = infer arg ctx in
+                ( s ++ s_acc,
                   match ctor.body with
-                  | Canonical.Typedef.Kind.Tkind_var v -> Map.add v.thing r.ty m
+                  | Canonical.Typedef.Kind.Tkind_var v -> Map.add v.thing ty m
                   | _ -> m ))
-              ({ subst = Map.empty; ty = TUnit; constraints = [] }, Map.empty)
-              d.data arguments
+              (Map.empty, Map.empty) d.data arguments
           in
           let args =
             List.map
@@ -608,66 +527,25 @@ let rec infer (exp : Canonical.Expr.t) ctx : infer_result =
                     Printf.sprintf "Unknown type variable %s" p |> failwith)
               type_.params
           in
-          { results with ty = TCustom (type_.name, args) }
+          (s, TCustom (type_.name, args))
       | None -> Printf.sprintf "Unknown constructor %s" name |> failwith)
   | Expr_record_extend label ->
       let a = new_var "a" in
       let r = new_var "r" in
-      {
-        subst = Map.empty;
-        ty = TFun (a, TFun (TRecord r, TRecord (TRowExtend (label, a, r))));
-        constraints = [];
-      }
-  | Expr_record_empty ->
-      { subst = Map.empty; ty = TRecord TRowEmpty; constraints = [] }
+      (Map.empty, TFun (a, TFun (TRecord r, TRecord (TRowExtend (label, a, r)))))
+  | Expr_record_empty -> (Map.empty, TRecord TRowEmpty)
   | Expr_record_select label ->
       let a = new_var "a" in
       let r = new_var "r" in
-      {
-        subst = Map.empty;
-        ty = TFun (TRecord (TRowExtend (label, a, r)), a);
-        constraints = [];
-      }
-  | Expr_access { expr; field } -> (
-      let r1 = infer expr ctx in
-      match apply_typ r1.ty r1.subst with
-      | TClosedRecord fields -> (
-          match find_field_in_closed_record fields field.thing with
-          | Some (_, field_type) ->
-              {
-                subst = r1.subst;
-                ty = field_type;
-                constraints = r1.constraints;
-              }
-          | None ->
-              Printf.sprintf "Field %s not found in closed record" field.thing
-              |> failwith)
-      | TRecord row ->
-          let a = new_var "a" in
-          let r = new_var "r" in
-          let s2 =
-            unify (apply_typ r1.ty r1.subst)
-              (TRecord (TRowExtend (field.thing, a, r)))
-          in
-          {
-            subst = s2 ++ r1.subst;
-            ty = apply_typ a s2;
-            constraints = r1.constraints;
-          }
-      | TVar var_name ->
-          let field_type = new_var "a" in
-          let new_constraint =
-            { field_name = field.thing; field_type; record_var = var_name }
-          in
-          {
-            subst = r1.subst;
-            ty = field_type;
-            constraints = new_constraint :: r1.constraints;
-          }
-      | _ ->
-          Printf.sprintf "Cannot access field %s on non-record type %s"
-            field.thing (string_of_typ r1.ty)
-          |> failwith)
+      (Map.empty, TFun (TRecord (TRowExtend (label, a, r)), a))
+  | Expr_access { expr; field } ->
+      let s1, t1 = infer expr ctx in
+      let a = new_var "a" in
+      let r = new_var "r" in
+      let s2 =
+        unify (apply_typ t1 s1) (TRecord (TRowExtend (field.thing, a, r)))
+      in
+      (s2 ++ s1, apply_typ a s2)
   | Expr_lambda { params; body } ->
       let param_types = List.map (fun _ -> new_var "a") params in
       let ctx_with_params =
@@ -676,61 +554,20 @@ let rec infer (exp : Canonical.Expr.t) ctx : infer_result =
             Map.add param.Data.Located.thing (Scheme ([], param_ty)) acc)
           ctx params param_types
       in
-      let r = infer body ctx_with_params in
-      let param_types' =
-        List.map (fun ty -> apply_typ ty r.subst) param_types
-      in
+      let s, ty = infer body ctx_with_params in
+      let param_types' = List.map (fun ty -> apply_typ ty s) param_types in
       let fn_ty =
         List.fold_right
           (fun param_ty acc -> TFun (param_ty, acc))
-          param_types' r.ty
+          param_types' ty
       in
-      { subst = r.subst; ty = fn_ty; constraints = r.constraints }
+      (s, fn_ty)
   | _ -> failwith "Expression not implemented"
-
-(* Разрешение field constraints после основного инференса *)
-let resolve_field_constraints s ty constraints =
-  List.fold_left
-    (fun (s_acc, ty_acc) constr ->
-      (* Находим актуальный тип переменной записи *)
-      let resolved_type = apply_typ (TVar constr.record_var) s_acc in
-
-      match resolved_type with
-      (* Переменная все еще свободна - делаем row poly *)
-      | TVar _ ->
-          let rest = new_var "r" in
-          let row_type =
-            TRecord (TRowExtend (constr.field_name, constr.field_type, rest))
-          in
-          let s_new = Map.add constr.record_var row_type s_acc in
-          (s_new, apply_typ ty_acc s_new)
-      (* Уже закрытая запись - проверяем совместимость *)
-      | TClosedRecord fields -> (
-          match find_field_in_closed_record fields constr.field_name with
-          | Some (_, field_type) ->
-              let s_unify = unify field_type constr.field_type in
-              (s_unify ++ s_acc, apply_typ ty_acc s_unify)
-          | None ->
-              Printf.sprintf "Field %s not found in closed record"
-                constr.field_name
-              |> failwith)
-      (* Уже row poly - добавляем constraint *)
-      | TRecord row ->
-          let s_unify =
-            unify row
-              (TRowExtend (constr.field_name, constr.field_type, new_var "r"))
-          in
-          (s_unify ++ s_acc, apply_typ ty_acc s_unify)
-      | _ -> (s_acc, ty_acc))
-    (s, ty) constraints
 
 let infer_exp exp ctx =
   State.reset ();
-  let result = infer exp ctx in
-  let s_final, ty_final =
-    resolve_field_constraints result.subst result.ty result.constraints
-  in
-  apply_typ ty_final s_final
+  let s, ty = infer exp ctx in
+  apply_typ ty s
 
 let infer' = infer
 let infer exp = infer_exp exp ctx
@@ -744,26 +581,23 @@ let infer_declaration { Canonical.Declaration.body_part; type_part_data } ctx =
       ctx body_part.params param_types
   in
 
-  let result = infer' body_part.expr.Data.Located.thing ctx_with_params in
+  let s, ty = infer' body_part.expr.Data.Located.thing ctx_with_params in
 
-  let param_types' =
-    List.map (fun ty -> apply_typ ty result.subst) param_types
-  in
+  let param_types' = List.map (fun ty -> apply_typ ty s) param_types in
 
   let final_ty =
     List.fold_right
       (fun param_ty acc -> TFun (param_ty, acc))
-      param_types'
-      (apply_typ result.ty result.subst)
+      param_types' (apply_typ ty s)
   in
 
   let verified_ty, s_final =
     match type_part_data with
-    | None -> (final_ty, result.subst)
+    | None -> (final_ty, s)
     | Some type_part ->
         let declared_ty = typedef_to_type type_part.type_alias.body in
         let s_check = unify final_ty declared_ty in
-        (apply_typ final_ty s_check, s_check ++ result.subst)
+        (apply_typ final_ty s_check, s_check ++ s)
   in
 
   let scheme = generalize verified_ty ctx in

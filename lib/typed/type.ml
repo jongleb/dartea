@@ -10,7 +10,6 @@ type t =
   | TFun of t * t
   | TTup of t list
   | TCustom of string * t list
-  | TClosedRecord of (string * t) list
   | TRecord of t
   | TRowExtend of string * t * t
   | TRowEmpty

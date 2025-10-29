@@ -1,3 +1,4 @@
+sum: Int
 sum = 1 + 2 - 1 + xxx 80
 
 id a = a
@@ -8,6 +9,7 @@ test =
 
 kekkk = sum + test
 
+test2: Int -> Int -> a -> { a : { b : { c : { o | d : { e : { f : { g : { h : Int } } } } } } } } -> String
 test2 a b c kek = 
     let x = 3 in
     let y = 4 in 
@@ -36,7 +38,7 @@ testCaseMultipleBranches someValue =
 
 xxx x = x |> plus 1 |> plus 2 |> plus 3 |> int_to_string |> id |> concat "Value is: "
 
-
+square: Int -> Int
 square =
   \n -> n * n
 
@@ -48,7 +50,6 @@ abcdefg = { l = origin.x + origin.y }
 
 compose f g = \x -> f (g x)
 
-fn: Int
 fn x y r = 
     let abcd = x + 1 in
     let g = case abcd of
