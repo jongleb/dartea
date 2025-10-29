@@ -1,8 +1,3 @@
-open Lexer
-open Indenter_level
-
-let parse state lexbuf = Parser.prog (Lexer.token state) lexbuf
-
 let parse content =
   let open Indenter in
   let state =
@@ -20,6 +15,9 @@ let parse content =
   Stack.push (0, Top_level) state.stack;
   let lexbuf = Lexing.from_string content in
   try
-    let cst = parse state lexbuf in
+    let cst = Parser.prog (Lexer.token state) lexbuf in
+    Printf.printf "Successfully parsed, AST length: %d\n" (List.length cst);
     Ok cst
-  with e -> Error e
+  with e ->
+    Printf.printf "Parse error: %s\n" (Printexc.to_string e);
+    Error e

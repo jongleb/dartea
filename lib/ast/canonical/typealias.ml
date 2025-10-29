@@ -1,3 +1,8 @@
-type t = { params : string list; typedef : Typedef.Impl.t }
+type t = { params : string list; typedef : Typedef.Impl.t; name : string }
 
-(* let of_ast = Typedef.Impl.of_ast *)
+let of_frontend (frontend : Frontend.Typealias.t) : t =
+  {
+    name = frontend.name.thing;
+    params = List.map (fun p -> p.Data.Located.thing) frontend.params;
+    typedef = Typedef.Impl.of_frontend frontend.typedef;
+  }

@@ -184,6 +184,14 @@ let handle_newline state nl token lexbuf =
       let i, _ = Stack.pop state.stack in
       push_indent state i Let;
       INDENT
+  | _, Some (_, Type_alias) when indent_level = 0 ->
+      prerr_endline "Closing Type_alias at indent 0";
+      ignore @@ Stack.pop state.stack;
+      DEDENT
+  | _, Some (_, Type_decl) when indent_level = 0 ->
+      prerr_endline "Closing Type_decl at indent 0";
+      ignore @@ Stack.pop state.stack;
+      DEDENT
   | _ ->
       let rec go () =
         prerr_endline "Go called";
@@ -226,7 +234,13 @@ let handle_newline state nl token lexbuf =
             next_token state
         | Type_alias when indent_level < current ->
             prerr_endline "Type_alias when indent_level < current";
+            ignore @@ Stack.pop state.stack;
+            Queue.add DEDENT state.queue;
             close_until state indent_level next_token
+        | Type_alias when indent_level = current ->
+            prerr_endline "Type_alias when indent_level = current - closing";
+            ignore @@ Stack.pop state.stack;
+            DEDENT
         | Type_alias ->
             prerr_endline "Type_alias";
             next_token state
@@ -235,7 +249,13 @@ let handle_newline state nl token lexbuf =
             next_token state
         | Type_decl when indent_level < current ->
             prerr_endline "Type_decl when indent_level < current";
+            ignore @@ Stack.pop state.stack;
+            Queue.add DEDENT state.queue;
             close_until state indent_level next_token
+        | Type_decl when indent_level = current ->
+            prerr_endline "Type_decl when indent_level = current - closing";
+            ignore @@ Stack.pop state.stack;
+            DEDENT
         | Type_decl ->
             prerr_endline "Type_decl";
             next_token state
@@ -501,27 +521,46 @@ let handle_in state =
 
 let handle_eof state =
   prerr_endline "handle_eof";
+  prerr_endline @@ Printf.sprintf "Stack depth: %d" (Stack.length state.stack);
+  prerr_endline @@ Printf.sprintf "Queue length: %d" (Queue.length state.queue);
 
   if state.need_dedent_after_type then (
     prerr_endline "Closing virtual type INDENT at EOF";
     state.need_dedent_after_type <- false;
-    (match get_current_context state with
-    | Type_annotation -> ignore @@ Stack.pop state.stack
+    match get_current_context state with
+    | Type_annotation ->
+        ignore @@ Stack.pop state.stack;
+        Queue.add DEDENT state.queue
     | _ -> ());
-    Queue.add DEDENT state.queue);
 
   let rec close_all_to_top () =
     match Stack.top_opt state.stack with
-    | Some (_, Top_level) -> ()
-    | Some _ ->
+    | Some (_, Top_level) -> prerr_endline "Reached Top_level"
+    | Some (_, ctx) ->
+        prerr_endline
+        @@ Printf.sprintf "Closing context: %s" (show_indent_context ctx);
         ignore @@ Stack.pop state.stack;
         Queue.add DEDENT state.queue;
         close_all_to_top ()
-    | None -> Stack.push (0, Top_level) state.stack
+    | None ->
+        prerr_endline "Stack empty, pushing Top_level";
+        Stack.push (0, Top_level) state.stack
   in
   close_all_to_top ();
-  Queue.add EOF state.queue;
-  if Queue.is_empty state.queue then EOF else Queue.take state.queue
+
+  (* Добавляем EOF только если его еще нет в очереди *)
+  if not (Queue.fold (fun acc t -> acc || t = EOF) false state.queue) then (
+    prerr_endline "Adding EOF to queue";
+    Queue.add EOF state.queue)
+  else prerr_endline "EOF already in queue";
+
+  if Queue.is_empty state.queue then (
+    prerr_endline "Queue empty after close_all, returning EOF directly";
+    EOF)
+  else
+    let result = Queue.take state.queue in
+    prerr_endline @@ Printf.sprintf "Taking from queue: %s" (show_token result);
+    result
 
 let handle_if state =
   prerr_endline "handle_if";

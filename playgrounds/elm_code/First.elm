@@ -4,6 +4,8 @@ sum = 1 + 2 - 1 + xxx 80
 id: a -> a
 id a = a
 
+type alias X = String
+
 test =
     let x = 2 in 
     x + id 3

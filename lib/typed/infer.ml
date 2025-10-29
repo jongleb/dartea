@@ -623,7 +623,8 @@ let infer_toplevel declarations initial_ctx =
                   let fresh_ty = new_var "a" in
                   Scheme ([], fresh_ty)
             in
-            Map.add body_part.name.thing ty_scheme acc)
+            Map.add body_part.name.thing ty_scheme acc
+        | _ -> acc)
       initial_ctx declarations
   in
 
@@ -633,7 +634,8 @@ let infer_toplevel declarations initial_ctx =
         match decl with
         | Canonical.Impl.Top_declaration decl_data ->
             let s, ty, new_ctx = infer_declaration decl_data ctx_acc in
-            (new_ctx, (decl_data.body_part.name.thing, ty) :: decls_acc))
+            (new_ctx, (decl_data.body_part.name.thing, ty) :: decls_acc)
+        | _ -> (ctx_acc, decls_acc))
       (ctx_with_placeholders, [])
       declarations
   in
