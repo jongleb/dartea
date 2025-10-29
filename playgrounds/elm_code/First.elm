@@ -9,7 +9,7 @@ test =
 
 kekkk = sum + test
 
-test2: Int -> Int -> a -> { a : { b : { c : { o | d : { e : { f : { g : { h : Int } } } } } } } } -> String
+test2: Int -> Int -> a -> { a : { b : { c : { d : { e : { f : { g : { h : Int } } } } } } } } -> String
 test2 a b c kek = 
     let x = 3 in
     let y = 4 in 
@@ -21,6 +21,9 @@ test2 a b c kek =
     in
     let x1 = x + kek.a.b.c.d.e.f.g.h + 1 in
     concat "" ""
+
+
+test2Result = test2 1 2 3 { a = { b = { c = { d = { e = { f = { g = { h = 10 } } } } } } } }
 
 testAgain x = 
     case x of

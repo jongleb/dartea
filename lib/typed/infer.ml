@@ -229,6 +229,10 @@ let rec unify ty1 ty2 =
             Map.empty args1 args2
         else unify_err ty1 ty2
     | TRecord ty1, TRecord ty2 -> unify' (ty1, ty2)
+    | TRowEmpty, TRowExtend (label, _, _) ->
+        failwith (Printf.sprintf "Extra field '%s' in record" label)
+    | TRowExtend (label, _, _), TRowEmpty ->
+        failwith (Printf.sprintf "Missing field '%s' in record" label)
     | TRowExtend (l1, ty1, rt1), (TRowExtend (_, _, _) as row2) -> (
         let ty2, rt2, s1 = rewrite_row row2 l1 in
         let rec to_list ty =
@@ -294,15 +298,14 @@ let typedef_to_type typedef =
     | Kind.Tkind_record fields ->
         let base =
           match fields.row_type with
-          | Some row_var ->
-              TVar row_var.thing (* <-- Используем row variable! *)
-          | None -> TRowEmpty (* <-- Закрытая запись *)
+          | Some row_var -> TVar row_var.thing
+          | None -> TRowEmpty
         in
         let row_type =
           List.fold_right
             (fun (row : Type_record_row.t) acc ->
               TRowExtend (row.name.thing, convert row.body.body, acc))
-            fields.values base (* <-- Передаём base вместо TRowEmpty *)
+            fields.values base
         in
         TRecord row_type
   in
@@ -606,48 +609,33 @@ let infer_declaration { Canonical.Declaration.body_part; type_part_data } ctx =
   (s_final, verified_ty, new_ctx)
 
 let infer_toplevel declarations initial_ctx =
-  let ctx_with_names =
+  let ctx_with_placeholders =
     List.fold_left
       (fun acc decl ->
         match decl with
-        | Canonical.Impl.Top_declaration { body_part; _ } ->
-            let fresh_ty = new_var "a" in
-            let scheme = Scheme ([], fresh_ty) in
-            Map.add body_part.name.thing scheme acc)
+        | Canonical.Impl.Top_declaration { body_part; type_part_data; _ } ->
+            let ty_scheme =
+              match type_part_data with
+              | Some type_part ->
+                  let declared_ty = typedef_to_type type_part.type_alias.body in
+                  Scheme ([], declared_ty)
+              | None ->
+                  let fresh_ty = new_var "a" in
+                  Scheme ([], fresh_ty)
+            in
+            Map.add body_part.name.thing ty_scheme acc)
       initial_ctx declarations
   in
 
-  let inferred_types =
-    List.filter_map
-      (fun decl ->
+  let final_ctx, typed_decls =
+    List.fold_left
+      (fun (ctx_acc, decls_acc) decl ->
         match decl with
         | Canonical.Impl.Top_declaration decl_data ->
-            let s, ty, _ = infer_declaration decl_data ctx_with_names in
-            Some (decl_data.body_part.name.thing, (s, ty)))
+            let s, ty, new_ctx = infer_declaration decl_data ctx_acc in
+            (new_ctx, (decl_data.body_part.name.thing, ty) :: decls_acc))
+      (ctx_with_placeholders, [])
       declarations
   in
 
-  let final_ctx =
-    List.fold_left
-      (fun acc (name, (s, inferred_ty)) ->
-        match Map.find_opt name ctx_with_names with
-        | Some (Scheme ([], fresh_var)) ->
-            let s_unify = unify fresh_var inferred_ty in
-            let final_ty = apply_typ inferred_ty s_unify in
-            let scheme = generalize final_ty initial_ctx in
-            Map.add name scheme acc
-        | _ -> acc)
-      initial_ctx inferred_types
-  in
-
-  let typed_decls =
-    List.map
-      (fun (name, (_, ty)) ->
-        match Map.find_opt name final_ctx with
-        | Some scheme ->
-            (name, snd (match scheme with Scheme (_, t) -> ([], t)))
-        | None -> (name, ty))
-      inferred_types
-  in
-
-  (final_ctx, typed_decls)
+  (final_ctx, List.rev typed_decls)
