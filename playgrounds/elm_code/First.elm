@@ -4,7 +4,11 @@ sum = 1 + 2 - 1 + xxx 80
 id: a -> a
 id a = a
 
-type alias X = String
+type alias Test2 = Int -> Int -> a -> { a : { b : { c : { d : { e : { f : { g : { h : Kek } } } } } } } } -> String
+
+type alias Kek = Int
+
+type alias Test a = Maybe a
 
 test =
     let x = 2 in 
@@ -12,7 +16,7 @@ test =
 
 kekkk = sum + test
 
-test2: Int -> Int -> a -> { a : { b : { c : { d : { e : { f : { g : { h : Int } } } } } } } } -> String
+test2: Test2
 test2 a b c kek = 
     let x = 3 in
     let y = 4 in 

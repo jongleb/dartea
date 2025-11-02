@@ -609,6 +609,81 @@ let infer_declaration { Canonical.Declaration.body_part; type_part_data } ctx =
   (s_final, verified_ty, new_ctx)
 
 let infer_toplevel declarations initial_ctx =
+  let type_aliases =
+    List.fold_left
+      (fun acc decl ->
+        match decl with
+        | Canonical.Impl.Type_alias ta ->
+            let alias_type = typedef_to_type ta.typedef.body in
+            Map.add ta.name (ta.params, alias_type) acc
+        | _ -> acc)
+      Map.empty declarations
+  in
+
+  let rec expand_type_alias ty =
+    match ty with
+    | TCustom (name, args) -> (
+        match Map.find_opt name type_aliases with
+        | Some (params, alias_body) ->
+            if List.length params = List.length args then
+              let subst =
+                List.fold_left2
+                  (fun acc param arg ->
+                    Map.add param (expand_type_alias arg) acc)
+                  Map.empty params args
+              in
+              expand_type_alias (apply_typ alias_body subst)
+            else if List.length params = 0 && List.length args = 0 then
+              expand_type_alias alias_body
+            else
+              failwith
+                (Printf.sprintf "Type alias %s expects %d arguments, got %d"
+                   name (List.length params) (List.length args))
+        | None -> TCustom (name, List.map expand_type_alias args))
+    | TFun (p, r) -> TFun (expand_type_alias p, expand_type_alias r)
+    | TTup l -> TTup (List.map expand_type_alias l)
+    | TRecord t -> TRecord (expand_type_alias t)
+    | TRowExtend (label, t, r) ->
+        TRowExtend (label, expand_type_alias t, expand_type_alias r)
+    | t -> t
+  in
+
+  let infer_declaration_with_expansion
+      { Canonical.Declaration.body_part; type_part_data } ctx =
+    let param_types = List.map (fun _ -> new_var "a") body_part.params in
+    let ctx_with_params =
+      List.fold_left2
+        (fun acc param param_ty ->
+          Map.add param.Data.Located.thing (Scheme ([], param_ty)) acc)
+        ctx body_part.params param_types
+    in
+
+    let s, ty = infer' body_part.expr.Data.Located.thing ctx_with_params in
+
+    let param_types' = List.map (fun ty -> apply_typ ty s) param_types in
+
+    let final_ty =
+      List.fold_right
+        (fun param_ty acc -> TFun (param_ty, acc))
+        param_types' (apply_typ ty s)
+    in
+
+    let verified_ty, s_final =
+      match type_part_data with
+      | None -> (final_ty, s)
+      | Some type_part ->
+          let declared_ty = typedef_to_type type_part.type_alias.body in
+          let expanded_declared_ty = expand_type_alias declared_ty in
+          let s_check = unify final_ty expanded_declared_ty in
+          (apply_typ final_ty s_check, s_check ++ s)
+    in
+
+    let scheme = generalize verified_ty ctx in
+    let new_ctx = Map.add body_part.name.thing scheme ctx in
+
+    (s_final, verified_ty, new_ctx)
+  in
+
   let ctx_with_placeholders =
     List.fold_left
       (fun acc decl ->
@@ -618,13 +693,12 @@ let infer_toplevel declarations initial_ctx =
               match type_part_data with
               | Some type_part ->
                   let declared_ty = typedef_to_type type_part.type_alias.body in
-                  Scheme ([], declared_ty)
-              | None ->
-                  let fresh_ty = new_var "a" in
-                  Scheme ([], fresh_ty)
+                  let expanded_ty = expand_type_alias declared_ty in
+                  Scheme ([], expanded_ty)
+              | None -> Scheme ([], new_var "a")
             in
             Map.add body_part.name.thing ty_scheme acc
-        | _ -> acc)
+        | Canonical.Impl.Type_alias _ -> acc)
       initial_ctx declarations
   in
 
@@ -633,9 +707,11 @@ let infer_toplevel declarations initial_ctx =
       (fun (ctx_acc, decls_acc) decl ->
         match decl with
         | Canonical.Impl.Top_declaration decl_data ->
-            let s, ty, new_ctx = infer_declaration decl_data ctx_acc in
+            let s, ty, new_ctx =
+              infer_declaration_with_expansion decl_data ctx_acc
+            in
             (new_ctx, (decl_data.body_part.name.thing, ty) :: decls_acc)
-        | _ -> (ctx_acc, decls_acc))
+        | Canonical.Impl.Type_alias _ -> (ctx_acc, decls_acc))
       (ctx_with_placeholders, [])
       declarations
   in
