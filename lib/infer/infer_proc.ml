@@ -1,4 +1,5 @@
-open Type
+open Typed
+open Typed.Type
 module Map = Map.Make (String)
 
 type ctx = scheme Map.t
@@ -311,9 +312,9 @@ let typedef_to_type typedef =
   in
   convert typedef
 
-let rec infer (exp : Canonical.Expr.t) ctx : Type.t Map.t * Ast.t =
+let rec infer (exp : Canonical.Expr.t) ctx : Type.t Map.t * Typed.Expr.t =
   match exp with
-  | Expr_int i -> (Map.empty, { expr = Ast.Expr_int i; typ = TInt })
+  | Expr_int i -> (Map.empty, { expr = Typed.Expr.Expr_int i; typ = TInt })
   | Expr_float f -> (Map.empty, { expr = Expr_float f; typ = TInt })
   | Expr_string s -> (Map.empty, { expr = Expr_string s; typ = TStr })
   | Expr_char c -> (Map.empty, { expr = Expr_char c; typ = TStr })
@@ -500,7 +501,7 @@ let rec infer (exp : Canonical.Expr.t) ctx : Type.t Map.t * Ast.t =
           in
           let s5 = unify (apply_typ t3.typ s3) (apply_typ ty1 s1) in
           let s4' = s4 ++ s3 ++ s2 ++ s1 ++ s0 in
-          let typed_case = { Ast.pattern = ty2; expr = t3 } in
+          let typed_case = { Typed.Expr.pattern = ty2; expr = t3 } in
           ( ty2 :: patterns,
             (s4', apply_typ ty2.typ s2),
             (s5 ++ s4', apply_typ t3.typ s5),
@@ -607,7 +608,9 @@ let rec infer (exp : Canonical.Expr.t) ctx : Type.t Map.t * Ast.t =
           param_types' typed_body.typ
       in
       let typed_params =
-        List.map2 (fun p ty -> { Ast.name = p; typ = ty }) params param_types'
+        List.map2
+          (fun p ty -> { Typed.Expr.name = p; typ = ty })
+          params param_types'
       in
       ( s,
         {
@@ -634,15 +637,17 @@ let infer_declaration { Canonical.Declaration.body_part; type_part_data } ctx =
       ctx body_part.params param_types
   in
 
-  let s, ty = infer' body_part.expr.Data.Located.thing ctx_with_params in
+  let s, typed_expr =
+    infer' body_part.expr.Data.Located.thing ctx_with_params
+  in
 
   let param_types' = List.map (fun ty -> apply_typ ty s) param_types in
 
   let final_ty =
     List.fold_right
       (fun param_ty acc -> TFun (param_ty, acc))
-      (*FIXME*)
-      param_types' (apply_typ ty.typ s)
+      param_types'
+      (apply_typ typed_expr.typ s)
   in
 
   let verified_ty, s_final =
@@ -657,7 +662,22 @@ let infer_declaration { Canonical.Declaration.body_part; type_part_data } ctx =
   let scheme = generalize verified_ty ctx in
   let new_ctx = Map.add body_part.name.thing scheme ctx in
 
-  (s_final, verified_ty, new_ctx)
+  let typed_params =
+    List.map2
+      (fun name typ -> { Typed.Declaration.name; typ })
+      body_part.params param_types'
+  in
+
+  let typed_decl =
+    {
+      Typed.Declaration.name = body_part.name;
+      params = typed_params;
+      body = typed_expr;
+      typ = verified_ty;
+    }
+  in
+
+  (s_final, typed_decl, new_ctx)
 
 let infer_toplevel declarations initial_ctx =
   let type_aliases =
@@ -709,15 +729,17 @@ let infer_toplevel declarations initial_ctx =
         ctx body_part.params param_types
     in
 
-    let s, ty = infer' body_part.expr.Data.Located.thing ctx_with_params in
+    let s, typed_expr =
+      infer' body_part.expr.Data.Located.thing ctx_with_params
+    in
 
     let param_types' = List.map (fun ty -> apply_typ ty s) param_types in
 
     let final_ty =
       List.fold_right
         (fun param_ty acc -> TFun (param_ty, acc))
-        (*FIX ME*)
-        param_types' (apply_typ ty.typ s)
+        param_types'
+        (apply_typ typed_expr.typ s)
     in
 
     let verified_ty, s_final =
@@ -733,7 +755,22 @@ let infer_toplevel declarations initial_ctx =
     let scheme = generalize verified_ty ctx in
     let new_ctx = Map.add body_part.name.thing scheme ctx in
 
-    (s_final, verified_ty, new_ctx)
+    let typed_params =
+      List.map2
+        (fun name typ -> { Typed.Declaration.name; typ })
+        body_part.params param_types'
+    in
+
+    let typed_decl =
+      {
+        Typed.Declaration.name = body_part.name;
+        params = typed_params;
+        body = typed_expr;
+        typ = verified_ty;
+      }
+    in
+
+    (s_final, typed_decl, new_ctx)
   in
 
   let ctx_with_placeholders =
@@ -759,10 +796,10 @@ let infer_toplevel declarations initial_ctx =
       (fun (ctx_acc, decls_acc) decl ->
         match decl with
         | Canonical.Impl.Top_declaration decl_data ->
-            let s, ty, new_ctx =
+            let s, typed_decl, new_ctx =
               infer_declaration_with_expansion decl_data ctx_acc
             in
-            (new_ctx, (decl_data.body_part.name.thing, ty) :: decls_acc)
+            (new_ctx, typed_decl :: decls_acc)
         | Canonical.Impl.Type_alias _ -> (ctx_acc, decls_acc))
       (ctx_with_placeholders, [])
       declarations

@@ -9,23 +9,12 @@ module Module_map = struct
   include Base.Comparable.Make (T)
 end
 
-(* let compile path =
-  File_loader.Files.(
-    path |> current_folder
-    |> List.map (fun Elm_file.{ path; content } ->
-           Ast.Kind.Frontend.Module.(
-             content |> Parse.Main.parse |> Result.map of_impl
-             |> Result.map (fun module_ ->
-                    (Data.Located.unwrap module_.name, module_))))
-    |> Base.Result.combine_errors)
-  |> Result.map (Base.Map.of_alist (module Module_map)) *)
-
 let compile path =
   let std =
     let open Infer in
     let open Type in
     [
-      ("pow", Scheme ([], TFun (TInt, TFun (TInt, TInt))));
+      ("pow", Typed.Type.Scheme ([], TFun (TInt, TFun (TInt, TInt))));
       ("=", Scheme ([ "'a" ], TFun (TVar "'a", TFun (TVar "'a", TBool))));
       ("<>", Scheme ([ "'a" ], TFun (TVar "'a", TFun (TVar "'a", TBool))));
       ("&&", Scheme ([], TFun (TBool, TFun (TBool, TBool))));
@@ -36,7 +25,6 @@ let compile path =
       ("length", Scheme ([], TFun (TStr, TInt)));
       ("int_to_string", Scheme ([], TFun (TInt, TStr)));
       ("int_of_string", Scheme ([], TFun (TStr, TInt)));
-      (* while operators aren't supported *)
       ("-", Scheme ([], TFun (TInt, TFun (TInt, TInt))));
       ("*", Scheme ([], TFun (TInt, TFun (TInt, TInt))));
       ("/", Scheme ([], TFun (TInt, TFun (TInt, TInt))));
@@ -95,8 +83,9 @@ let compile path =
       match x with
       | Ok (_, decls) ->
           List.iter
-            (fun (name, ty) ->
-              Printf.printf "%s : %s\n" name (Infer.Infer_proc.string_of_typ ty))
+            (fun (decl : Typed.Declaration.t) ->
+              Printf.printf "%s : %s\n" decl.name.thing
+                (Infer.Infer_proc.string_of_typ decl.typ))
             decls
       | Error x -> raise x)
     typed;

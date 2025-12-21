@@ -1,11 +1,11 @@
 open CCOption
 open Infer
-open Pattern
+open Typed.Pattern
 
 module Matrix = struct
   open Infer
 
-  type t = Pattern.t List.t List.t
+  type t = Typed.Pattern.t List.t List.t
 
   let rec detuple full pat =
     match full with
@@ -40,7 +40,7 @@ end
 module Actions = struct
   type t = int List.t
 
-  let of_records r = r |> List.mapi (fun i (_pat : Pattern.t) -> i)
+  let of_records r = r |> List.mapi (fun i (_pat : Typed.Pattern.t) -> i)
 end
 
 module Compile_state = struct
