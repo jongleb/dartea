@@ -311,56 +311,75 @@ let typedef_to_type typedef =
   in
   convert typedef
 
-let rec infer (exp : Canonical.Expr.t) ctx =
+let rec infer (exp : Canonical.Expr.t) ctx : Type.t Map.t * Ast.t =
   match exp with
-  | Expr_int _ -> (Map.empty, TInt)
-  | Expr_float _ -> (Map.empty, TInt)
-  | Expr_string _ -> (Map.empty, TStr)
-  | Expr_char _ -> (Map.empty, TStr)
+  | Expr_int i -> (Map.empty, { expr = Ast.Expr_int i; typ = TInt })
+  | Expr_float f -> (Map.empty, { expr = Expr_float f; typ = TInt })
+  | Expr_string s -> (Map.empty, { expr = Expr_string s; typ = TStr })
+  | Expr_char c -> (Map.empty, { expr = Expr_char c; typ = TStr })
   | Expr_ident v -> (
       match Map.find_opt v ctx with
       | Some s ->
           let _, ty = instantiate s in
-          (Map.empty, ty)
+          (Map.empty, { expr = Expr_ident v; typ = ty })
       | None -> Printf.sprintf "Unbound value %s" v |> failwith)
   | Expr_apply { fn; arg } ->
       let s1, t1 = infer fn ctx in
       let s2, t2 = infer arg (apply_ctx ctx s1) in
       let ty_res = new_var "a" in
-      let s3 = unify (apply_typ t1 s2) (TFun (t2, ty_res)) in
-      (s3 ++ s2 ++ s1, apply_typ ty_res s3)
+      let s3 = unify (apply_typ t1.typ s2) (TFun (t2.typ, ty_res)) in
+      let final_typ = apply_typ ty_res s3 in
+      ( s3 ++ s2 ++ s1,
+        { expr = Expr_apply { fn = t1; arg = t2 }; typ = final_typ } )
   | Expr_if_then_else { if_exp; then_exp; else_exp } ->
       let s1, t1 = infer if_exp ctx in
-      let s2 = unify (apply_typ t1 s1) TBool in
+      let s2 = unify (apply_typ t1.typ s1) TBool in
       let s3, t3 = infer then_exp (apply_ctx ctx (s2 ++ s1)) in
       let s4, t4 = infer else_exp (apply_ctx ctx (s3 ++ s2 ++ s1)) in
-      let s5 = unify (apply_typ t3 s4) t4 in
-      (s5 ++ s4 ++ s3 ++ s2 ++ s1, apply_typ t4 s5)
+      let s5 = unify (apply_typ t3.typ s4) t4.typ in
+      let final_typ = apply_typ t4.typ s5 in
+      ( s5 ++ s4 ++ s3 ++ s2 ++ s1,
+        {
+          expr = Expr_if_then_else { if_exp = t1; then_exp = t3; else_exp = t4 };
+          typ = final_typ;
+        } )
   | Expr_list l ->
       let elem_type = new_var "a" in
-      let s, ty =
+      let s, typed_elems, ty =
         List.fold_left
-          (fun (s_acc, ty_acc) expr ->
-            let s, ty = infer expr (apply_ctx ctx s_acc) in
-            let s_unify = unify (apply_typ elem_type s_acc) ty in
-            (s_unify ++ s ++ s_acc, apply_typ elem_type s_unify))
-          (Map.empty, elem_type) l
+          (fun (s_acc, elems_acc, ty_acc) expr ->
+            let s, typed_expr = infer expr (apply_ctx ctx s_acc) in
+            let s_unify = unify (apply_typ elem_type s_acc) typed_expr.typ in
+            let final_elem_typ = apply_typ elem_type s_unify in
+            (s_unify ++ s ++ s_acc, typed_expr :: elems_acc, final_elem_typ))
+          (Map.empty, [], elem_type) l
       in
-      (s, TCustom ("List", [ ty ]))
+      ( s,
+        {
+          expr = Expr_list (List.rev typed_elems);
+          typ = TCustom ("List", [ ty ]);
+        } )
   | Expr_let { binding = { bind_body = { name; body = rhs } }; body } ->
       let s1, t1 = infer rhs ctx in
       let ctx' = apply_ctx ctx s1 in
-      let gen_ty = generalize t1 ctx' in
+      let gen_ty = generalize t1.typ ctx' in
       let ctx'' = Map.add name.thing gen_ty ctx' in
       let s2, t2 = infer body ctx'' in
-      (s2 ++ s1, t2)
+      ( s2 ++ s1,
+        {
+          expr =
+            Expr_let
+              { binding = { bind_body = { name; body = t1 } }; body = t2 };
+          typ = t2.typ;
+        } )
   | Expr_pattern { expr; pattern_data_items } ->
       let s0, t0 = infer expr ctx in
+
       let m_pattern (pattern : Canonical.Pattern.t) =
         let rec go = function
           | Canonical.Pattern.P_var v ->
               ( Map.empty,
-                { Pattern.Typed.typ = new_var "a"; pattern = P_T_var v },
+                { Pattern.typ = new_var "a"; pattern = P_T_var v },
                 Map.singleton v (Scheme ([], new_var "a")) )
           | P_anything ->
               ( Map.empty,
@@ -383,8 +402,7 @@ let rec infer (exp : Canonical.Expr.t) ctx =
               in
               ( s,
                 {
-                  typ =
-                    TTup (List.rev_map (fun t -> t.Pattern.Typed.typ) resolved);
+                  typ = TTup (List.rev_map (fun t -> t.Pattern.typ) resolved);
                   pattern = P_T_tuple (List.rev resolved);
                 },
                 ctx )
@@ -471,34 +489,42 @@ let rec infer (exp : Canonical.Expr.t) ctx =
         in
         go pattern
       in
-      let fn (patterns, (s0, ty0), (s1, ty1)) { pattern; expr = case_expr } =
+
+      let fn (patterns, (s0, ty0), (s1, ty1), typed_cases)
+          { pattern; expr = case_expr } =
         let fn_apply (s2, ty2, ctx') =
           let ctx = Map.union (fun _ _ b -> Some b) ctx ctx' in
           let s3, t3 = infer case_expr (apply_ctx ctx s2) in
           let s4 =
-            unify
-              (apply_typ ty2.Pattern.Typed.typ (s3 ++ s2))
-              (apply_typ ty0 s0)
+            unify (apply_typ ty2.Pattern.typ (s3 ++ s2)) (apply_typ ty0 s0)
           in
-          let s5 = unify (apply_typ t3 s3) (apply_typ ty1 s1) in
+          let s5 = unify (apply_typ t3.typ s3) (apply_typ ty1 s1) in
           let s4' = s4 ++ s3 ++ s2 ++ s1 ++ s0 in
+          let typed_case = { Ast.pattern = ty2; expr = t3 } in
           ( ty2 :: patterns,
             (s4', apply_typ ty2.typ s2),
-            (s5 ++ s4', apply_typ t3 s5) )
+            (s5 ++ s4', apply_typ t3.typ s5),
+            typed_case :: typed_cases )
         in
         fn_apply @@ m_pattern pattern
       in
-      let patterns, (s1, t1), (s2, ty2) =
+
+      let patterns, (s1, t1), (s2, ty2), typed_cases =
         match pattern_data_items with
         | hd :: rest ->
             List.fold_left fn
-              (fn ([], (s0, t0), (Map.empty, new_var "a")) hd)
+              (fn ([], (s0, t0.typ), (Map.empty, new_var "a"), []) hd)
               rest
         | [] -> raise (failwith "no patterns")
       in
-      if not @@ Pattern.is_exhaustive (List.rev patterns) then
-        failwith "Not exhaustive";
-      (s2 ++ s1, ty2)
+
+      ( s2 ++ s1,
+        {
+          expr =
+            Expr_pattern
+              { expr = t0; pattern_data_items = List.rev typed_cases };
+          typ = ty2;
+        } )
   | Expr_constr { name; arguments } -> (
       let decl =
         let open Canonical.Typedecl in
@@ -511,15 +537,17 @@ let rec infer (exp : Canonical.Expr.t) ctx =
       in
       match decl with
       | Some (type_, d) ->
-          let s, resolved_types =
+          let s, resolved_types, typed_args =
             List.fold_left2
-              (fun (s_acc, m) (ctor : Canonical.Typedef.Impl.t) arg ->
-                let s, ty = infer arg ctx in
+              (fun (s_acc, m, args_acc) (ctor : Canonical.Typedef.Impl.t) arg ->
+                let s, typed_arg = infer arg ctx in
                 ( s ++ s_acc,
-                  match ctor.body with
-                  | Canonical.Typedef.Kind.Tkind_var v -> Map.add v.thing ty m
-                  | _ -> m ))
-              (Map.empty, Map.empty) d.data arguments
+                  (match ctor.body with
+                  | Canonical.Typedef.Kind.Tkind_var v ->
+                      Map.add v.thing typed_arg.typ m
+                  | _ -> m),
+                  typed_arg :: args_acc ))
+              (Map.empty, Map.empty, []) d.data arguments
           in
           let args =
             List.map
@@ -530,25 +558,39 @@ let rec infer (exp : Canonical.Expr.t) ctx =
                     Printf.sprintf "Unknown type variable %s" p |> failwith)
               type_.params
           in
-          (s, TCustom (type_.name, args))
+          ( s,
+            {
+              expr = Expr_constr { name; arguments = List.rev typed_args };
+              typ = TCustom (type_.name, args);
+            } )
       | None -> Printf.sprintf "Unknown constructor %s" name |> failwith)
   | Expr_record_extend label ->
       let a = new_var "a" in
       let r = new_var "r" in
-      (Map.empty, TFun (a, TFun (TRecord r, TRecord (TRowExtend (label, a, r)))))
-  | Expr_record_empty -> (Map.empty, TRecord TRowEmpty)
+      ( Map.empty,
+        {
+          expr = Expr_record_extend label;
+          typ = TFun (a, TFun (TRecord r, TRecord (TRowExtend (label, a, r))));
+        } )
+  | Expr_record_empty ->
+      (Map.empty, { expr = Expr_record_empty; typ = TRecord TRowEmpty })
   | Expr_record_select label ->
       let a = new_var "a" in
       let r = new_var "r" in
-      (Map.empty, TFun (TRecord (TRowExtend (label, a, r)), a))
+      ( Map.empty,
+        {
+          expr = Expr_record_select label;
+          typ = TFun (TRecord (TRowExtend (label, a, r)), a);
+        } )
   | Expr_access { expr; field } ->
       let s1, t1 = infer expr ctx in
       let a = new_var "a" in
       let r = new_var "r" in
       let s2 =
-        unify (apply_typ t1 s1) (TRecord (TRowExtend (field.thing, a, r)))
+        unify (apply_typ t1.typ s1) (TRecord (TRowExtend (field.thing, a, r)))
       in
-      (s2 ++ s1, apply_typ a s2)
+      let final_typ = apply_typ a s2 in
+      (s2 ++ s1, { expr = Expr_access { expr = t1; field }; typ = final_typ })
   | Expr_lambda { params; body } ->
       let param_types = List.map (fun _ -> new_var "a") params in
       let ctx_with_params =
@@ -557,20 +599,28 @@ let rec infer (exp : Canonical.Expr.t) ctx =
             Map.add param.Data.Located.thing (Scheme ([], param_ty)) acc)
           ctx params param_types
       in
-      let s, ty = infer body ctx_with_params in
+      let s, typed_body = infer body ctx_with_params in
       let param_types' = List.map (fun ty -> apply_typ ty s) param_types in
       let fn_ty =
         List.fold_right
           (fun param_ty acc -> TFun (param_ty, acc))
-          param_types' ty
+          param_types' typed_body.typ
       in
-      (s, fn_ty)
+      let typed_params =
+        List.map2 (fun p ty -> { Ast.name = p; typ = ty }) params param_types'
+      in
+      ( s,
+        {
+          expr = Expr_lambda { params = typed_params; body = typed_body };
+          typ = fn_ty;
+        } )
   | _ -> failwith "Expression not implemented"
 
 let infer_exp exp ctx =
   State.reset ();
   let s, ty = infer exp ctx in
-  apply_typ ty s
+  (* FIXME *)
+  apply_typ ty.typ s
 
 let infer' = infer
 let infer exp = infer_exp exp ctx
@@ -591,7 +641,8 @@ let infer_declaration { Canonical.Declaration.body_part; type_part_data } ctx =
   let final_ty =
     List.fold_right
       (fun param_ty acc -> TFun (param_ty, acc))
-      param_types' (apply_typ ty s)
+      (*FIXME*)
+      param_types' (apply_typ ty.typ s)
   in
 
   let verified_ty, s_final =
@@ -665,7 +716,8 @@ let infer_toplevel declarations initial_ctx =
     let final_ty =
       List.fold_right
         (fun param_ty acc -> TFun (param_ty, acc))
-        param_types' (apply_typ ty s)
+        (*FIX ME*)
+        param_types' (apply_typ ty.typ s)
     in
 
     let verified_ty, s_final =

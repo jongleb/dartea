@@ -1,31 +1,11 @@
-module Typed = struct
-  open Ppx_compare_lib.Builtin
-  open Base.Export
-
-  type t = { typ : Type.t; pattern : kind }
-  [@@deriving show, compare, equal, hash]
-
-  and kind =
-    | P_T_anything
-    | P_T_var of string
-    | P_T_record of string list
-    (* | PAlias Pattern Name ?? *)
-    | P_T_unit
-    | P_T_tuple of t list
-    | P_T_list of t list
-    | P_T_cons of (t * t)
-    (* | PBool Union Bool*)
-    | P_T_chr of string
-    | P_T_str of string
-    | P_T_int of int
-    | P_T_ctor of (string * t list)
-  [@@deriving show, compare, equal, hash]
-end
+open CCOption
+open Infer
+open Pattern
 
 module Matrix = struct
-  open Typed
+  open Infer
 
-  type t = Typed.t List.t List.t
+  type t = Pattern.t List.t List.t
 
   let rec detuple full pat =
     match full with
@@ -60,7 +40,7 @@ end
 module Actions = struct
   type t = int List.t
 
-  let of_records r = r |> List.mapi (fun i (_pat : Typed.t) -> i)
+  let of_records r = r |> List.mapi (fun i (_pat : Pattern.t) -> i)
 end
 
 module Compile_state = struct
@@ -83,7 +63,6 @@ module Decision_tree = struct
 end
 
 open Compile_state
-open Typed
 open Decision_tree
 
 let is_equal_signature a b =
