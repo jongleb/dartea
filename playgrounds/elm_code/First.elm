@@ -1,7 +1,11 @@
-type Test3 = A | B
+type Test3 = A1 | B2
 
 sum: Int
 sum = 1 + 2 - 1 + xxx 80
+
+kekk x = case x of
+    A1 -> 1
+    B2 -> 2
 
 id: a -> a
 id a = a

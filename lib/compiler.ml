@@ -83,7 +83,7 @@ let compile path =
       canonicalized
   in
 
-  let check_exhaustiveness (decl : Typed.Declaration.t) =
+  let check_exhaustiveness (arity_env : int Infer.Infer_proc.Map.t) (decl : Typed.Declaration.t) =
     let open Typed.Expr in
     let rec check_expr (expr : Typed.Expr.t) =
       match expr.expr with
@@ -94,7 +94,7 @@ let compile path =
               pattern_match.pattern_data_items
           in
           let warnings =
-            if not (After_typed.Exhaustive.is_exhaustive patterns) then
+            if not (After_typed.Exhaustive.is_exhaustive arity_env patterns) then
               [
                 Printf.sprintf "Warning: non-exhaustive pattern match in %s"
                   decl.name.thing;
@@ -137,7 +137,8 @@ let compile path =
     List.concat_map
       (fun x ->
         match x with
-        | Ok (_, decls) -> List.concat_map check_exhaustiveness decls
+        | Ok (Infer.Infer_proc.{ arity_env; declarations; _ }) ->
+            List.concat_map (check_exhaustiveness arity_env) declarations
         | Error _ -> [])
       typed
   in
@@ -146,12 +147,12 @@ let compile path =
   List.iter
     (fun x ->
       match x with
-      | Ok (_, decls) ->
+      | Ok (Infer.Infer_proc.{ declarations; _ }) ->
           List.iter
             (fun (decl : Typed.Declaration.t) ->
               Printf.printf "%s : %s\n" decl.name.thing
                 (Infer.Infer_proc.string_of_typ decl.typ))
-            decls
+            declarations
       | Error x -> raise x)
     typed;
   prerr_endline "Success!"

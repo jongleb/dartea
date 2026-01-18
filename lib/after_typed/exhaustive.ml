@@ -155,19 +155,15 @@ let first_refutable node =
          else None)
   |> CCOption.get_exn_or "InvalidOperationException"
 
-let arities = function
+let arities arity_env = function
   | { pattern = P_T_ctor (name, _) } -> (
-      (*TODO FIX ME*)
-      match name with
-      | "None" | "Just" -> 2
-      | "A" | "B" -> 2
-      | "C" | "D" -> 2
-      | "E" | "F" | "G" -> 3
-      | _ -> failwith "no implemented")
+      match Infer.Infer_proc.Map.find_opt name arity_env with
+      | Some arity -> arity
+      | None -> failwith (Printf.sprintf "Constructor %s not found in arity environment" name))
   | p when Matrix.is_irrefutable p -> 0
   | _ -> Int.max_int
 
-let rec compile node =
+let rec compile arity_env node =
   if List.length node.patterns = 0 then Fail
   else if List.for_all Matrix.is_irrefutable (List.hd node.patterns) then
     let _result = List.hd node.actions in
@@ -184,12 +180,12 @@ let rec compile node =
     let uniq = uniq_signatures (Matrix.get_column node.patterns 0) in
     let specialized =
       List.map
-        (fun signature -> signature |> specialization node |> compile)
+        (fun signature -> signature |> specialization node |> compile arity_env)
         uniq
     in
     let default =
-      if List.length uniq < arities (List.hd @@ List.hd node.patterns) then
-        Some (compile @@ defaulting node)
+      if List.length uniq < arities arity_env (List.hd @@ List.hd node.patterns) then
+        Some (compile arity_env @@ defaulting node)
       else None
     in
     Switch { specialized; default }
@@ -201,4 +197,4 @@ let rec is_exhaustive' = function
       List.for_all is_exhaustive'
         (List.concat [ CCOption.to_list default; specialized ])
 
-let is_exhaustive rows = rows |> Compile_state.make |> compile |> is_exhaustive'
+let is_exhaustive arity_env rows = rows |> Compile_state.make |> compile arity_env |> is_exhaustive'

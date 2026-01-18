@@ -4,6 +4,55 @@ module Map = Map.Make (String)
 
 type ctx = scheme Map.t
 
+type type_env = {
+  types : Canonical.Typedecl.t Map.t;
+  constructors : (Canonical.Typedecl.t * Canonical.Typedecl.type_ctor) Map.t;
+}
+
+type infer_result = {
+  ctx : ctx;
+  declarations : Typed.Declaration.t list;
+  arity_env : int Map.t;
+}
+
+let build_type_env (module_ : Canonical.Module.t) : type_env =
+  let types =
+    Canonical.Module.String_map.fold
+      (fun name typedecl acc -> Map.add name typedecl acc)
+      module_.type_declarations Map.empty
+  in
+  (* LOOKS STRANGE *)
+  let std_types =
+    List.fold_left
+      (fun acc (typedecl : Canonical.Typedecl.t) ->
+        Map.add typedecl.name typedecl acc)
+      Map.empty Std_types.test_custom_definitions
+  in
+  let constructors =
+    Canonical.Module.String_map.fold
+      (fun _ (typedecl : Canonical.Typedecl.t) acc ->
+        List.fold_left
+          (fun acc_inner (ctor : Canonical.Typedecl.type_ctor) ->
+            Map.add ctor.id (typedecl, ctor) acc_inner)
+          acc typedecl.ctors)
+      module_.type_declarations Map.empty
+  in
+  (* LOOKS STRANGE *)
+  let std_constructors =
+    List.fold_left
+      (fun acc (typedecl : Canonical.Typedecl.t) ->
+        List.fold_left
+          (fun acc_inner (ctor : Canonical.Typedecl.type_ctor) ->
+            Map.add ctor.id (typedecl, ctor) acc_inner)
+          acc typedecl.ctors)
+      Map.empty Std_types.test_custom_definitions
+  in
+  {
+    types = Map.union (fun _ user_type _ -> Some user_type) types std_types;
+    constructors =
+      Map.union (fun _ user_ctor _ -> Some user_ctor) constructors std_constructors;
+  }
+
 let typs : (string * scheme) list =
   [
     ("pow", Scheme ([], TFun (TInt, TFun (TInt, TInt))));
@@ -312,7 +361,34 @@ let typedef_to_type typedef =
   in
   convert typedef
 
-let rec infer (exp : Canonical.Expr.t) ctx : Type.t Map.t * Typed.Expr.t =
+let build_initial_ctx (type_env : type_env) : ctx =
+  Map.fold
+    (fun ctor_name
+         ( (typedef : Canonical.Typedecl.t),
+           (ctor : Canonical.Typedecl.type_ctor) ) acc ->
+      let ctor_type =
+        match ctor.data with
+        | [] -> TCustom (typedef.name, List.map (fun p -> TVar p) typedef.params)
+        | args ->
+            let param_types =
+              List.map
+                (fun (arg_spec : Canonical.Typedef.Impl.t) ->
+                  typedef_to_type arg_spec.body)
+                args
+            in
+            let result_type =
+              TCustom (typedef.name, List.map (fun p -> TVar p) typedef.params)
+            in
+            List.fold_right
+              (fun arg_ty acc -> TFun (arg_ty, acc))
+              param_types result_type
+      in
+      Map.add ctor_name (Scheme (typedef.params, ctor_type)) acc)
+    type_env.constructors ctx
+
+let rec infer_with_env (exp : Canonical.Expr.t) ctx (type_env : type_env) :
+    Type.t Map.t * Typed.Expr.t =
+  let infer exp ctx = infer_with_env exp ctx type_env in
   match exp with
   | Expr_int i -> (Map.empty, { expr = Typed.Expr.Expr_int i; typ = TInt })
   | Expr_float f -> (Map.empty, { expr = Expr_float f; typ = TInt })
@@ -434,16 +510,7 @@ let rec infer (exp : Canonical.Expr.t) ctx : Type.t Map.t * Typed.Expr.t =
                 { typ = list_type; pattern = P_T_cons (ty_head, ty_tail) },
                 merge_ctx ctx1 ctx2 )
           | P_ctor (name, list) -> (
-              let decl =
-                let open Canonical.Typedecl in
-                List.find_map
-                  (fun type_ ->
-                    List.find_map
-                      (fun ctor ->
-                        if name = ctor.id then Some (type_, ctor) else None)
-                      type_.ctors)
-                  Fake_types.test_custom_definitions
-              in
+              let decl = Map.find_opt name type_env.constructors in
               match decl with
               | Some (type_, d) ->
                   let s, resolved_types, patterns, ctx =
@@ -527,15 +594,7 @@ let rec infer (exp : Canonical.Expr.t) ctx : Type.t Map.t * Typed.Expr.t =
           typ = ty2;
         } )
   | Expr_constr { name; arguments } -> (
-      let decl =
-        let open Canonical.Typedecl in
-        List.find_map
-          (fun type_ ->
-            List.find_map
-              (fun ctor -> if name = ctor.id then Some (type_, ctor) else None)
-              type_.ctors)
-          Fake_types.test_custom_definitions
-      in
+      let decl = Map.find_opt name type_env.constructors in
       match decl with
       | Some (type_, d) ->
           let s, resolved_types, typed_args =
@@ -619,16 +678,19 @@ let rec infer (exp : Canonical.Expr.t) ctx : Type.t Map.t * Typed.Expr.t =
         } )
   | _ -> failwith "Expression not implemented"
 
-let infer_exp exp ctx =
+let infer_exp exp ctx type_env =
   State.reset ();
-  let s, ty = infer exp ctx in
+  let s, ty = infer_with_env exp ctx type_env in
   (* FIXME *)
   apply_typ ty.typ s
 
-let infer' = infer
-let infer exp = infer_exp exp ctx
+let infer' exp ctx type_env = infer_with_env exp ctx type_env
 
-let infer_declaration { Canonical.Declaration.body_part; type_part_data } ctx =
+let infer exp =
+  infer_exp exp ctx { types = Map.empty; constructors = Map.empty }
+
+let infer_declaration { Canonical.Declaration.body_part; type_part_data } ctx
+    type_env =
   let param_types = List.map (fun _ -> new_var "a") body_part.params in
   let ctx_with_params =
     List.fold_left2
@@ -638,7 +700,7 @@ let infer_declaration { Canonical.Declaration.body_part; type_part_data } ctx =
   in
 
   let s, typed_expr =
-    infer' body_part.expr.Data.Located.thing ctx_with_params
+    infer' body_part.expr.Data.Located.thing ctx_with_params type_env
   in
 
   let param_types' = List.map (fun ty -> apply_typ ty s) param_types in
@@ -679,7 +741,27 @@ let infer_declaration { Canonical.Declaration.body_part; type_part_data } ctx =
 
   (s_final, typed_decl, new_ctx)
 
+let build_arity_env (type_env : type_env) : int Map.t =
+  Map.fold
+    (fun _ctor_name (typedef, _ctor) acc ->
+      let arity = List.length typedef.Canonical.Typedecl.ctors in
+      List.fold_left
+        (fun acc_inner (ctor : Canonical.Typedecl.type_ctor) ->
+          Map.add ctor.id arity acc_inner)
+        acc typedef.ctors)
+    type_env.constructors Map.empty
+
 let infer_toplevel (module_ : Canonical.Module.t) initial_ctx =
+  let type_env = build_type_env module_ in
+
+  let ctx_with_constructors = build_initial_ctx type_env in
+
+  let initial_ctx =
+    Map.union
+      (fun _ _ user_val -> Some user_val)
+      ctx_with_constructors initial_ctx
+  in
+
   let type_aliases =
     Canonical.Module.String_map.fold
       (fun name ta acc ->
@@ -727,7 +809,7 @@ let infer_toplevel (module_ : Canonical.Module.t) initial_ctx =
     in
 
     let s, typed_expr =
-      infer' body_part.expr.Data.Located.thing ctx_with_params
+      infer' body_part.expr.Data.Located.thing ctx_with_params type_env
     in
 
     let param_types' = List.map (fun ty -> apply_typ ty s) param_types in
@@ -796,4 +878,6 @@ let infer_toplevel (module_ : Canonical.Module.t) initial_ctx =
       (ctx_with_placeholders, [])
   in
 
-  (final_ctx, List.rev typed_decls)
+  let arity_env = build_arity_env type_env in
+
+  { ctx = final_ctx; declarations = List.rev typed_decls; arity_env }
