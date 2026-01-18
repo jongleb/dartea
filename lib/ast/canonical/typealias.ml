@@ -1,4 +1,5 @@
 type t = { params : string list; typedef : Typedef.Impl.t; name : string }
+[@@deriving show]
 
 let of_frontend (frontend : Frontend.Typealias.t) : t =
   {

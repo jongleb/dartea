@@ -1,3 +1,5 @@
+type Test3 = A | B
+
 sum: Int
 sum = 1 + 2 - 1 + xxx 80
 

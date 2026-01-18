@@ -60,7 +60,12 @@ let compile path =
       result
   in
   let canonicalized =
-    List.map (fun x -> x >>| List.map Canonical.Impl.of_frontend) result
+    List.map
+      (fun x ->
+        x >>| fun impl_list ->
+        let frontend_module = Frontend.Module.of_impl impl_list in
+        Canonical.Module.of_frontend frontend_module)
+      result
   in
   let initial_ctx =
     let f acc (v, scheme) = Infer.Infer_proc.Map.add v scheme acc in

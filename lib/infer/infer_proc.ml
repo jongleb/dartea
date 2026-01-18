@@ -679,16 +679,13 @@ let infer_declaration { Canonical.Declaration.body_part; type_part_data } ctx =
 
   (s_final, typed_decl, new_ctx)
 
-let infer_toplevel declarations initial_ctx =
+let infer_toplevel (module_ : Canonical.Module.t) initial_ctx =
   let type_aliases =
-    List.fold_left
-      (fun acc decl ->
-        match decl with
-        | Canonical.Impl.Type_alias ta ->
-            let alias_type = typedef_to_type ta.typedef.body in
-            Map.add ta.name (ta.params, alias_type) acc
-        | _ -> acc)
-      Map.empty declarations
+    Canonical.Module.String_map.fold
+      (fun name ta acc ->
+        let alias_type = typedef_to_type ta.Canonical.Typealias.typedef.body in
+        Map.add name (ta.params, alias_type) acc)
+      module_.type_aliases Map.empty
   in
 
   let rec expand_type_alias ty =
@@ -774,35 +771,29 @@ let infer_toplevel declarations initial_ctx =
   in
 
   let ctx_with_placeholders =
-    List.fold_left
-      (fun acc decl ->
-        match decl with
-        | Canonical.Impl.Top_declaration { body_part; type_part_data; _ } ->
-            let ty_scheme =
-              match type_part_data with
-              | Some type_part ->
-                  let declared_ty = typedef_to_type type_part.type_alias.body in
-                  let expanded_ty = expand_type_alias declared_ty in
-                  Scheme ([], expanded_ty)
-              | None -> Scheme ([], new_var "a")
-            in
-            Map.add body_part.name.thing ty_scheme acc
-        | Canonical.Impl.Type_alias _ -> acc)
-      initial_ctx declarations
+    Canonical.Module.String_map.fold
+      (fun name decl acc ->
+        let ty_scheme =
+          match decl.Canonical.Declaration.type_part_data with
+          | Some type_part ->
+              let declared_ty = typedef_to_type type_part.type_alias.body in
+              let expanded_ty = expand_type_alias declared_ty in
+              Scheme ([], expanded_ty)
+          | None -> Scheme ([], new_var "a")
+        in
+        Map.add name ty_scheme acc)
+      module_.top_declarations initial_ctx
   in
 
   let final_ctx, typed_decls =
-    List.fold_left
-      (fun (ctx_acc, decls_acc) decl ->
-        match decl with
-        | Canonical.Impl.Top_declaration decl_data ->
-            let s, typed_decl, new_ctx =
-              infer_declaration_with_expansion decl_data ctx_acc
-            in
-            (new_ctx, typed_decl :: decls_acc)
-        | Canonical.Impl.Type_alias _ -> (ctx_acc, decls_acc))
+    Canonical.Module.String_map.fold
+      (fun name decl_data (ctx_acc, decls_acc) ->
+        let s, typed_decl, new_ctx =
+          infer_declaration_with_expansion decl_data ctx_acc
+        in
+        (new_ctx, typed_decl :: decls_acc))
+      module_.top_declarations
       (ctx_with_placeholders, [])
-      declarations
   in
 
   (final_ctx, List.rev typed_decls)
