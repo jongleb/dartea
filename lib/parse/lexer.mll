@@ -61,6 +61,7 @@ rule token state = parse
   | "\\"            { BACKSLASH }
   | "->"            { Indenter.handle_arrow state lexbuf }
   | "|>"            { PIPE_GT }
+  | "++"            { CONCAT }
   | "+"             { PLUS }
   | "-"             { MINUS }
   | "_"             { WILDCARD }

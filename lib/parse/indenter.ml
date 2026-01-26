@@ -48,6 +48,7 @@ let show_token token =
   | MODULE -> "MODULE"
   | INDENT -> "INDENT"
   | DEDENT -> "DEDENT"
+  | CONCAT -> "CONCAT"
 
 type indent_context =
   | Let
@@ -135,6 +136,9 @@ let close_until state ident next_token =
         Stack.push (ident', ctx) state.stack
     | Some (ident', Case_arm_expr) when ident = ident' ->
         Queue.add DEDENT state.queue
+    | Some (ident', Let_def) when ident = ident' ->
+        prerr_endline "Let_def when ident = ident' in close_until";
+        Stack.push (ident', Let_def) state.stack
     | Some (ident', ctx) ->
         prerr_endline
         @@ Printf.sprintf "Some (ident', ctx), ident: %n, ident' : %n , ctx: %s"
@@ -311,6 +315,7 @@ let handle_newline state nl token lexbuf =
 let handle_equal state lexbuf =
   prerr_endline "handle_equal";
   state.need_dedent_after_type <- false;
+  state.ident_compare <- -1;
 
   if get_current_context state = Top_level then (
     prerr_endline "handle_equal, Top_level branch";

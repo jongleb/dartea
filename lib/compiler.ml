@@ -22,6 +22,7 @@ let compile path =
       ("+", Scheme ([], TFun (TInt, TFun (TInt, TInt))));
       ("plus", Scheme ([], TFun (TInt, TFun (TInt, TInt))));
       ("concat", Scheme ([], TFun (TStr, TFun (TStr, TStr))));
+      ("++", Scheme ([], TFun (TStr, TFun (TStr, TStr))));
       ("length", Scheme ([], TFun (TStr, TInt)));
       ("int_to_string", Scheme ([], TFun (TInt, TStr)));
       ("int_of_string", Scheme ([], TFun (TStr, TInt)));
@@ -83,7 +84,8 @@ let compile path =
       canonicalized
   in
 
-  let check_exhaustiveness (arity_env : int Infer.Infer_proc.Map.t) (decl : Typed.Declaration.t) =
+  let check_exhaustiveness (arity_env : int Infer.Infer_proc.Map.t)
+      (decl : Typed.Declaration.t) =
     let open Typed.Expr in
     let rec check_expr (expr : Typed.Expr.t) =
       match expr.expr with
@@ -94,7 +96,8 @@ let compile path =
               pattern_match.pattern_data_items
           in
           let warnings =
-            if not (After_typed.Exhaustive.is_exhaustive arity_env patterns) then
+            if not (After_typed.Exhaustive.is_exhaustive arity_env patterns)
+            then
               [
                 Printf.sprintf "Warning: non-exhaustive pattern match in %s"
                   decl.name.thing;
@@ -137,22 +140,43 @@ let compile path =
     List.concat_map
       (fun x ->
         match x with
-        | Ok (Infer.Infer_proc.{ arity_env; declarations; _ }) ->
+        | Ok Infer.Infer_proc.{ arity_env; declarations; _ } ->
             List.concat_map (check_exhaustiveness arity_env) declarations
         | Error _ -> [])
       typed
   in
   List.iter (fun x -> x |> Printf.sprintf "%s\n" |> prerr_endline) warnings;
 
+  let optimized =
+    List.map
+      (fun x ->
+        Result.map
+          (fun (result : Infer.Infer_proc.infer_result) ->
+            After_typed.Optimize.optimize result.declarations)
+          x)
+      typed
+  in
+
+  (* Check for errors in optimized code *)
+  List.iter (fun x -> match x with Ok _ -> () | Error x -> raise x) optimized;
+
+  let js_programs =
+    List.filter_map
+      (fun x ->
+        match x with
+        | Ok declarations ->
+            let js_ast =
+              Codegen.Js_of_optimized.program_with_helpers declarations
+            in
+            Some js_ast
+        | Error _ -> None)
+      optimized
+  in
+
   List.iter
-    (fun x ->
-      match x with
-      | Ok (Infer.Infer_proc.{ declarations; _ }) ->
-          List.iter
-            (fun (decl : Typed.Declaration.t) ->
-              Printf.printf "%s : %s\n" decl.name.thing
-                (Infer.Infer_proc.string_of_typ decl.typ))
-            declarations
-      | Error x -> raise x)
-    typed;
+    (fun js_program ->
+      let js_code = Codegen.Js_to_string.program_to_string js_program in
+      Printf.printf "\n=== Generated JavaScript ===\n%s\n" js_code)
+    js_programs;
+
   prerr_endline "Success!"

@@ -48,13 +48,14 @@
 %token ALIAS
 %token COLON
 %token PIPE
+%token CONCAT
 
 %nonassoc ELSE IN
 %nonassoc ARROW
 
 %left UMINUS
 %left PIPE_GT
-%left PLUS MINUS
+%left PLUS MINUS CONCAT
 %left TIMES DIV
 %left EQ_EQ
 %left GT LT
@@ -285,6 +286,7 @@ binop:
     | MINUS { "-" }
     | DIV { "/" }
     | TIMES { "*" }
+    | CONCAT { "++" }
     | EQ_EQ { "==" }
     | GT { ">" }
     | LT { "<" }
