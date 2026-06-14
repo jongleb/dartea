@@ -117,6 +117,7 @@ let of_frontend expr =
               })
           Expr_record_empty r
     | Expr_lambda { params; body } -> Expr_lambda { params; body = go body }
+    | Expr_constr_fixed name -> Expr_ident name
     | e ->
         failwith @@ Printf.sprintf "not implemented: %s" @@ Frontend.Expr.show e
   in

@@ -50,7 +50,9 @@ let build_type_env (module_ : Canonical.Module.t) : type_env =
   {
     types = Map.union (fun _ user_type _ -> Some user_type) types std_types;
     constructors =
-      Map.union (fun _ user_ctor _ -> Some user_ctor) constructors std_constructors;
+      Map.union
+        (fun _ user_ctor _ -> Some user_ctor)
+        constructors std_constructors;
   }
 
 let typs : (string * scheme) list =
@@ -593,37 +595,6 @@ let rec infer_with_env (exp : Canonical.Expr.t) ctx (type_env : type_env) :
               { expr = t0; pattern_data_items = List.rev typed_cases };
           typ = ty2;
         } )
-  | Expr_constr { name; arguments } -> (
-      let decl = Map.find_opt name type_env.constructors in
-      match decl with
-      | Some (type_, d) ->
-          let s, resolved_types, typed_args =
-            List.fold_left2
-              (fun (s_acc, m, args_acc) (ctor : Canonical.Typedef.Impl.t) arg ->
-                let s, typed_arg = infer arg ctx in
-                ( s ++ s_acc,
-                  (match ctor.body with
-                  | Canonical.Typedef.Kind.Tkind_var v ->
-                      Map.add v.thing typed_arg.typ m
-                  | _ -> m),
-                  typed_arg :: args_acc ))
-              (Map.empty, Map.empty, []) d.data arguments
-          in
-          let args =
-            List.map
-              (fun p ->
-                match Map.find_opt p resolved_types with
-                | Some t -> t
-                | None ->
-                    Printf.sprintf "Unknown type variable %s" p |> failwith)
-              type_.params
-          in
-          ( s,
-            {
-              expr = Expr_constr { name; arguments = List.rev typed_args };
-              typ = TCustom (type_.name, args);
-            } )
-      | None -> Printf.sprintf "Unknown constructor %s" name |> failwith)
   | Expr_record_extend label ->
       let a = new_var "a" in
       let r = new_var "r" in

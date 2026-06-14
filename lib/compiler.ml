@@ -160,6 +160,12 @@ let compile path =
   (* Check for errors in optimized code *)
   List.iter (fun x -> match x with Ok _ -> () | Error x -> raise x) optimized;
 
+  let sorted =
+    List.map
+      (fun x -> Result.map After_typed.Dependency_sort.sort_declarations x)
+      optimized
+  in
+
   let js_programs =
     List.filter_map
       (fun x ->
@@ -170,7 +176,7 @@ let compile path =
             in
             Some js_ast
         | Error _ -> None)
-      optimized
+      sorted
   in
 
   List.iter
