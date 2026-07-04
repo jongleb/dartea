@@ -16,7 +16,8 @@ let dummify_thing Data.Located.{ thing; _ } = Data.Located.dummy thing
 module Top_declaration_util = struct
   open Declaration
 
-  let dummify_body_part { name; expr } = { name = dummify_thing name; expr }
+  let dummify_body_part { name; expr; params } =
+    { name = dummify_thing name; expr; params = List.map dummify_thing params }
 
   let dummify_type_part { name; type_alias } =
     { name = dummify_thing name; type_alias }

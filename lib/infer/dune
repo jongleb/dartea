@@ -1,6 +1,6 @@
 (library
- (name ast)
- (libraries frontend data canonical)
+ (name infer)
+ (libraries canonical frontend typed containers-data data vector)
  (flags
   (-w -40 -w +26))
  (preprocess

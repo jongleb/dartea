@@ -6,14 +6,17 @@ module Main = Parse.Main
 
 let test_module_parsed _ =
   let input =
-    {|module Abcd exposing (..)
+    {|
+module Abcd exposing (..)
 
-import Ab as A exposing (someThing)  
-
-someData = Maybe 2|}
+import Ab as A exposing (someThing)
+import Ab as A exposing (someThing)
+|}
   in
   let result = Main.parse input in
-  let module_ = Module.of_impl (Result.get_ok result) in
+  let module_ =
+    Module.of_impl (match result with Ok r -> r | Error e -> raise e)
+  in
 
   let expect_import_name = "Abcd" in
   let expect_imports =

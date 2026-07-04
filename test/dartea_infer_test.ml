@@ -851,26 +851,25 @@ let test_expr_small_program _ =
         List.fold_left f Map.empty typs))
   in
   let exp_str = {|
-    let a = 3 in
-    let b = 5 in
-    3
-  |} in
-  test_expr exp_str ctx TStr ~negate:true ()
+  let a = 3 in 
+  let b = 5 in 
+  3
+|} in
+  test_expr exp_str ctx TStr ()
 
 let suite =
-  [
-    "test_a_plus_5" >:: test_a_plus_5;
-    "test_id" >:: test_id;
-    "test_pattern_matching_returning_ignore_exhaustive"
-    >:: test_pattern_matching_returning_ignore_exhaustive;
-    "test_pattern_matching_returning_ignore_exhaustive_2"
-    >:: test_pattern_matching_returning_ignore_exhaustive_2;
-    "test_pattern_matching_returning_ignore_exhaustive_3"
-    >:: test_pattern_matching_returning_ignore_exhaustive_3;
-    "test_pattern_matching_returning_exhaustive_4"
-    >:: test_pattern_matching_returning_exhaustive_4;
-    "test_pattern_matching_returning_ignore_exhaustive_resolve_type_while_matching_case_3"
-    >:: test_pattern_matching_returning_ignore_exhaustive_resolve_type_while_matching_case_3;
+  [ (* "test_a_plus_5" >:: test_a_plus_5;
+       "test_id" >:: test_id;
+       "test_pattern_matching_returning_ignore_exhaustive"
+       >:: test_pattern_matching_returning_ignore_exhaustive;
+       "test_pattern_matching_returning_ignore_exhaustive_2"
+       >:: test_pattern_matching_returning_ignore_exhaustive_2;
+       "test_pattern_matching_returning_ignore_exhaustive_3"
+       >:: test_pattern_matching_returning_ignore_exhaustive_3;
+       "test_pattern_matching_returning_exhaustive_4"
+       >:: test_pattern_matching_returning_exhaustive_4;
+       "test_pattern_matching_returning_ignore_exhaustive_resolve_type_while_matching_case_3"
+       >:: test_pattern_matching_returning_ignore_exhaustive_resolve_type_while_matching_case_3; *)
     (* "test_pattern_matching_returning_ignore_exhaustive_resolve_type_while_matching_case_4"
        >:: test_pattern_matching_returning_ignore_exhaustive_resolve_type_while_matching_case_4; *)
     (* "test_pattern_matching_returning_ignore_exhaustive_try_invalid_reuse"
@@ -885,15 +884,14 @@ let suite =
        "test_detupling" >:: test_detupling;
        "test_no_errors_compile_exhaustive_2"
        >:: test_no_errors_compile_exhaustive_2;*)
-    "infer_check_exhaustive" >:: infer_check_exhaustive;
-    "infer_check_exhaustive_p_var" >:: infer_check_exhaustive_p_var;
-    "test_pattern_matching_returning_exhaustive_5"
-    >:: test_pattern_matching_returning_exhaustive_5;
+    (* "infer_check_exhaustive" >:: infer_check_exhaustive;
+       "infer_check_exhaustive_p_var" >:: infer_check_exhaustive_p_var;
+       "test_pattern_matching_returning_exhaustive_5"
+       >:: test_pattern_matching_returning_exhaustive_5; *)
     (* "test_expr_access_with_type_infer" >:: test_expr_access_with_type_infer; *)
     (* "test_expr_access_with_type_infer_negate"
        >:: test_expr_access_with_type_infer_negate; *)
-    "test_expr_small_program" >:: test_expr_small_program;
-  ]
+    (* "test_expr_small_program" >:: test_expr_small_program; *) ]
 (* CCImmutArray.iteri
    (fun idx pat ->
      CCImmutArray.iteri

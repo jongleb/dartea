@@ -1,14 +1,14 @@
-%{ 
+%{
     open Ast.Kind.Frontend
     open Data
+    open Expr
+    open Pattern
 %}
 
-%token TYPE
-%token ALIAS
 %token <string> LCNAME
 %token <string> UCNAME
 %token <string> UCNAME_PATH
-%token <string> ACCESSOR
+%token <string> ACCESS
 %token <int> INT
 %token <string> STRING
 %token <float> FLOAT
@@ -19,10 +19,7 @@
 %token LBRACE
 %token RBRACE
 %token COMMA
-%token COLON
-%token PIPE
 %token ARROW
-%token NEWLINE
 %token LBRACKET
 %token RBRACKET
 %token LET
@@ -37,43 +34,52 @@
 %token CASE
 %token OF
 %token WILDCARD
-%token CONS
 %token UNIT
-%token IMPORT
-%token AS
-%token DOT
 %token TWO_DOTS
 %token EXPOSING
 %token EQ_EQ GT LT
-%token MODULE_
-
+%token MODULE
 %token INDENT DEDENT
+%token PIPE_GT
+%token UMINUS
+%token CONS
+%token BACKSLASH
+%token TYPE
+%token ALIAS
+%token COLON
+%token PIPE
+%token CONCAT
 
+%nonassoc ELSE IN
+%nonassoc ARROW
 
-%nonassoc IN
-%nonassoc ELSE
-// %nonassoc ARROW
-
-%left PLUS MINUS
+%left UMINUS
+%left PIPE_GT
+%left PLUS MINUS CONCAT
 %left TIMES DIV
 %left EQ_EQ
 %left GT LT
-%left DOT
-// %nonassoc UMINUS
 
+%type <Ast.Kind.Frontend.Expr.t> expr
+%type <Ast.Kind.Frontend.Typedef.Impl.t> type_expr
+%type <Ast.Kind.Frontend.Typedef.Kind.t> type_atom_no_parens
+%type <Ast.Kind.Frontend.Typedef.Impl.t> type_in_parens
+%type <Ast.Kind.Frontend.Typedef.Impl.t> type_in_parens_content
 
 %start <Ast.Kind.Frontend.Impl.t list> prog
-
 %%
-prog:
-    m=ioption(terminated(module_, NEWLINE)) // FIXME: I am not sure if it's optional, but not now..
-    lst = top_decls; 
-    EOF { List.concat [Option.value ~default:[] m; lst;]  }
 
-top_decls:
-    | x=import xs=top_decls { List.concat [[x]; xs;] }
-    | NEWLINE xs=top_decls { xs }
-    | xs=separated_list(NEWLINE+, decls) { xs }     
+prog:
+    m=ioption(module_)
+    lst = top_decls;
+    EOF { List.concat [Option.value ~default:[] m; lst] }
+
+top_decls: l=list(top_decl) { l }
+
+top_decl:
+    | d=value_decl_with_type { d }
+    | d=type_alias_decl { d }
+    | d=type_decl { d }
 
 upper_possible_dotted:
     | what=UCNAME { what }
@@ -83,16 +89,8 @@ loc(X):
     what=X { Located.mk what $loc }
 
 module_:
-    | MODULE_ name=loc(upper_possible_dotted) EXPOSING exposing=exposing
+    | MODULE name=loc(upper_possible_dotted) EXPOSING exposing=exposing
         { [Impl.ModuleName name; Impl.Export exposing] }       
-
-import:
-    | IMPORT name=loc(upper_possible_dotted) alias=ioption(preceded(AS, UCNAME))
-      exposing_opt=ioption(preceded(EXPOSING, exposing)) 
-      { 
-        let exposing = Option.value ~default:(Exposing.Explicit []) exposing_opt in
-        Impl.Import (Import_thing.{ name; alias; exposing;  })
-      }
 
 exposing:
     | LPAREN TWO_DOTS RPAREN { Exposing.Open }
@@ -103,159 +101,194 @@ exposing_item:
     | name=loc(LCNAME) { Exposing.Upper { name; privacy=Private } }
     | name=loc(UCNAME) LPAREN TWO_DOTS RPAREN { Exposing.Upper { name; privacy=Public($loc) } }    
 
-decls:
-    | d=ty_decl { d }
-    | v=value_decl { v }
 
-ty_decl:
-    | TYPE ALIAS name=loc(UCNAME) params=list(loc(LCNAME)) ioption(NEWLINE) EQUAL typedef=ty_al_exp_head 
-        { Impl.Type_alias({ typedef; name; params }) }
-    | TYPE name=UCNAME params=list(LCNAME) EQUAL ctors=separated_nonempty_list(PIPE, ty_constrs_data) 
-        { Impl.Type_dec({ name; ctors; params; })}
-
-value_decl:
-    | type_part_data=ioption(terminated(value_decl_type, NEWLINE)) body_part=value_decl_body 
-        { Impl.Top_declaration ({ type_part_data; body_part }) }
-
-value_decl_type:
-    | name=loc(LCNAME) COLON type_alias=ty_al_exp_head { Declaration.{ name; type_alias; } }  
-
-value_decl_body:
-    | name=loc(LCNAME) EQUAL expr=loc(value_decl_body_exprs_top) {Declaration.{ name; expr; }}
-
-value_decl_body_exprs_composite:
-    | e1=value_decl_body_exprs_top name=value_decl_body_exprs_binop e2=value_decl_body_exprs_top { Expr_binop({ name; operands=(e1, e2) }) }
-    | LET bindings=separated_nonempty_list(NEWLINE+, value_decl_body_let_def)
-      IN body=value_decl_body_exprs_top { Expr.make_expr_let ~bindings:(Non_empty_list.of_list_exn bindings) body  }
-    | IF if_exp=value_decl_body_exprs_top 
-        THEN then_exp=value_decl_body_exprs_top
-        ELSE else_exp=value_decl_body_exprs_top
-        { Expr_if_then_else({ if_exp; then_exp; else_exp; }) }
-    | name=UCNAME arguments=list(value_decl_body_exprs) { Expr_constr({ name; arguments }) }
-    | CASE expr=value_decl_body_exprs_top OF INDENT
-      pattern_data_items=separated_nonempty_list(NEWLINE, value_decl_body_exprs_case) DEDENT
-        { Expr_pattern({ expr; pattern_data_items; })}
-    | expr=value_decl_body_exprs_top DOT field=loc(LCNAME) { Expr_access { expr; field } }
+type_alias_decl:
+    | TYPE ALIAS name=loc(UCNAME) params=list(loc(LCNAME)) EQUAL typedef=indented(type_expr)
+        { Impl.Type_alias { name; params; typedef } }
 
 
-value_decl_body_exprs_case:
-    | pattern=value_decl_body_exprs_pattern_top ARROW expr=value_decl_body_exprs_top
-        {{ pattern; expr; }}
+type_decl:
+    | TYPE name=UCNAME params=list(LCNAME) EQUAL ctors=indented(type_constructors)
+        { Impl.Type_dec { Typedecl.name; params; ctors } }
 
-value_decl_body_exprs_pattern_top:
-    | e=value_decl_body_exprs_pattern_composite { e }
-    | e=value_decl_body_exprs_pattern_plain { e }
+type_constructors:
+    | first=type_constructor rest=list(type_constructor_pipe)
+        { first :: rest }
 
-value_decl_body_exprs_pattern_composite:
-    | e=value_decl_body_exprs_pattern_p_ctor { e }
-    | LPAREN lst=separated_list(COMMA, value_decl_body_exprs_pattern_top) RPAREN { P_tuple lst }
-    | a=value_decl_body_exprs_pattern_plain CONS b=value_decl_body_exprs_pattern_plain { P_cons(a, b) }
+type_constructor:
+    | id=UCNAME data=list(type_constructor_arg)
+        { { Typedecl.id; data } }
 
-value_decl_body_exprs_pattern_p_ctor:
-    | name=UCNAME lst=list(value_decl_body_exprs_pattern_p_ctor_body) { Pattern.P_ctor(name, lst) }
+type_constructor_arg:
+    | t=type_atom_no_parens { { Typedef.Impl.parameters = []; body = t } }
+    | t=type_in_parens { t }
 
-value_decl_body_exprs_pattern_p_ctor_body:
-    | LPAREN e=value_decl_body_exprs_pattern_composite RPAREN { e }
-    | e=value_decl_body_exprs_pattern_plain { e }
+type_constructor_pipe:
+    | PIPE ctor=type_constructor { ctor }
 
-value_decl_body_exprs_pattern_plain:
-    | i=STRING { P_str(i) }
-    | i=INT { P_int(i) }
+
+type_expr:
+    | t=type_function { t }
+
+type_function:
+    | args=separated_nonempty_list(ARROW, type_app)
+        { 
+          match args with
+          | [single] -> single
+          | _ -> { Typedef.Impl.parameters = []; 
+                   body = Typedef.Kind.Tkind_function { Typedef.Type_function.arguments = args } }
+        }
+
+type_app:
+    | t=type_atom_no_parens { { Typedef.Impl.parameters = []; body = t } }
+    | t=type_in_parens { t }
+    | base=type_app arg=type_atom_no_parens 
+        { 
+          { Typedef.Impl.parameters = base.Typedef.Impl.parameters @ [{ Typedef.Impl.parameters = []; body = arg }];
+            body = base.Typedef.Impl.body }
+        }
+    | base=type_app arg=type_in_parens
+        { 
+          { Typedef.Impl.parameters = base.Typedef.Impl.parameters @ [arg];
+            body = base.Typedef.Impl.body }
+        }
+
+type_in_parens:
+    | LPAREN t=type_in_parens_content RPAREN { t }
+
+type_in_parens_content:
+    |  { { Typedef.Impl.parameters = []; body = Typedef.Kind.Tkind_unit } }
+    | t=type_function { t }
+    | t=type_function COMMA rest=separated_nonempty_list(COMMA, type_function)
+        { 
+          let all_args = t :: rest in
+          { Typedef.Impl.parameters = []; body = Typedef.Kind.Tkind_tuple all_args }
+        }
+
+type_atom_no_parens:
+    | name=loc(LCNAME) { Typedef.Kind.Tkind_var name }
+    | name=loc(upper_possible_dotted) { Typedef.Kind.Tkind_concrete name }
+    | UNIT { Typedef.Kind.Tkind_unit }
+    | LBRACE fields=type_record_fields RBRACE
+        { fields }
+
+type_record_fields:
+    | row=LCNAME PIPE field=type_record_field rest=type_record_fields_rest
+        { 
+          let fields = field :: rest in
+          Typedef.Kind.Tkind_record { Typedef.Type_record.values = fields; row_type = Some (Located.mk row $loc(row)) } 
+        }
+    | field=type_record_field rest=type_record_fields_rest
+        { 
+          let fields = field :: rest in
+          Typedef.Kind.Tkind_record { Typedef.Type_record.values = fields; row_type = None } 
+        }
+
+type_record_fields_rest:
+    |  { [] }
+    | COMMA field=type_record_field rest=type_record_fields_rest { field :: rest }
+
+type_record_field:
+    | name=LCNAME COLON body=type_expr
+        { { Typedef.Type_record_row.name = Located.mk name $loc(name); body } }
+
+value_decl_with_type:
+    | name1=loc(LCNAME) COLON INDENT type_alias=type_expr DEDENT
+      name2=loc(LCNAME) params=list(loc(LCNAME)) EQUAL expr=indented(loc(expr))
+        { 
+          let type_part_data = Some Declaration.{ name=name1; type_alias } in
+          let body_part = Declaration.{ name=name2; expr; params } in
+          Impl.Top_declaration { type_part_data; body_part }
+        }
+    | name=loc(LCNAME) params=list(loc(LCNAME)) EQUAL expr=indented(loc(expr))
+        { 
+          let body_part = Declaration.{ name; expr; params } in
+          Impl.Top_declaration { type_part_data=None; body_part }
+        }
+   
+expr:    
+    | e=expr_pipe { e }
+    | MINUS e=expr %prec UMINUS { Expr_unop { name = Located.mk "-" $loc; operand = e } }
+    | e=expr_app { e }
+    | e=expr_binop { e }
+    | BACKSLASH params=nonempty_list(loc(LCNAME)) ARROW body=expr %prec ARROW
+        { Expr_lambda { params; body } }
+    | IF if_exp=expr THEN then_exp=expr ELSE else_exp=expr
+        { Expr_if_then_else { if_exp; then_exp; else_exp } }
+    | CASE expr=scrutinee OF pattern_data_items=indented(list(case_arm))
+        { Expr_pattern { expr; pattern_data_items } }
+    | LET binding=expr_let_name_bind IN e=expr
+        { make_expr_let ~bindings:[binding] e }
+    | LET INDENT bindings=expr_let_defs DEDENT IN e=expr
+        { make_expr_let ~bindings e }
+
+expr_pipe:
+    | arg=expr PIPE_GT fn=expr { Expr_apply { fn; arg } }
+
+expr_let_name_bind:
+    name=loc(LCNAME) EQUAL INDENT body=expr DEDENT
+        {{ bind_type = None; bind_body={ name; body } }}
+
+expr_let_defs: lst=nonempty_list(expr_let_name_bind) { lst }
+
+scrutinee:
+    | e=expr_app { e }
+    | e=expr_binop { e }
+
+case_arm:
+    | pattern=pattern ARROW expr=indented(expr)
+        {{ pattern; expr }}    
+
+pattern:
+    | name=UCNAME args=nonempty_list(pattern_atom) { P_ctor(name, args) }
+    | head=pattern_atom CONS tail=pattern { P_cons(head, tail) }
+    | p=pattern_atom { p }
+
+pattern_atom:
+    | i=STRING { P_str i }
+    | i=INT { P_int i }
     | i=WILDCARD { P_anything }
-    | i=LCNAME { P_var(i) }
+    | i=LCNAME { P_var i }
+    | name=UCNAME { P_ctor(name, []) }
     | LBRACE lst=separated_list(COMMA, LCNAME) RBRACE { P_record(lst) }
-    | LBRACKET lst=separated_list(COMMA, value_decl_body_exprs_pattern_top) RBRACKET { Pattern.P_list(lst) }
+    | LBRACKET lst=separated_list(COMMA, pattern) RBRACKET { P_list(lst) }
+    | LPAREN p=pattern RPAREN { p }
 
-value_decl_body_exprs_plain: 
-    | LBRACE lst=separated_list(COMMA, value_decl_body_exprs_record) RBRACE { Expr_record lst }
-    | e=loc(ACCESSOR) { Expr_accessor e }
-    | LBRACKET e=separated_list(COMMA, value_decl_body_exprs_top) RBRACKET { Expr_list(e) }
-    | e=value_decl_body_exprs_ident { e }
-    | e=value_decl_body_exprs { e }
+expr_binop:
+    e1=expr name=binop e2=expr { Expr_binop { name; operands=(e1, e2) } }
 
-value_decl_body_exprs_fn:
-    | fn=value_decl_body_exprs_ident args=nonempty_list(value_decl_body_exprs_top_arguments) { Expr.make_expr_apply ~args fn }
+expr_app:
+    | e=expr_postfix { e }
+    | fn=expr_app arg=expr_postfix { Expr_apply { fn; arg } }
 
-value_decl_body_exprs_top:
-    | e=value_decl_body_exprs_fn { e }
-    | e=value_decl_body_exprs_plain { e }
-    | e=value_decl_body_exprs_composite { e }
+expr_postfix:
+    | base=expr_applicable fields=list(loc(ACCESS)) {
+        List.fold_left (fun acc field -> Expr_access { expr = acc; field }) base fields
+    }
 
-value_decl_body_exprs_top_arguments:
-    | LPAREN e=value_decl_body_exprs_top_arguments_composite RPAREN { e }
-    | e=value_decl_body_exprs_plain { e }
+expr_applicable: 
+    | LPAREN e=expr RPAREN { e }
+    | e=LCNAME { Expr_ident e }
+    | e=STRING { Expr_string e }
+    | e=INT { Expr_int e }
+    | e=FLOAT { Expr_float e }
+    | e=UNIT { Expr_unit }
+    | n=UCNAME { Expr_constr_fixed n }
+    | LBRACKET e=separated_list(COMMA, expr) RBRACKET { Expr_list e }
+    | LBRACE lst=separated_list(COMMA, expr_record_field) RBRACE { Expr_record lst }
 
-value_decl_body_exprs_top_arguments_composite:
-    | e=value_decl_body_exprs_composite { e }
-    | e=value_decl_body_exprs_fn { e }
-
-value_decl_body_exprs_record:
-    name=LCNAME EQUAL value=value_decl_body_exprs_top {Expr.{ name; value }}
-
-value_decl_body_exprs_ident:
-    | ident=LCNAME { Expr_ident ident }
-
-value_decl_body_let_def:
-    bind_type=ioption(value_decl_body_let_def_type) bind_body=value_decl_body_let_body
-        {Expr.{ bind_type; bind_body;}}
-
-value_decl_body_let_def_type:
-    name=LCNAME COLON content=ty_al_exp_head NEWLINE+ {Expr.{ name; content; }}
-
-value_decl_body_let_body:
-    name=loc(LCNAME) EQUAL body=value_decl_body_exprs_top {{ name; body; }}        
+expr_record_field:
+    name=LCNAME EQUAL value=expr {{ name; value }}
 
 %inline
-value_decl_body_exprs_binop:
+binop:
     | PLUS { "+" }
     | MINUS { "-" }
     | DIV { "/" }
     | TIMES { "*" }
+    | CONCAT { "++" }
     | EQ_EQ { "==" }
-    | GT     {">"}
-    | LT     {"<"}
+    | GT { ">" }
+    | LT { "<" }
 
-value_decl_body_exprs:
-    | i=STRING { Expr_string i }
-    | i=INT { Expr_int i }
-    | i=FLOAT { Expr_float i }
-
-ty_constrs_data:
-    | id=UCNAME data=list(ty_al_exp_roots) {{ id; data; }}
-
-ty_al_exp_head:
-    | NEWLINE e=ty_al_exp_head { e }
-    | e=ty_al_exp { e }
-    | fn=ty_al_exp_fun { fn }
-
-ty_al_exp:
-    | what=loc(upper_possible_dotted) parameters=nonempty_list(ty_al_exp_roots) 
-        { Typedef.Kind.{ body=Tkind_concrete(what); parameters }}
-    | e=ty_al_exp_roots { e }
-
-ty_al_exp_roots:
-    | what=loc(upper_possible_dotted) {{ body=Tkind_concrete(what); parameters=[] }}
-    | UNIT { {body=Tkind_unit; parameters=[]} }
-    | what=loc(LCNAME) { {body=Tkind_var(what); parameters=[]} }
-    | LBRACE e=ty_al_rec RBRACE 
-        { Typedef.(Impl.Fields.create ~parameters:[] ~body:(Kind.Tkind_record e) ) }
-    | LPAREN e=ty_al_exp_paren RPAREN { e }
-
-ty_al_rec:
-    | row_type=ioption(ty_al_rec_row_ty) values=separated_list(COMMA, ty_al_exp_rec_data_lst) { Typedef.Type_record.Fields.create ~values ~row_type }
-
-ty_al_rec_row_ty:
-    | what=loc(LCNAME) PIPE { what }
-
-ty_al_exp_paren:
-    |  e1=ty_al_exp_head e2=preceded(COMMA, separated_nonempty_list(COMMA, ty_al_exp_head))
-         { Typedef.(Impl.Fields.create ~parameters:[] ~body:(Tkind_tuple(e1::e2)) ) }
-    |  fn=ty_al_exp_fun { fn }
-    |  e=ty_al_exp { e }
-
-ty_al_exp_fun:
-    |  e1=ty_al_exp e2=preceded(ARROW, separated_nonempty_list(ARROW, ty_al_exp))
-         { Typedef.Kind.{body=Tkind_function({ arguments=(e1::e2) }); parameters=[] }}
-
-ty_al_exp_rec_data_lst:
-    | name=loc(LCNAME) COLON body=ty_al_exp_head {{ name; body; }}
+indented(X): INDENT x=X DEDENT { x }
