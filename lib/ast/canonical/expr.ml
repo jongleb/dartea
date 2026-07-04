@@ -17,6 +17,10 @@ type t =
   | Expr_record_extend of string
   | Expr_record_select of string
   | Expr_record_empty
+  | Expr_lambda of expr_lambda
+[@@deriving show]
+
+and expr_lambda = { params : string Data.Located.t list; body : t }
 [@@deriving show]
 
 and expr_constr = { name : string; arguments : t list } [@@deriving show]
@@ -56,8 +60,8 @@ module Str_set = Set.Make (String)
 
 type canonicalize_env = { constrs : Str_set.t }
 
-let rec of_frontend exports env expr =
-  let rec go env = function
+let of_frontend expr =
+  let rec go = function
     | Frontend.Expr.Expr_float i -> Expr_float i
     | Expr_string s -> Expr_string s
     | Expr_int i -> Expr_int i
@@ -65,17 +69,14 @@ let rec of_frontend exports env expr =
         Expr_constr
           {
             name = c.name;
-            arguments = List.map (go env) c.Frontend.Expr.arguments;
+            arguments = List.map go c.Frontend.Expr.arguments;
             (* module_name = ""; *)
           }
-    | Expr_access { expr; field } -> Expr_access { expr = go env expr; field }
-    | Expr_list list -> Expr_list (List.map (go env) list)
+    | Expr_access { expr; field } -> Expr_access { expr = go expr; field }
+    | Expr_list list -> Expr_list (List.map go list)
     | Expr_binop { name; operands = a, b } ->
         Expr_apply
-          {
-            fn = Expr_apply { fn = Expr_ident name; arg = go env a };
-            arg = go env b;
-          }
+          { fn = Expr_apply { fn = Expr_ident name; arg = go a }; arg = go b }
     | Expr_let
         {
           binding = { bind_body = { name; body = bind_body }; bind_type };
@@ -83,26 +84,22 @@ let rec of_frontend exports env expr =
         } ->
         Expr_let
           {
-            binding = { bind_body = { name; body = go env bind_body } };
-            body = go env body;
+            binding = { bind_body = { name; body = go bind_body } };
+            body = go body;
           }
-    | Expr_apply { fn; arg } -> Expr_apply { fn = go env fn; arg = go env arg }
+    | Expr_apply { fn; arg } -> Expr_apply { fn = go fn; arg = go arg }
     | Expr_ident i -> Expr_ident i
     | Expr_if_then_else { if_exp; then_exp; else_exp } ->
         Expr_if_then_else
-          {
-            if_exp = go env if_exp;
-            then_exp = go env then_exp;
-            else_exp = go env else_exp;
-          }
+          { if_exp = go if_exp; then_exp = go then_exp; else_exp = go else_exp }
     | Expr_pattern { expr; pattern_data_items } ->
         Expr_pattern
           {
-            expr = go env expr;
+            expr = go expr;
             pattern_data_items =
               List.map
                 (fun Frontend.Expr.{ pattern; expr } ->
-                  { pattern = Pattern.of_frontend pattern; expr = go env expr })
+                  { pattern = Pattern.of_frontend pattern; expr = go expr })
                 pattern_data_items;
           }
     | Expr_record r ->
@@ -114,15 +111,17 @@ let rec of_frontend exports env expr =
                   Expr_apply
                     {
                       fn = Expr_record_extend next.Frontend.Expr.name;
-                      arg = go env next.value;
+                      arg = go next.value;
                     };
                 arg = acc;
               })
           Expr_record_empty r
+    | Expr_lambda { params; body } -> Expr_lambda { params; body = go body }
+    | Expr_constr_fixed name -> Expr_ident name
     | e ->
         failwith @@ Printf.sprintf "not implemented: %s" @@ Frontend.Expr.show e
   in
-  go env expr
+  go expr
 
 (* FIXME *)
 (* let of_frontend =

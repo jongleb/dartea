@@ -1,31 +1,11 @@
-module Typed = struct
-  open Ppx_compare_lib.Builtin
-  open Base.Export
-
-  type t = { typ : Type.t; pattern : kind }
-  [@@deriving show, compare, equal, hash]
-
-  and kind =
-    | P_T_anything
-    | P_T_var of string
-    | P_T_record of string list
-    (* | PAlias Pattern Name ?? *)
-    | P_T_unit
-    | P_T_tuple of t list
-    | P_T_list of t list
-    | P_T_cons of (t * t)
-    (* | PBool Union Bool*)
-    | P_T_chr of string
-    | P_T_str of string
-    | P_T_int of int
-    | P_T_ctor of (string * t list)
-  [@@deriving show, compare, equal, hash]
-end
+open CCOption
+open Infer
+open Typed.Pattern
 
 module Matrix = struct
-  open Typed
+  open Infer
 
-  type t = Typed.t List.t List.t
+  type t = Typed.Pattern.t List.t List.t
 
   let rec detuple full pat =
     match full with
@@ -60,7 +40,7 @@ end
 module Actions = struct
   type t = int List.t
 
-  let of_records r = r |> List.mapi (fun i (_pat : Typed.t) -> i)
+  let of_records r = r |> List.mapi (fun i (_pat : Typed.Pattern.t) -> i)
 end
 
 module Compile_state = struct
@@ -83,7 +63,6 @@ module Decision_tree = struct
 end
 
 open Compile_state
-open Typed
 open Decision_tree
 
 let is_equal_signature a b =
@@ -176,19 +155,15 @@ let first_refutable node =
          else None)
   |> CCOption.get_exn_or "InvalidOperationException"
 
-let arities = function
+let arities arity_env = function
   | { pattern = P_T_ctor (name, _) } -> (
-      (*TODO FIX ME*)
-      match name with
-      | "None" | "Just" -> 2
-      | "A" | "B" -> 2
-      | "C" | "D" -> 2
-      | "E" | "F" | "G" -> 3
-      | _ -> failwith "no implemented")
+      match Infer.Infer_proc.Map.find_opt name arity_env with
+      | Some arity -> arity
+      | None -> failwith (Printf.sprintf "Constructor %s not found in arity environment" name))
   | p when Matrix.is_irrefutable p -> 0
   | _ -> Int.max_int
 
-let rec compile node =
+let rec compile arity_env node =
   if List.length node.patterns = 0 then Fail
   else if List.for_all Matrix.is_irrefutable (List.hd node.patterns) then
     let _result = List.hd node.actions in
@@ -205,12 +180,12 @@ let rec compile node =
     let uniq = uniq_signatures (Matrix.get_column node.patterns 0) in
     let specialized =
       List.map
-        (fun signature -> signature |> specialization node |> compile)
+        (fun signature -> signature |> specialization node |> compile arity_env)
         uniq
     in
     let default =
-      if List.length uniq < arities (List.hd @@ List.hd node.patterns) then
-        Some (compile @@ defaulting node)
+      if List.length uniq < arities arity_env (List.hd @@ List.hd node.patterns) then
+        Some (compile arity_env @@ defaulting node)
       else None
     in
     Switch { specialized; default }
@@ -222,4 +197,4 @@ let rec is_exhaustive' = function
       List.for_all is_exhaustive'
         (List.concat [ CCOption.to_list default; specialized ])
 
-let is_exhaustive rows = rows |> Compile_state.make |> compile |> is_exhaustive'
+let is_exhaustive arity_env rows = rows |> Compile_state.make |> compile arity_env |> is_exhaustive'

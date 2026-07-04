@@ -40,3 +40,4 @@ let dummy value = mk value dummy_pair
 let ( ~? ) = dummy
 let line { loc = pos_start, _; _ } = pos_start.pos_lnum
 let unwrap { thing; _ } = thing
+let map f { loc; thing } = { loc; thing = f thing }

@@ -1,43 +1,47 @@
-type t =
-  | Expr_char of string (* elm type: Chr ES.String, NEED IMPLEMENT *)
-  | Expr_string of string (* Chr ES.String *)
-  | Expr_int of int
-  | Expr_float of float (* EF.Float *)
-  | Expr_unit
-  | Expr_list of t list
+type t = { typ : Type.t; expr : expr } [@@deriving show]
+
+and expr =
   | Expr_constr of expr_constr
   | Expr_binop of expr_binop
   | Expr_let of expr_let
   | Expr_if_then_else of expr_if_then_else
   | Expr_record of expr_record_row list
   | Expr_apply of expr_apply
-  | Expr_constr_fixed of string
   | Expr_ident of string
   | Expr_pattern of expr_pattern
   | Expr_accessor of string Data.Located.t
   | Expr_access of expr_access
-  | Expr_unop of expr_unop
+  | Expr_record_extend of string
+  | Expr_record_select of string
+  | Expr_record_empty
   | Expr_lambda of expr_lambda
+  | Expr_char of string (* elm type: Chr ES.String, NEED IMPLEMENT *)
+  | Expr_string of string (* Chr ES.String *)
+  | Expr_int of int
+  | Expr_float of float (* EF.Float *)
+  | Expr_list of t list
 [@@deriving show]
 
-and expr_lambda = { params : string Data.Located.t list; body : t }
+and expr_lambda_param = { name : string Data.Located.t; typ : Type.t }
 [@@deriving show]
 
-and expr_unop = { name : string Data.Located.t; operand : t } [@@deriving show]
+and expr_lambda = { params : expr_lambda_param list; body : t }
+[@@deriving show]
+
 and expr_constr = { name : string; arguments : t list } [@@deriving show]
 (*ConstructorValue { qualifiedness : PossiblyQualified, name : VarName }*)
 
 and expr_binop = { name : string; operands : t * t } [@@deriving show]
 (*  Binops [(Expr, A.Located Name)] Expr *)
 
-and expr_let_binding_type = { name : string; content : Typedef.Impl.t }
+and expr_let_binding_type = { name : string (* content : Typedef.Impl.t *) }
 [@@deriving show]
 
 and expr_let_binding_body = { name : string Data.Located.t; body : t }
 [@@deriving show]
 
 and expr_let_binding = {
-  bind_type : expr_let_binding_type option;
+  (* bind_type : expr_let_binding_type option; *)
   bind_body : expr_let_binding_body;
 }
 [@@deriving show]
@@ -57,10 +61,6 @@ and expr_pattern = { expr : t; pattern_data_items : expr_pattern_case list }
 
 and expr_access = { expr : t; field : string Data.Located.t } [@@deriving show]
 
-let make_expr_let ~bindings body =
-  List.fold_right (fun binding body -> Expr_let { body; binding }) bindings body
+module Str_set = Set.Make (String)
 
-let make_expr_apply ~args fn =
-  Non_empty_list.reduce
-    ~f:(fun fn arg -> Expr_apply { fn; arg })
-    Non_empty_list.(fn :: args)
+type canonicalize_env = { constrs : Str_set.t }

@@ -522,6 +522,7 @@ let test_ty_alias_record_with_params_row_type _ =
     ]
   in
   let input = "type alias User a = { a | fieldN: String }" in
+  prerr_endline @@ Impl.show @@ List.hd @@ Result.get_ok @@ Main.parse input;
   let result = Main.parse input in
   assert_equal (Ok expect_data) result
 

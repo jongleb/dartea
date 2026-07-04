@@ -1,43 +1,33 @@
-type top_level =
-  | Type_alias of Typealias.t
-  | Type_dec of Typedecl.t
-  | Top_declaration of Declaration.t  (** fixme: rename it *)
-[@@deriving show]
+module String_map = Map.Make (String)
 
 type t = {
   imports : Import_thing.t list;
-  top_levels : top_level list;
+  type_aliases : Typealias.t String_map.t;
+  type_declarations : Typedecl.t String_map.t;
+  top_declarations : Declaration.t String_map.t;
   exports : Exposing.t;
   name : string Data.Located.t;
 }
-[@@deriving show]
 
-let of_impl =
+let of_impl impl_list =
   List.fold_left
     (fun acc next ->
       match next with
-      | Impl.Import thing ->
-          { acc with imports = List.concat [ acc.imports; [ thing ] ] }
+      | Impl.Import thing -> { acc with imports = acc.imports @ [ thing ] }
       | Impl.Type_alias ta ->
-          {
-            acc with
-            top_levels = List.concat [ acc.top_levels; [ Type_alias ta ] ];
-          }
+          { acc with type_aliases = String_map.add ta.name.thing ta acc.type_aliases }
       | Impl.Type_dec td ->
-          {
-            acc with
-            top_levels = List.concat [ acc.top_levels; [ Type_dec td ] ];
-          }
+          { acc with type_declarations = String_map.add td.name td acc.type_declarations }
       | Impl.Top_declaration td ->
-          {
-            acc with
-            top_levels = List.concat [ acc.top_levels; [ Top_declaration td ] ];
-          }
+          { acc with top_declarations = String_map.add td.body_part.name.thing td acc.top_declarations }
       | Impl.Export e -> { acc with exports = e }
       | Impl.ModuleName name -> { acc with name })
     {
       imports = [];
-      top_levels = [];
+      type_aliases = String_map.empty;
+      type_declarations = String_map.empty;
+      top_declarations = String_map.empty;
       exports = Exposing.Open;
       name = Data.Located.(~?"");
     }
+    impl_list

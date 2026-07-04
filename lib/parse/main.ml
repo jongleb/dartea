@@ -1,20 +1,10 @@
-open Lexer
-
-let parse lexbuf =
-  let queue = Queue.create () in
-
-  Parser.prog
-    (fun i ->
-      if Queue.length queue > 0 then Queue.take queue
-      else
-        let q = i |> Lexer.token |> List.to_seq |> Queue.of_seq in
-        Queue.transfer q queue;
-        Queue.take queue)
-    lexbuf
-
 let parse content =
+  let state = Indenter.initial_state () in
   let lexbuf = Lexing.from_string content in
   try
-    let cst = parse lexbuf in
+    let cst = Parser.prog (Lexer.token state) lexbuf in
+    Printf.printf "Successfully parsed, AST length: %d\n" (List.length cst);
     Ok cst
-  with e -> Error e
+  with e ->
+    Printf.printf "Parse error: %s\n" (Printexc.to_string e);
+    Error e

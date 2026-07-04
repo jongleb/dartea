@@ -83,11 +83,21 @@ let test_custom_definitions =
             };
           ];
       };
+      {
+        Typedecl.name = "CasePattern";
+        params = [];
+        ctors =
+          [
+            { Typedecl.id = "FirstPattern"; data = [] };
+            { Typedecl.id = "SecondPattern"; data = [] };
+            { Typedecl.id = "ThirdPattern"; data = [] };
+          ];
+      };
     ]
 
 (* type T1 = A | B String
    type T2 = C | D
-   type T3 = E T2 | F T1 | G Int *)
-(*
-  'a Maybe
+   type T3 = E T2 | F T1 | G Int
+   type CasePattern = FirstPattern | SecondPattern | ThirdPattern
+   'a Maybe
 *)
