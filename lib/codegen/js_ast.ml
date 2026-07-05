@@ -60,6 +60,8 @@ and stmt =
   | If of { test : expr; consequent : stmt list; alternate : stmt list option }
   | Block of stmt list
   | Switch of { discriminant : expr; cases : case list }
+  | While of { test : expr; body : stmt list }
+  | Continue
 [@@deriving show]
 
 and case = { test : expr option; consequent : stmt list } [@@deriving show]

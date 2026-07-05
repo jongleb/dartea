@@ -9,14 +9,17 @@ module Module_map = struct
   include Base.Comparable.Make (T)
 end
 
-let compile path =
-  let std =
-    let open Infer in
-    let open Type in
-    [
+let std =
+  let open Infer in
+  let open Type in
+  [
       ("pow", Typed.Type.Scheme ([], TFun (TInt, TFun (TInt, TInt))));
       ("=", Scheme ([ "'a" ], TFun (TVar "'a", TFun (TVar "'a", TBool))));
       ("<>", Scheme ([ "'a" ], TFun (TVar "'a", TFun (TVar "'a", TBool))));
+
+      ("==", Scheme ([ "'a" ], TFun (TVar "'a", TFun (TVar "'a", TBool))));
+      (">", Scheme ([], TFun (TInt, TFun (TInt, TBool))));
+      ("<", Scheme ([], TFun (TInt, TFun (TInt, TBool))));
       ("&&", Scheme ([], TFun (TBool, TFun (TBool, TBool))));
       ("||", Scheme ([], TFun (TBool, TFun (TBool, TBool))));
       ("+", Scheme ([], TFun (TInt, TFun (TInt, TInt))));
@@ -49,7 +52,33 @@ let compile path =
           ( [ "'a"; "'b" ],
             TFun (TVar "'a", TFun (TFun (TVar "'a", TVar "'b"), TVar "'b")) ) );
     ]
-  in
+
+let initial_ctx =
+  let f acc (v, scheme) = Infer.Infer_proc.Map.add v scheme acc in
+  List.fold_left f Infer.Infer_proc.Map.empty std
+
+let compile_string (content : string) : string =
+  match Parse.Main.parse content with
+  | Error e -> raise e
+  | Ok impl_list ->
+      let frontend_module = Frontend.Module.of_impl impl_list in
+      let canonical = Canonical.Module.of_frontend frontend_module in
+      Infer.Infer_proc.State.reset ();
+      let result = Infer.Infer_proc.infer_toplevel canonical initial_ctx in
+      let optimized = After_typed.Optimize.optimize result.declarations in
+      let sorted = After_typed.Dependency_sort.sort_declarations optimized in
+      let constructors =
+        List.map
+          (fun (c : Infer.Infer_proc.ctor_info) -> (c.name, c.arity))
+          result.constructors
+      in
+      let js =
+        Codegen.Js_of_optimized.program_with_helpers ~constructors sorted
+      in
+      Codegen.Js_of_optimized.runtime_prelude
+      ^ Codegen.Js_to_string.program_to_string js
+
+let compile path =
   let open File_loader.Files in
   let open Base.Result.Let_syntax in
   let result = current_folder path in
@@ -67,10 +96,6 @@ let compile path =
         let frontend_module = Frontend.Module.of_impl impl_list in
         Canonical.Module.of_frontend frontend_module)
       result
-  in
-  let initial_ctx =
-    let f acc (v, scheme) = Infer.Infer_proc.Map.add v scheme acc in
-    List.fold_left f Infer.Infer_proc.Map.empty std
   in
 
   let typed =
@@ -166,22 +191,35 @@ let compile path =
       optimized
   in
 
+  let constructors_per_file =
+    List.map
+      (Result.map (fun (r : Infer.Infer_proc.infer_result) ->
+           List.map
+             (fun (c : Infer.Infer_proc.ctor_info) -> (c.name, c.arity))
+             r.constructors))
+      typed
+  in
+
   let js_programs =
     List.filter_map
-      (fun x ->
-        match x with
-        | Ok declarations ->
-            let js_ast =
-              Codegen.Js_of_optimized.program_with_helpers declarations
-            in
-            Some js_ast
-        | Error _ -> None)
-      sorted
+      (fun (sorted_r, ctors_r) ->
+        match (sorted_r, ctors_r) with
+        | Ok declarations, Ok constructors ->
+            Some
+              (Codegen.Js_of_optimized.program_with_helpers ~constructors
+                 declarations)
+        | Ok declarations, Error _ ->
+            Some (Codegen.Js_of_optimized.program_with_helpers declarations)
+        | Error _, _ -> None)
+      (List.combine sorted constructors_per_file)
   in
 
   List.iter
     (fun js_program ->
-      let js_code = Codegen.Js_to_string.program_to_string js_program in
+      let js_code =
+        Codegen.Js_of_optimized.runtime_prelude
+        ^ Codegen.Js_to_string.program_to_string js_program
+      in
       Printf.printf "\n=== Generated JavaScript ===\n%s\n" js_code)
     js_programs;
 

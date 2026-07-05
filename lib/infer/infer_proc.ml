@@ -9,10 +9,13 @@ type type_env = {
   constructors : (Canonical.Typedecl.t * Canonical.Typedecl.type_ctor) Map.t;
 }
 
+type ctor_info = { name : string; arity : int; index : int; total : int }
+
 type infer_result = {
   ctx : ctx;
   declarations : Typed.Declaration.t list;
   arity_env : int Map.t;
+  constructors : ctor_info list;
 }
 
 let build_type_env (module_ : Canonical.Module.t) : type_env =
@@ -326,26 +329,27 @@ let merge_ctx ctx1 ctx2 =
       Some (Scheme ([], final_ty)))
     ctx1 ctx2
 
-let typedef_to_type typedef =
+let typedef_to_type (impl : Canonical.Typedef.Impl.t) =
   let open Canonical.Typedef in
-  let rec convert = function
+  let rec conv (i : Impl.t) : Type.t =
+    let args = List.map conv i.parameters in
+    match i.body with
     | Kind.Tkind_var v -> TVar v.thing
     | Kind.Tkind_concrete c -> (
-        match c.thing with
-        | "Int" -> TInt
-        | "Bool" -> TBool
-        | "String" -> TStr
-        | "Unit" -> TUnit
-        | s -> TCustom (s, []))
-    | Kind.Tkind_tuple types ->
-        TTup (List.map (fun (impl : Impl.t) -> convert impl.body) types)
+        match (c.thing, args) with
+        | "Int", [] -> TInt
+        | "Bool", [] -> TBool
+        | "String", [] -> TStr
+        | "Unit", [] -> TUnit
+        | s, _ -> TCustom (s, args))
+    | Kind.Tkind_tuple types -> TTup (List.map conv types)
     | Kind.Tkind_function fn -> (
         match List.rev fn.arguments with
         | [] -> failwith "Empty function type"
         | return_impl :: rev_params ->
             List.fold_left
-              (fun acc (param : Impl.t) -> TFun (convert param.body, acc))
-              (convert return_impl.body) rev_params)
+              (fun acc (param : Impl.t) -> TFun (conv param, acc))
+              (conv return_impl) rev_params)
     | Kind.Tkind_unit -> TUnit
     | Kind.Tkind_record fields ->
         let base =
@@ -356,12 +360,12 @@ let typedef_to_type typedef =
         let row_type =
           List.fold_right
             (fun (row : Type_record_row.t) acc ->
-              TRowExtend (row.name.thing, convert row.body.body, acc))
+              TRowExtend (row.name.thing, conv row.body, acc))
             fields.values base
         in
         TRecord row_type
   in
-  convert typedef
+  conv impl
 
 let build_initial_ctx (type_env : type_env) : ctx =
   Map.fold
@@ -375,7 +379,7 @@ let build_initial_ctx (type_env : type_env) : ctx =
             let param_types =
               List.map
                 (fun (arg_spec : Canonical.Typedef.Impl.t) ->
-                  typedef_to_type arg_spec.body)
+                  typedef_to_type arg_spec)
                 args
             in
             let result_type =
@@ -687,7 +691,7 @@ let infer_declaration { Canonical.Declaration.body_part; type_part_data } ctx
     match type_part_data with
     | None -> (final_ty, s)
     | Some type_part ->
-        let declared_ty = typedef_to_type type_part.type_alias.body in
+        let declared_ty = typedef_to_type type_part.type_alias in
         let s_check = unify final_ty declared_ty in
         (apply_typ final_ty s_check, s_check ++ s)
   in
@@ -736,7 +740,7 @@ let infer_toplevel (module_ : Canonical.Module.t) initial_ctx =
   let type_aliases =
     Canonical.Module.String_map.fold
       (fun name ta acc ->
-        let alias_type = typedef_to_type ta.Canonical.Typealias.typedef.body in
+        let alias_type = typedef_to_type ta.Canonical.Typealias.typedef in
         Map.add name (ta.params, alias_type) acc)
       module_.type_aliases Map.empty
   in
@@ -796,7 +800,7 @@ let infer_toplevel (module_ : Canonical.Module.t) initial_ctx =
       match type_part_data with
       | None -> (final_ty, s)
       | Some type_part ->
-          let declared_ty = typedef_to_type type_part.type_alias.body in
+          let declared_ty = typedef_to_type type_part.type_alias in
           let expanded_declared_ty = expand_type_alias declared_ty in
           let s_check = unify final_ty expanded_declared_ty in
           (apply_typ final_ty s_check, s_check ++ s)
@@ -829,7 +833,7 @@ let infer_toplevel (module_ : Canonical.Module.t) initial_ctx =
         let ty_scheme =
           match decl.Canonical.Declaration.type_part_data with
           | Some type_part ->
-              let declared_ty = typedef_to_type type_part.type_alias.body in
+              let declared_ty = typedef_to_type type_part.type_alias in
               let expanded_ty = expand_type_alias declared_ty in
               Scheme ([], expanded_ty)
           | None -> Scheme ([], new_var "a")
@@ -851,4 +855,16 @@ let infer_toplevel (module_ : Canonical.Module.t) initial_ctx =
 
   let arity_env = build_arity_env type_env in
 
-  { ctx = final_ctx; declarations = List.rev typed_decls; arity_env }
+  let constructors =
+    Canonical.Module.String_map.fold
+      (fun _ (td : Canonical.Typedecl.t) acc ->
+        let total = List.length td.ctors in
+        List.mapi
+          (fun index (c : Canonical.Typedecl.type_ctor) ->
+            { name = c.id; arity = List.length c.data; index; total })
+          td.ctors
+        @ acc)
+      module_.type_declarations []
+  in
+
+  { ctx = final_ctx; declarations = List.rev typed_decls; arity_env; constructors }
