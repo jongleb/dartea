@@ -57,7 +57,8 @@ let rec expr_to_string ?(parens = false) (e : J.expr) : string =
   | J.Unary { op; arg } ->
       unop_to_string op ^ expr_to_string ~parens:true arg
   | J.Call { callee; args } ->
-      expr_to_string callee ^ "("
+
+      expr_to_string ~parens:true callee ^ "("
       ^ String.concat ", " (List.map (expr_to_string ~parens:false) args)
       ^ ")"
   | J.Function { params; body } ->
@@ -72,6 +73,8 @@ let rec expr_to_string ?(parens = false) (e : J.expr) : string =
       in
       let body_str =
         match body with
+
+        | J.ArrowExpr (J.Object _ as e) -> "(" ^ expr_to_string e ^ ")"
         | J.ArrowExpr e -> expr_to_string e
         | J.ArrowBlock stmts ->
             "{\n" ^ stmts_to_string ~indent_lvl:1 stmts ^ "}"
@@ -142,6 +145,11 @@ and stmt_to_string ?(indent_lvl = 0) (s : J.stmt) : string =
       ^ String.concat "\n"
           (List.map (case_to_string ~indent_lvl:(indent_lvl + 1)) cases)
       ^ "\n" ^ ind ^ "}"
+  | J.While { test; body } ->
+      ind ^ "while (" ^ expr_to_string test ^ ") {\n"
+      ^ stmts_to_string ~indent_lvl:(indent_lvl + 1) body
+      ^ ind ^ "}"
+  | J.Continue -> ind ^ "continue;"
 
 (* Convert case to string *)
 and case_to_string ?(indent_lvl = 0) (c : J.case) : string =
