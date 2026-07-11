@@ -1,5 +1,7 @@
 module J = Js_ast
 module O = Optimized
+module DT = After_typed.Exhaustive.Decision_tree
+module Occ = After_typed.Exhaustive.Occurrence
 
 let js_reserved =
   [
@@ -59,9 +61,14 @@ let name_counts : (string, int) Hashtbl.t = Hashtbl.create 64
 
 let arities : (string, int) Hashtbl.t = Hashtbl.create 64
 
+let ctor_siblings : (string, (string * int) list) Hashtbl.t = Hashtbl.create 64
+
+let ctor_siblings_of name = Hashtbl.find_opt ctor_siblings name
+
 let reset_names () =
   Hashtbl.clear name_counts;
   Hashtbl.clear arities;
+  Hashtbl.clear ctor_siblings;
   temp_counter := 0
 
 let reserve_name base =
@@ -160,63 +167,64 @@ let member object_ property =
 let indexed_member object_ index =
   J.Member { object_; property = J.Literal (J.Int index); computed = true }
 
-let ctor_arg occ i = member occ ("_" ^ string_of_int i)
 let js_eq left lit = J.Binary { left; op = J.StrictEqual; right = J.Literal lit }
-let js_and a b = J.Binary { left = a; op = J.And; right = b }
 
 let js_ne_zero occ =
   J.Binary { left = occ; op = J.StrictNotEqual; right = J.Literal (J.Int 0) }
 
-let and_opt a b =
-  match (a, b) with
-  | None, x | x, None -> x
-  | Some x, Some y -> Some (js_and x y)
-
-let rec match_pattern (occ : J.expr) (pat : O.Pattern.t) :
-    J.expr option * (string * J.expr) list =
-  match pat.O.Pattern.pattern with
-  | O.Pattern.P_T_anything | O.Pattern.P_T_unit -> (None, [])
-  | O.Pattern.P_T_var name -> (None, [ (name, occ) ])
-  | O.Pattern.P_T_int n -> (Some (js_eq occ (J.Int n)), [])
-  | O.Pattern.P_T_str s -> (Some (js_eq occ (J.String s)), [])
-  | O.Pattern.P_T_chr c -> (Some (js_eq occ (J.String c)), [])
-  | O.Pattern.P_T_record fields ->
-      (None, List.map (fun f -> (f, member occ f)) fields)
-  | O.Pattern.P_T_tuple pats ->
-      combine (List.mapi (fun i p -> (indexed_member occ i, p)) pats)
-  | O.Pattern.P_T_ctor (name, args) ->
-      if is_bool_constructor name then
-        (Some (js_eq occ (J.Bool (name = "True"))), [])
-      else if args = [] then
-
-        (Some (js_eq occ (J.String name)), [])
-      else
-
-        let tag_test = js_eq (member occ "TAG") (J.String name) in
-        let sub_test, sub_binds =
-          combine (List.mapi (fun i p -> (ctor_arg occ i, p)) args)
-        in
-        (and_opt (Some tag_test) sub_test, sub_binds)
-  | O.Pattern.P_T_cons (hd, tl) ->
-      let hd_t, hd_b = match_pattern (member occ "hd") hd in
-      let tl_t, tl_b = match_pattern (member occ "tl") tl in
-      (and_opt (Some (js_ne_zero occ)) (and_opt hd_t tl_t), hd_b @ tl_b)
-  | O.Pattern.P_T_list pats -> match_list occ pats
-
-and combine (items : (J.expr * O.Pattern.t) list) :
-    J.expr option * (string * J.expr) list =
+let occ_expr root (o : Occ.t) : J.expr =
   List.fold_left
-    (fun (test_acc, binds_acc) (occ, pat) ->
-      let t, b = match_pattern occ pat in
-      (and_opt test_acc t, binds_acc @ b))
-    (None, []) items
+    (fun e step ->
+      match step with
+      | Occ.Payload i -> member e ("_" ^ string_of_int i)
+      | Occ.Index i -> indexed_member e i
+      | Occ.Field f -> member e f
+      | Occ.Hd -> member e "hd"
+      | Occ.Tl -> member e "tl")
+    root o
 
-and match_list occ = function
-  | [] -> (Some (js_eq occ (J.Int 0)), [])
-  | p :: rest ->
-      let hd_t, hd_b = match_pattern (member occ "hd") p in
-      let rest_t, rest_b = match_list (member occ "tl") rest in
-      (and_opt (Some (js_ne_zero occ)) (and_opt hd_t rest_t), hd_b @ rest_b)
+let ctor_literal name =
+  if is_bool_constructor name then J.Bool (name = "True")
+  else J.String name
+
+let test_expr occ_e (test : DT.test) : J.expr =
+  match test with
+  | DT.Test_ctor name -> js_eq occ_e (ctor_literal name)
+  | DT.Test_tag name -> js_eq (member occ_e "TAG") (J.String name)
+  | DT.Test_int n -> js_eq occ_e (J.Int n)
+  | DT.Test_str s -> js_eq occ_e (J.String s)
+  | DT.Test_chr c -> js_eq occ_e (J.String c)
+  | DT.Test_nil -> js_eq occ_e (J.Int 0)
+  | DT.Test_cons -> js_ne_zero occ_e
+
+let switch_key (test : DT.test) : ([ `Value | `Tag ] * J.literal) option =
+  match test with
+  | DT.Test_tag n -> Some (`Tag, J.String n)
+  | DT.Test_ctor n when not (is_bool_constructor n) -> Some (`Value, J.String n)
+  | DT.Test_int n -> Some (`Value, J.Int n)
+  | DT.Test_str s -> Some (`Value, J.String s)
+  | DT.Test_chr c -> Some (`Value, J.String c)
+  | DT.Test_ctor _ | DT.Test_nil | DT.Test_cons -> None
+
+let switch_plan occ_e (branches : (DT.test * DT.t) list) :
+    (J.expr * (J.literal * DT.t) list) option =
+  let keyed =
+    List.map (fun (t, tr) -> (switch_key t, tr)) branches
+  in
+  let same_kind kind =
+    List.for_all
+      (fun (k, _) -> match k with Some (k', _) -> k' = kind | None -> false)
+      keyed
+  in
+  let cases_of () =
+    List.map
+      (fun (k, tr) ->
+        match k with Some (_, lit) -> (lit, tr) | None -> assert false)
+      keyed
+  in
+  if keyed <> [] && same_kind `Tag then Some (member occ_e "TAG", cases_of ())
+  else if keyed <> [] && same_kind `Value then Some (occ_e, cases_of ())
+  else None
 
 let match_error occ =
   J.Call { callee = J.Identifier "$$matchError"; args = [ occ ] }
@@ -254,11 +262,6 @@ let closure_partial callee args missing =
       params = rparams;
       body = J.ArrowExpr (J.Call { callee; args = args @ rargs });
     }
-
-let is_wildcard_pat (p : O.Pattern.t) =
-  match p.O.Pattern.pattern with
-  | O.Pattern.P_T_anything | O.Pattern.P_T_var _ -> true
-  | _ -> false
 
 let fold_emit (f : 'a -> J.stmt list * 'b) (items : 'a list) :
     J.stmt list * 'b list =
@@ -308,6 +311,72 @@ let arrow_of_body params stmts =
     | _ -> J.ArrowBlock stmts
   in
   J.Arrow { params; body }
+
+module DS = After_typed.Decision_share
+
+let thunk_name id = "$dt" ^ string_of_int id
+
+let rec lower env root ~terminating ~leaf ~fail ~sink ~plan (tree : DT.t) :
+    J.stmt list =
+  match DS.id_of plan tree with
+  | Some id -> sink (J.Call { callee = J.Identifier (thunk_name id); args = [] })
+  | None -> lower_node env root ~terminating ~leaf ~fail ~sink ~plan tree
+
+and lower_node env root ~terminating ~leaf ~fail ~sink ~plan (tree : DT.t) :
+    J.stmt list =
+  match tree with
+  | DT.Fail -> fail
+  | DT.Leaf { action; bindings } ->
+      let jbinds = List.map (fun (v, o) -> (v, occ_expr root o)) bindings in
+      let env', bstmts = bind_binds env jbinds in
+      bstmts @ leaf env' action
+  | DT.Switch { occurrence; branches; default } -> (
+      let occ_e = occ_expr root occurrence in
+      let go tr = lower env root ~terminating ~leaf ~fail ~sink ~plan tr in
+      match (if terminating then switch_plan occ_e branches else None) with
+      | Some (disc, cases) when List.length cases >= 2 ->
+          let default_case =
+            match default with
+            | Some t -> [ { J.test = None; consequent = go t } ]
+            | None -> []
+          in
+          let js_cases =
+            List.map
+              (fun (lit, tr) ->
+                { J.test = Some (J.Literal lit); consequent = go tr })
+              cases
+          in
+          [ J.Switch { discriminant = disc; cases = js_cases @ default_case } ]
+      | _ ->
+          let rec build = function
+            | [] -> ( match default with Some t -> go t | None -> fail)
+            | [ (_, tr) ] when default = None -> go tr
+            | (test, tr) :: rest ->
+                [
+                  J.If
+                    {
+                      test = test_expr occ_e test;
+                      consequent = go tr;
+                      alternate = Some (build rest);
+                    };
+                ]
+          in
+          build branches)
+
+let shared_thunks env root ~plan clause_expr =
+  let sink e = [ J.Return (Some e) ] in
+  let leaf env action =
+    let sa, ea = clause_expr env action in
+    sa @ [ J.Return (Some ea) ]
+  in
+  List.map
+    (fun (id, sub) ->
+      let body =
+        lower_node env root ~terminating:true ~leaf
+          ~fail:(sink (match_error root)) ~sink ~plan sub
+      in
+      J.ConstDecl { name = thunk_name id; init = arrow_of_body [] body })
+    (DS.shared plan)
 
 let rec emit_value env (e : O.Expr.t) : J.stmt list * J.expr =
   match e.expr with
@@ -511,97 +580,56 @@ and emit_return env tc (e : O.Expr.t) : J.stmt list =
           let s, ev = emit_value env e in
           s @ [ J.Return (Some ev) ])
 
-and emit_clauses env leaf on_fail occ clauses =
-  match clauses with
-  | [] -> on_fail
-  | { O.Expr.pattern; expr = action } :: rest ->
-      let test_opt, binds = match_pattern occ pattern in
-      let env', bstmts = bind_binds env binds in
-      let stmts = bstmts @ leaf env' action in
-      (match test_opt with
-      | None -> stmts
-      | Some test ->
-          [
-            J.If
-              {
-                test;
-                consequent = stmts;
-                alternate = Some (emit_clauses env leaf on_fail occ rest);
-              };
-          ])
+and match_tree clauses =
+  let patterns =
+    List.map (fun (c : O.Expr.expr_pattern_case) -> c.O.Expr.pattern) clauses
+  in
+  (After_typed.Exhaustive.build ctor_siblings_of patterns, Array.of_list clauses)
+
+and trivial_action (e : O.Expr.t) =
+  match e.O.Expr.expr with
+  | O.Expr.Expr_int _ | O.Expr.Expr_float _ | O.Expr.Expr_string _
+  | O.Expr.Expr_char _ | O.Expr.Expr_ident _ ->
+      true
+  | O.Expr.Expr_constr { arguments = []; _ } -> true
+  | _ -> false
+
+and shareable (clause_arr : O.Expr.expr_pattern_case array) (tree : DT.t) =
+  match tree with
+  | DT.Switch _ -> true
+  | DT.Leaf { action; _ } -> not (trivial_action clause_arr.(action).expr)
+  | DT.Fail -> false
 
 and emit_match_return env tc (occ : J.expr)
     (clauses : O.Expr.expr_pattern_case list) : J.stmt list =
-  match try_switch_return env tc occ clauses with
-  | Some stmts -> stmts
-  | None ->
-      emit_clauses env
-        (fun env action -> emit_return env tc action)
-        [ J.Return (Some (match_error occ)) ]
-        occ clauses
-
-and switch_label (p : O.Pattern.t) =
-
-  match p.O.Pattern.pattern with
-  | O.Pattern.P_T_ctor (name, []) when not (is_bool_constructor name) ->
-      Some (J.String name)
-  | O.Pattern.P_T_int n -> Some (J.Int n)
-  | O.Pattern.P_T_str s -> Some (J.String s)
-  | O.Pattern.P_T_chr c -> Some (J.String c)
-  | _ -> None
-
-and try_switch_return env tc occ clauses =
-
-  let rec classify acc = function
-    | [] -> Some (List.rev acc, None)
-    | [ { O.Expr.pattern; expr = action } ] when is_wildcard_pat pattern ->
-        let binds =
-          match pattern.O.Pattern.pattern with
-          | O.Pattern.P_T_var name -> [ (name, occ) ]
-          | _ -> []
-        in
-        Some (List.rev acc, Some (binds, action))
-    | { O.Expr.pattern; expr = action } :: rest -> (
-        match switch_label pattern with
-        | Some lbl -> classify ((lbl, action) :: acc) rest
-        | None -> None)
+  let tree, clause_arr = match_tree clauses in
+  let plan = DS.analyze ~shareable:(shareable clause_arr) tree in
+  let clause_expr env action =
+    emit_value env clause_arr.(action).O.Expr.expr
   in
-  match classify [] clauses with
-  | Some ((_ :: _ as cases), default) when List.length cases >= 2 ->
-      let case_of (lbl, action) =
-        { J.test = Some (J.Literal lbl); consequent = emit_return env tc action }
-      in
-      let default_case =
-        match default with
-        | Some (binds, action) ->
-            let env', bstmts = bind_binds env binds in
-            [ { J.test = None; consequent = bstmts @ emit_return env' tc action } ]
-        | None ->
-            [
-              {
-                J.test = None;
-                consequent = [ J.Return (Some (match_error occ)) ];
-              };
-            ]
-      in
-      Some
-        [
-          J.Switch
-            {
-              discriminant = occ;
-              cases = List.map case_of cases @ default_case;
-            };
-        ]
-  | _ -> None
+  let leaf env action = emit_return env tc clause_arr.(action).O.Expr.expr in
+  let sink e = [ J.Return (Some e) ] in
+  shared_thunks env occ ~plan clause_expr
+  @ lower env occ ~terminating:true ~leaf
+      ~fail:[ J.Return (Some (match_error occ)) ]
+      ~sink ~plan tree
 
 and emit_match_assign env (r : string) (occ : J.expr)
     (clauses : O.Expr.expr_pattern_case list) : J.stmt list =
-  emit_clauses env
-    (fun env action ->
-      let sa, ea = emit_value env action in
-      sa @ [ assign_stmt r ea ])
-    [ assign_stmt r (match_error occ) ]
-    occ clauses
+  let tree, clause_arr = match_tree clauses in
+  let plan = DS.analyze ~shareable:(shareable clause_arr) tree in
+  let clause_expr env action =
+    emit_value env clause_arr.(action).O.Expr.expr
+  in
+  let leaf env action =
+    let sa, ea = emit_value env clause_arr.(action).O.Expr.expr in
+    sa @ [ assign_stmt r ea ]
+  in
+  let sink e = [ assign_stmt r e ] in
+  shared_thunks env occ ~plan clause_expr
+  @ lower env occ ~terminating:false ~leaf
+      ~fail:[ assign_stmt r (match_error occ) ]
+      ~sink ~plan tree
 
 let decl_stmts (decl : O.Declaration.t) : J.stmt list =
   let name = sname decl.name in
@@ -668,8 +696,8 @@ let constructor_decls (constructors : (string * int) list) : J.stmt list =
                    };
              })
 
-let program_with_helpers ?(constructors = []) (decls : O.Declaration.t list) :
-    J.program =
+let program_with_helpers ?(constructors = []) ?(siblings = [])
+    (decls : O.Declaration.t list) : J.program =
   reset_names ();
   List.iter
     (fun n -> reserve_name (sanitize n))
@@ -683,4 +711,7 @@ let program_with_helpers ?(constructors = []) (decls : O.Declaration.t list) :
         (List.length decl.params))
     decls;
   List.iter (fun (name, ar) -> Hashtbl.replace arities name ar) constructors;
+  List.iter
+    (fun (name, sibs) -> Hashtbl.replace ctor_siblings name sibs)
+    siblings;
   constructor_decls constructors @ program_of_declarations decls
