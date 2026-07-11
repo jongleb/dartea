@@ -417,9 +417,231 @@ result = head [ 5, 6, 7 ]
   in
   assert_js ~src ~expr:"result" ~expected:"5"
 
+let test_decision_tree_nested _ =
+  let src =
+    {|
+type Tree = Leaf | Node Tree Int Tree
+
+describe : Tree -> Int
+describe t =
+    case t of
+        Leaf ->
+            0
+
+        Node Leaf x _ ->
+            x
+
+        Node _ x Leaf ->
+            x + 100
+
+        Node _ x _ ->
+            x + 200
+
+result : Int
+result = describe (Node (Node Leaf 5 Leaf) 7 Leaf)
+|}
+  in
+  assert_js ~src ~expr:"result" ~expected:"107";
+  let js = Dartea.Compiler.compile_string src in
+  assert_bool "decision tree recurses on the left sub-occurrence"
+    (contains ~needle:"t._0 === \"Leaf\"" js);
+  assert_bool "decision tree recurses on the right sub-occurrence"
+    (contains ~needle:"t._2 === \"Leaf\"" js)
+
+let test_int_literal_switch _ =
+  let src =
+    {|
+classify : Int -> Int
+classify n =
+    case n of
+        0 ->
+            100
+
+        1 ->
+            200
+
+        _ ->
+            300
+
+result : Int
+result = classify 1
+|}
+  in
+  assert_js ~src ~expr:"result" ~expected:"200";
+  let js = Dartea.Compiler.compile_string src in
+  assert_bool "int literals dispatch through a switch"
+    (contains ~needle:"switch (n)" js)
+
+let test_payload_tag_switch _ =
+  let src =
+    {|
+type Expr = Num Int | Add Int Int
+
+eval : Expr -> Int
+eval e =
+    case e of
+        Num n ->
+            n
+
+        Add a b ->
+            a + b
+
+result : Int
+result = eval (Add 3 4)
+|}
+  in
+  assert_js ~src ~expr:"result" ~expected:"7";
+  let js = Dartea.Compiler.compile_string src in
+  assert_bool "payload constructors dispatch on the TAG"
+    (contains ~needle:"switch (e.TAG)" js)
+
+let test_nested_cons_bind _ =
+  let src =
+    {|
+sum2 : List Int -> Int
+sum2 xs =
+    case xs of
+        a :: b :: _ ->
+            a + b
+
+        a :: _ ->
+            a
+
+        [] ->
+            0
+
+result : Int
+result = sum2 [ 3, 4, 9 ]
+|}
+  in
+  assert_js ~src ~expr:"result" ~expected:"7"
+
+let test_wildcard_default_share _ =
+  let src =
+    {|
+type C = A | B | D
+
+f : C -> Int
+f c =
+    case c of
+        A ->
+            1
+
+        _ ->
+            9
+
+result : Int
+result = f B
+|}
+  in
+  assert_js ~src ~expr:"result" ~expected:"9"
+
+let test_var_binds_scrutinee _ =
+  let src =
+    {|
+addOne : Int -> Int
+addOne n =
+    case n of
+        m ->
+            m + 1
+
+result : Int
+result = addOne 41
+|}
+  in
+  assert_js ~src ~expr:"result" ~expected:"42";
+  let js = Dartea.Compiler.compile_string src in
+  assert_bool "a whole-value var pattern binds directly with no test"
+    (contains ~needle:"const m = n;" js)
+
+let test_shared_default_subtree _ =
+  let src =
+    {|
+type T = A | B | C
+
+type W = L T | R T
+
+fallback : Int -> Int
+fallback n =
+    n + n + n
+
+f : W -> Int
+f w =
+    case w of
+        L A ->
+            1
+
+        R A ->
+            2
+
+        _ ->
+            fallback 10
+
+result : Int
+result = f (L B)
+|}
+  in
+  assert_js ~src ~expr:"result" ~expected:"30";
+  let js = Dartea.Compiler.compile_string src in
+  assert_bool "the reused non-trivial default body is emitted once as a thunk"
+    (contains ~needle:"const $dt0 = () => fallback(10);" js);
+  assert_bool "both branches call the shared thunk, not the body"
+    (contains ~needle:"return $dt0();" js)
+
+let index_of ~needle hay =
+  let nl = String.length needle and hl = String.length hay in
+  let rec go i =
+    if i + nl > hl then None
+    else if String.sub hay i nl = needle then Some i
+    else go (i + 1)
+  in
+  go 0
+
+let test_pba_picks_needed_column _ =
+  let base =
+    {|
+type Two = X | Y
+
+type P = Pair Two Two
+
+g : P -> Int
+g p =
+    case p of
+        Pair X X ->
+            1
+
+        Pair _ Y ->
+            2
+
+        Pair Y _ ->
+            3
+
+|}
+  in
+  let result v = base ^ "r : Int\nr = g (Pair " ^ v ^ ")\n" in
+  assert_js ~src:(result "X X") ~expr:"r" ~expected:"1";
+  assert_js ~src:(result "X Y") ~expr:"r" ~expected:"2";
+  assert_js ~src:(result "Y X") ~expr:"r" ~expected:"3";
+  assert_js ~src:(result "Y Y") ~expr:"r" ~expected:"2";
+  let js = Dartea.Compiler.compile_string (result "X X") in
+  match (index_of ~needle:"switch (p._1)" js, index_of ~needle:"switch (p._0)" js) with
+  | Some i1, Some i0 ->
+      assert_bool "pba tests the higher-necessity column (p._1) as the outer switch"
+        (i1 < i0)
+  | Some _, None -> ()
+  | _ -> assert_failure "expected p._1 to be switched on"
+
 let suite =
   [
     "arithmetic" >:: test_arithmetic;
+    "pba_picks_needed_column" >:: test_pba_picks_needed_column;
+    "shared_default_subtree" >:: test_shared_default_subtree;
+    "wildcard_default_share" >:: test_wildcard_default_share;
+    "var_binds_scrutinee" >:: test_var_binds_scrutinee;
+    "decision_tree_nested" >:: test_decision_tree_nested;
+    "int_literal_switch" >:: test_int_literal_switch;
+    "payload_tag_switch" >:: test_payload_tag_switch;
+    "nested_cons_bind" >:: test_nested_cons_bind;
     "ctor_unwrap" >:: test_ctor_unwrap;
     "nullary_match" >:: test_nullary_match;
     "ctor_is_defined" >:: test_ctor_is_defined;

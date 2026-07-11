@@ -1,200 +1,435 @@
-open CCOption
-open Infer
-open Typed.Pattern
+module P = Optimized.Pattern
 
-module Matrix = struct
-  open Infer
+module Occurrence = struct
+  type step = Payload of int | Index of int | Field of string | Hd | Tl
+  type t = step list
 
-  type t = Typed.Pattern.t List.t List.t
-
-  let rec detuple full pat =
-    match full with
-    | { pattern = P_T_tuple list } -> (
-        match pat with
-        | { pattern = P_T_anything } | { pattern = P_T_var _ } ->
-            List.concat
-            @@ List.map
-                 (fun full2 ->
-                   detuple full2 { pattern = P_T_anything; typ = full2.typ })
-                 list
-        | { pattern = P_T_tuple list2 } ->
-            List.concat @@ List.map2 detuple list list2
-        | _ -> [ pat ])
-    | _ -> [ pat ]
-
-  let of_typed_list list =
-    List.mapi (fun idx row -> detuple (List.hd list) row) list
-
-  let is_irrefutable = function
-    | { pattern = P_T_anything; _ } | { pattern = P_T_var _; _ } -> true
-    | _ -> false
-
-  let get_column lst col_index =
-    List.map
-      (fun row ->
-        if List.length row <= col_index then failwith "Invalid column index"
-        else List.nth row col_index)
-      lst
-end
-
-module Actions = struct
-  type t = int List.t
-
-  let of_records r = r |> List.mapi (fun i (_pat : Typed.Pattern.t) -> i)
-end
-
-module Compile_state = struct
-  type t = { patterns : Matrix.t; actions : Actions.t }
-
-  let make rows =
-    let actions = Actions.of_records rows in
-    let patterns = Matrix.of_typed_list rows in
-    { actions; patterns }
+  let root : t = []
+  let child o s = o @ [ s ]
 end
 
 module Decision_tree = struct
-  open Base.Export
+  type test =
+    | Test_ctor of string
+    | Test_tag of string
+    | Test_int of int
+    | Test_str of string
+    | Test_chr of string
+    | Test_nil
+    | Test_cons
 
   type t =
     | Fail
-    | Leaf of { redudants : int list }
-    | Switch of { default : t option; specialized : t list }
-  [@@deriving show, compare, equal, hash]
+    | Leaf of { action : int; bindings : (string * Occurrence.t) list }
+    | Switch of {
+        occurrence : Occurrence.t;
+        branches : (test * t) list;
+        default : t option;
+      }
 end
 
-open Compile_state
+open Occurrence
 open Decision_tree
 
-let is_equal_signature a b =
-  match (a, b) with
-  | { pattern = P_T_ctor (a, _) }, { pattern = P_T_ctor (b, _) } -> a = b
-  | { pattern = P_T_int a }, { pattern = P_T_int b } -> a = b
-  | { pattern = P_T_anything }, { pattern = P_T_anything }
-  | { pattern = P_T_var _ }, { pattern = P_T_var _ } ->
-      true
-  | _ -> false
-(* | _ ->
-    failwith
-      (Printf.sprintf "Currently unsupported %s, %s" (Typed.show a)
-         (Typed.show b)) *)
+type head =
+  | H_ctor of string
+  | H_int of int
+  | H_str of string
+  | H_chr of string
+  | H_nil
+  | H_cons
 
-let uniq_signatures ps =
-  ps
-  |> List.filter (Fun.negate @@ Matrix.is_irrefutable)
-  |> CCList.uniq ~eq:is_equal_signature
+type shape =
+  | Wild
+  | Var of string
+  | Tuple of P.t list
+  | Record of string list
+  | Head of head * P.t list
 
-let specialization state pat =
-  let patterns, actions =
-    CCList.fold_left2
-      (fun acc row action ->
-        let remaining_rows, remaining_actions = acc in
-        let pat' = List.hd row in
-        if is_equal_signature pat' pat || Matrix.is_irrefutable pat' then
-          let row =
-            match (pat, pat') with
-            | ( { pattern = P_T_ctor (_, list); _ },
-                { pattern = P_T_ctor (_, list2); _ } ) ->
-                List.concat
-                @@ List.map2 (fun a b -> Matrix.detuple a b) list list2
-            | { pattern = P_T_ctor (_, list); typ = TCustom (_, typs) }, p ->
-                Matrix.detuple { pattern = P_T_tuple list; typ = TTup typs } p
-            | _, p ->
-                row |> CCList.tail_opt |> CCOption.to_list |> CCList.concat
-          in
-          let row =
-            if row = [] then [ { pattern = P_T_anything; typ = TUnit } ]
-            else row
-          in
-          (row :: remaining_rows, action :: remaining_actions)
-        else acc)
-      ([], []) state.patterns state.actions
+let shape_of p =
+  match p.P.pattern with
+  | P.P_T_anything | P.P_T_unit -> Wild
+  | P.P_T_var x -> Var x
+  | P.P_T_tuple ps -> Tuple ps
+  | P.P_T_record fields -> Record fields
+  | P.P_T_ctor (n, args) -> Head (H_ctor n, args)
+  | P.P_T_int i -> Head (H_int i, [])
+  | P.P_T_str s -> Head (H_str s, [])
+  | P.P_T_chr c -> Head (H_chr c, [])
+  | P.P_T_cons (hd, tl) -> Head (H_cons, [ hd; tl ])
+  | P.P_T_list [] -> Head (H_nil, [])
+  | P.P_T_list (x :: xs) -> Head (H_cons, [ x; { p with P.pattern = P.P_T_list xs } ])
+
+let head_of p = match shape_of p with Head (h, _) -> Some h | _ -> None
+let subpats p = match shape_of p with Head (_, subs) -> subs | _ -> []
+let is_wild p = match shape_of p with Wild | Var _ -> true | _ -> false
+
+let wildcard = { P.typ = Optimized.Type.TUnit; pattern = P.P_T_anything }
+let wildcards n = List.init n (fun _ -> wildcard)
+let pat k = { P.typ = Optimized.Type.TUnit; pattern = k }
+
+let head_pattern h subs =
+  let nth n = Option.value (List.nth_opt subs n) ~default:wildcard in
+  match h with
+  | H_ctor n -> pat (P.P_T_ctor (n, subs))
+  | H_int i -> pat (P.P_T_int i)
+  | H_str s -> pat (P.P_T_str s)
+  | H_chr c -> pat (P.P_T_chr c)
+  | H_nil -> pat (P.P_T_list [])
+  | H_cons -> pat (P.P_T_cons (nth 0, nth 1))
+
+let tuple_pattern subs = pat (P.P_T_tuple subs)
+
+let split_at n lst =
+  let rec go acc n = function
+    | xs when n <= 0 -> (List.rev acc, xs)
+    | [] -> (List.rev acc, [])
+    | x :: xs -> go (x :: acc) (n - 1) xs
   in
-  { patterns = List.rev patterns; actions = List.rev actions }
+  go [] n lst
 
-let defaulting state =
-  let patterns, actions =
-    CCList.fold_left2
-      (fun acc row action ->
-        let remaining_rows, remaining_actions = acc in
-        let pat = List.hd row in
-        if Matrix.is_irrefutable pat then
-          (row :: remaining_rows, action :: remaining_actions)
-        else acc)
-      ([], []) state.patterns state.actions
+let column rows = List.filter_map (function p :: _ -> Some p | [] -> None) rows
+
+let signatures column =
+  let rec go seen acc = function
+    | [] -> List.rev acc
+    | p :: rest -> begin
+        match shape_of p with
+        | Head (h, subs) when not (List.mem h seen) -> go (h :: seen) ((h, subs) :: acc) rest
+        | _ -> go seen acc rest
+      end
   in
+  go [] [] column
 
-  { patterns = patterns |> List.rev; actions = actions |> List.rev }
+let tuple_arity column =
+  List.find_map (fun p -> match shape_of p with Tuple ps -> Some (List.length ps) | _ -> None) column
 
-let swap node i j =
+let complete siblings sigs =
+  match sigs with
+  | [] -> false
+  | (h, _) :: _ -> begin
+      match h with
+      | H_int _ | H_str _ | H_chr _ -> false
+      | H_nil | H_cons ->
+          List.exists (fun (x, _) -> x = H_nil) sigs
+          && List.exists (fun (x, _) -> x = H_cons) sigs
+      | H_ctor n -> begin
+          match siblings n with
+          | Some sibs -> List.length sigs = List.length sibs
+          | None -> false
+        end
+    end
+
+let specialize_ctor ~head:want ~arity rows =
+  List.filter_map
+    (fun row ->
+      match row with
+      | [] -> None
+      | front :: rest -> begin
+          match head_of front with
+          | None -> Some (wildcards arity @ rest)
+          | Some h -> if h = want then Some (subpats front @ rest) else None
+        end)
+    rows
+
+let specialize_tuple ~arity rows =
+  List.filter_map
+    (fun row ->
+      match row with
+      | [] -> None
+      | front :: rest -> begin
+          match shape_of front with
+          | Tuple ps -> Some (ps @ rest)
+          | _ -> Some (wildcards arity @ rest)
+        end)
+    rows
+
+let default_pats rows =
+  List.filter_map
+    (function front :: rest when head_of front = None -> Some rest | _ -> None)
+    rows
+
+let missing_witness siblings sigs =
+  let has h = List.exists (fun (x, _) -> x = h) sigs in
+  match sigs with
+  | [] -> None
+  | (H_nil, _) :: _ | (H_cons, _) :: _ ->
+      if not (has H_cons) then Some (head_pattern H_cons (wildcards 2))
+      else if not (has H_nil) then Some (head_pattern H_nil [])
+      else None
+  | (H_ctor n, _) :: _ -> begin
+      match siblings n with
+      | None -> None
+      | Some sibs ->
+          List.find_opt (fun (name, _) -> not (has (H_ctor name))) sibs
+          |> Option.map (fun (name, arity) ->
+                 head_pattern (H_ctor name) (wildcards arity))
+    end
+  | (H_int _, _) :: _ ->
+      let taken =
+        List.filter_map (fun (x, _) -> match x with H_int i -> Some i | _ -> None) sigs
+      in
+      let rec pick n = if List.mem n taken then pick (n + 1) else n in
+      Some (head_pattern (H_int (pick 0)) [])
+  | _ -> None
+
+let rec useful siblings rows q =
+  match q with
+  | [] -> if rows = [] then Some [] else None
+  | q1 :: qrest -> begin
+      match shape_of q1 with
+      | Head (h, subs) -> useful_ctor rows ~siblings ~qrest ~head:h ~fields:subs
+      | Tuple ps -> useful_tuple rows ~siblings ~qrest ~fields:ps
+      | Wild | Var _ | Record _ -> begin
+          match tuple_arity (column rows) with
+          | Some n -> useful_tuple rows ~siblings ~qrest ~fields:(wildcards n)
+          | None ->
+              let sigs = signatures (column rows) in
+              if sigs <> [] && complete siblings sigs then
+                List.find_map
+                  (fun (h, subs) ->
+                    useful_ctor rows ~siblings ~qrest ~head:h
+                      ~fields:(wildcards (List.length subs)))
+                  sigs
+              else
+                let missing = Option.value (missing_witness siblings sigs) ~default:wildcard in
+                useful siblings (default_pats rows) qrest
+                |> Option.map (fun w -> missing :: w)
+        end
+    end
+
+and useful_ctor rows ~siblings ~qrest ~head ~fields =
+  let arity = List.length fields in
+  useful siblings (specialize_ctor ~head ~arity rows) (fields @ qrest)
+  |> Option.map (fun witness ->
+         let field_witnesses, rest = split_at arity witness in
+         head_pattern head field_witnesses :: rest)
+
+and useful_tuple rows ~siblings ~qrest ~fields =
+  let arity = List.length fields in
+  useful siblings (specialize_tuple ~arity rows) (fields @ qrest)
+  |> Option.map (fun witness ->
+         let field_witnesses, rest = split_at arity witness in
+         tuple_pattern field_witnesses :: rest)
+
+let counterexample siblings_env patterns =
+  let siblings name = Infer.Infer_proc.Map.find_opt name siblings_env in
+  useful siblings (List.map (fun p -> [ p ]) patterns) [ wildcard ]
+  |> Option.map (function w :: _ -> w | [] -> wildcard)
+
+let is_exhaustive siblings_env patterns = counterexample siblings_env patterns = None
+
+let redundant_clauses siblings_env patterns =
+  let siblings name = Infer.Infer_proc.Map.find_opt name siblings_env in
+  let rec go index above = function
+    | [] -> []
+    | p :: rest ->
+        let below = go (index + 1) ([ p ] :: above) rest in
+        if useful siblings above [ p ] = None then index :: below else below
+  in
+  go 0 [] patterns
+
+type row = {
+  pats : P.t list;
+  binds : (string * Occurrence.t) list;
+  action : int;
+}
+
+type matrix = { occs : Occurrence.t list; rows : row list }
+
+let test_of h subs =
+  match h with
+  | H_ctor n -> if subs = [] then Test_ctor n else Test_tag n
+  | H_int i -> Test_int i
+  | H_str s -> Test_str s
+  | H_chr c -> Test_chr c
+  | H_nil -> Test_nil
+  | H_cons -> Test_cons
+
+let front_column m = column (List.map (fun row -> row.pats) m.rows)
+
+let bind_front front occ0 binds =
+  match shape_of front with
+  | Var x -> (x, occ0) :: binds
+  | Record fields ->
+      List.fold_left (fun b f -> (f, child occ0 (Field f)) :: b) binds fields
+  | _ -> binds
+
+let swap_list l i =
+  match l with
+  | [] | [ _ ] -> l
+  | x0 :: _ ->
+      let xi = List.nth l i in
+      List.mapi (fun k x -> if k = 0 then xi else if k = i then x0 else x) l
+
+let swap m i =
   {
-    node with
-    patterns =
-      List.map
-        (fun row ->
-          if List.length row <= max i j then failwith "Invalid indices"
-          else
-            let elem_i = List.nth row i in
-            let elem_j = List.nth row j in
-            List.mapi
-              (fun k x -> if k = i then elem_j else if k = j then elem_i else x)
-              row)
-        node.patterns;
+    occs = swap_list m.occs i;
+    rows = List.map (fun row -> { row with pats = swap_list row.pats i }) m.rows;
   }
 
-let first_refutable node =
-  node.patterns |> List.hd
-  |> CCList.find_mapi (fun idx _ ->
-         if
-           List.exists
-             (fun row ->
-               CCList.get_at_idx idx row
-               |> CCOption.get_exn_or "not found"
-               |> Matrix.is_irrefutable |> not)
-             node.patterns
-         then Some idx
-         else None)
-  |> CCOption.get_exn_or "InvalidOperationException"
+let find_product m =
+  List.find_map
+    (fun i ->
+      List.find_map
+        (fun row ->
+          match shape_of (List.nth row.pats i) with
+          | Tuple ps -> Some (i, Some (List.length ps))
+          | Record _ -> Some (i, None)
+          | _ -> None)
+        m.rows)
+    (List.init (List.length m.occs) Fun.id)
 
-let arities arity_env = function
-  | { pattern = P_T_ctor (name, _) } -> (
-      match Infer.Infer_proc.Map.find_opt name arity_env with
-      | Some arity -> arity
-      | None -> failwith (Printf.sprintf "Constructor %s not found in arity environment" name))
-  | p when Matrix.is_irrefutable p -> 0
-  | _ -> Int.max_int
+let expand_tuple m n =
+  let occ0 = List.hd m.occs and rest_occs = List.tl m.occs in
+  let occs = List.init n (fun i -> child occ0 (Index i)) @ rest_occs in
+  let rows =
+    List.map
+      (fun row ->
+        match row.pats with
+        | front :: rest ->
+            let subs, binds =
+              match shape_of front with
+              | Tuple ps -> (ps, row.binds)
+              | _ -> (wildcards n, bind_front front occ0 row.binds)
+            in
+            { row with pats = subs @ rest; binds }
+        | [] -> row)
+      m.rows
+  in
+  { occs; rows }
 
-let rec compile arity_env node =
-  if List.length node.patterns = 0 then Fail
-  else if List.for_all Matrix.is_irrefutable (List.hd node.patterns) then
-    let _result = List.hd node.actions in
-    let redudants =
-      let length = List.length node.patterns in
-      List.init (length - 1) (( + ) 1)
-    in
-    Leaf { redudants }
-  else
-    let first_refutable = first_refutable node in
-    let node =
-      if first_refutable <> 0 then swap node 0 first_refutable else node
-    in
-    let uniq = uniq_signatures (Matrix.get_column node.patterns 0) in
-    let specialized =
-      List.map
-        (fun signature -> signature |> specialization node |> compile arity_env)
-        uniq
-    in
-    let default =
-      if List.length uniq < arities arity_env (List.hd @@ List.hd node.patterns) then
-        Some (compile arity_env @@ defaulting node)
-      else None
-    in
-    Switch { specialized; default }
+let expand_record m =
+  let occ0 = List.hd m.occs and rest_occs = List.tl m.occs in
+  let rows =
+    List.map
+      (fun row ->
+        match row.pats with
+        | front :: rest ->
+            { row with pats = rest; binds = bind_front front occ0 row.binds }
+        | [] -> row)
+      m.rows
+  in
+  { occs = rest_occs; rows }
 
-let rec is_exhaustive' = function
-  | Fail -> false
-  | Leaf _ -> true
-  | Switch { default; specialized } ->
-      List.for_all is_exhaustive'
-        (List.concat [ CCOption.to_list default; specialized ])
+let best_column siblings m =
+  let column_pats i = List.map (fun row -> List.nth row.pats i) m.rows in
+  let score_ba i =
+    let sigs = signatures (column_pats i) in
+    let branching = List.length sigs + if complete siblings sigs then 0 else 1 in
+    let arity =
+      List.fold_left (fun acc (_, subs) -> acc + List.length subs) 0 sigs
+    in
+    (-branching, -arity)
+  in
+  let score_p i =
+    let rec prefix j above = function
+      | [] -> j
+      | row :: rest ->
+          let cell = List.nth row.pats i in
+          let deleted = List.filteri (fun k _ -> k <> i) row.pats in
+          let needed =
+            head_of cell <> None || useful siblings above deleted = None
+          in
+          if needed then prefix (j + 1) (deleted :: above) rest else j
+    in
+    prefix 0 [] m.rows
+  in
+  let necessity = List.length m.rows <= 32 in
+  let key i = ((if necessity then score_p i else 0), score_ba i) in
+  let candidate i = List.exists (fun p -> not (is_wild p)) (column_pats i) in
+  match List.filter candidate (List.init (List.length m.occs) Fun.id) with
+  | [] -> 0
+  | c0 :: cs ->
+      List.fold_left (fun best i -> if key i > key best then i else best) c0 cs
 
-let is_exhaustive arity_env rows = rows |> Compile_state.make |> compile arity_env |> is_exhaustive'
+let specialization ~head ~arity m =
+  let occ0 = List.hd m.occs and rest_occs = List.tl m.occs in
+  let suboccs =
+    match head with
+    | H_ctor _ -> List.init arity (fun i -> child occ0 (Payload i))
+    | H_cons -> [ child occ0 Hd; child occ0 Tl ]
+    | H_int _ | H_str _ | H_chr _ | H_nil -> []
+  in
+  let rows =
+    List.filter_map
+      (fun row ->
+        match row.pats with
+        | [] -> None
+        | front :: rest -> begin
+            match head_of front with
+            | None ->
+                Some
+                  {
+                    row with
+                    pats = wildcards (List.length suboccs) @ rest;
+                    binds = bind_front front occ0 row.binds;
+                  }
+            | Some h ->
+                if h = head then Some { row with pats = subpats front @ rest }
+                else None
+          end)
+      m.rows
+  in
+  { occs = suboccs @ rest_occs; rows }
+
+let defaulting m =
+  let occ0 = List.hd m.occs and rest_occs = List.tl m.occs in
+  let rows =
+    List.filter_map
+      (fun row ->
+        match row.pats with
+        | front :: rest when head_of front = None ->
+            Some { row with pats = rest; binds = bind_front front occ0 row.binds }
+        | _ -> None)
+      m.rows
+  in
+  { occs = rest_occs; rows }
+
+let rec compile siblings m =
+  match m.rows with
+  | [] -> Fail
+  | r0 :: _ when List.for_all is_wild r0.pats ->
+      let extra =
+        List.concat
+          (List.map2
+             (fun (p : P.t) occ ->
+               match shape_of p with Var x -> [ (x, occ) ] | _ -> [])
+             r0.pats m.occs)
+      in
+      Leaf { action = r0.action; bindings = r0.binds @ extra }
+  | _ -> begin
+      match find_product m with
+      | Some (i, tuple_arity) ->
+          let m = if i <> 0 then swap m i else m in
+          let expanded =
+            match tuple_arity with
+            | Some n -> expand_tuple m n
+            | None -> expand_record m
+          in
+          compile siblings expanded
+      | None ->
+          let i = best_column siblings m in
+          let m = if i <> 0 then swap m i else m in
+          let sigs = signatures (front_column m) in
+          let branches =
+            List.map
+              (fun (h, subs) ->
+                ( test_of h subs,
+                  compile siblings (specialization ~head:h ~arity:(List.length subs) m) ))
+              sigs
+          in
+          let default =
+            if complete siblings sigs then None
+            else Some (compile siblings (defaulting m))
+          in
+          Switch { occurrence = List.hd m.occs; branches; default }
+    end
+
+let build siblings patterns =
+  compile siblings
+    {
+      occs = [ root ];
+      rows =
+        List.mapi (fun action p -> { pats = [ p ]; binds = []; action }) patterns;
+    }

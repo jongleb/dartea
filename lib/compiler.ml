@@ -57,26 +57,44 @@ let initial_ctx =
   let f acc (v, scheme) = Infer.Infer_proc.Map.add v scheme acc in
   List.fold_left f Infer.Infer_proc.Map.empty std
 
-let compile_string (content : string) : string =
-  match Parse.Main.parse content with
-  | Error e -> raise e
-  | Ok impl_list ->
-      let frontend_module = Frontend.Module.of_impl impl_list in
-      let canonical = Canonical.Module.of_frontend frontend_module in
-      Infer.Infer_proc.State.reset ();
-      let result = Infer.Infer_proc.infer_toplevel canonical initial_ctx in
-      let optimized = After_typed.Optimize.optimize result.declarations in
-      let sorted = After_typed.Dependency_sort.sort_declarations optimized in
-      let constructors =
-        List.map
-          (fun (c : Infer.Infer_proc.ctor_info) -> (c.name, c.arity))
-          result.constructors
-      in
-      let js =
-        Codegen.Js_of_optimized.program_with_helpers ~constructors sorted
-      in
-      Codegen.Js_of_optimized.runtime_prelude
-      ^ Codegen.Js_to_string.program_to_string js
+module type BACKEND = sig
+  val emit :
+    constructors:(string * int) list ->
+    siblings:(string * (string * int) list) list ->
+    Optimized.Declaration.t list ->
+    string
+end
+
+module Js_backend : BACKEND = struct
+  let emit ~constructors ~siblings decls =
+    let program =
+      Codegen.Js_of_optimized.program_with_helpers ~constructors ~siblings decls
+    in
+    Codegen.Js_of_optimized.runtime_prelude
+    ^ Codegen.Js_to_string.program_to_string program
+end
+
+module Make (B : BACKEND) = struct
+  let compile_string (content : string) : string =
+    match Parse.Main.parse content with
+    | Error e -> raise e
+    | Ok impl_list ->
+        let frontend_module = Frontend.Module.of_impl impl_list in
+        let canonical = Canonical.Module.of_frontend frontend_module in
+        Infer.Infer_proc.State.reset ();
+        let result = Infer.Infer_proc.infer_toplevel canonical initial_ctx in
+        let optimized = After_typed.Optimize.optimize result.declarations in
+        let sorted = After_typed.Dependency_sort.sort_declarations optimized in
+        let constructors =
+          List.map
+            (fun (c : Infer.Infer_proc.ctor_info) -> (c.name, c.arity))
+            result.constructors
+        in
+        let siblings = Infer.Infer_proc.Map.bindings result.siblings_env in
+        B.emit ~constructors ~siblings sorted
+end
+
+include Make (Js_backend)
 
 let compile path =
   let open File_loader.Files in
@@ -109,7 +127,8 @@ let compile path =
       canonicalized
   in
 
-  let check_exhaustiveness (arity_env : int Infer.Infer_proc.Map.t)
+  let check_exhaustiveness
+      (siblings_env : (string * int) list Infer.Infer_proc.Map.t)
       (decl : Typed.Declaration.t) =
     let open Typed.Expr in
     let rec check_expr (expr : Typed.Expr.t) =
@@ -117,17 +136,17 @@ let compile path =
       | Expr_pattern pattern_match ->
           let patterns =
             List.map
-              (fun (case : expr_pattern_case) -> case.pattern)
+              (fun (case : expr_pattern_case) ->
+                After_typed.Typed_to_optimized.pattern_of_typed case.pattern)
               pattern_match.pattern_data_items
           in
           let warnings =
-            if not (After_typed.Exhaustive.is_exhaustive arity_env patterns)
-            then
+            if After_typed.Exhaustive.is_exhaustive siblings_env patterns then []
+            else
               [
                 Printf.sprintf "Warning: non-exhaustive pattern match in %s"
                   decl.name.thing;
               ]
-            else []
           in
           let scrutinee_warnings = check_expr pattern_match.expr in
           let cases_warnings =
@@ -165,8 +184,8 @@ let compile path =
     List.concat_map
       (fun x ->
         match x with
-        | Ok Infer.Infer_proc.{ arity_env; declarations; _ } ->
-            List.concat_map (check_exhaustiveness arity_env) declarations
+        | Ok Infer.Infer_proc.{ siblings_env; declarations; _ } ->
+            List.concat_map (check_exhaustiveness siblings_env) declarations
         | Error _ -> [])
       typed
   in
@@ -194,9 +213,10 @@ let compile path =
   let constructors_per_file =
     List.map
       (Result.map (fun (r : Infer.Infer_proc.infer_result) ->
-           List.map
-             (fun (c : Infer.Infer_proc.ctor_info) -> (c.name, c.arity))
-             r.constructors))
+           ( List.map
+               (fun (c : Infer.Infer_proc.ctor_info) -> (c.name, c.arity))
+               r.constructors,
+             Infer.Infer_proc.Map.bindings r.siblings_env )))
       typed
   in
 
@@ -204,10 +224,10 @@ let compile path =
     List.filter_map
       (fun (sorted_r, ctors_r) ->
         match (sorted_r, ctors_r) with
-        | Ok declarations, Ok constructors ->
+        | Ok declarations, Ok (constructors, siblings) ->
             Some
               (Codegen.Js_of_optimized.program_with_helpers ~constructors
-                 declarations)
+                 ~siblings declarations)
         | Ok declarations, Error _ ->
             Some (Codegen.Js_of_optimized.program_with_helpers declarations)
         | Error _, _ -> None)

@@ -15,6 +15,7 @@ type infer_result = {
   ctx : ctx;
   declarations : Typed.Declaration.t list;
   arity_env : int Map.t;
+  siblings_env : (string * int) list Map.t;
   constructors : ctor_info list;
 }
 
@@ -726,6 +727,21 @@ let build_arity_env (type_env : type_env) : int Map.t =
         acc typedef.ctors)
     type_env.constructors Map.empty
 
+let build_siblings_env (type_env : type_env) : (string * int) list Map.t =
+  Map.fold
+    (fun _ctor_name (typedef, _ctor) acc ->
+      let sibs =
+        List.map
+          (fun (ctor : Canonical.Typedecl.type_ctor) ->
+            (ctor.id, List.length ctor.data))
+          typedef.Canonical.Typedecl.ctors
+      in
+      List.fold_left
+        (fun acc_inner (ctor : Canonical.Typedecl.type_ctor) ->
+          Map.add ctor.id sibs acc_inner)
+        acc typedef.ctors)
+    type_env.constructors Map.empty
+
 let infer_toplevel (module_ : Canonical.Module.t) initial_ctx =
   let type_env = build_type_env module_ in
 
@@ -854,6 +870,7 @@ let infer_toplevel (module_ : Canonical.Module.t) initial_ctx =
   in
 
   let arity_env = build_arity_env type_env in
+  let siblings_env = build_siblings_env type_env in
 
   let constructors =
     Canonical.Module.String_map.fold
@@ -867,4 +884,10 @@ let infer_toplevel (module_ : Canonical.Module.t) initial_ctx =
       module_.type_declarations []
   in
 
-  { ctx = final_ctx; declarations = List.rev typed_decls; arity_env; constructors }
+  {
+    ctx = final_ctx;
+    declarations = List.rev typed_decls;
+    arity_env;
+    siblings_env;
+    constructors;
+  }

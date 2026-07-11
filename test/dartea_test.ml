@@ -12,6 +12,7 @@ let suite =
          "test_types" >::: Dartea_test_type.suite;
          "test_indent" >::: Dartea_test_indent.suite;
          "test_codegen" >::: Dartea_test_codegen.suite;
+         "test_exhaustive" >::: Dartea_test_exhaustive.suite;
          (* "test_frontend_module" >::: Dartea_test_frontend_module.suite; *)
          (* "test_infer" >::: Dartea_infer_test.suite; *)
        ]
