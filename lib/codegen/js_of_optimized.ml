@@ -59,15 +59,12 @@ module SMap = Map.Make (String)
 
 let name_counts : (string, int) Hashtbl.t = Hashtbl.create 64
 
-let arities : (string, int) Hashtbl.t = Hashtbl.create 64
-
 let ctor_siblings : (string, (string * int) list) Hashtbl.t = Hashtbl.create 64
 
 let ctor_siblings_of name = Hashtbl.find_opt ctor_siblings name
 
 let reset_names () =
   Hashtbl.clear name_counts;
-  Hashtbl.clear arities;
   Hashtbl.clear ctor_siblings;
   temp_counter := 0
 
@@ -99,8 +96,10 @@ let binop_of_string (name : string) : J.binop option =
   | "*" -> Some J.Multiply
   | "/" -> Some J.Divide
   | "%" -> Some J.Modulo
+  | "++" -> Some J.Plus
   | "==" -> Some J.StrictEqual
   | "!=" -> Some J.StrictNotEqual
+  | "/=" -> Some J.StrictNotEqual
   | "<" -> Some J.LessThan
   | "<=" -> Some J.LessThanOrEqual
   | ">" -> Some J.GreaterThan
@@ -113,14 +112,24 @@ let is_bool_constructor name = name = "True" || name = "False"
 let is_unit_constructor name = name = "Unit" || name = "()"
 let bool_literal name = J.Literal (J.Bool (name = "True"))
 
+let is_tag_omitted name =
+  match ctor_siblings_of name with
+  | Some siblings -> (
+      match List.filter (fun (_, arity) -> arity >= 1) siblings with
+      | [ (only, _) ] -> only = name
+      | _ -> false)
+  | None -> false
+
+let payload_fields js_arguments =
+  List.mapi (fun i a -> ("_" ^ string_of_int i, a)) js_arguments
+
 let constructor_to_object name js_arguments =
   if is_bool_constructor name then bool_literal name
   else if is_unit_constructor name then J.Literal J.Null
   else if js_arguments = [] then J.Literal (J.String name)
+  else if is_tag_omitted name then J.Object (payload_fields js_arguments)
   else
-    J.Object
-      (("TAG", J.Literal (J.String name))
-      :: List.mapi (fun i a -> ("_" ^ string_of_int i, a)) js_arguments)
+    J.Object (("TAG", J.Literal (J.String name)) :: payload_fields js_arguments)
 
 let rec is_record_construction (expr_node : O.Expr.t) =
   match expr_node.expr with
@@ -172,6 +181,14 @@ let js_eq left lit = J.Binary { left; op = J.StrictEqual; right = J.Literal lit 
 let js_ne_zero occ =
   J.Binary { left = occ; op = J.StrictNotEqual; right = J.Literal (J.Int 0) }
 
+let js_is_object occ =
+  J.Binary
+    {
+      left = J.Unary { op = J.Typeof; arg = occ };
+      op = J.StrictEqual;
+      right = J.Literal (J.String "object");
+    }
+
 let occ_expr root (o : Occ.t) : J.expr =
   List.fold_left
     (fun e step ->
@@ -190,7 +207,9 @@ let ctor_literal name =
 let test_expr occ_e (test : DT.test) : J.expr =
   match test with
   | DT.Test_ctor name -> js_eq occ_e (ctor_literal name)
-  | DT.Test_tag name -> js_eq (member occ_e "TAG") (J.String name)
+  | DT.Test_tag name ->
+      if is_tag_omitted name then js_is_object occ_e
+      else js_eq (member occ_e "TAG") (J.String name)
   | DT.Test_int n -> js_eq occ_e (J.Int n)
   | DT.Test_str s -> js_eq occ_e (J.String s)
   | DT.Test_chr c -> js_eq occ_e (J.String c)
@@ -199,7 +218,8 @@ let test_expr occ_e (test : DT.test) : J.expr =
 
 let switch_key (test : DT.test) : ([ `Value | `Tag ] * J.literal) option =
   match test with
-  | DT.Test_tag n -> Some (`Tag, J.String n)
+  | DT.Test_tag n when not (is_tag_omitted n) -> Some (`Tag, J.String n)
+  | DT.Test_tag _ -> None
   | DT.Test_ctor n when not (is_bool_constructor n) -> Some (`Value, J.String n)
   | DT.Test_int n -> Some (`Value, J.Int n)
   | DT.Test_str s -> Some (`Value, J.String s)
@@ -250,9 +270,8 @@ let split_at n lst =
 let is_operator env name =
   (not (SMap.mem name env)) && binop_of_string name <> None
 
-let top_arity env name =
-  if SMap.mem name env then None
-  else match Hashtbl.find_opt arities name with Some n when n >= 1 -> Some n | _ -> None
+let rec type_arity (t : O.Type.t) =
+  match t with O.Type.TFun (_, result) -> 1 + type_arity result | _ -> 0
 
 let closure_partial callee args missing =
   let rparams = List.init missing (fun _ -> fresh_temp ()) in
@@ -472,10 +491,10 @@ and emit_apply env fn arg =
         let sa, ea = emit_value env a1 in
         let sb, eb = emit_value env a2 in
         (sa @ sb, binop_expr op ea eb)
-    | O.Expr.Expr_ident name, _ -> (
-        match top_arity env name with
-        | Some n -> emit_known_call env (jid_env env name) n args
-        | None -> emit_generic env callee args)
+    | O.Expr.Expr_ident name, _ ->
+        let n = type_arity callee.O.Expr.typ in
+        if n >= 1 then emit_known_call env (jid_env env name) n args
+        else emit_generic env callee args
     | _ -> emit_generic env callee args
 
 and emit_known_call env callee n args =
@@ -662,18 +681,6 @@ let decl_stmts (decl : O.Declaration.t) : J.stmt list =
 let program_of_declarations (decls : O.Declaration.t list) : J.program =
   List.concat_map decl_stmts decls
 
-let runtime_prelude =
-  "const $$matchError = (value) => {\n\
-  \  console.error(\"Pattern match failed for value:\", value);\n\
-  \  return null;\n\
-   };\n\
-   const $$curry = (f, args) => {\n\
-  \  const n = f.length === 0 ? 1 : f.length;\n\
-  \  if (args.length === n) return f(...args);\n\
-  \  if (args.length < n) return (...more) => $$curry(f, [...args, ...more]);\n\
-  \  return $$curry(f(...args.slice(0, n)), args.slice(n));\n\
-   };\n"
-
 let constructor_decls (constructors : (string * int) list) : J.stmt list =
   constructors
   |> List.filter (fun (name, _) ->
@@ -699,19 +706,26 @@ let constructor_decls (constructors : (string * int) list) : J.stmt list =
 let program_with_helpers ?(constructors = []) ?(siblings = [])
     (decls : O.Declaration.t list) : J.program =
   reset_names ();
-  List.iter
-    (fun n -> reserve_name (sanitize n))
-    [ "$$matchError"; "$$curry"; "console" ];
+  List.iter (fun n -> reserve_name (sanitize n)) Runtime.reserved;
   List.iter (fun (decl : O.Declaration.t) -> reserve_name (sname decl.name)) decls;
   List.iter (fun (name, _) -> reserve_name (sanitize name)) constructors;
-  List.iter
-    (fun (decl : O.Declaration.t) ->
-      Hashtbl.replace arities
-        (Data.Located.unwrap decl.name)
-        (List.length decl.params))
-    decls;
-  List.iter (fun (name, ar) -> Hashtbl.replace arities name ar) constructors;
   List.iter
     (fun (name, sibs) -> Hashtbl.replace ctor_siblings name sibs)
     siblings;
   constructor_decls constructors @ program_of_declarations decls
+
+let mentions body name =
+  let nl = String.length name and hl = String.length body in
+  let rec go i = i + nl <= hl && (String.sub body i nl = name || go (i + 1)) in
+  go 0
+
+let emit ?(constructors = []) ?(siblings = []) (decls : O.Declaration.t list) :
+    string =
+  let body =
+    Js_to_string.program_to_string
+      (program_with_helpers ~constructors ~siblings decls)
+  in
+  let user = List.map (fun (d : O.Declaration.t) -> Data.Located.unwrap d.name) decls in
+  let needed (name, _) = (not (List.mem name user)) && mentions body name in
+  let defs = List.filter_map (fun b -> if needed b then Some (snd b) else None) Runtime.builtins in
+  Runtime.core ^ String.concat "" (List.map (fun d -> d ^ "\n") defs) ^ body

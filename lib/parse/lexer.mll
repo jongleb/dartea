@@ -44,9 +44,12 @@ rule token state = parse
   | "in"            { Indenter.handle_in state }
   | "exposing"      { EXPOSING }
   | "module"        { MODULE }
+  | "import"        { IMPORT }
+  | "as"            { AS }
   | lcname          { Indenter.handle_lcname state lexbuf }
   | ucname          { UCNAME (Lexing.lexeme lexbuf) }
   | ucname_q        { UCNAME_PATH (Lexing.lexeme lexbuf) }
+  | ucname_q '.' lcname { QUAL_LCNAME (Lexing.lexeme lexbuf) }
   | '='             { Indenter.handle_equal state lexbuf }
   | eof             { Indenter.handle_eof state }
   | "("             { LPAREN }

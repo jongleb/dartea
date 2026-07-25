@@ -3,6 +3,7 @@
  (libraries
   base
   parse
+  builtins
   infer
   typed
   canonicalization

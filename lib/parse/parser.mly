@@ -8,6 +8,7 @@
 %token <string> LCNAME
 %token <string> UCNAME
 %token <string> UCNAME_PATH
+%token <string> QUAL_LCNAME
 %token <string> ACCESS
 %token <int> INT
 %token <string> STRING
@@ -37,6 +38,8 @@
 %token UNIT
 %token TWO_DOTS
 %token EXPOSING
+%token IMPORT
+%token AS
 %token EQ_EQ GT LT
 %token MODULE
 %token INDENT DEDENT
@@ -71,8 +74,9 @@
 
 prog:
     m=ioption(module_)
+    imports = list(import_)
     lst = top_decls;
-    EOF { List.concat [Option.value ~default:[] m; lst] }
+    EOF { List.concat [Option.value ~default:[] m; imports; lst] }
 
 top_decls: l=list(top_decl) { l }
 
@@ -90,7 +94,18 @@ loc(X):
 
 module_:
     | MODULE name=loc(upper_possible_dotted) EXPOSING exposing=exposing
-        { [Impl.ModuleName name; Impl.Export exposing] }       
+        { [Impl.ModuleName name; Impl.Export exposing] }
+
+import_:
+    | IMPORT name=loc(upper_possible_dotted) alias=ioption(import_alias) exp=ioption(import_exposing)
+        { Impl.Import { name; alias;
+                        exposing = Option.value ~default:(Exposing.Explicit []) exp } }
+
+import_alias:
+    | AS name=UCNAME { name }
+
+import_exposing:
+    | EXPOSING e=exposing { e }
 
 exposing:
     | LPAREN TWO_DOTS RPAREN { Exposing.Open }
@@ -98,8 +113,8 @@ exposing:
 
 exposing_item:
     | name=loc(UCNAME) { Exposing.Upper { name; privacy=Private } }
-    | name=loc(LCNAME) { Exposing.Upper { name; privacy=Private } }
-    | name=loc(UCNAME) LPAREN TWO_DOTS RPAREN { Exposing.Upper { name; privacy=Public($loc) } }    
+    | name=loc(LCNAME) { Exposing.Lower name }
+    | name=loc(UCNAME) LPAREN TWO_DOTS RPAREN { Exposing.Upper { name; privacy=Public($loc) } }
 
 
 type_alias_decl:
@@ -274,6 +289,8 @@ expr_applicable:
     | e=FLOAT { Expr_float e }
     | e=UNIT { Expr_unit }
     | n=UCNAME { Expr_constr_fixed n }
+    | n=QUAL_LCNAME { make_qualified n }
+    | n=UCNAME_PATH { make_qualified n }
     | LBRACKET e=separated_list(COMMA, expr) RBRACKET { Expr_list e }
     | LBRACE lst=separated_list(COMMA, expr_record_field) RBRACE { Expr_record lst }
 

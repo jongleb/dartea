@@ -1,6 +1,6 @@
 (library
- (name infer)
- (libraries builtins canonical frontend typed containers-data data vector)
+ (name builtins)
+ (libraries data canonical typed)
  (flags
   (-w -40 -w +26))
  (preprocess

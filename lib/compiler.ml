@@ -9,53 +9,9 @@ module Module_map = struct
   include Base.Comparable.Make (T)
 end
 
-let std =
-  let open Infer in
-  let open Type in
-  [
-      ("pow", Typed.Type.Scheme ([], TFun (TInt, TFun (TInt, TInt))));
-      ("=", Scheme ([ "'a" ], TFun (TVar "'a", TFun (TVar "'a", TBool))));
-      ("<>", Scheme ([ "'a" ], TFun (TVar "'a", TFun (TVar "'a", TBool))));
-
-      ("==", Scheme ([ "'a" ], TFun (TVar "'a", TFun (TVar "'a", TBool))));
-      (">", Scheme ([], TFun (TInt, TFun (TInt, TBool))));
-      ("<", Scheme ([], TFun (TInt, TFun (TInt, TBool))));
-      ("&&", Scheme ([], TFun (TBool, TFun (TBool, TBool))));
-      ("||", Scheme ([], TFun (TBool, TFun (TBool, TBool))));
-      ("+", Scheme ([], TFun (TInt, TFun (TInt, TInt))));
-      ("plus", Scheme ([], TFun (TInt, TFun (TInt, TInt))));
-      ("concat", Scheme ([], TFun (TStr, TFun (TStr, TStr))));
-      ("++", Scheme ([], TFun (TStr, TFun (TStr, TStr))));
-      ("length", Scheme ([], TFun (TStr, TInt)));
-      ("int_to_string", Scheme ([], TFun (TInt, TStr)));
-      ("int_of_string", Scheme ([], TFun (TStr, TInt)));
-      ("-", Scheme ([], TFun (TInt, TFun (TInt, TInt))));
-      ("*", Scheme ([], TFun (TInt, TFun (TInt, TInt))));
-      ("/", Scheme ([], TFun (TInt, TFun (TInt, TInt))));
-      ("id", Scheme ([ "'a" ], TFun (TVar "'a", TVar "'a")));
-      ( "const",
-        Scheme ([ "'a"; "'b" ], TFun (TVar "'a", TFun (TVar "'b", TVar "'a")))
-      );
-      ( "pair",
-        Scheme
-          ( [ "'a"; "'b" ],
-            TFun (TVar "'a", TFun (TVar "'b", TTup [ TVar "'a"; TVar "'b" ])) )
-      );
-      ( "fst",
-        Scheme ([ "'a"; "'b" ], TFun (TTup [ TVar "'a"; TVar "'b" ], TVar "'a"))
-      );
-      ( "snd",
-        Scheme ([ "'a"; "'b" ], TFun (TTup [ TVar "'a"; TVar "'b" ], TVar "'b"))
-      );
-      ( "|>",
-        Scheme
-          ( [ "'a"; "'b" ],
-            TFun (TVar "'a", TFun (TFun (TVar "'a", TVar "'b"), TVar "'b")) ) );
-    ]
-
 let initial_ctx =
   let f acc (v, scheme) = Infer.Infer_proc.Map.add v scheme acc in
-  List.fold_left f Infer.Infer_proc.Map.empty std
+  List.fold_left f Infer.Infer_proc.Map.empty Builtins.values
 
 module type BACKEND = sig
   val emit :
@@ -67,11 +23,7 @@ end
 
 module Js_backend : BACKEND = struct
   let emit ~constructors ~siblings decls =
-    let program =
-      Codegen.Js_of_optimized.program_with_helpers ~constructors ~siblings decls
-    in
-    Codegen.Js_of_optimized.runtime_prelude
-    ^ Codegen.Js_to_string.program_to_string program
+    Codegen.Js_of_optimized.emit ~constructors ~siblings decls
 end
 
 module Make (B : BACKEND) = struct
@@ -220,27 +172,22 @@ let compile path =
       typed
   in
 
-  let js_programs =
+  let js_sources =
     List.filter_map
       (fun (sorted_r, ctors_r) ->
         match (sorted_r, ctors_r) with
         | Ok declarations, Ok (constructors, siblings) ->
             Some
-              (Codegen.Js_of_optimized.program_with_helpers ~constructors
-                 ~siblings declarations)
+              (Codegen.Js_of_optimized.emit ~constructors ~siblings declarations)
         | Ok declarations, Error _ ->
-            Some (Codegen.Js_of_optimized.program_with_helpers declarations)
+            Some (Codegen.Js_of_optimized.emit declarations)
         | Error _, _ -> None)
       (List.combine sorted constructors_per_file)
   in
 
   List.iter
-    (fun js_program ->
-      let js_code =
-        Codegen.Js_of_optimized.runtime_prelude
-        ^ Codegen.Js_to_string.program_to_string js_program
-      in
+    (fun js_code ->
       Printf.printf "\n=== Generated JavaScript ===\n%s\n" js_code)
-    js_programs;
+    js_sources;
 
   prerr_endline "Success!"
