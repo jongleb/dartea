@@ -45,7 +45,7 @@ let test_pattern_matching_returning_ignore_exhaustive _ =
         expr = Expr_constr { name = "Just"; arguments = [ Expr_string "" ] };
         pattern_data_items =
           [
-            { pattern = P_ctor ("None", []); expr = Expr_int 0 };
+            { pattern = P_ctor ("Nothing", []); expr = Expr_int 0 };
             { pattern = P_ctor ("Just", [ P_int 2 ]); expr = Expr_int 1 };
           ];
       }
@@ -60,7 +60,7 @@ let test_pattern_matching_returning_ignore_exhaustive_2 _ =
         expr = Expr_constr { name = "Just"; arguments = [ Expr_string "" ] };
         pattern_data_items =
           [
-            { pattern = P_ctor ("None", []); expr = Expr_string "sdfds" };
+            { pattern = P_ctor ("Nothing", []); expr = Expr_string "sdfds" };
             { pattern = P_ctor ("Just", [ P_int 2 ]); expr = Expr_int 1 };
           ];
       }
@@ -75,7 +75,7 @@ let test_pattern_matching_returning_ignore_exhaustive_2 _ =
          expr = Expr_constr { name = "Just"; arguments = [ Expr_string "" ] };
          pattern_data_items =
            [
-             { pattern = P_ctor ("None", []); expr = Expr_int 0 };
+             { pattern = P_ctor ("Nothing", []); expr = Expr_int 0 };
              { pattern = P_ctor ("Just", [ P_anything ]); expr = Expr_int 1 };
            ];
        }
@@ -89,7 +89,7 @@ let test_pattern_matching_returning_ignore_exhaustive_3 _ =
         expr = Expr_constr { name = "Just"; arguments = [ Expr_string "" ] };
         pattern_data_items =
           [
-            { pattern = P_ctor ("None", []); expr = Expr_int 0 };
+            { pattern = P_ctor ("Nothing", []); expr = Expr_int 0 };
             { pattern = P_ctor ("Just", [ P_anything ]); expr = Expr_int 1 };
           ];
       }
@@ -112,7 +112,7 @@ let test_pattern_matching_returning_ignore_exhaustive_resolve_type_while_matchin
         expr = Expr_ident "test_var_";
         pattern_data_items =
           [
-            { pattern = P_ctor ("None", []); expr = Expr_int 0 };
+            { pattern = P_ctor ("Nothing", []); expr = Expr_int 0 };
             { pattern = P_ctor ("Just", [ P_int 3 ]); expr = Expr_int 1 };
             { pattern = P_ctor ("Just", [ P_str "word" ]); expr = Expr_int 1 };
           ];
@@ -138,7 +138,7 @@ let test_pattern_matching_returning_ignore_exhaustive_resolve_type_while_matchin
         expr = Expr_ident "test_var_";
         pattern_data_items =
           [
-            { pattern = P_ctor ("None", []); expr = Expr_int 0 };
+            { pattern = P_ctor ("Nothing", []); expr = Expr_int 0 };
             { pattern = P_ctor ("Just", [ P_int 3 ]); expr = Expr_int 1 };
           ];
       }
@@ -148,7 +148,7 @@ let test_pattern_matching_returning_ignore_exhaustive_resolve_type_while_matchin
   assert_equal result Typed.Type.TInt
 
 let test_pattern_matching_returning_ignore_exhaustive_try_invalid_reuse _ =
-  let v = ref None in
+  let v = ref Nothing in
   let ctx =
     Typed.(
       Infer.(
@@ -186,7 +186,7 @@ let test_pattern_matching_returning_ignore_exhaustive_try_invalid_reuse _ =
                       expr = Expr_ident "test_var_";
                       pattern_data_items =
                         [
-                          { pattern = P_ctor ("None", []); expr = Expr_int 0 };
+                          { pattern = P_ctor ("Nothing", []); expr = Expr_int 0 };
                           {
                             pattern = P_ctor ("Just", [ P_int 3 ]);
                             expr = Expr_int 1;
@@ -218,7 +218,7 @@ let test_pattern_matching_returning_ignore_exhaustive_try_invalid_reuse _ =
       ())
 
 let test_constr_infer _ =
-  let var = ref None in
+  let var = ref Nothing in
   let ctx =
     Typed.(
       Infer.(
@@ -251,12 +251,12 @@ toplevel =|} ^ exp_str
           assert_raises r (fun () ->
               let s, ty = Typed.Infer.infer' expr ctx in
               ignore @@ Typed.Infer.apply_typ ty s)
-      | None -> (
+      | Nothing -> (
           let s, ty = Typed.Infer.infer' expr ctx in
           let result = Typed.Infer.apply_typ ty s in
           match on_success with
           | Some cb -> cb result
-          | None ->
+          | Nothing ->
               if negate then
                 assert_bool "unexpected equal" @@ not (result = expected)
               else assert_equal result expected))
@@ -302,7 +302,7 @@ let test_pattern_matching_returning_exhaustive_5 _ =
   Just ((1, _)) -> let v = int_of_string "600" in pow v 100
   Just ((_, 2)) -> fst b
   Just ((k, 2)) -> pow k 100
-  None   -> length (concat "ab" "cd")
+  Nothing   -> length (concat "ab" "cd")
   _ -> 5|}
   in
   test_expr' input ctx Typed.Type.TInt
@@ -356,7 +356,7 @@ let test_pattern_matching_returning_ignore_exhaustive_resolve_type_while_matchin
         expr = Expr_ident "test_var_";
         pattern_data_items =
           [
-            { pattern = P_ctor ("None", []); expr = Expr_int 0 };
+            { pattern = P_ctor ("Nothing", []); expr = Expr_int 0 };
             (* {
                  pattern = P_ctor ("Just", [ P_ctor ("Just", [ P_int 3 ]) ]);
                  expr = Expr_int 1;
@@ -401,7 +401,7 @@ let test_specialization_tree _ =
         [
           {
             typ = TCustom ("Maybe", [ TTup [ TInt; TInt ] ]);
-            pattern = P_T_ctor ("None", []);
+            pattern = P_T_ctor ("Nothing", []);
           };
         ];
       ]
@@ -510,7 +510,7 @@ let test_no_errors_compile _ =
         [
           {
             typ = TCustom ("Maybe", [ TTup [ TInt; TInt ] ]);
-            pattern = P_T_ctor ("None", []);
+            pattern = P_T_ctor ("Nothing", []);
           };
         ];
       ]
@@ -676,7 +676,7 @@ let test_no_errors_compile_exhaustive_2 _ =
         [
           {
             typ = Typed.Type.(TCustom ("Maybe", [ TTup [ TInt; TInt ] ]));
-            pattern = P_T_ctor ("None", []);
+            pattern = P_T_ctor ("Nothing", []);
           };
         ];
       ]
@@ -712,7 +712,7 @@ let infer_check_exhaustive _ =
               pattern = P_ctor ("Just", [ P_tuple [ P_anything; P_anything ] ]);
               expr = Expr_int 3;
             };
-            { pattern = P_ctor ("None", []); expr = Expr_int 4 };
+            { pattern = P_ctor ("Nothing", []); expr = Expr_int 4 };
           ];
       }
   in
@@ -743,7 +743,7 @@ let infer_check_not_exhaustive _ =
               pattern = P_ctor ("Just", [ P_tuple [ P_anything; P_int 2 ] ]);
               expr = Expr_int 2;
             };
-            { pattern = P_ctor ("None", []); expr = Expr_int 3 };
+            { pattern = P_ctor ("Nothing", []); expr = Expr_int 3 };
           ];
       }
   in
@@ -787,7 +787,7 @@ let infer_check_exhaustive_p_var _ =
                         };
                   };
             };
-            { pattern = P_ctor ("None", []); expr = Expr_int 4 };
+            { pattern = P_ctor ("Nothing", []); expr = Expr_int 4 };
           ];
       }
   in

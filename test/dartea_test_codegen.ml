@@ -140,18 +140,20 @@ result = toInt (E D)
   assert_js ~src ~expr:"result" ~expected:"2"
 
 let test_let_in _ =
-  let src = {|
+  let src =
+    {|
 result : Int
 result =
     let
-        y = 5
+        y = length "hello"
     in
     y + 1
-|} in
+|}
+  in
   assert_js ~src ~expr:"result" ~expected:"6";
   let js = Dartea.Compiler.compile_string src in
   assert_bool "value local should hoist (const y)"
-    (contains ~needle:"const y = 5" js);
+    (contains ~needle:{|const y = length("hello")|} js);
   assert_bool "value should not be an IIFE" (not (contains ~needle:"(() =>" js))
 
 let test_if_then_else _ =
@@ -307,17 +309,23 @@ result = inc 5
 let test_direct_call _ =
   let src =
     {|
-add : Int -> Int -> Int
-add a b = a + b
+countUp : Int -> Int -> Int
+countUp n acc =
+    case n of
+        0 ->
+            acc
+
+        _ ->
+            countUp (n - 1) (acc + 1)
 
 result : Int
-result = add 3 4
+result = countUp 3 4
 |}
   in
   assert_js ~src ~expr:"result" ~expected:"7";
   let js = Dartea.Compiler.compile_string src in
-  assert_bool "saturated call is direct (add(3, 4))"
-    (contains ~needle:"add(3, 4)" js)
+  assert_bool "saturated call is direct (countUp(3, 4))"
+    (contains ~needle:"countUp(3, 4)" js)
 
 let test_shadowing _ =
   let src =
@@ -563,7 +571,12 @@ type W = L T | R T
 
 fallback : Int -> Int
 fallback n =
-    n + n + n
+    case n of
+        0 ->
+            0
+
+        _ ->
+            n + n + n
 
 f : W -> Int
 f w =
@@ -749,9 +762,216 @@ let test_unused_builtin_absent _ =
   assert_bool "unused builtin not emitted"
     (not (contains ~needle:"const first =" js))
 
+let test_constant_folding _ =
+  let src = {|
+x : Int
+x = 1 + 2 * 3
+|} in
+  assert_js ~src ~expr:"x" ~expected:"7";
+  let js = Dartea.Compiler.compile_string src in
+  assert_bool "literal arithmetic is folded at compile time"
+    (contains ~needle:"const x = 7;" js)
+
+let test_constant_folding_comparison _ =
+  let src =
+    {|
+r : Int
+r =
+    if 2 < 1 then
+        1
+    else
+        2
+|}
+  in
+  assert_js ~src ~expr:"r" ~expected:"2";
+  let js = Dartea.Compiler.compile_string src in
+  assert_bool "a literal comparison folds the whole conditional away"
+    (contains ~needle:"const r = 2;" js)
+
+let test_constant_folding_concat _ =
+  let src = {|
+s : String
+s = "4" ++ "2"
+|} in
+  assert_js ~src ~expr:"s" ~expected:{|"42"|};
+  let js = Dartea.Compiler.compile_string src in
+  assert_bool "literal string concatenation is folded"
+    (contains ~needle:{|const s = "42";|} js)
+
+let test_constant_propagation _ =
+  let src =
+    {|
+y : Int
+y =
+    let
+        a = 2
+    in
+    a * 3
+|}
+  in
+  assert_js ~src ~expr:"y" ~expected:"6";
+  let js = Dartea.Compiler.compile_string src in
+  assert_bool "the constant is propagated into its uses"
+    (contains ~needle:"const y = 6;" js);
+  assert_bool "the propagated binding is gone"
+    (not (contains ~needle:"const a =" js))
+
+let test_dead_let_eliminated _ =
+  let src =
+    {|
+keep : Int -> Int
+keep w =
+    let
+        unused = w + 1
+    in
+    7
+|}
+  in
+  let js = Dartea.Compiler.compile_string src in
+  assert_bool "an unused pure binding is dropped"
+    (not (contains ~needle:"unused" js))
+
+let test_dead_let_keeps_calls _ =
+  let src =
+    {|
+keep : String -> Int
+keep w =
+    let
+        used = length w
+    in
+    used + 1
+|}
+  in
+  assert_js ~src ~expr:{|keep("abc")|} ~expected:"4";
+  let js = Dartea.Compiler.compile_string src in
+  assert_bool "a call is not assumed pure, so its binding stays"
+    (contains ~needle:"const used = length(w)" js)
+
+let test_beta_reduction _ =
+  let src = {|
+beta : Int
+beta = (\p -> p + 1) 41
+|} in
+  assert_js ~src ~expr:"beta" ~expected:"42";
+  let js = Dartea.Compiler.compile_string src in
+  assert_bool "an immediately applied lambda leaves no closure"
+    (contains ~needle:"const beta = 42;" js)
+
+let test_beta_reduction_avoids_capture _ =
+  let src =
+    {|
+tricky : Int -> Int
+tricky a =
+    (\b c -> b + c) 10 (a + 1)
+
+result : Int
+result = tricky 5
+|}
+  in
+  assert_js ~src ~expr:"result" ~expected:"16";
+  assert_js ~src ~expr:"tricky(5)" ~expected:"16"
+
+let test_beta_reduction_shadowed_argument _ =
+  let src =
+    {|
+tricky : Int -> Int
+tricky a =
+    (\a b -> a + b) 10 (a + 1)
+
+result : Int
+result = tricky 5
+|}
+  in
+  assert_js ~src ~expr:"result" ~expected:"16";
+  assert_js ~src ~expr:"tricky(5)" ~expected:"16"
+
+let test_inline_small_function _ =
+  let src =
+    {|
+add : Int -> Int -> Int
+add a b = a + b
+
+sum : Int
+sum = add 3 4
+|}
+  in
+  assert_js ~src ~expr:"sum" ~expected:"7";
+  let js = Dartea.Compiler.compile_string src in
+  assert_bool "the small function is inlined at the call site"
+    (not (contains ~needle:"add(3, 4)" js));
+  assert_bool "the inlined call folds to a constant"
+    (contains ~needle:"const sum = 7;" js);
+  assert_bool "the function itself is still emitted"
+    (contains ~needle:"const add = (a, b) =>" js)
+
+let test_inline_with_dynamic_argument _ =
+  let src =
+    {|
+double : Int -> Int
+double n = n * 2
+
+quad : Int -> Int
+quad v = double (double v)
+
+result : Int
+result = quad 5
+|}
+  in
+  assert_js ~src ~expr:"result" ~expected:"20";
+  let js = Dartea.Compiler.compile_string src in
+  assert_bool "nested calls are inlined into plain bindings"
+    (not (contains ~needle:"$$double(" js))
+
+let test_inline_respects_shadowing _ =
+  let src =
+    {|
+factor : Int
+factor = 3
+
+scale : Int -> Int
+scale n = n * factor
+
+result : Int
+result =
+    let
+        factor = 10
+    in
+    scale 2
+|}
+  in
+  assert_js ~src ~expr:"result" ~expected:"6"
+
+let test_inline_keeps_partial_application _ =
+  let src =
+    {|
+add3 : Int -> Int -> Int -> Int
+add3 a b c = a + b + c
+
+partial : Int -> Int
+partial = add3 1 2
+
+result : Int
+result = partial 4
+|}
+  in
+  assert_js ~src ~expr:"result" ~expected:"7"
+
 let suite =
   [
     "arithmetic" >:: test_arithmetic;
+    "constant_folding" >:: test_constant_folding;
+    "constant_folding_comparison" >:: test_constant_folding_comparison;
+    "constant_folding_concat" >:: test_constant_folding_concat;
+    "constant_propagation" >:: test_constant_propagation;
+    "dead_let_eliminated" >:: test_dead_let_eliminated;
+    "dead_let_keeps_calls" >:: test_dead_let_keeps_calls;
+    "beta_reduction" >:: test_beta_reduction;
+    "beta_reduction_avoids_capture" >:: test_beta_reduction_avoids_capture;
+    "beta_reduction_shadowed_argument" >:: test_beta_reduction_shadowed_argument;
+    "inline_small_function" >:: test_inline_small_function;
+    "inline_with_dynamic_argument" >:: test_inline_with_dynamic_argument;
+    "inline_respects_shadowing" >:: test_inline_respects_shadowing;
+    "inline_keeps_partial_application" >:: test_inline_keeps_partial_application;
     "builtin_direct" >:: test_builtin_direct;
     "unused_builtin_absent" >:: test_unused_builtin_absent;
     "complete_variant_no_default" >:: test_complete_variant_no_default;
