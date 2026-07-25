@@ -47,7 +47,7 @@ let types : Canonical.Typedecl.t list =
                   };
                 ];
             };
-            { Typedecl.id = "None"; data = [] };
+            { Typedecl.id = "Nothing"; data = [] };
           ];
       };
     ]
