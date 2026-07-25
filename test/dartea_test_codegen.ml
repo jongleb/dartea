@@ -631,9 +631,130 @@ g p =
   | Some _, None -> ()
   | _ -> assert_failure "expected p._1 to be switched on"
 
+let test_complete_variant_no_default _ =
+  let src =
+    {|
+type W = L Int | R Int
+
+f : W -> Int
+f w =
+    case w of
+        L a ->
+            a
+
+        R b ->
+            b
+
+result : Int
+result = f (R 7)
+|}
+  in
+  assert_js ~src ~expr:"result" ~expected:"7";
+  let js = Dartea.Compiler.compile_string src in
+  assert_bool "a complete variant match emits no default branch"
+    (not (contains ~needle:"default" js))
+
+let test_tag_omission_single_payload _ =
+  let src =
+    {|
+type T = A | B | Wrap Int
+
+f : T -> Int
+f t =
+    case t of
+        Wrap n ->
+            n + 1
+
+        A ->
+            10
+
+        B ->
+            20
+
+r1 : Int
+r1 = f (Wrap 5)
+
+r2 : Int
+r2 = f A
+|}
+  in
+  assert_js ~src ~expr:"r1" ~expected:"6";
+  assert_js ~src ~expr:"r2" ~expected:"10";
+  let js = Dartea.Compiler.compile_string src in
+  assert_bool "a type with one payload constructor drops the TAG field"
+    (not (contains ~needle:"TAG" js));
+  assert_bool "the single payload constructor is discriminated by typeof"
+    (contains ~needle:"typeof t === \"object\"" js)
+
+let test_tag_omission_single_ctor _ =
+  let src =
+    {|
+type Box = Box Int
+
+unbox : Box -> Int
+unbox b =
+    case b of
+        Box n ->
+            n
+
+result : Int
+result = unbox (Box 42)
+|}
+  in
+  assert_js ~src ~expr:"result" ~expected:"42";
+  let js = Dartea.Compiler.compile_string src in
+  assert_bool "a single-constructor payload type carries no TAG"
+    (not (contains ~needle:"TAG" js))
+
+let test_tag_kept_for_multi_payload _ =
+  let src =
+    {|
+type Expr = Num Int | Add Int Int
+
+eval : Expr -> Int
+eval e =
+    case e of
+        Num n ->
+            n
+
+        Add a b ->
+            a + b
+
+result : Int
+result = eval (Num 9)
+|}
+  in
+  assert_js ~src ~expr:"result" ~expected:"9";
+  let js = Dartea.Compiler.compile_string src in
+  assert_bool "a type with several payload constructors keeps the TAG field"
+    (contains ~needle:"TAG" js)
+
+let test_builtin_direct _ =
+  let src =
+    {|
+greeting : String
+greeting = append (fromInt 4) "2"
+|}
+  in
+  assert_js ~src ~expr:"greeting" ~expected:{|"42"|};
+  let js = Dartea.Compiler.compile_string src in
+  assert_bool "known-arity builtin is a direct call"
+    (contains ~needle:"fromInt(4)" js);
+  assert_bool "no $$curry for known-arity builtin"
+    (not (contains ~needle:"$$curry(fromInt" js));
+  assert_bool "used builtin is emitted" (contains ~needle:"const fromInt =" js)
+
+let test_unused_builtin_absent _ =
+  let js = Dartea.Compiler.compile_string "x : Int\nx = 1 + 2" in
+  assert_bool "unused builtin not emitted"
+    (not (contains ~needle:"const first =" js))
+
 let suite =
   [
     "arithmetic" >:: test_arithmetic;
+    "builtin_direct" >:: test_builtin_direct;
+    "unused_builtin_absent" >:: test_unused_builtin_absent;
+    "complete_variant_no_default" >:: test_complete_variant_no_default;
     "pba_picks_needed_column" >:: test_pba_picks_needed_column;
     "shared_default_subtree" >:: test_shared_default_subtree;
     "wildcard_default_share" >:: test_wildcard_default_share;
@@ -662,4 +783,7 @@ let suite =
     "cons_pattern" >:: test_cons_pattern;
     "tail_call_loop" >:: test_tail_call_loop;
     "value_position_match" >:: test_value_position_match;
+    "tag_omission_single_payload" >:: test_tag_omission_single_payload;
+    "tag_omission_single_ctor" >:: test_tag_omission_single_ctor;
+    "tag_kept_for_multi_payload" >:: test_tag_kept_for_multi_payload;
   ]

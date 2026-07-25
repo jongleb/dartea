@@ -30,7 +30,7 @@ let build_type_env (module_ : Canonical.Module.t) : type_env =
     List.fold_left
       (fun acc (typedecl : Canonical.Typedecl.t) ->
         Map.add typedecl.name typedecl acc)
-      Map.empty Std_types.test_custom_definitions
+      Map.empty Builtins.types
   in
   let constructors =
     Canonical.Module.String_map.fold
@@ -49,7 +49,7 @@ let build_type_env (module_ : Canonical.Module.t) : type_env =
           (fun acc_inner (ctor : Canonical.Typedecl.type_ctor) ->
             Map.add ctor.id (typedecl, ctor) acc_inner)
           acc typedecl.ctors)
-      Map.empty Std_types.test_custom_definitions
+      Map.empty Builtins.types
   in
   {
     types = Map.union (fun _ user_type _ -> Some user_type) types std_types;
@@ -59,44 +59,10 @@ let build_type_env (module_ : Canonical.Module.t) : type_env =
         constructors std_constructors;
   }
 
-let typs : (string * scheme) list =
-  [
-    ("pow", Scheme ([], TFun (TInt, TFun (TInt, TInt))));
-    ("=", Scheme ([ "'a" ], TFun (TVar "'a", TFun (TVar "'a", TBool))));
-    ("<>", Scheme ([ "'a" ], TFun (TVar "'a", TFun (TVar "'a", TBool))));
-    ("&&", Scheme ([], TFun (TBool, TFun (TBool, TBool))));
-    ("||", Scheme ([], TFun (TBool, TFun (TBool, TBool))));
-    ("+", Scheme ([], TFun (TInt, TFun (TInt, TInt))));
-    ("plus", Scheme ([], TFun (TInt, TFun (TInt, TInt))));
-    ("concat", Scheme ([], TFun (TStr, TFun (TStr, TStr))));
-    ("length", Scheme ([], TFun (TStr, TInt)));
-    ("int_to_string", Scheme ([], TFun (TInt, TStr)));
-    ("int_of_string", Scheme ([], TFun (TStr, TInt)));
-    ("-", Scheme ([], TFun (TInt, TFun (TInt, TInt))));
-    ("*", Scheme ([], TFun (TInt, TFun (TInt, TInt))));
-    ("/", Scheme ([], TFun (TInt, TFun (TInt, TInt))));
-    ("id", Scheme ([ "'a" ], TFun (TVar "'a", TVar "'a")));
-    ( "const",
-      Scheme ([ "'a"; "'b" ], TFun (TVar "'a", TFun (TVar "'b", TVar "'a"))) );
-    ( "pair",
-      Scheme
-        ( [ "'a"; "'b" ],
-          TFun (TVar "'a", TFun (TVar "'b", TTup [ TVar "'a"; TVar "'b" ])) ) );
-    ( "fst",
-      Scheme ([ "'a"; "'b" ], TFun (TTup [ TVar "'a"; TVar "'b" ], TVar "'a"))
-    );
-    ( "snd",
-      Scheme ([ "'a"; "'b" ], TFun (TTup [ TVar "'a"; TVar "'b" ], TVar "'b"))
-    );
-    ( "|>",
-      Scheme
-        ( [ "'a"; "'b" ],
-          TFun (TVar "'a", TFun (TFun (TVar "'a", TVar "'b"), TVar "'b")) ) );
-  ]
-
-let ctx : ctx =
-  let f acc (v, scheme) = Map.add v scheme acc in
-  List.fold_left f Map.empty typs
+let builtin_ctx : ctx =
+  List.fold_left
+    (fun acc (name, scheme) -> Map.add name scheme acc)
+    Map.empty Builtins.values
 
 open Canonical.Expr
 module Str_set = Set.Make (String)
@@ -391,7 +357,7 @@ let build_initial_ctx (type_env : type_env) : ctx =
               param_types result_type
       in
       Map.add ctor_name (Scheme (typedef.params, ctor_type)) acc)
-    type_env.constructors ctx
+    type_env.constructors builtin_ctx
 
 let rec infer_with_env (exp : Canonical.Expr.t) ctx (type_env : type_env) :
     Type.t Map.t * Typed.Expr.t =
@@ -663,7 +629,7 @@ let infer_exp exp ctx type_env =
 let infer' exp ctx type_env = infer_with_env exp ctx type_env
 
 let infer exp =
-  infer_exp exp ctx { types = Map.empty; constructors = Map.empty }
+  infer_exp exp builtin_ctx { types = Map.empty; constructors = Map.empty }
 
 let infer_declaration { Canonical.Declaration.body_part; type_part_data } ctx
     type_env =
@@ -724,21 +690,6 @@ let build_arity_env (type_env : type_env) : int Map.t =
       List.fold_left
         (fun acc_inner (ctor : Canonical.Typedecl.type_ctor) ->
           Map.add ctor.id arity acc_inner)
-        acc typedef.ctors)
-    type_env.constructors Map.empty
-
-let build_siblings_env (type_env : type_env) : (string * int) list Map.t =
-  Map.fold
-    (fun _ctor_name (typedef, _ctor) acc ->
-      let sibs =
-        List.map
-          (fun (ctor : Canonical.Typedecl.type_ctor) ->
-            (ctor.id, List.length ctor.data))
-          typedef.Canonical.Typedecl.ctors
-      in
-      List.fold_left
-        (fun acc_inner (ctor : Canonical.Typedecl.type_ctor) ->
-          Map.add ctor.id sibs acc_inner)
         acc typedef.ctors)
     type_env.constructors Map.empty
 
@@ -870,7 +821,19 @@ let infer_toplevel (module_ : Canonical.Module.t) initial_ctx =
   in
 
   let arity_env = build_arity_env type_env in
-  let siblings_env = build_siblings_env type_env in
+
+  let siblings_env =
+    Canonical.Module.String_map.to_seq module_.type_declarations
+    |> Seq.concat_map (fun (_, (td : Canonical.Typedecl.t)) ->
+           let sibs =
+             List.map
+               (fun (c : Canonical.Typedecl.type_ctor) -> (c.id, List.length c.data))
+               td.ctors
+           in
+           List.to_seq td.ctors
+           |> Seq.map (fun (c : Canonical.Typedecl.type_ctor) -> (c.id, sibs)))
+    |> Map.of_seq
+  in
 
   let constructors =
     Canonical.Module.String_map.fold

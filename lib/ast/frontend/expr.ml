@@ -13,6 +13,7 @@ type t =
   | Expr_apply of expr_apply
   | Expr_constr_fixed of string
   | Expr_ident of string
+  | Expr_qualified of expr_qualified
   | Expr_pattern of expr_pattern
   | Expr_accessor of string Data.Located.t
   | Expr_access of expr_access
@@ -24,6 +25,8 @@ and expr_lambda = { params : string Data.Located.t list; body : t }
 [@@deriving show]
 
 and expr_unop = { name : string Data.Located.t; operand : t } [@@deriving show]
+
+and expr_qualified = { qualifier : string; name : string } [@@deriving show]
 and expr_constr = { name : string; arguments : t list } [@@deriving show]
 (*ConstructorValue { qualifiedness : PossiblyQualified, name : VarName }*)
 
@@ -56,6 +59,16 @@ and expr_pattern = { expr : t; pattern_data_items : expr_pattern_case list }
 [@@deriving show]
 
 and expr_access = { expr : t; field : string Data.Located.t } [@@deriving show]
+
+let make_qualified lexeme =
+  match String.rindex_opt lexeme '.' with
+  | Some i ->
+      Expr_qualified
+        {
+          qualifier = String.sub lexeme 0 i;
+          name = String.sub lexeme (i + 1) (String.length lexeme - i - 1);
+        }
+  | None -> Expr_ident lexeme
 
 let make_expr_let ~bindings body =
   List.fold_right (fun binding body -> Expr_let { body; binding }) bindings body
