@@ -50,4 +50,13 @@ let types : Canonical.Typedecl.t list =
             { Typedecl.id = "Nothing"; data = [] };
           ];
       };
+      {
+        Typedecl.name = "Bool";
+        params = [];
+        ctors =
+          [
+            { Typedecl.id = "True"; data = [] };
+            { Typedecl.id = "False"; data = [] };
+          ];
+      };
     ]

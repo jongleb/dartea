@@ -63,9 +63,12 @@ let ctor_siblings : (string, (string * int) list) Hashtbl.t = Hashtbl.create 64
 
 let ctor_siblings_of name = Hashtbl.find_opt ctor_siblings name
 
+let js_arity : (string, int) Hashtbl.t = Hashtbl.create 64
+
 let reset_names () =
   Hashtbl.clear name_counts;
   Hashtbl.clear ctor_siblings;
+  Hashtbl.clear js_arity;
   temp_counter := 0
 
 let reserve_name base =
@@ -111,6 +114,9 @@ let binop_of_string (name : string) : J.binop option =
 let is_bool_constructor name = name = "True" || name = "False"
 let is_unit_constructor name = name = "Unit" || name = "()"
 let bool_literal name = J.Literal (J.Bool (name = "True"))
+
+let is_inline_constructor name =
+  is_bool_constructor name || is_unit_constructor name
 
 let is_tag_omitted name =
   match ctor_siblings_of name with
@@ -253,6 +259,12 @@ let assign_stmt r e = J.ExprStmt (J.Assignment { left = J.Identifier r; right = 
 
 let binop_expr name ea eb =
   match binop_of_string name with
+  | Some J.Divide ->
+      J.Call
+        {
+          callee = J.Identifier "Math.trunc";
+          args = [ J.Binary { left = ea; op = J.Divide; right = eb } ];
+        }
   | Some op -> J.Binary { left = ea; op; right = eb }
   | None -> J.Call { callee = jid name; args = [ ea; eb ] }
 
@@ -333,16 +345,22 @@ let arrow_of_body params stmts =
 
 module DS = After_typed.Decision_share
 
-let thunk_name id = "$dt" ^ string_of_int id
+let thunk_names plan =
+  List.map
+    (fun (id, _) -> (id, fresh_js ("$dt" ^ string_of_int id)))
+    (DS.shared plan)
 
-let rec lower env root ~terminating ~leaf ~fail ~sink ~plan (tree : DT.t) :
-    J.stmt list =
+let rec lower env root ~terminating ~leaf ~fail ~sink ~plan ~tnames
+    (tree : DT.t) : J.stmt list =
   match DS.id_of plan tree with
-  | Some id -> sink (J.Call { callee = J.Identifier (thunk_name id); args = [] })
-  | None -> lower_node env root ~terminating ~leaf ~fail ~sink ~plan tree
+  | Some id ->
+      sink
+        (J.Call
+           { callee = J.Identifier (List.assoc id tnames); args = [] })
+  | None -> lower_node env root ~terminating ~leaf ~fail ~sink ~plan ~tnames tree
 
-and lower_node env root ~terminating ~leaf ~fail ~sink ~plan (tree : DT.t) :
-    J.stmt list =
+and lower_node env root ~terminating ~leaf ~fail ~sink ~plan ~tnames
+    (tree : DT.t) : J.stmt list =
   match tree with
   | DT.Fail -> fail
   | DT.Leaf { action; bindings } ->
@@ -351,7 +369,9 @@ and lower_node env root ~terminating ~leaf ~fail ~sink ~plan (tree : DT.t) :
       bstmts @ leaf env' action
   | DT.Switch { occurrence; branches; default } -> (
       let occ_e = occ_expr root occurrence in
-      let go tr = lower env root ~terminating ~leaf ~fail ~sink ~plan tr in
+      let go tr =
+        lower env root ~terminating ~leaf ~fail ~sink ~plan ~tnames tr
+      in
       match (if terminating then switch_plan occ_e branches else None) with
       | Some (disc, cases) when List.length cases >= 2 ->
           let default_case =
@@ -382,7 +402,7 @@ and lower_node env root ~terminating ~leaf ~fail ~sink ~plan (tree : DT.t) :
           in
           build branches)
 
-let shared_thunks env root ~plan clause_expr =
+let shared_thunks env root ~plan ~tnames clause_expr =
   let sink e = [ J.Return (Some e) ] in
   let leaf env action =
     let sa, ea = clause_expr env action in
@@ -392,9 +412,9 @@ let shared_thunks env root ~plan clause_expr =
     (fun (id, sub) ->
       let body =
         lower_node env root ~terminating:true ~leaf
-          ~fail:(sink (match_error root)) ~sink ~plan sub
+          ~fail:(sink (match_error root)) ~sink ~plan ~tnames sub
       in
-      J.ConstDecl { name = thunk_name id; init = arrow_of_body [] body })
+      J.ConstDecl { name = List.assoc id tnames; init = arrow_of_body [] body })
     (DS.shared plan)
 
 let rec emit_value env (e : O.Expr.t) : J.stmt list * J.expr =
@@ -403,6 +423,8 @@ let rec emit_value env (e : O.Expr.t) : J.stmt list * J.expr =
   | O.Expr.Expr_float f -> ([], J.Literal (J.Float f))
   | O.Expr.Expr_string s -> ([], J.Literal (J.String s))
   | O.Expr.Expr_char c -> ([], J.Literal (J.String c))
+  | O.Expr.Expr_ident name when is_inline_constructor name ->
+      ([], constructor_to_object name [])
   | O.Expr.Expr_ident name -> ([], jid_env env name)
   | O.Expr.Expr_record_empty -> ([], J.Object [])
   | O.Expr.Expr_record_extend name -> ([], jid_env env name)
@@ -459,10 +481,10 @@ let rec emit_value env (e : O.Expr.t) : J.stmt list * J.expr =
           J.Identifier r )
   | O.Expr.Expr_let { binding; body } ->
 
-      let sv, ev = emit_value env binding.bind_body.body in
       let env', name =
         bind_one env (Data.Located.unwrap binding.bind_body.name)
       in
+      let sv, ev = emit_value env' binding.bind_body.body in
       let sb, eb = emit_value env' body in
       (sv @ [ J.ConstDecl { name; init = ev } ] @ sb, eb)
   | O.Expr.Expr_pattern { expr; pattern_data_items } ->
@@ -492,7 +514,12 @@ and emit_apply env fn arg =
         let sb, eb = emit_value env a2 in
         (sa @ sb, binop_expr op ea eb)
     | O.Expr.Expr_ident name, _ ->
-        let n = type_arity callee.O.Expr.typ in
+        let known =
+          if SMap.mem name env then None else Hashtbl.find_opt js_arity name
+        in
+        let n =
+          match known with Some n -> n | None -> type_arity callee.O.Expr.typ
+        in
         if n >= 1 then emit_known_call env (jid_env env name) n args
         else emit_generic env callee args
     | _ -> emit_generic env callee args
@@ -576,10 +603,10 @@ and emit_return env tc (e : O.Expr.t) : J.stmt list =
   | None -> (
       match e.expr with
       | O.Expr.Expr_let { binding; body } ->
-          let sv, ev = emit_value env binding.bind_body.body in
           let env', name =
             bind_one env (Data.Located.unwrap binding.bind_body.name)
           in
+          let sv, ev = emit_value env' binding.bind_body.body in
           sv @ [ J.ConstDecl { name; init = ev } ] @ emit_return env' tc body
       | O.Expr.Expr_if_then_else { if_exp; then_exp; else_exp } ->
           let sc, ec = emit_value env if_exp in
@@ -628,10 +655,11 @@ and emit_match_return env tc (occ : J.expr)
   in
   let leaf env action = emit_return env tc clause_arr.(action).O.Expr.expr in
   let sink e = [ J.Return (Some e) ] in
-  shared_thunks env occ ~plan clause_expr
+  let tnames = thunk_names plan in
+  shared_thunks env occ ~plan ~tnames clause_expr
   @ lower env occ ~terminating:true ~leaf
       ~fail:[ J.Return (Some (match_error occ)) ]
-      ~sink ~plan tree
+      ~sink ~plan ~tnames tree
 
 and emit_match_assign env (r : string) (occ : J.expr)
     (clauses : O.Expr.expr_pattern_case list) : J.stmt list =
@@ -645,10 +673,11 @@ and emit_match_assign env (r : string) (occ : J.expr)
     sa @ [ assign_stmt r ea ]
   in
   let sink e = [ assign_stmt r e ] in
-  shared_thunks env occ ~plan clause_expr
+  let tnames = thunk_names plan in
+  shared_thunks env occ ~plan ~tnames clause_expr
   @ lower env occ ~terminating:false ~leaf
       ~fail:[ assign_stmt r (match_error occ) ]
-      ~sink ~plan tree
+      ~sink ~plan ~tnames tree
 
 let decl_stmts (decl : O.Declaration.t) : J.stmt list =
   let name = sname decl.name in
@@ -681,10 +710,17 @@ let decl_stmts (decl : O.Declaration.t) : J.stmt list =
 let program_of_declarations (decls : O.Declaration.t list) : J.program =
   List.concat_map decl_stmts decls
 
+let decl_js_arity (decl : O.Declaration.t) =
+  match decl.params with
+  | [] -> (
+      match decl.body.expr with
+      | O.Expr.Expr_lambda { params; _ } -> List.length params
+      | _ -> 0)
+  | params -> List.length params
+
 let constructor_decls (constructors : (string * int) list) : J.stmt list =
   constructors
-  |> List.filter (fun (name, _) ->
-         not (is_bool_constructor name || is_unit_constructor name))
+  |> List.filter (fun (name, _) -> not (is_inline_constructor name))
   |> List.map (fun (name, arity) ->
 
          if arity = 0 then
@@ -712,6 +748,11 @@ let program_with_helpers ?(constructors = []) ?(siblings = [])
   List.iter
     (fun (name, sibs) -> Hashtbl.replace ctor_siblings name sibs)
     siblings;
+  List.iter (fun (name, arity) -> Hashtbl.replace js_arity name arity) constructors;
+  List.iter
+    (fun (decl : O.Declaration.t) ->
+      Hashtbl.replace js_arity (Data.Located.unwrap decl.name) (decl_js_arity decl))
+    decls;
   constructor_decls constructors @ program_of_declarations decls
 
 let mentions body name =

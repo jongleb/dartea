@@ -296,19 +296,21 @@ let merge_ctx ctx1 ctx2 =
       Some (Scheme ([], final_ty)))
     ctx1 ctx2
 
+let concrete_type name args =
+  match (name, args) with
+  | "Int", [] -> TInt
+  | "Bool", [] -> TBool
+  | "String", [] -> TStr
+  | "Unit", [] -> TUnit
+  | _ -> TCustom (name, args)
+
 let typedef_to_type (impl : Canonical.Typedef.Impl.t) =
   let open Canonical.Typedef in
   let rec conv (i : Impl.t) : Type.t =
     let args = List.map conv i.parameters in
     match i.body with
     | Kind.Tkind_var v -> TVar v.thing
-    | Kind.Tkind_concrete c -> (
-        match (c.thing, args) with
-        | "Int", [] -> TInt
-        | "Bool", [] -> TBool
-        | "String", [] -> TStr
-        | "Unit", [] -> TUnit
-        | s, _ -> TCustom (s, args))
+    | Kind.Tkind_concrete c -> concrete_type c.thing args
     | Kind.Tkind_tuple types -> TTup (List.map conv types)
     | Kind.Tkind_function fn -> (
         match List.rev fn.arguments with
@@ -339,18 +341,18 @@ let build_initial_ctx (type_env : type_env) : ctx =
     (fun ctor_name
          ( (typedef : Canonical.Typedecl.t),
            (ctor : Canonical.Typedecl.type_ctor) ) acc ->
+      let result_type =
+        concrete_type typedef.name (List.map (fun p -> TVar p) typedef.params)
+      in
       let ctor_type =
         match ctor.data with
-        | [] -> TCustom (typedef.name, List.map (fun p -> TVar p) typedef.params)
+        | [] -> result_type
         | args ->
             let param_types =
               List.map
                 (fun (arg_spec : Canonical.Typedef.Impl.t) ->
                   typedef_to_type arg_spec)
                 args
-            in
-            let result_type =
-              TCustom (typedef.name, List.map (fun p -> TVar p) typedef.params)
             in
             List.fold_right
               (fun arg_ty acc -> TFun (arg_ty, acc))
@@ -410,7 +412,12 @@ let rec infer_with_env (exp : Canonical.Expr.t) ctx (type_env : type_env) :
           typ = TCustom ("List", [ ty ]);
         } )
   | Expr_let { binding = { bind_body = { name; body = rhs } }; body } ->
-      let s1, t1 = infer rhs ctx in
+      let self_ty = new_var "a" in
+      let ctx_rec = Map.add name.thing (Scheme ([], self_ty)) ctx in
+      let s_rhs, t1 = infer rhs ctx_rec in
+      let s_self = unify (apply_typ self_ty s_rhs) t1.typ in
+      let s1 = s_self ++ s_rhs in
+      let t1 = { t1 with Typed.Expr.typ = apply_typ t1.typ s_self } in
       let ctx' = apply_ctx ctx s1 in
       let gen_ty = generalize t1.typ ctx' in
       let ctx'' = Map.add name.thing gen_ty ctx' in
@@ -823,7 +830,7 @@ let infer_toplevel (module_ : Canonical.Module.t) initial_ctx =
   let arity_env = build_arity_env type_env in
 
   let siblings_env =
-    Canonical.Module.String_map.to_seq module_.type_declarations
+    Map.to_seq type_env.types
     |> Seq.concat_map (fun (_, (td : Canonical.Typedecl.t)) ->
            let sibs =
              List.map
@@ -836,7 +843,7 @@ let infer_toplevel (module_ : Canonical.Module.t) initial_ctx =
   in
 
   let constructors =
-    Canonical.Module.String_map.fold
+    Map.fold
       (fun _ (td : Canonical.Typedecl.t) acc ->
         let total = List.length td.ctors in
         List.mapi
@@ -844,7 +851,7 @@ let infer_toplevel (module_ : Canonical.Module.t) initial_ctx =
             { name = c.id; arity = List.length c.data; index; total })
           td.ctors
         @ acc)
-      module_.type_declarations []
+      type_env.types []
   in
 
   {

@@ -956,9 +956,31 @@ result = partial 4
   in
   assert_js ~src ~expr:"result" ~expected:"7"
 
+let test_module_header_with_imports_compiles _ =
+  let src =
+    {|
+module Main exposing (result)
+
+import Data.List as L exposing
+    ( map
+    , filter
+    )
+import Extra
+
+double : Int -> Int
+double n = n * 2
+
+result : Int
+result = double 21
+|}
+  in
+  assert_js ~src ~expr:"result" ~expected:"42"
+
 let suite =
   [
     "arithmetic" >:: test_arithmetic;
+    "module_header_with_imports_compiles"
+    >:: test_module_header_with_imports_compiles;
     "constant_folding" >:: test_constant_folding;
     "constant_folding_comparison" >:: test_constant_folding_comparison;
     "constant_folding_concat" >:: test_constant_folding_concat;
