@@ -92,6 +92,79 @@ import A
 x = 1
 |}
 
+let test_multiline_exposing_then_decls _ =
+  let input =
+    {|
+module Main exposing
+    ( x
+    , User
+    )
+
+import A exposing
+    ( foo
+    , bar
+    )
+import B as Bee
+
+type User = Named String | Anonymous
+
+x : Int
+x = 1
+|}
+  in
+  assert_imports ~expected:[ "A|-|lower:foo,lower:bar"; "B|Bee|()" ] input;
+  match decl_expr (parse_exn input) "x" with
+  | Some (Expr.Expr_int 1) -> ()
+  | _ -> assert_failure "declarations after multiline exposing did not parse"
+
+let test_module_of_impl_keeps_import_order _ =
+  let module_ =
+    Module.of_impl
+      (parse_exn
+         {|
+module Main exposing (..)
+
+import A
+import B
+import C
+|})
+  in
+  assert_equal
+    ~printer:(fun l -> "[" ^ String.concat ";" l ^ "]")
+    [ "A"; "B"; "C" ]
+    (List.map
+       (fun (i : Import_thing.t) -> Data.Located.unwrap i.Import_thing.name)
+       module_.Module.imports)
+
+let test_qualified_type_in_signature _ =
+  let input =
+    {|
+module Main exposing (..)
+
+import A
+
+x : A.Thing -> Int
+x t = 1
+|}
+  in
+  match
+    List.find_map
+      (function
+        | Impl.Top_declaration (d : Declaration.t) -> d.type_part_data
+        | _ -> None)
+      (parse_exn input)
+  with
+  | Some { Declaration.type_alias; _ } -> (
+      match type_alias.Typedef.Impl.body with
+      | Typedef.Kind.Tkind_function { Typedef.Type_function.arguments = a :: _ }
+        -> (
+          match a.Typedef.Impl.body with
+          | Typedef.Kind.Tkind_concrete name ->
+              assert_equal ~printer:Fun.id "A.Thing" (Data.Located.unwrap name)
+          | _ -> assert_failure "first argument is not a concrete type")
+      | _ -> assert_failure "signature is not a function type")
+  | None -> assert_failure "type signature not parsed"
+
 let assert_expr ~name ~input ~check =
   match decl_expr (parse_exn input) name with
   | Some e -> check e
@@ -143,9 +216,51 @@ e = r.foo
           assert_equal ~printer:Fun.id "foo" (Data.Located.unwrap field)
       | e -> assert_failure ("e: " ^ Expr.show e))
 
+let test_qualified_in_nested_positions _ =
+  let input =
+    {|
+module Main exposing (..)
+
+import A
+
+f =
+    let
+        g = A.helper 1
+    in
+    case A.kind g of
+        Named n -> n
+        other -> B.fallback other
+|}
+  in
+  assert_expr ~name:"f" ~input ~check:(function
+    | Expr.Expr_let _ -> ()
+    | e -> assert_failure ("f: " ^ Expr.show e))
+
+let test_qualified_constructor_applied _ =
+  assert_expr ~name:"g"
+    ~input:{|
+module Main exposing (..)
+
+g = A.Ctor 1
+|}
+    ~check:(function
+      | Expr.Expr_apply
+          {
+            fn = Expr.Expr_qualified { qualifier = "A"; name = "Ctor" };
+            arg = Expr.Expr_int 1;
+          } ->
+          ()
+      | e -> assert_failure ("g: " ^ Expr.show e))
+
 let suite =
   [
     "test_import_forms" >:: test_import_forms;
+    "test_multiline_exposing_then_decls" >:: test_multiline_exposing_then_decls;
+    "test_module_of_impl_keeps_import_order"
+    >:: test_module_of_impl_keeps_import_order;
+    "test_qualified_type_in_signature" >:: test_qualified_type_in_signature;
+    "test_qualified_in_nested_positions" >:: test_qualified_in_nested_positions;
+    "test_qualified_constructor_applied" >:: test_qualified_constructor_applied;
     "test_imports_with_decls" >:: test_imports_with_decls;
     "test_multiline_exposing" >:: test_multiline_exposing;
     "test_imports_without_module_header" >:: test_imports_without_module_header;

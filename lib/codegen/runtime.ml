@@ -17,7 +17,7 @@ let builtins =
     ("fromInt", "const fromInt = (n) => String(n);");
     ( "toInt",
       "const toInt = (s) => s !== \"\" && Number.isInteger(Number(s)) ? { _0: \
-       Number(s) } : \"None\";" );
+       Number(s) } : \"Nothing\";" );
     ("length", "const length = (s) => s.length;");
     ("append", "const append = (a, b) => a + b;");
     ("pair", "const pair = (a, b) => [a, b];");

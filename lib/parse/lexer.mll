@@ -74,6 +74,11 @@ rule token state = parse
   | "/"             { DIV }
   | "()"            { UNIT }
   | "=="            { EQ_EQ }
+  | "/="            { NOT_EQ }
+  | ">="            { GT_EQ }
+  | "<="            { LT_EQ }
+  | "&&"            { AND }
+  | "||"            { OR }
   | ">"             { GT }
   | "<"             { LT }
   | int             { INT (int_of_string (Lexing.lexeme lexbuf)) }

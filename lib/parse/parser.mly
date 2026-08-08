@@ -40,7 +40,7 @@
 %token EXPOSING
 %token IMPORT
 %token AS
-%token EQ_EQ GT LT
+%token EQ_EQ GT LT NOT_EQ GT_EQ LT_EQ AND OR
 %token MODULE
 %token INDENT DEDENT
 %token PIPE_GT
@@ -56,12 +56,14 @@
 %nonassoc ELSE IN
 %nonassoc ARROW
 
-%left UMINUS
 %left PIPE_GT
-%left PLUS MINUS CONCAT
+%right OR
+%right AND
+%nonassoc EQ_EQ NOT_EQ GT LT GT_EQ LT_EQ
+%right CONCAT
+%left PLUS MINUS
 %left TIMES DIV
-%left EQ_EQ
-%left GT LT
+%nonassoc UMINUS
 
 %type <Ast.Kind.Frontend.Expr.t> expr
 %type <Ast.Kind.Frontend.Typedef.Impl.t> type_expr
@@ -226,7 +228,7 @@ expr:
     | MINUS e=expr %prec UMINUS { Expr_unop { name = Located.mk "-" $loc; operand = e } }
     | e=expr_app { e }
     | e=expr_binop { e }
-    | BACKSLASH params=nonempty_list(loc(LCNAME)) ARROW body=expr %prec ARROW
+    | BACKSLASH params=nonempty_list(loc(lambda_param)) ARROW body=expr %prec ARROW
         { Expr_lambda { params; body } }
     | IF if_exp=expr THEN then_exp=expr ELSE else_exp=expr
         { Expr_if_then_else { if_exp; then_exp; else_exp } }
@@ -237,12 +239,20 @@ expr:
     | LET INDENT bindings=expr_let_defs DEDENT IN e=expr
         { make_expr_let ~bindings e }
 
+lambda_param:
+    | n=LCNAME { n }
+    | WILDCARD { "_" }
+
 expr_pipe:
     | arg=expr PIPE_GT fn=expr { Expr_apply { fn; arg } }
 
 expr_let_name_bind:
-    name=loc(LCNAME) EQUAL INDENT body=expr DEDENT
-        {{ bind_type = None; bind_body={ name; body } }}
+    name=loc(LCNAME) params=list(loc(LCNAME)) EQUAL INDENT body=expr DEDENT
+        {{ bind_type = None;
+           bind_body={ name;
+                       body = match params with
+                              | [] -> body
+                              | _ -> Expr_lambda { params; body } } }}
 
 expr_let_defs: lst=nonempty_list(expr_let_name_bind) { lst }
 
@@ -268,6 +278,8 @@ pattern_atom:
     | LBRACE lst=separated_list(COMMA, LCNAME) RBRACE { P_record(lst) }
     | LBRACKET lst=separated_list(COMMA, pattern) RBRACKET { P_list(lst) }
     | LPAREN p=pattern RPAREN { p }
+    | LPAREN p=pattern COMMA rest=separated_nonempty_list(COMMA, pattern) RPAREN
+        { P_tuple(p :: rest) }
 
 expr_binop:
     e1=expr name=binop e2=expr { Expr_binop { name; operands=(e1, e2) } }
@@ -281,8 +293,10 @@ expr_postfix:
         List.fold_left (fun acc field -> Expr_access { expr = acc; field }) base fields
     }
 
-expr_applicable: 
+expr_applicable:
     | LPAREN e=expr RPAREN { e }
+    | LPAREN a=expr COMMA b=expr RPAREN
+        { Expr_apply { fn = Expr_apply { fn = Expr_ident "pair"; arg = a }; arg = b } }
     | e=LCNAME { Expr_ident e }
     | e=STRING { Expr_string e }
     | e=INT { Expr_int e }
@@ -305,7 +319,12 @@ binop:
     | TIMES { "*" }
     | CONCAT { "++" }
     | EQ_EQ { "==" }
+    | NOT_EQ { "/=" }
     | GT { ">" }
     | LT { "<" }
+    | GT_EQ { ">=" }
+    | LT_EQ { "<=" }
+    | AND { "&&" }
+    | OR { "||" }
 
 indented(X): INDENT x=X DEDENT { x }
