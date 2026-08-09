@@ -9,7 +9,7 @@ type t =
   | TUnit
   | TFun of t * t
   | TTup of t list
-  | TCustom of string * t list
+  | TCustom of Data.Name.t * t list
   | TRecord of t
   | TRowExtend of string * t * t
   | TRowEmpty

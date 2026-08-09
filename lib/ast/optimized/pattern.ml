@@ -15,5 +15,5 @@ and kind =
   | P_T_chr of string
   | P_T_str of string
   | P_T_int of int
-  | P_T_ctor of (string * t list)
+  | P_T_ctor of (Data.Name.t * t list)
 [@@deriving show, compare, equal, hash]

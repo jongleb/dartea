@@ -6,8 +6,9 @@ let values : (string * scheme) list =
     ( "always",
       Scheme ([ "'a"; "'b" ], TFun (TVar "'a", TFun (TVar "'b", TVar "'a"))) );
     ("fromInt", Scheme ([], TFun (TInt, TStr)));
-    ("toInt", Scheme ([], TFun (TStr, TCustom ("Maybe", [ TInt ]))));
+    ("toInt", Scheme ([], TFun (TStr, TCustom (Data.Name.local "Maybe", [ TInt ]))));
     ("length", Scheme ([], TFun (TStr, TInt)));
+    ("negate", Scheme ([], TFun (TInt, TInt)));
     ("append", Scheme ([], TFun (TStr, TFun (TStr, TStr))));
     ("++", Scheme ([], TFun (TStr, TFun (TStr, TStr))));
     ( "pair",
@@ -33,12 +34,12 @@ let types : Canonical.Typedecl.t list =
   Canonical.
     [
       {
-        Typedecl.name = "Maybe";
+        Typedecl.name = Data.Name.local "Maybe";
         params = [ "a" ];
         ctors =
           [
             {
-              Typedecl.id = "Just";
+              Typedecl.id = Data.Name.local "Just";
               data =
                 [
                   {
@@ -47,16 +48,16 @@ let types : Canonical.Typedecl.t list =
                   };
                 ];
             };
-            { Typedecl.id = "Nothing"; data = [] };
+            { Typedecl.id = Data.Name.local "Nothing"; data = [] };
           ];
       };
       {
-        Typedecl.name = "Bool";
+        Typedecl.name = Data.Name.local "Bool";
         params = [];
         ctors =
           [
-            { Typedecl.id = "True"; data = [] };
-            { Typedecl.id = "False"; data = [] };
+            { Typedecl.id = Data.Name.local "True"; data = [] };
+            { Typedecl.id = Data.Name.local "False"; data = [] };
           ];
       };
     ]

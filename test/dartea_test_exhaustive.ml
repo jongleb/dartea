@@ -1,13 +1,13 @@
 open OUnit2
 module E = After_typed.Exhaustive
 module P = Optimized.Pattern
-module M = Infer.Infer_proc.Map
+module M = Infer.Infer_proc.Name_map
 
 let mk k : P.t = { P.typ = Optimized.Type.TUnit; pattern = k }
 let anything = mk P.P_T_anything
 let var x = mk (P.P_T_var x)
 let unit = mk P.P_T_unit
-let ctor n args = mk (P.P_T_ctor (n, args))
+let ctor n args = mk (P.P_T_ctor (Data.Name.local n, args))
 let int n = mk (P.P_T_int n)
 let str s = mk (P.P_T_str s)
 let chr c = mk (P.P_T_chr c)
@@ -16,8 +16,12 @@ let nil = mk (P.P_T_list [])
 let cons h t = mk (P.P_T_cons (h, t))
 let list xs = mk (P.P_T_list xs)
 let tuple ps = mk (P.P_T_tuple ps)
-let mkenv pairs = List.fold_left (fun m (k, v) -> M.add k v m) M.empty pairs
-let variant ctors = mkenv (List.map (fun (name, _) -> (name, ctors)) ctors)
+let mkenv pairs =
+  List.fold_left (fun m (k, v) -> M.add (Data.Name.local k) v m) M.empty pairs
+
+let variant ctors =
+  let siblings = List.map (fun (name, arity) -> (Data.Name.local name, arity)) ctors in
+  mkenv (List.map (fun (name, _) -> (name, siblings)) ctors)
 let merge = M.union (fun _ a _ -> Some a)
 
 let assert_exhaustive ?(env = M.empty) pats =
@@ -161,12 +165,12 @@ let test_witness_nonexhaustive _ =
     (E.counterexample color [ ctor "Red" []; ctor "Green" [] ] <> None)
 
 let test_witness_nested _ =
-  assert_equal (Some (E.H_ctor "F"))
+  assert_equal (Some (E.H_ctor (Data.Name.local "F")))
     (witness_head outer_inner
        [ ctor "E" [ ctor "C" [] ]; ctor "E" [ ctor "D" [] ]; ctor "F" [ ctor "C" [] ] ])
 
 let test_witness_missing_ctor_named _ =
-  assert_equal (Some (E.H_ctor "Blue"))
+  assert_equal (Some (E.H_ctor (Data.Name.local "Blue")))
     (witness_head color [ ctor "Red" []; ctor "Green" [] ])
 
 let test_witness_int_gap _ =

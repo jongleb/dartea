@@ -16,7 +16,7 @@ end
 
 and Kind : sig
   type t =
-    | Tkind_concrete of string Located.t
+    | Tkind_concrete of Name.t Located.t
     | Tkind_var of string Data.Located.t
     | Tkind_record of Type_record.t
     | Tkind_tuple of Impl.t list
@@ -27,7 +27,7 @@ and Kind : sig
   val of_frontend : Frontend.Typedef.Kind.t -> t
 end = struct
   type t =
-    | Tkind_concrete of string Located.t
+    | Tkind_concrete of Name.t Located.t
     | Tkind_var of string Data.Located.t
     | Tkind_record of Type_record.t
     | Tkind_tuple of Impl.t list
@@ -36,7 +36,8 @@ end = struct
   [@@deriving show]
 
   let of_frontend = function
-    | Frontend.Typedef.Kind.Tkind_concrete name -> Tkind_concrete name
+    | Frontend.Typedef.Kind.Tkind_concrete written ->
+        Tkind_concrete (Located.map Name.of_dotted written)
     | Tkind_var name -> Tkind_var name
     | Tkind_record record -> Tkind_record (Type_record.of_frontend record)
     | Tkind_tuple types -> Tkind_tuple (List.map Impl.of_frontend types)

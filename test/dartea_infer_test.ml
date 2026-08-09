@@ -19,10 +19,10 @@ let test_a_plus_5 _ =
               fn =
                 Canonical.Expr.Expr_apply
                   {
-                    fn = Canonical.Expr.Expr_ident "plus";
+                    fn = Canonical.Expr.Expr_ident (Data.Name.Local "plus");
                     arg = Canonical.Expr.Expr_int 3;
                   };
-              arg = Canonical.Expr.Expr_ident "a";
+              arg = Canonical.Expr.Expr_ident (Data.Name.Local "a");
             };
       }
   in
@@ -33,7 +33,7 @@ let test_id _ =
   let expect_type = Typed.Type.TInt in
   let expr =
     Canonical.Expr.Expr_apply
-      { fn = Canonical.Expr.Expr_ident "id"; arg = Canonical.Expr.Expr_int 3 }
+      { fn = Canonical.Expr.Expr_ident (Data.Name.Local "id"); arg = Canonical.Expr.Expr_int 3 }
   in
   let result = Typed.Infer.infer expr in
   assert_equal expect_type result
@@ -45,8 +45,8 @@ let test_pattern_matching_returning_ignore_exhaustive _ =
         expr = Expr_constr { name = "Just"; arguments = [ Expr_string "" ] };
         pattern_data_items =
           [
-            { pattern = P_ctor ("Nothing", []); expr = Expr_int 0 };
-            { pattern = P_ctor ("Just", [ P_int 2 ]); expr = Expr_int 1 };
+            { pattern = P_ctor (Data.Name.Local "Nothing", []); expr = Expr_int 0 };
+            { pattern = P_ctor (Data.Name.Local "Just", [ P_int 2 ]); expr = Expr_int 1 };
           ];
       }
   in
@@ -60,8 +60,8 @@ let test_pattern_matching_returning_ignore_exhaustive_2 _ =
         expr = Expr_constr { name = "Just"; arguments = [ Expr_string "" ] };
         pattern_data_items =
           [
-            { pattern = P_ctor ("Nothing", []); expr = Expr_string "sdfds" };
-            { pattern = P_ctor ("Just", [ P_int 2 ]); expr = Expr_int 1 };
+            { pattern = P_ctor (Data.Name.Local "Nothing", []); expr = Expr_string "sdfds" };
+            { pattern = P_ctor (Data.Name.Local "Just", [ P_int 2 ]); expr = Expr_int 1 };
           ];
       }
   in
@@ -75,8 +75,8 @@ let test_pattern_matching_returning_ignore_exhaustive_2 _ =
          expr = Expr_constr { name = "Just"; arguments = [ Expr_string "" ] };
          pattern_data_items =
            [
-             { pattern = P_ctor ("Nothing", []); expr = Expr_int 0 };
-             { pattern = P_ctor ("Just", [ P_anything ]); expr = Expr_int 1 };
+             { pattern = P_ctor (Data.Name.Local "Nothing", []); expr = Expr_int 0 };
+             { pattern = P_ctor (Data.Name.Local "Just", [ P_anything ]); expr = Expr_int 1 };
            ];
        }
    in
@@ -89,8 +89,8 @@ let test_pattern_matching_returning_ignore_exhaustive_3 _ =
         expr = Expr_constr { name = "Just"; arguments = [ Expr_string "" ] };
         pattern_data_items =
           [
-            { pattern = P_ctor ("Nothing", []); expr = Expr_int 0 };
-            { pattern = P_ctor ("Just", [ P_anything ]); expr = Expr_int 1 };
+            { pattern = P_ctor (Data.Name.Local "Nothing", []); expr = Expr_int 0 };
+            { pattern = P_ctor (Data.Name.Local "Just", [ P_anything ]); expr = Expr_int 1 };
           ];
       }
   in
@@ -109,12 +109,12 @@ let test_pattern_matching_returning_ignore_exhaustive_resolve_type_while_matchin
   let expr =
     Canonical.Expr.Expr_pattern
       {
-        expr = Expr_ident "test_var_";
+        expr = Expr_ident (Data.Name.Local "test_var_");
         pattern_data_items =
           [
-            { pattern = P_ctor ("Nothing", []); expr = Expr_int 0 };
-            { pattern = P_ctor ("Just", [ P_int 3 ]); expr = Expr_int 1 };
-            { pattern = P_ctor ("Just", [ P_str "word" ]); expr = Expr_int 1 };
+            { pattern = P_ctor (Data.Name.Local "Nothing", []); expr = Expr_int 0 };
+            { pattern = P_ctor (Data.Name.Local "Just", [ P_int 3 ]); expr = Expr_int 1 };
+            { pattern = P_ctor (Data.Name.Local "Just", [ P_str "word" ]); expr = Expr_int 1 };
           ];
       }
   in
@@ -135,11 +135,11 @@ let test_pattern_matching_returning_ignore_exhaustive_resolve_type_while_matchin
   let expr =
     Canonical.Expr.Expr_pattern
       {
-        expr = Expr_ident "test_var_";
+        expr = Expr_ident (Data.Name.Local "test_var_");
         pattern_data_items =
           [
-            { pattern = P_ctor ("Nothing", []); expr = Expr_int 0 };
-            { pattern = P_ctor ("Just", [ P_int 3 ]); expr = Expr_int 1 };
+            { pattern = P_ctor (Data.Name.Local "Nothing", []); expr = Expr_int 0 };
+            { pattern = P_ctor (Data.Name.Local "Just", [ P_int 3 ]); expr = Expr_int 1 };
           ];
       }
   in
@@ -162,8 +162,8 @@ let test_pattern_matching_returning_ignore_exhaustive_try_invalid_reuse _ =
                 TFun
                   ( TFun (TVar "'a", TVar "'b"),
                     TFun
-                      ( TCustom ("Maybe", [ TVar "'a" ]),
-                        TCustom ("Maybe", [ TVar "'b" ]) ) ) ) )
+                      ( TCustom (Data.Name.Local "Maybe", [ TVar "'a" ]),
+                        TCustom (Data.Name.Local "Maybe", [ TVar "'b" ]) ) ) ) )
           :: typs
         in
         let typs =
@@ -183,16 +183,16 @@ let test_pattern_matching_returning_ignore_exhaustive_try_invalid_reuse _ =
                 body =
                   Canonical.Expr.Expr_pattern
                     {
-                      expr = Expr_ident "test_var_";
+                      expr = Expr_ident (Data.Name.Local "test_var_");
                       pattern_data_items =
                         [
-                          { pattern = P_ctor ("Nothing", []); expr = Expr_int 0 };
+                          { pattern = P_ctor (Data.Name.Local "Nothing", []); expr = Expr_int 0 };
                           {
-                            pattern = P_ctor ("Just", [ P_int 3 ]);
+                            pattern = P_ctor (Data.Name.Local "Just", [ P_int 3 ]);
                             expr = Expr_int 1;
                           };
                           {
-                            pattern = P_ctor ("Just", [ P_int 2 ]);
+                            pattern = P_ctor (Data.Name.Local "Just", [ P_int 2 ]);
                             expr = Expr_int 1;
                           };
                         ];
@@ -205,10 +205,10 @@ let test_pattern_matching_returning_ignore_exhaustive_try_invalid_reuse _ =
               fn =
                 Canonical.Expr.Expr_apply
                   {
-                    fn = Canonical.Expr.Expr_ident "maybeMap";
-                    arg = Canonical.Expr.Expr_ident "notAnonymys";
+                    fn = Canonical.Expr.Expr_ident (Data.Name.Local "maybeMap");
+                    arg = Canonical.Expr.Expr_ident (Data.Name.Local "notAnonymys");
                   };
-              arg = Canonical.Expr.Expr_ident "test_var_";
+              arg = Canonical.Expr.Expr_ident (Data.Name.Local "test_var_");
             };
       }
   in
@@ -230,11 +230,11 @@ let test_constr_infer _ =
   in
   let expr =
     Canonical.Expr.Expr_constr
-      { name = "Just"; arguments = [ Expr_ident "test_var_" ] }
+      { name = "Just"; arguments = [ Expr_ident (Data.Name.Local "test_var_") ] }
   in
   let s, ty = Typed.Infer.infer' expr ctx in
   let result = Typed.Infer.apply_typ ty s in
-  assert_equal result (Typed.Type.TCustom ("Maybe", [ Option.get !var ]))
+  assert_equal result (Typed.Type.TCustom (Data.Name.Local "Maybe", [ Option.get !var ]))
 
 let test_expr exp_str ctx expected ?on_success ?(negate = false) ?withfail () =
   let input =
@@ -320,12 +320,12 @@ let test_pattern_matching_returning_exhaustive_5 _ =
              };
          pattern_data_items =
            [
-             { pattern = P_ctor ("E", [ P_ctor ("C", []) ]); expr = Expr_int 1 };
-             { pattern = P_ctor ("F", [ P_ctor ("A", []) ]); expr = Expr_int 1 };
-             { pattern = P_ctor ("G", [ P_int 2 ]); expr = Expr_int 1 };
-             { pattern = P_ctor ("E", [ P_ctor ("D", []) ]); expr = Expr_int 1 };
+             { pattern = P_ctor (Data.Name.Local "E", [ P_ctor (Data.Name.Local "C", []) ]); expr = Expr_int 1 };
+             { pattern = P_ctor (Data.Name.Local "F", [ P_ctor (Data.Name.Local "A", []) ]); expr = Expr_int 1 };
+             { pattern = P_ctor (Data.Name.Local "G", [ P_int 2 ]); expr = Expr_int 1 };
+             { pattern = P_ctor (Data.Name.Local "E", [ P_ctor (Data.Name.Local "D", []) ]); expr = Expr_int 1 };
              {
-               pattern = P_ctor ("F", [ P_ctor ("B", [ P_str "Word" ]) ]);
+               pattern = P_ctor (Data.Name.Local "F", [ P_ctor (Data.Name.Local "B", [ P_str "Word" ]) ]);
                expr = Expr_int 1;
              };
            ];
@@ -335,7 +335,7 @@ let test_pattern_matching_returning_exhaustive_5 _ =
 
 let test_unify _ =
   let open Typed.Infer in
-  let typ = Typed.Type.(TCustom ("Maybe", [ TInt ])) in
+  let typ = Typed.Type.(TCustom (Data.Name.Local "Maybe", [ TInt ])) in
   let typ2 = Typed.Type.TVar "a" in
   let _ = unify typ typ2 in
   assert_equal 1 1
@@ -353,15 +353,15 @@ let test_pattern_matching_returning_ignore_exhaustive_resolve_type_while_matchin
   let expr =
     Canonical.Expr.Expr_pattern
       {
-        expr = Expr_ident "test_var_";
+        expr = Expr_ident (Data.Name.Local "test_var_");
         pattern_data_items =
           [
-            { pattern = P_ctor ("Nothing", []); expr = Expr_int 0 };
+            { pattern = P_ctor (Data.Name.Local "Nothing", []); expr = Expr_int 0 };
             (* {
-                 pattern = P_ctor ("Just", [ P_ctor ("Just", [ P_int 3 ]) ]);
+                 pattern = P_ctor (Data.Name.Local "Just", [ P_ctor (Data.Name.Local "Just", [ P_int 3 ]) ]);
                  expr = Expr_int 1;
                };
-               { pattern = P_ctor ("Just", [ P_anything ]); expr = Expr_int 6 }; *)
+               { pattern = P_ctor (Data.Name.Local "Just", [ P_anything ]); expr = Expr_int 6 }; *)
           ];
       }
   in
@@ -376,7 +376,7 @@ let test_specialization_tree _ =
       [
         [
           {
-            typ = Typed.Type.TCustom ("Maybe", [ TInt; TInt ]);
+            typ = Typed.Type.TCustom (Data.Name.Local "Maybe", [ TInt; TInt ]);
             pattern =
               P_T_ctor
                 ( "Just",
@@ -388,7 +388,7 @@ let test_specialization_tree _ =
         ];
         [
           {
-            typ = TCustom ("Maybe", [ TInt; TInt ]);
+            typ = TCustom (Data.Name.Local "Maybe", [ TInt; TInt ]);
             pattern =
               P_T_ctor
                 ( "Just",
@@ -400,8 +400,8 @@ let test_specialization_tree _ =
         ];
         [
           {
-            typ = TCustom ("Maybe", [ TTup [ TInt; TInt ] ]);
-            pattern = P_T_ctor ("Nothing", []);
+            typ = TCustom (Data.Name.Local "Maybe", [ TTup [ TInt; TInt ] ]);
+            pattern = P_T_ctor (Data.Name.Local "Nothing", []);
           };
         ];
       ]
@@ -410,7 +410,7 @@ let test_specialization_tree _ =
   let result =
     Typed.Pattern.specialization node
       {
-        typ = Typed.Type.TCustom ("Maybe", [ TInt; TInt ]);
+        typ = Typed.Type.TCustom (Data.Name.Local "Maybe", [ TInt; TInt ]);
         pattern =
           P_T_ctor
             ( "Just",
@@ -485,7 +485,7 @@ let test_no_errors_compile _ =
       [
         [
           {
-            typ = Typed.Type.TCustom ("Maybe", [ TInt; TInt ]);
+            typ = Typed.Type.TCustom (Data.Name.Local "Maybe", [ TInt; TInt ]);
             pattern =
               P_T_ctor
                 ( "Just",
@@ -497,7 +497,7 @@ let test_no_errors_compile _ =
         ];
         [
           {
-            typ = TCustom ("Maybe", [ TInt; TInt ]);
+            typ = TCustom (Data.Name.Local "Maybe", [ TInt; TInt ]);
             pattern =
               P_T_ctor
                 ( "Just",
@@ -509,8 +509,8 @@ let test_no_errors_compile _ =
         ];
         [
           {
-            typ = TCustom ("Maybe", [ TTup [ TInt; TInt ] ]);
-            pattern = P_T_ctor ("Nothing", []);
+            typ = TCustom (Data.Name.Local "Maybe", [ TTup [ TInt; TInt ] ]);
+            pattern = P_T_ctor (Data.Name.Local "Nothing", []);
           };
         ];
       ]
@@ -618,7 +618,7 @@ let test_no_errors_compile_exhaustive_2 _ =
       [
         [
           {
-            typ = Typed.Type.(TCustom ("Maybe", [ TTup [ TInt; TInt ] ]));
+            typ = Typed.Type.(TCustom (Data.Name.Local "Maybe", [ TTup [ TInt; TInt ] ]));
             pattern =
               P_T_ctor
                 ( "Just",
@@ -637,7 +637,7 @@ let test_no_errors_compile_exhaustive_2 _ =
         ];
         [
           {
-            typ = Typed.Type.(TCustom ("Maybe", [ TTup [ TInt; TInt ] ]));
+            typ = Typed.Type.(TCustom (Data.Name.Local "Maybe", [ TTup [ TInt; TInt ] ]));
             pattern =
               P_T_ctor
                 ( "Just",
@@ -656,7 +656,7 @@ let test_no_errors_compile_exhaustive_2 _ =
         ];
         [
           {
-            typ = Typed.Type.(TCustom ("Maybe", [ TTup [ TInt; TInt ] ]));
+            typ = Typed.Type.(TCustom (Data.Name.Local "Maybe", [ TTup [ TInt; TInt ] ]));
             pattern =
               P_T_ctor
                 ( "Just",
@@ -675,8 +675,8 @@ let test_no_errors_compile_exhaustive_2 _ =
         ];
         [
           {
-            typ = Typed.Type.(TCustom ("Maybe", [ TTup [ TInt; TInt ] ]));
-            pattern = P_T_ctor ("Nothing", []);
+            typ = Typed.Type.(TCustom (Data.Name.Local "Maybe", [ TTup [ TInt; TInt ] ]));
+            pattern = P_T_ctor (Data.Name.Local "Nothing", []);
           };
         ];
       ]
@@ -697,22 +697,22 @@ let infer_check_exhaustive _ =
   let expr =
     Canonical.Expr.Expr_pattern
       {
-        expr = Expr_ident "test_var_";
+        expr = Expr_ident (Data.Name.Local "test_var_");
         pattern_data_items =
           [
             {
-              pattern = P_ctor ("Just", [ P_tuple [ P_int 1; P_anything ] ]);
+              pattern = P_ctor (Data.Name.Local "Just", [ P_tuple [ P_int 1; P_anything ] ]);
               expr = Expr_int 1;
             };
             {
-              pattern = P_ctor ("Just", [ P_tuple [ P_anything; P_int 2 ] ]);
+              pattern = P_ctor (Data.Name.Local "Just", [ P_tuple [ P_anything; P_int 2 ] ]);
               expr = Expr_int 2;
             };
             {
-              pattern = P_ctor ("Just", [ P_tuple [ P_anything; P_anything ] ]);
+              pattern = P_ctor (Data.Name.Local "Just", [ P_tuple [ P_anything; P_anything ] ]);
               expr = Expr_int 3;
             };
-            { pattern = P_ctor ("Nothing", []); expr = Expr_int 4 };
+            { pattern = P_ctor (Data.Name.Local "Nothing", []); expr = Expr_int 4 };
           ];
       }
   in
@@ -732,18 +732,18 @@ let infer_check_not_exhaustive _ =
   let expr =
     Canonical.Expr.Expr_pattern
       {
-        expr = Expr_ident "test_var_";
+        expr = Expr_ident (Data.Name.Local "test_var_");
         pattern_data_items =
           [
             {
-              pattern = P_ctor ("Just", [ P_tuple [ P_int 1; P_anything ] ]);
+              pattern = P_ctor (Data.Name.Local "Just", [ P_tuple [ P_int 1; P_anything ] ]);
               expr = Expr_int 1;
             };
             {
-              pattern = P_ctor ("Just", [ P_tuple [ P_anything; P_int 2 ] ]);
+              pattern = P_ctor (Data.Name.Local "Just", [ P_tuple [ P_anything; P_int 2 ] ]);
               expr = Expr_int 2;
             };
-            { pattern = P_ctor ("Nothing", []); expr = Expr_int 3 };
+            { pattern = P_ctor (Data.Name.Local "Nothing", []); expr = Expr_int 3 };
           ];
       }
   in
@@ -764,30 +764,30 @@ let infer_check_exhaustive_p_var _ =
   let expr =
     Canonical.Expr.Expr_pattern
       {
-        expr = Expr_ident "test_var_";
+        expr = Expr_ident (Data.Name.Local "test_var_");
         pattern_data_items =
           [
-            { pattern = P_ctor ("Just", [ P_int 1 ]); expr = Expr_int 1 };
+            { pattern = P_ctor (Data.Name.Local "Just", [ P_int 1 ]); expr = Expr_int 1 };
             {
-              pattern = P_ctor ("Just", [ P_var "abc" ]);
+              pattern = P_ctor (Data.Name.Local "Just", [ P_var "abc" ]);
               expr =
                 Canonical.Expr.Expr_apply
                   {
-                    fn = Canonical.Expr.Expr_ident "length";
+                    fn = Canonical.Expr.Expr_ident (Data.Name.Local "length");
                     arg =
                       Expr_apply
                         {
                           fn =
                             Expr_apply
                               {
-                                fn = Canonical.Expr.Expr_ident "concat";
-                                arg = Expr_ident "abc";
+                                fn = Canonical.Expr.Expr_ident (Data.Name.Local "concat");
+                                arg = Expr_ident (Data.Name.Local "abc");
                               };
-                          arg = Expr_ident "abc";
+                          arg = Expr_ident (Data.Name.Local "abc");
                         };
                   };
             };
-            { pattern = P_ctor ("Nothing", []); expr = Expr_int 4 };
+            { pattern = P_ctor (Data.Name.Local "Nothing", []); expr = Expr_int 4 };
           ];
       }
   in

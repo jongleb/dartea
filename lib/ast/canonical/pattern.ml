@@ -14,7 +14,7 @@ type t =
   | P_chr of string
   | P_str of string
   | P_int of int
-  | P_ctor of (string * t list)
+  | P_ctor of (Data.Name.t * t list)
 [@@deriving show, compare, equal, hash]
 
 let rec of_frontend = function
@@ -25,7 +25,8 @@ let rec of_frontend = function
   | P_chr c -> P_chr c
   | P_str s -> P_str s
   | P_int i -> P_int i
-  | P_ctor (s, l) -> P_ctor (s, List.map of_frontend l)
+  | P_ctor (ctor, arguments) ->
+      P_ctor (Data.Name.local ctor, List.map of_frontend arguments)
   | P_unit -> P_unit
   | P_var s -> P_var s
   | P_record r -> P_record r

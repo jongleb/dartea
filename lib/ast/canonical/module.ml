@@ -1,6 +1,9 @@
 module String_map = Map.Make (String)
 
 type t = {
+  name : string;
+  imports : Import.t list;
+  exports : Exposed.t;
   type_aliases : Typealias.t String_map.t;
   type_declarations : Typedecl.t String_map.t;
   top_declarations : Declaration.t String_map.t;
@@ -22,4 +25,11 @@ let of_frontend (frontend_module : Frontend.Module.t) : t =
       (fun name d acc -> String_map.add name (Declaration.of_frontend d) acc)
       frontend_module.top_declarations String_map.empty
   in
-  { type_aliases; type_declarations; top_declarations }
+  {
+    name = Data.Located.unwrap frontend_module.name;
+    imports = List.map Import.of_frontend frontend_module.imports;
+    exports = Exposed.of_frontend frontend_module.exports;
+    type_aliases;
+    type_declarations;
+    top_declarations;
+  }

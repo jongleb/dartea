@@ -10,13 +10,15 @@ module Module_map = struct
 end
 
 let initial_ctx =
-  let f acc (v, scheme) = Infer.Infer_proc.Map.add v scheme acc in
-  List.fold_left f Infer.Infer_proc.Map.empty Builtins.values
+  let f acc (v, scheme) =
+    Infer.Infer_proc.Name_map.add (Data.Name.local v) scheme acc
+  in
+  List.fold_left f Infer.Infer_proc.Name_map.empty Builtins.values
 
 module type BACKEND = sig
   val emit :
-    constructors:(string * int) list ->
-    siblings:(string * (string * int) list) list ->
+    constructors:(Data.Name.t * int) list ->
+    siblings:(Data.Name.t * (Data.Name.t * int) list) list ->
     Optimized.Declaration.t list ->
     string
 end
@@ -42,7 +44,9 @@ module Make (B : BACKEND) = struct
             (fun (c : Infer.Infer_proc.ctor_info) -> (c.name, c.arity))
             result.constructors
         in
-        let siblings = Infer.Infer_proc.Map.bindings result.siblings_env in
+        let siblings =
+          Infer.Infer_proc.Name_map.bindings result.siblings_env
+        in
         B.emit ~constructors ~siblings sorted
 end
 
@@ -80,7 +84,7 @@ let compile path =
   in
 
   let check_exhaustiveness
-      (siblings_env : (string * int) list Infer.Infer_proc.Map.t)
+      (siblings_env : (Data.Name.t * int) list Infer.Infer_proc.Name_map.t)
       (decl : Typed.Declaration.t) =
     let open Typed.Expr in
     let rec check_expr (expr : Typed.Expr.t) =
@@ -125,8 +129,8 @@ let compile path =
             (fun (row : expr_record_row) -> check_expr row.value)
             rows
       | Expr_ident _ | Expr_accessor _ | Expr_record_extend _
-      | Expr_record_select _ | Expr_record_empty | Expr_char _ | Expr_string _
-      | Expr_int _ | Expr_float _ ->
+      | Expr_record_select _ | Expr_record_empty | Expr_unit | Expr_char _
+      | Expr_string _ | Expr_int _ | Expr_float _ ->
           []
     in
     check_expr decl.body
@@ -168,7 +172,7 @@ let compile path =
            ( List.map
                (fun (c : Infer.Infer_proc.ctor_info) -> (c.name, c.arity))
                r.constructors,
-             Infer.Infer_proc.Map.bindings r.siblings_env )))
+             Infer.Infer_proc.Name_map.bindings r.siblings_env )))
       typed
   in
 

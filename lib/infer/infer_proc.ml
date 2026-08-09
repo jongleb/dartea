@@ -1,68 +1,51 @@
 open Typed
 open Typed.Type
+module Name_map = Map.Make (Data.Name)
 module Map = Map.Make (String)
 
-type ctx = scheme Map.t
+type ctx = scheme Name_map.t
 
 type type_env = {
-  types : Canonical.Typedecl.t Map.t;
-  constructors : (Canonical.Typedecl.t * Canonical.Typedecl.type_ctor) Map.t;
+  types : Canonical.Typedecl.t Name_map.t;
+  constructors :
+    (Canonical.Typedecl.t * Canonical.Typedecl.type_ctor) Name_map.t;
 }
 
-type ctor_info = { name : string; arity : int; index : int; total : int }
+type ctor_info = { name : Data.Name.t; arity : int; index : int; total : int }
 
 type infer_result = {
   ctx : ctx;
   declarations : Typed.Declaration.t list;
-  arity_env : int Map.t;
-  siblings_env : (string * int) list Map.t;
+  arity_env : int Name_map.t;
+  siblings_env : (Data.Name.t * int) list Name_map.t;
   constructors : ctor_info list;
 }
 
 let build_type_env (module_ : Canonical.Module.t) : type_env =
-  let types =
+  let declared_here =
     Canonical.Module.String_map.fold
-      (fun name typedecl acc -> Map.add name typedecl acc)
-      module_.type_declarations Map.empty
+      (fun _ typedecl acc -> typedecl :: acc)
+      module_.type_declarations []
   in
-  (* LOOKS STRANGE *)
-  let std_types =
+  let visible = Builtins.types @ declared_here in
+  let add_type acc (typedecl : Canonical.Typedecl.t) =
+    Name_map.add typedecl.name typedecl acc
+  in
+  let add_constructors acc (typedecl : Canonical.Typedecl.t) =
     List.fold_left
-      (fun acc (typedecl : Canonical.Typedecl.t) ->
-        Map.add typedecl.name typedecl acc)
-      Map.empty Builtins.types
-  in
-  let constructors =
-    Canonical.Module.String_map.fold
-      (fun _ (typedecl : Canonical.Typedecl.t) acc ->
-        List.fold_left
-          (fun acc_inner (ctor : Canonical.Typedecl.type_ctor) ->
-            Map.add ctor.id (typedecl, ctor) acc_inner)
-          acc typedecl.ctors)
-      module_.type_declarations Map.empty
-  in
-  (* LOOKS STRANGE *)
-  let std_constructors =
-    List.fold_left
-      (fun acc (typedecl : Canonical.Typedecl.t) ->
-        List.fold_left
-          (fun acc_inner (ctor : Canonical.Typedecl.type_ctor) ->
-            Map.add ctor.id (typedecl, ctor) acc_inner)
-          acc typedecl.ctors)
-      Map.empty Builtins.types
+      (fun acc (ctor : Canonical.Typedecl.type_ctor) ->
+        Name_map.add ctor.id (typedecl, ctor) acc)
+      acc typedecl.ctors
   in
   {
-    types = Map.union (fun _ user_type _ -> Some user_type) types std_types;
-    constructors =
-      Map.union
-        (fun _ user_ctor _ -> Some user_ctor)
-        constructors std_constructors;
+    types = List.fold_left add_type Name_map.empty visible;
+    constructors = List.fold_left add_constructors Name_map.empty visible;
   }
 
 let builtin_ctx : ctx =
   List.fold_left
-    (fun acc (name, scheme) -> Map.add name scheme acc)
-    Map.empty Builtins.values
+    (fun acc (name, scheme) -> Name_map.add (Data.Name.local name) scheme acc)
+    Name_map.empty Builtins.values
 
 open Canonical.Expr
 module Str_set = Set.Make (String)
@@ -124,7 +107,7 @@ let string_of_typ ty =
               let args_str = String.concat ", " args_list in
               "<" ^ args_str ^ ">"
         in
-        name ^ args_str
+        Data.Name.to_string name ^ args_str
     | TRecord row ->
         let rec str_row first = function
           | TRowEmpty -> ""
@@ -161,13 +144,13 @@ let apply_scheme scheme s =
       let s' = List.fold_right (fun v acc -> Map.remove v acc) vars s in
       Scheme (vars, apply_typ ty s')
 
-let apply_ctx ctx s = Map.map (fun scheme -> apply_scheme scheme s) ctx
+let apply_ctx ctx s = Name_map.map (fun scheme -> apply_scheme scheme s) ctx
 
 let ftv_scheme = function
   | Scheme (vars, ty) -> Str_set.diff (ftv_typ ty) (Str_set.of_list vars)
 
 let ftv_ctx ctx =
-  Map.fold
+  Name_map.fold
     (fun _ scheme acc -> Str_set.union acc (ftv_scheme scheme))
     ctx Str_set.empty
 
@@ -287,7 +270,7 @@ let instantiate = function
       (s, apply_typ ty s)
 
 let merge_ctx ctx1 ctx2 =
-  Map.union
+  Name_map.union
     (fun key scheme1 scheme2 ->
       let s1, ty1 = instantiate scheme1 in
       let s2, ty2 = instantiate scheme2 in
@@ -298,10 +281,10 @@ let merge_ctx ctx1 ctx2 =
 
 let concrete_type name args =
   match (name, args) with
-  | "Int", [] -> TInt
-  | "Bool", [] -> TBool
-  | "String", [] -> TStr
-  | "Unit", [] -> TUnit
+  | Data.Name.Local "Int", [] -> TInt
+  | Data.Name.Local "Bool", [] -> TBool
+  | Data.Name.Local "String", [] -> TStr
+  | Data.Name.Local "Unit", [] -> TUnit
   | _ -> TCustom (name, args)
 
 let typedef_to_type (impl : Canonical.Typedef.Impl.t) =
@@ -337,7 +320,7 @@ let typedef_to_type (impl : Canonical.Typedef.Impl.t) =
   conv impl
 
 let build_initial_ctx (type_env : type_env) : ctx =
-  Map.fold
+  Name_map.fold
     (fun ctor_name
          ( (typedef : Canonical.Typedecl.t),
            (ctor : Canonical.Typedecl.type_ctor) ) acc ->
@@ -358,7 +341,7 @@ let build_initial_ctx (type_env : type_env) : ctx =
               (fun arg_ty acc -> TFun (arg_ty, acc))
               param_types result_type
       in
-      Map.add ctor_name (Scheme (typedef.params, ctor_type)) acc)
+      Name_map.add ctor_name (Scheme (typedef.params, ctor_type)) acc)
     type_env.constructors builtin_ctx
 
 let rec infer_with_env (exp : Canonical.Expr.t) ctx (type_env : type_env) :
@@ -369,12 +352,14 @@ let rec infer_with_env (exp : Canonical.Expr.t) ctx (type_env : type_env) :
   | Expr_float f -> (Map.empty, { expr = Expr_float f; typ = TInt })
   | Expr_string s -> (Map.empty, { expr = Expr_string s; typ = TStr })
   | Expr_char c -> (Map.empty, { expr = Expr_char c; typ = TStr })
+  | Expr_unit -> (Map.empty, { expr = Typed.Expr.Expr_unit; typ = TUnit })
   | Expr_ident v -> (
-      match Map.find_opt v ctx with
+      match Name_map.find_opt v ctx with
       | Some s ->
           let _, ty = instantiate s in
           (Map.empty, { expr = Expr_ident v; typ = ty })
-      | None -> Printf.sprintf "Unbound value %s" v |> failwith)
+      | None ->
+          Printf.sprintf "Unbound value %s" (Data.Name.to_string v) |> failwith)
   | Expr_apply { fn; arg } ->
       let s1, t1 = infer fn ctx in
       let s2, t2 = infer arg (apply_ctx ctx s1) in
@@ -409,18 +394,20 @@ let rec infer_with_env (exp : Canonical.Expr.t) ctx (type_env : type_env) :
       ( s,
         {
           expr = Expr_list (List.rev typed_elems);
-          typ = TCustom ("List", [ ty ]);
+          typ = TCustom (Data.Name.local "List", [ ty ]);
         } )
   | Expr_let { binding = { bind_body = { name; body = rhs } }; body } ->
       let self_ty = new_var "a" in
-      let ctx_rec = Map.add name.thing (Scheme ([], self_ty)) ctx in
+      let ctx_rec =
+        Name_map.add (Data.Name.local name.thing) (Scheme ([], self_ty)) ctx
+      in
       let s_rhs, t1 = infer rhs ctx_rec in
       let s_self = unify (apply_typ self_ty s_rhs) t1.typ in
       let s1 = s_self ++ s_rhs in
       let t1 = { t1 with Typed.Expr.typ = apply_typ t1.typ s_self } in
       let ctx' = apply_ctx ctx s1 in
       let gen_ty = generalize t1.typ ctx' in
-      let ctx'' = Map.add name.thing gen_ty ctx' in
+      let ctx'' = Name_map.add (Data.Name.local name.thing) gen_ty ctx' in
       let s2, t2 = infer body ctx'' in
       ( s2 ++ s1,
         {
@@ -437,25 +424,27 @@ let rec infer_with_env (exp : Canonical.Expr.t) ctx (type_env : type_env) :
           | Canonical.Pattern.P_var v ->
               ( Map.empty,
                 { Pattern.typ = new_var "a"; pattern = P_T_var v },
-                Map.singleton v (Scheme ([], new_var "a")) )
+                Name_map.singleton (Data.Name.local v)
+                  (Scheme ([], new_var "a")) )
           | P_anything ->
               ( Map.empty,
                 { typ = new_var "a"; pattern = P_T_anything },
-                Map.empty )
+                Name_map.empty )
           | P_int i ->
-              (Map.empty, { typ = TInt; pattern = P_T_int i }, Map.empty)
+              (Map.empty, { typ = TInt; pattern = P_T_int i }, Name_map.empty)
           | P_str s ->
-              (Map.empty, { typ = TStr; pattern = P_T_str s }, Map.empty)
+              (Map.empty, { typ = TStr; pattern = P_T_str s }, Name_map.empty)
           | P_chr c ->
-              (Map.empty, { typ = TStr; pattern = P_T_chr c }, Map.empty)
-          | P_unit -> (Map.empty, { typ = TUnit; pattern = P_T_unit }, Map.empty)
+              (Map.empty, { typ = TStr; pattern = P_T_chr c }, Name_map.empty)
+          | P_unit ->
+              (Map.empty, { typ = TUnit; pattern = P_T_unit }, Name_map.empty)
           | P_tuple list ->
               let s, resolved, ctx =
                 List.fold_left
                   (fun (s_acc, res_acc, ctx_acc) pat ->
                     let s, ty, ctx' = go pat in
                     (s ++ s_acc, ty :: res_acc, merge_ctx ctx_acc ctx'))
-                  (Map.empty, [], Map.empty) list
+                  (Map.empty, [], Name_map.empty) list
               in
               ( s,
                 {
@@ -473,24 +462,24 @@ let rec infer_with_env (exp : Canonical.Expr.t) ctx (type_env : type_env) :
                     ( s_unify ++ s ++ s_acc,
                       ty :: res_acc,
                       merge_ctx ctx_acc ctx' ))
-                  (Map.empty, [], Map.empty) list
+                  (Map.empty, [], Name_map.empty) list
               in
               ( s,
                 {
-                  typ = TCustom ("List", [ elem_type ]);
+                  typ = TCustom (Data.Name.local "List", [ elem_type ]);
                   pattern = P_T_list (List.rev resolved);
                 },
                 ctx )
           | P_cons (head, tail) ->
               let s1, ty_head, ctx1 = go head in
               let s2, ty_tail, ctx2 = go tail in
-              let list_type = TCustom ("List", [ ty_head.typ ]) in
+              let list_type = TCustom (Data.Name.local "List", [ ty_head.typ ]) in
               let s3 = unify (apply_typ ty_tail.typ s2) list_type in
               ( s3 ++ s2 ++ s1,
                 { typ = list_type; pattern = P_T_cons (ty_head, ty_tail) },
                 merge_ctx ctx1 ctx2 )
           | P_ctor (name, list) -> (
-              let decl = Map.find_opt name type_env.constructors in
+              let decl = Name_map.find_opt name type_env.constructors in
               match decl with
               | Some (type_, d) ->
                   let s, resolved_types, patterns, ctx =
@@ -506,7 +495,7 @@ let rec infer_with_env (exp : Canonical.Expr.t) ctx (type_env : type_env) :
                           | _ -> m),
                           ty_arg :: patterns,
                           merge_ctx ctx ctx' ))
-                      (Map.empty, Map.empty, [], Map.empty)
+                      (Map.empty, Map.empty, [], Name_map.empty)
                       list d.data
                   in
                   let args =
@@ -518,11 +507,14 @@ let rec infer_with_env (exp : Canonical.Expr.t) ctx (type_env : type_env) :
                   in
                   ( s,
                     {
-                      typ = TCustom (type_.name, args);
+                      typ = concrete_type type_.name args;
                       pattern = P_T_ctor (name, List.rev patterns);
                     },
                     ctx )
-              | None -> failwith (Printf.sprintf "Unknown constructor %s" name))
+              | None ->
+                  failwith
+                    (Printf.sprintf "Unknown constructor %s"
+                       (Data.Name.to_string name)))
           | P_record fields ->
               let row_var = new_var "r" in
               let row_type =
@@ -533,7 +525,7 @@ let rec infer_with_env (exp : Canonical.Expr.t) ctx (type_env : type_env) :
               in
               ( Map.empty,
                 { typ = TRecord row_type; pattern = P_T_record fields },
-                Map.empty )
+                Name_map.empty )
         in
         go pattern
       in
@@ -541,7 +533,7 @@ let rec infer_with_env (exp : Canonical.Expr.t) ctx (type_env : type_env) :
       let fn (patterns, (s0, ty0), (s1, ty1), typed_cases)
           { pattern; expr = case_expr } =
         let fn_apply (s2, ty2, ctx') =
-          let ctx = Map.union (fun _ _ b -> Some b) ctx ctx' in
+          let ctx = Name_map.union (fun _ _ b -> Some b) ctx ctx' in
           let s3, t3 = infer case_expr (apply_ctx ctx s2) in
           let s4 =
             unify (apply_typ ty2.Pattern.typ (s3 ++ s2)) (apply_typ ty0 s0)
@@ -605,7 +597,10 @@ let rec infer_with_env (exp : Canonical.Expr.t) ctx (type_env : type_env) :
       let ctx_with_params =
         List.fold_left2
           (fun acc param param_ty ->
-            Map.add param.Data.Located.thing (Scheme ([], param_ty)) acc)
+            Name_map.add
+              (Data.Name.local param.Data.Located.thing)
+              (Scheme ([], param_ty))
+              acc)
           ctx params param_types
       in
       let s, typed_body = infer body ctx_with_params in
@@ -636,7 +631,8 @@ let infer_exp exp ctx type_env =
 let infer' exp ctx type_env = infer_with_env exp ctx type_env
 
 let infer exp =
-  infer_exp exp builtin_ctx { types = Map.empty; constructors = Map.empty }
+  infer_exp exp builtin_ctx
+    { types = Name_map.empty; constructors = Name_map.empty }
 
 let infer_declaration { Canonical.Declaration.body_part; type_part_data } ctx
     type_env =
@@ -644,7 +640,10 @@ let infer_declaration { Canonical.Declaration.body_part; type_part_data } ctx
   let ctx_with_params =
     List.fold_left2
       (fun acc param param_ty ->
-        Map.add param.Data.Located.thing (Scheme ([], param_ty)) acc)
+        Name_map.add
+          (Data.Name.local param.Data.Located.thing)
+          (Scheme ([], param_ty))
+          acc)
       ctx body_part.params param_types
   in
 
@@ -671,7 +670,9 @@ let infer_declaration { Canonical.Declaration.body_part; type_part_data } ctx
   in
 
   let scheme = generalize verified_ty ctx in
-  let new_ctx = Map.add body_part.name.thing scheme ctx in
+  let new_ctx =
+    Name_map.add (Data.Name.local body_part.name.thing) scheme ctx
+  in
 
   let typed_params =
     List.map2
@@ -690,15 +691,15 @@ let infer_declaration { Canonical.Declaration.body_part; type_part_data } ctx
 
   (s_final, typed_decl, new_ctx)
 
-let build_arity_env (type_env : type_env) : int Map.t =
-  Map.fold
+let build_arity_env (type_env : type_env) : int Name_map.t =
+  Name_map.fold
     (fun _ctor_name (typedef, _ctor) acc ->
       let arity = List.length typedef.Canonical.Typedecl.ctors in
       List.fold_left
         (fun acc_inner (ctor : Canonical.Typedecl.type_ctor) ->
-          Map.add ctor.id arity acc_inner)
+          Name_map.add ctor.id arity acc_inner)
         acc typedef.ctors)
-    type_env.constructors Map.empty
+    type_env.constructors Name_map.empty
 
 let infer_toplevel (module_ : Canonical.Module.t) initial_ctx =
   let type_env = build_type_env module_ in
@@ -706,7 +707,7 @@ let infer_toplevel (module_ : Canonical.Module.t) initial_ctx =
   let ctx_with_constructors = build_initial_ctx type_env in
 
   let initial_ctx =
-    Map.union
+    Name_map.union
       (fun _ _ user_val -> Some user_val)
       ctx_with_constructors initial_ctx
   in
@@ -715,14 +716,14 @@ let infer_toplevel (module_ : Canonical.Module.t) initial_ctx =
     Canonical.Module.String_map.fold
       (fun name ta acc ->
         let alias_type = typedef_to_type ta.Canonical.Typealias.typedef in
-        Map.add name (ta.params, alias_type) acc)
-      module_.type_aliases Map.empty
+        Name_map.add (Data.Name.local name) (ta.params, alias_type) acc)
+      module_.type_aliases Name_map.empty
   in
 
   let rec expand_type_alias ty =
     match ty with
     | TCustom (name, args) -> (
-        match Map.find_opt name type_aliases with
+        match Name_map.find_opt name type_aliases with
         | Some (params, alias_body) ->
             if List.length params = List.length args then
               let subst =
@@ -737,7 +738,8 @@ let infer_toplevel (module_ : Canonical.Module.t) initial_ctx =
             else
               failwith
                 (Printf.sprintf "Type alias %s expects %d arguments, got %d"
-                   name (List.length params) (List.length args))
+                   (Data.Name.to_string name)
+                   (List.length params) (List.length args))
         | None -> TCustom (name, List.map expand_type_alias args))
     | TFun (p, r) -> TFun (expand_type_alias p, expand_type_alias r)
     | TTup l -> TTup (List.map expand_type_alias l)
@@ -753,7 +755,10 @@ let infer_toplevel (module_ : Canonical.Module.t) initial_ctx =
     let ctx_with_params =
       List.fold_left2
         (fun acc param param_ty ->
-          Map.add param.Data.Located.thing (Scheme ([], param_ty)) acc)
+          Name_map.add
+          (Data.Name.local param.Data.Located.thing)
+          (Scheme ([], param_ty))
+          acc)
         ctx body_part.params param_types
     in
 
@@ -781,7 +786,9 @@ let infer_toplevel (module_ : Canonical.Module.t) initial_ctx =
     in
 
     let scheme = generalize verified_ty ctx in
-    let new_ctx = Map.add body_part.name.thing scheme ctx in
+    let new_ctx =
+    Name_map.add (Data.Name.local body_part.name.thing) scheme ctx
+  in
 
     let typed_params =
       List.map2
@@ -812,7 +819,7 @@ let infer_toplevel (module_ : Canonical.Module.t) initial_ctx =
               Scheme ([], expanded_ty)
           | None -> Scheme ([], new_var "a")
         in
-        Map.add name ty_scheme acc)
+        Name_map.add (Data.Name.local name) ty_scheme acc)
       module_.top_declarations initial_ctx
   in
 
@@ -830,7 +837,7 @@ let infer_toplevel (module_ : Canonical.Module.t) initial_ctx =
   let arity_env = build_arity_env type_env in
 
   let siblings_env =
-    Map.to_seq type_env.types
+    Name_map.to_seq type_env.types
     |> Seq.concat_map (fun (_, (td : Canonical.Typedecl.t)) ->
            let sibs =
              List.map
@@ -839,11 +846,11 @@ let infer_toplevel (module_ : Canonical.Module.t) initial_ctx =
            in
            List.to_seq td.ctors
            |> Seq.map (fun (c : Canonical.Typedecl.type_ctor) -> (c.id, sibs)))
-    |> Map.of_seq
+    |> Name_map.of_seq
   in
 
   let constructors =
-    Map.fold
+    Name_map.fold
       (fun _ (td : Canonical.Typedecl.t) acc ->
         let total = List.length td.ctors in
         List.mapi

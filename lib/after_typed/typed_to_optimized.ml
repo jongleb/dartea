@@ -93,6 +93,7 @@ let rec expr_of_typed (e : T.Expr.t) : O.Expr.t =
     | T.Expr.Expr_record_extend name -> O.Expr.Expr_record_extend name
     | T.Expr.Expr_record_select name -> O.Expr.Expr_record_select name
     | T.Expr.Expr_record_empty -> O.Expr.Expr_record_empty
+    | T.Expr.Expr_unit -> O.Expr.Expr_unit
     | T.Expr.Expr_lambda { params; body } ->
         let params =
           List.map
