@@ -73,6 +73,9 @@ let make_qualified lexeme =
 let make_expr_let ~bindings body =
   List.fold_right (fun binding body -> Expr_let { body; binding }) bindings body
 
+let make_expr_lambda ~params body =
+  match params with [] -> body | _ -> Expr_lambda { params; body }
+
 let make_expr_apply ~args fn =
   Non_empty_list.reduce
     ~f:(fun fn arg -> Expr_apply { fn; arg })

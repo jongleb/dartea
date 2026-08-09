@@ -19,6 +19,7 @@ let builtins =
       "const toInt = (s) => s !== \"\" && Number.isInteger(Number(s)) ? { _0: \
        Number(s) } : \"Nothing\";" );
     ("length", "const length = (s) => s.length;");
+    ("negate", "const negate = (n) => -n;");
     ("append", "const append = (a, b) => a + b;");
     ("pair", "const pair = (a, b) => [a, b];");
     ("first", "const first = (t) => t[0];");

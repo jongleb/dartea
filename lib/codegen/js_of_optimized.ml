@@ -50,20 +50,28 @@ let sanitize (name : string) : string =
         (List.map op_char_token
            (List.init (String.length name) (String.get name)))
 
-let jid name = J.Identifier (sanitize name)
+let js_of_name (name : Data.Name.t) =
+  match name with
+  | Data.Name.Local local -> sanitize local
+  | Data.Name.Global { module_name; exported_name } ->
+      sanitize
+        (String.concat "$"
+           (String.split_on_char '.' module_name @ [ exported_name ]))
+
+let jid name = J.Identifier (js_of_name name)
 let sname loc = sanitize (Data.Located.unwrap loc)
 
 let temp_counter = ref 0
 
-module SMap = Map.Make (String)
+module SMap = Map.Make (Data.Name)
 
 let name_counts : (string, int) Hashtbl.t = Hashtbl.create 64
 
-let ctor_siblings : (string, (string * int) list) Hashtbl.t = Hashtbl.create 64
+let ctor_siblings : (Data.Name.t, (Data.Name.t * int) list) Hashtbl.t =
+  Hashtbl.create 64
 
 let ctor_siblings_of name = Hashtbl.find_opt ctor_siblings name
-
-let js_arity : (string, int) Hashtbl.t = Hashtbl.create 64
+let js_arity : (Data.Name.t, int) Hashtbl.t = Hashtbl.create 64
 
 let reset_names () =
   Hashtbl.clear name_counts;
@@ -84,11 +92,11 @@ let fresh_js base =
       base ^ "$" ^ string_of_int n
 
 let bind_one env src =
-  let js = fresh_js (sanitize src) in
+  let js = fresh_js (js_of_name src) in
   (SMap.add src js env, js)
 
 let ref_name env src =
-  match SMap.find_opt src env with Some js -> js | None -> sanitize src
+  match SMap.find_opt src env with Some js -> js | None -> js_of_name src
 
 let jid_env env src = J.Identifier (ref_name env src)
 
@@ -111,9 +119,13 @@ let binop_of_string (name : string) : J.binop option =
   | "||" -> Some J.Or
   | _ -> None
 
-let is_bool_constructor name = name = "True" || name = "False"
-let is_unit_constructor name = name = "Unit" || name = "()"
-let bool_literal name = J.Literal (J.Bool (name = "True"))
+let is_bool_constructor name =
+  Data.Name.base name = "True" || Data.Name.base name = "False"
+
+let is_unit_constructor name =
+  Data.Name.base name = "Unit" || Data.Name.base name = "()"
+
+let bool_literal name = J.Literal (J.Bool (Data.Name.base name = "True"))
 
 let is_inline_constructor name =
   is_bool_constructor name || is_unit_constructor name
@@ -122,7 +134,7 @@ let is_tag_omitted name =
   match ctor_siblings_of name with
   | Some siblings -> (
       match List.filter (fun (_, arity) -> arity >= 1) siblings with
-      | [ (only, _) ] -> only = name
+      | [ (only, _) ] -> Data.Name.equal only name
       | _ -> false)
   | None -> false
 
@@ -132,10 +144,12 @@ let payload_fields js_arguments =
 let constructor_to_object name js_arguments =
   if is_bool_constructor name then bool_literal name
   else if is_unit_constructor name then J.Literal J.Null
-  else if js_arguments = [] then J.Literal (J.String name)
+  else if js_arguments = [] then J.Literal (J.String (Data.Name.base name))
   else if is_tag_omitted name then J.Object (payload_fields js_arguments)
   else
-    J.Object (("TAG", J.Literal (J.String name)) :: payload_fields js_arguments)
+    J.Object
+      (("TAG", J.Literal (J.String (Data.Name.base name)))
+      :: payload_fields js_arguments)
 
 let rec is_record_construction (expr_node : O.Expr.t) =
   match expr_node.expr with
@@ -207,15 +221,15 @@ let occ_expr root (o : Occ.t) : J.expr =
     root o
 
 let ctor_literal name =
-  if is_bool_constructor name then J.Bool (name = "True")
-  else J.String name
+  if is_bool_constructor name then J.Bool (Data.Name.base name = "True")
+  else J.String (Data.Name.base name)
 
 let test_expr occ_e (test : DT.test) : J.expr =
   match test with
   | DT.Test_ctor name -> js_eq occ_e (ctor_literal name)
   | DT.Test_tag name ->
       if is_tag_omitted name then js_is_object occ_e
-      else js_eq (member occ_e "TAG") (J.String name)
+      else js_eq (member occ_e "TAG") (J.String (Data.Name.base name))
   | DT.Test_int n -> js_eq occ_e (J.Int n)
   | DT.Test_str s -> js_eq occ_e (J.String s)
   | DT.Test_chr c -> js_eq occ_e (J.String c)
@@ -224,9 +238,11 @@ let test_expr occ_e (test : DT.test) : J.expr =
 
 let switch_key (test : DT.test) : ([ `Value | `Tag ] * J.literal) option =
   match test with
-  | DT.Test_tag n when not (is_tag_omitted n) -> Some (`Tag, J.String n)
+  | DT.Test_tag n when not (is_tag_omitted n) ->
+      Some (`Tag, J.String (Data.Name.base n))
   | DT.Test_tag _ -> None
-  | DT.Test_ctor n when not (is_bool_constructor n) -> Some (`Value, J.String n)
+  | DT.Test_ctor n when not (is_bool_constructor n) ->
+      Some (`Value, J.String (Data.Name.base n))
   | DT.Test_int n -> Some (`Value, J.Int n)
   | DT.Test_str s -> Some (`Value, J.String s)
   | DT.Test_chr c -> Some (`Value, J.String c)
@@ -262,11 +278,11 @@ let binop_expr name ea eb =
   | Some J.Divide ->
       J.Call
         {
-          callee = J.Identifier "Math.trunc";
+          callee = member (J.Identifier "Math") "trunc";
           args = [ J.Binary { left = ea; op = J.Divide; right = eb } ];
         }
   | Some op -> J.Binary { left = ea; op; right = eb }
-  | None -> J.Call { callee = jid name; args = [ ea; eb ] }
+  | None -> J.Call { callee = jid (Data.Name.local name); args = [ ea; eb ] }
 
 let curry_call f args =
   J.Call { callee = J.Identifier "$$curry"; args = [ f; J.Array args ] }
@@ -280,7 +296,7 @@ let split_at n lst =
   go n [] lst
 
 let is_operator env name =
-  (not (SMap.mem name env)) && binop_of_string name <> None
+  (not (SMap.mem name env)) && binop_of_string (Data.Name.base name) <> None
 
 let rec type_arity (t : O.Type.t) =
   match t with O.Type.TFun (_, result) -> 1 + type_arity result | _ -> 0
@@ -305,7 +321,11 @@ let fold_emit (f : 'a -> J.stmt list * 'b) (items : 'a list) :
   in
   (List.rev stmts, List.rev vals)
 
-type tctx = { fn : string; params : string list; mutable triggered : bool }
+type tctx = {
+  fn : Data.Name.t;
+  params : string list;
+  mutable triggered : bool;
+}
 
 let bind_binds env binds =
   let env, rev =
@@ -364,7 +384,9 @@ and lower_node env root ~terminating ~leaf ~fail ~sink ~plan ~tnames
   match tree with
   | DT.Fail -> fail
   | DT.Leaf { action; bindings } ->
-      let jbinds = List.map (fun (v, o) -> (v, occ_expr root o)) bindings in
+      let jbinds =
+        List.map (fun (v, o) -> (Data.Name.local v, occ_expr root o)) bindings
+      in
       let env', bstmts = bind_binds env jbinds in
       bstmts @ leaf env' action
   | DT.Switch { occurrence; branches; default } -> (
@@ -427,8 +449,9 @@ let rec emit_value env (e : O.Expr.t) : J.stmt list * J.expr =
       ([], constructor_to_object name [])
   | O.Expr.Expr_ident name -> ([], jid_env env name)
   | O.Expr.Expr_record_empty -> ([], J.Object [])
-  | O.Expr.Expr_record_extend name -> ([], jid_env env name)
-  | O.Expr.Expr_record_select name -> ([], jid_env env name)
+  | O.Expr.Expr_unit -> ([], J.Literal J.Null)
+  | O.Expr.Expr_record_extend name -> ([], jid_env env (Data.Name.local name))
+  | O.Expr.Expr_record_select name -> ([], jid_env env (Data.Name.local name))
   | O.Expr.Expr_accessor field -> ([], accessor_arrow field)
   | O.Expr.Expr_access { expr; field } ->
       let s, o = emit_value env expr in
@@ -482,7 +505,8 @@ let rec emit_value env (e : O.Expr.t) : J.stmt list * J.expr =
   | O.Expr.Expr_let { binding; body } ->
 
       let env', name =
-        bind_one env (Data.Located.unwrap binding.bind_body.name)
+        bind_one env
+          (Data.Name.local (Data.Located.unwrap binding.bind_body.name))
       in
       let sv, ev = emit_value env' binding.bind_body.body in
       let sb, eb = emit_value env' body in
@@ -512,13 +536,14 @@ and emit_apply env fn arg =
     | O.Expr.Expr_ident op, [ a1; a2 ] when is_operator env op ->
         let sa, ea = emit_value env a1 in
         let sb, eb = emit_value env a2 in
-        (sa @ sb, binop_expr op ea eb)
+        (sa @ sb, binop_expr (Data.Name.base op) ea eb)
     | O.Expr.Expr_ident name, _ ->
-        let known =
-          if SMap.mem name env then None else Hashtbl.find_opt js_arity name
-        in
         let n =
-          match known with Some n -> n | None -> type_arity callee.O.Expr.typ
+          match
+            if SMap.mem name env then None else Hashtbl.find_opt js_arity name
+          with
+          | Some n -> n
+          | None -> type_arity callee.O.Expr.typ
         in
         if n >= 1 then emit_known_call env (jid_env env name) n args
         else emit_generic env callee args
@@ -559,7 +584,10 @@ and emit_record_apply env fn arg =
 
 and emit_lambda env params body =
   let names =
-    List.map (fun (p : O.Expr.expr_lambda_param) -> Data.Located.unwrap p.name) params
+    List.map
+      (fun (p : O.Expr.expr_lambda_param) ->
+        Data.Name.local (Data.Located.unwrap p.name))
+      params
   in
   let env, param_names = bind_params env names in
 
@@ -571,7 +599,7 @@ and self_tail_args env tc (e : O.Expr.t) : O.Expr.t list option =
       let callee, args = collect_args [ arg ] fn in
       match callee.expr with
       | O.Expr.Expr_ident name
-        when name = tc.fn
+        when Data.Name.equal name tc.fn
              && (not (SMap.mem name env))
              && List.length args = List.length tc.params ->
           Some args
@@ -604,7 +632,8 @@ and emit_return env tc (e : O.Expr.t) : J.stmt list =
       match e.expr with
       | O.Expr.Expr_let { binding; body } ->
           let env', name =
-            bind_one env (Data.Located.unwrap binding.bind_body.name)
+            bind_one env
+              (Data.Name.local (Data.Located.unwrap binding.bind_body.name))
           in
           let sv, ev = emit_value env' binding.bind_body.body in
           sv @ [ J.ConstDecl { name; init = ev } ] @ emit_return env' tc body
@@ -688,12 +717,15 @@ let decl_stmts (decl : O.Declaration.t) : J.stmt list =
       s @ [ J.ConstDecl { name; init = e } ]
   | params ->
       let names =
-        List.map (fun (p : O.Declaration.param) -> Data.Located.unwrap p.name) params
+        List.map
+          (fun (p : O.Declaration.param) ->
+            Data.Name.local (Data.Located.unwrap p.name))
+          params
       in
       let env, param_names = bind_params SMap.empty names in
       let tc =
         {
-          fn = Data.Located.unwrap decl.name;
+          fn = Data.Name.local (Data.Located.unwrap decl.name);
           params = param_names;
           triggered = false;
         }
@@ -711,26 +743,23 @@ let program_of_declarations (decls : O.Declaration.t list) : J.program =
   List.concat_map decl_stmts decls
 
 let decl_js_arity (decl : O.Declaration.t) =
-  match decl.params with
-  | [] -> (
-      match decl.body.expr with
-      | O.Expr.Expr_lambda { params; _ } -> List.length params
-      | _ -> 0)
-  | params -> List.length params
+  match (decl.params, decl.body.expr) with
+  | [], O.Expr.Expr_lambda { params; _ } -> List.length params
+  | params, _ -> List.length params
 
-let constructor_decls (constructors : (string * int) list) : J.stmt list =
+let constructor_decls (constructors : (Data.Name.t * int) list) : J.stmt list =
   constructors
   |> List.filter (fun (name, _) -> not (is_inline_constructor name))
   |> List.map (fun (name, arity) ->
-
          if arity = 0 then
-           J.ConstDecl { name = sanitize name; init = constructor_to_object name [] }
+           J.ConstDecl
+             { name = js_of_name name; init = constructor_to_object name [] }
          else
            let params = List.init arity (fun i -> "_" ^ string_of_int i) in
            let args = List.map (fun p -> J.Identifier p) params in
            J.ConstDecl
              {
-               name = sanitize name;
+               name = js_of_name name;
                init =
                  J.Arrow
                    {
@@ -743,16 +772,20 @@ let program_with_helpers ?(constructors = []) ?(siblings = [])
     (decls : O.Declaration.t list) : J.program =
   reset_names ();
   List.iter (fun n -> reserve_name (sanitize n)) Runtime.reserved;
-  List.iter (fun (decl : O.Declaration.t) -> reserve_name (sname decl.name)) decls;
-  List.iter (fun (name, _) -> reserve_name (sanitize name)) constructors;
+  List.iter
+    (fun (name, arity) ->
+      reserve_name (js_of_name name);
+      Hashtbl.replace js_arity name arity)
+    constructors;
+  List.iter
+    (fun (decl : O.Declaration.t) ->
+      let src = Data.Name.local (Data.Located.unwrap decl.name) in
+      reserve_name (js_of_name src);
+      Hashtbl.replace js_arity src (decl_js_arity decl))
+    decls;
   List.iter
     (fun (name, sibs) -> Hashtbl.replace ctor_siblings name sibs)
     siblings;
-  List.iter (fun (name, arity) -> Hashtbl.replace js_arity name arity) constructors;
-  List.iter
-    (fun (decl : O.Declaration.t) ->
-      Hashtbl.replace js_arity (Data.Located.unwrap decl.name) (decl_js_arity decl))
-    decls;
   constructor_decls constructors @ program_of_declarations decls
 
 let mentions body name =

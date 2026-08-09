@@ -10,8 +10,8 @@ end
 
 module Decision_tree = struct
   type test =
-    | Test_ctor of string
-    | Test_tag of string
+    | Test_ctor of Data.Name.t
+    | Test_tag of Data.Name.t
     | Test_int of int
     | Test_str of string
     | Test_chr of string
@@ -32,7 +32,7 @@ open Occurrence
 open Decision_tree
 
 type head =
-  | H_ctor of string
+  | H_ctor of Data.Name.t
   | H_int of int
   | H_str of string
   | H_chr of string
@@ -213,14 +213,14 @@ and useful_tuple rows ~siblings ~qrest ~fields =
          tuple_pattern field_witnesses :: rest)
 
 let counterexample siblings_env patterns =
-  let siblings name = Infer.Infer_proc.Map.find_opt name siblings_env in
+  let siblings name = Infer.Infer_proc.Name_map.find_opt name siblings_env in
   useful siblings (List.map (fun p -> [ p ]) patterns) [ wildcard ]
   |> Option.map (function w :: _ -> w | [] -> wildcard)
 
 let is_exhaustive siblings_env patterns = counterexample siblings_env patterns = None
 
 let redundant_clauses siblings_env patterns =
-  let siblings name = Infer.Infer_proc.Map.find_opt name siblings_env in
+  let siblings name = Infer.Infer_proc.Name_map.find_opt name siblings_env in
   let rec go index above = function
     | [] -> []
     | p :: rest ->

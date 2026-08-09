@@ -1,12 +1,12 @@
 module O = Optimized
-module Names = Expr_walk.Names
-module By_name = Map.Make (String)
+module Names = Scope.Names
+module By_name = Map.Make (Data.Name)
 
 type vertex = { index : int; mutable lowlink : int; mutable on_stack : bool }
 
-let strongly_connected_components (vertices : string list)
-    (edges : Names.t By_name.t) : string list list =
-  let states : (string, vertex) Hashtbl.t = Hashtbl.create 64 in
+let strongly_connected_components (vertices : Data.Name.t list)
+    (edges : Names.t By_name.t) : Data.Name.t list list =
+  let states : (Data.Name.t, vertex) Hashtbl.t = Hashtbl.create 64 in
   let stack = ref [] in
   let next_index = ref 0 in
   let components = ref [] in
@@ -18,7 +18,7 @@ let strongly_connected_components (vertices : string list)
         Option.iter
           (fun state -> state.on_stack <- false)
           (Hashtbl.find_opt states name);
-        if String.equal name root then name :: collected
+        if Data.Name.equal name root then name :: collected
         else pop_component ~root (name :: collected)
   in
   let rec visit name =
@@ -52,7 +52,9 @@ let strongly_connected_components (vertices : string list)
   List.rev !components
 
 let sort_declarations (decls : O.Declaration.t list) : O.Declaration.t list =
-  let name_of (d : O.Declaration.t) = Data.Located.unwrap d.name in
+  let name_of (d : O.Declaration.t) =
+    Data.Name.local (Data.Located.unwrap d.name)
+  in
   let names = List.map name_of decls in
   let declared = Names.of_list names in
   let by_name =
@@ -63,7 +65,7 @@ let sort_declarations (decls : O.Declaration.t list) : O.Declaration.t list =
     List.fold_left
       (fun acc d ->
         By_name.add (name_of d)
-          (Names.inter (Expr_walk.free_in_declaration d) declared)
+          (Names.inter (Scope.free_in_declaration d) declared)
           acc)
       By_name.empty decls
   in

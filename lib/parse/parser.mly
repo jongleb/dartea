@@ -249,10 +249,7 @@ expr_pipe:
 expr_let_name_bind:
     name=loc(LCNAME) params=list(loc(LCNAME)) EQUAL INDENT body=expr DEDENT
         {{ bind_type = None;
-           bind_body={ name;
-                       body = match params with
-                              | [] -> body
-                              | _ -> Expr_lambda { params; body } } }}
+           bind_body={ name; body = make_expr_lambda ~params body } }}
 
 expr_let_defs: lst=nonempty_list(expr_let_name_bind) { lst }
 
@@ -296,7 +293,7 @@ expr_postfix:
 expr_applicable:
     | LPAREN e=expr RPAREN { e }
     | LPAREN a=expr COMMA b=expr RPAREN
-        { Expr_apply { fn = Expr_apply { fn = Expr_ident "pair"; arg = a }; arg = b } }
+        { make_expr_apply ~args:[a; b] (Expr_ident "pair") }
     | e=LCNAME { Expr_ident e }
     | e=STRING { Expr_string e }
     | e=INT { Expr_int e }

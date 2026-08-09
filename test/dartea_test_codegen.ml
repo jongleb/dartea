@@ -976,9 +976,25 @@ result = double 21
   in
   assert_js ~src ~expr:"result" ~expected:"42"
 
+let test_unit_value _ = assert_js ~src:"nothing = ()" ~expr:"nothing" ~expected:"null"
+
+let test_negation _ =
+  let src =
+    {|
+value : Int
+value = 3
+
+negated : Int
+negated = -value
+|}
+  in
+  assert_js ~src ~expr:"negated" ~expected:"-3"
+
 let suite =
   [
     "arithmetic" >:: test_arithmetic;
+    "unit_value" >:: test_unit_value;
+    "negation" >:: test_negation;
     "module_header_with_imports_compiles"
     >:: test_module_header_with_imports_compiles;
     "constant_folding" >:: test_constant_folding;

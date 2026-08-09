@@ -7,13 +7,14 @@ and expr =
   | Expr_if_then_else of expr_if_then_else
   | Expr_record of expr_record_row list
   | Expr_apply of expr_apply
-  | Expr_ident of string
+  | Expr_ident of Data.Name.t
   | Expr_pattern of expr_pattern
   | Expr_accessor of string Data.Located.t
   | Expr_access of expr_access
   | Expr_record_extend of string
   | Expr_record_select of string
   | Expr_record_empty
+  | Expr_unit
   | Expr_lambda of expr_lambda
   | Expr_char of string
   | Expr_string of string
@@ -28,7 +29,7 @@ and expr_lambda_param = { name : string Data.Located.t; typ : Type.t }
 and expr_lambda = { params : expr_lambda_param list; body : t }
 [@@deriving show]
 
-and expr_constr = { name : string; arguments : t list } [@@deriving show]
+and expr_constr = { name : Data.Name.t; arguments : t list } [@@deriving show]
 
 and expr_binop = { name : string; operands : t * t } [@@deriving show]
 
