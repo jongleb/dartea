@@ -15,6 +15,7 @@ let suite =
          "test_exhaustive" >::: Dartea_test_exhaustive.suite;
          "test_frontend_module" >::: Dartea_test_frontend_module.suite;
          "test_canonical_module" >::: Dartea_test_canonical_module.suite;
+         "test_resolve_names" >::: Dartea_test_resolve_names.suite;
          (* "test_infer" >::: Dartea_infer_test.suite; *)
        ]
 

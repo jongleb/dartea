@@ -1,3 +1,14 @@
 (test
  (name dartea_test)
- (libraries dartea typed parse ast data ounit2 unix after_typed optimized infer))
+ (libraries
+  dartea
+  typed
+  parse
+  ast
+  data
+  ounit2
+  unix
+  after_typed
+  optimized
+  infer
+  canonicalization))
