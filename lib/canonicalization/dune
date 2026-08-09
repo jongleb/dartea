@@ -1,6 +1,6 @@
 (library
  (name canonicalization)
- (libraries canonical data)
+ (libraries base canonical data)
  (flags
   (-w -40 -w +26))
  (preprocess
