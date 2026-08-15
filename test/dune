@@ -7,6 +7,8 @@
   ast
   data
   ounit2
+  qcheck-core
+  qcheck-ounit
   unix
   after_typed
   optimized

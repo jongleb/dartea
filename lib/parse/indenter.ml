@@ -1,297 +1,181 @@
 open Parser
 
-type indent_context =
+type context =
+  | Top_level
+  | Expression
   | Let
-  | Let_def
+  | Let_binding
   | Let_inline
   | If
   | Case
-  | Case_arm_expr
+  | Case_head
+  | Case_arm
   | Type_alias
   | Type_decl
   | Type_annotation
-  | Top_level
-  | Expression
+  | Delimited
 
-type indent_state = {
-  stack : (int * indent_context) Stack.t;
-  queue : token Queue.t;
-  mutable line_start_cnum : int;
-  mutable last_indent_cmp : int;
-  mutable prev_token : token option;
-  mutable case_opened : bool;
-  mutable need_dedent_after_type : bool;
+type scope = { column : int; context : context; bracketed : bool }
+
+type t = {
+  scopes : scope list;
+  pending : token list;
+  line_start : int;
+  aligned : bool;
+  prev_token : token option;
 }
 
-let initial_state () =
-  let state =
-    {
-      stack = Stack.create ();
-      queue = Queue.create ();
-      line_start_cnum = 0;
-      last_indent_cmp = 0;
-      prev_token = None;
-      case_opened = false;
-      need_dedent_after_type = false;
-    }
+let initial =
+  { scopes = []; pending = []; line_start = 0; aligned = true; prev_token = None }
+
+let current state =
+  match state.scopes with
+  | [] -> { column = 0; context = Top_level; bracketed = false }
+  | scope :: _ -> scope
+
+let context state = (current state).context
+let column state = (current state).column
+let debt scopes = List.length (List.filter (fun scope -> scope.bracketed) scopes)
+
+let via change state =
+  let scopes = change state.scopes in
+  let delta = debt scopes - debt state.scopes in
+  ( List.init (abs delta) (fun _ -> if delta > 0 then INDENT else DEDENT),
+    { state with scopes } )
+
+let head change = function [] -> [] | scope :: rest -> change scope :: rest
+let ( let* ) (tokens, state) step =
+  let more, state = step state in
+  (tokens @ more, state)
+
+let ( +> ) token (tokens, state) = (token :: tokens, state)
+
+let mark ~column ~context state =
+  { state with scopes = { column; context; bracketed = false } :: state.scopes }
+
+let move ~column state =
+  { state with scopes = head (fun scope -> { scope with column }) state.scopes }
+
+let retag ~context state =
+  { state with scopes = head (fun scope -> { scope with context }) state.scopes }
+
+let push ~column ~context state =
+  via (List.cons { column; context; bracketed = true }) state
+
+let bracket state = via (head (fun scope -> { scope with bracketed = true })) state
+let unbracket state = via (head (fun scope -> { scope with bracketed = false })) state
+let pop state = via (function [] -> [] | _ :: rest -> rest) state
+
+let close_through stops token state =
+  let rec drop = function
+    | scope :: rest when stops scope.context -> rest
+    | scope :: rest when scope.context <> Top_level -> drop rest
+    | scopes -> scopes
   in
-  Stack.push (0, Top_level) state.stack;
-  state
+  let* state = via drop state in
+  ([ token ], state)
 
-let push state column context = Stack.push (column, context) state.stack
-let pop state = ignore (Stack.pop state.stack)
-let enqueue state token = Queue.add token state.queue
+type reaction = Keep | Close | Unbracket | Realign | Unwind
 
-let current_frame state =
-  Option.value (Stack.top_opt state.stack) ~default:(0, Top_level)
+let react context ~indent ~column =
+  match (context, compare indent column) with
+  | Type_annotation, _ when indent = 0 -> Keep
+  | Expression, -1 -> Close
+  | Let, 1 -> Realign
+  | Case, 1 -> Realign
+  | Case, -1 -> Unwind
+  | (Type_alias | Type_decl), 0 -> Close
+  | (Type_alias | Type_decl | Type_annotation), -1 -> Unwind
+  | Case_arm, 0 -> Close
+  | Case_arm, -1 -> Unwind
+  | Let_binding, -1 -> Unwind
+  | Let_inline, -1 -> Unbracket
+  | _ -> Keep
 
-let current_context state = snd (current_frame state)
-let current_column state = fst (current_frame state)
-
-let dedent state =
-  pop state;
-  DEDENT
-
-let queue_dedent state =
-  pop state;
-  enqueue state DEDENT
-
-let token_column state lexbuf =
-  lexbuf.Lexing.lex_start_p.pos_cnum - state.line_start_cnum
-
-let close_until state target next_token =
-  let rec go () =
-    match Stack.pop_opt state.stack with
-    | None -> Stack.push (0, Top_level) state.stack
-    | Some ((_, (Let | If | Type_alias | Type_decl | Type_annotation)) as frame)
-      ->
-        Stack.push frame state.stack
-    | Some ((_, Let_inline) as frame) ->
-        Stack.push frame state.stack;
-        enqueue state DEDENT
-    | Some (column, _) when target < column ->
-        enqueue state DEDENT;
-        go ()
-    | Some ((column, _) as frame) when target > column ->
-        Stack.push frame state.stack
-    | Some (_, Case_arm_expr) -> enqueue state DEDENT
-    | Some ((_, Let_def) as frame) -> Stack.push frame state.stack
-    | Some _ -> ()
-  in
-  go ();
-  if Queue.is_empty state.queue then next_token state else Queue.take state.queue
+let rec layout state ~indent =
+  let column = column state in
+  let state = { state with aligned = indent = column } in
+  match react (context state) ~indent ~column with
+  | Keep -> ([], state)
+  | Close -> pop state
+  | Unbracket -> unbracket state
+  | Realign -> layout (move ~column:indent state) ~indent
+  | Unwind ->
+      let* state = pop state in
+      layout state ~indent
 
 let indentation_width lexeme =
-  String.fold_left (fun n c -> if c = '\n' then n else n + 1) 0 lexeme
+  match String.rindex_opt lexeme '\n' with
+  | None -> String.length lexeme
+  | Some last_newline -> String.length lexeme - last_newline - 1
 
-let handle_newline state nl token lexbuf =
-  let indent_level = indentation_width nl in
-  let pos = lexbuf.Lexing.lex_curr_p in
-  state.line_start_cnum <- pos.Lexing.pos_cnum - indent_level;
+let token_column state lexbuf =
+  lexbuf.Lexing.lex_start_p.Lexing.pos_cnum - state.line_start
 
-  match (state.prev_token, Stack.top_opt state.stack) with
-  | Some COLON, Some (_, Top_level) when indent_level > 0 ->
-      push state indent_level Type_annotation;
-      INDENT
-  | Some LET, Some (_, Let_inline) ->
-      let column, _ = Stack.pop state.stack in
-      push state column Let;
-      INDENT
-  | _, Some (_, (Type_alias | Type_decl)) when indent_level = 0 -> dedent state
-  | _ ->
-      let rec go () =
-        let column = current_column state in
-        let next_token state = token state lexbuf in
-        state.last_indent_cmp <- Int.compare indent_level column;
+let handle_newline state newline lexbuf =
+  let indent = indentation_width newline in
+  let state =
+    { state with line_start = lexbuf.Lexing.lex_curr_p.Lexing.pos_cnum - indent }
+  in
+  match (state.prev_token, context state) with
+  | Some INDENT, Type_annotation ->
+      if indent > 0 then ([], move ~column:indent state) else pop state
+  | Some LET, Let_inline -> bracket (retag ~context:Let state)
+  | _ -> layout state ~indent
 
-        match current_context state with
-        | Top_level when indent_level = 0 -> next_token state
-        | Top_level -> close_until state indent_level next_token
-        | Expression when indent_level < column -> dedent state
-        | Expression -> next_token state
-        | (Case | Let) when indent_level > column ->
-            let _, ctx = Stack.pop state.stack in
-            push state indent_level ctx;
-            go ()
-        | (Case | Let) when indent_level < column ->
-            close_until state indent_level next_token
-        | Case | Let -> next_token state
-        | (Type_alias | Type_decl) when indent_level > column -> next_token state
-        | (Type_alias | Type_decl) when indent_level < column ->
-            queue_dedent state;
-            close_until state indent_level next_token
-        | Type_alias | Type_decl -> dedent state
-        | Type_annotation when indent_level = 0 -> next_token state
-        | Type_annotation when indent_level < column ->
-            queue_dedent state;
-            close_until state indent_level next_token
-        | Type_annotation -> next_token state
-        | Case_arm_expr when indent_level = column -> dedent state
-        | Case_arm_expr when indent_level < column ->
-            close_until state indent_level next_token
-        | Case_arm_expr -> next_token state
-        | Let_def when indent_level < column ->
-            close_until state indent_level next_token
-        | Let_def -> next_token state
-        | Let_inline when indent_level < column -> DEDENT
-        | Let_inline -> next_token state
-        | If -> next_token state
+let handle state lexbuf token =
+  match token with
+  | EQUAL ->
+      let state = { state with aligned = false } in
+      begin
+        match context state with
+        | Top_level -> EQUAL +> push ~column:1 ~context:Expression state
+        | Let_binding | Let_inline | Type_alias | Type_decl ->
+            EQUAL +> bracket state
+        | _ -> ([ EQUAL ], state)
+      end
+  | COLON when context state = Top_level ->
+      COLON +> push ~column:0 ~context:Type_annotation state
+  | CASE -> ([ CASE ], mark ~column:(column state) ~context:Case_head state)
+  | OF ->
+      let* state = if context state = Case_head then pop state else ([], state) in
+      OF +> push ~column:(column state) ~context:Case state
+  | ARROW when context state = Case ->
+      ARROW +> push ~column:(column state) ~context:Case_arm state
+  | LET -> ([ LET ], mark ~column:(token_column state lexbuf) ~context:Let_inline state)
+  | IF -> ([ IF ], mark ~column:(column state) ~context:If state)
+  | ELSE -> ELSE +> pop state
+  | TYPE -> ([ TYPE ], mark ~column:0 ~context:Type_decl state)
+  | ALIAS when context state = Type_decl ->
+      ([ ALIAS ], retag ~context:Type_alias state)
+  | LBRACE -> ([ LBRACE ], mark ~column:(column state) ~context:Delimited state)
+  | RBRACE -> close_through (function Delimited -> true | _ -> false) RBRACE state
+  | IN -> close_through (function Let | Let_inline -> true | _ -> false) IN state
+  | EOF -> close_through (fun _ -> false) EOF state
+  | LCNAME _ ->
+      let name_column = token_column state lexbuf in
+      begin
+        match context state with
+        | Type_annotation when name_column = 0 ->
+            let* state = pop state in
+            ([ token ], state)
+        | Let -> ([ token ], mark ~column:name_column ~context:Let_binding state)
+        | Let_binding when state.aligned ->
+            let* state = unbracket state in
+            ([ token ], move ~column:(name_column + 1) state)
+        | Let_inline -> ([ token ], move ~column:(name_column + 1) state)
+        | _ -> ([ token ], state)
+      end
+  | token -> ([ token ], state)
+
+let rec next_token state lexbuf =
+  match state.pending with
+  | token :: rest -> (token, { state with pending = rest; prev_token = Some token })
+  | [] ->
+      let pending, state =
+        match Lexer.token lexbuf with
+        | Lexer.Skip -> ([], state)
+        | Lexer.Newline newline -> handle_newline state newline lexbuf
+        | Lexer.Token token -> handle state lexbuf token
       in
-      if Queue.is_empty state.queue then go () else Queue.take state.queue
-
-let handle_equal state _lexbuf =
-  state.need_dedent_after_type <- false;
-  state.last_indent_cmp <- -1;
-  (match current_context state with
-  | Top_level ->
-      push state 1 Expression;
-      enqueue state INDENT
-  | Let_def | Let_inline | Type_alias | Type_decl -> enqueue state INDENT
-  | _ -> ());
-  EQUAL
-
-let rec newline_follows lexbuf i =
-  if i >= lexbuf.Lexing.lex_buffer_len then false
-  else
-    match Bytes.get lexbuf.Lexing.lex_buffer i with
-    | ' ' | '\t' -> newline_follows lexbuf (i + 1)
-    | '\n' -> true
-    | _ -> false
-
-let handle_colon state lexbuf =
-  match current_context state with
-  | Top_level ->
-      if newline_follows lexbuf lexbuf.Lexing.lex_curr_pos then COLON
-      else (
-        push state 0 Type_annotation;
-        state.need_dedent_after_type <- true;
-        enqueue state INDENT;
-        COLON)
-  | _ -> COLON
-
-let handle_case_of state _lexbuf =
-  state.need_dedent_after_type <- false;
-  push state (current_column state) Case;
-  enqueue state INDENT;
-  OF
-
-let handle_case state =
-  state.case_opened <- true;
-  state.need_dedent_after_type <- false;
-  CASE
-
-let handle_arrow state _lexbuf =
-  state.need_dedent_after_type <- false;
-  if current_context state = Case then (
-    push state (current_column state) Case_arm_expr;
-    enqueue state INDENT);
-  ARROW
-
-let next_token state token lexbuf =
-  let token =
-    if Queue.is_empty state.queue then token state lexbuf
-    else Queue.take state.queue
-  in
-  state.prev_token <- Some token;
-  token
-
-let handle_let state lexbuf =
-  state.need_dedent_after_type <- false;
-  push state (token_column state lexbuf) Let_inline;
-  LET
-
-let handle_lcname state lexbuf =
-  let name = LCNAME (Lexing.lexeme lexbuf) in
-  let col = token_column state lexbuf in
-
-  if current_context state = Type_annotation && col = 0 then (
-    state.need_dedent_after_type <- false;
-    enqueue state name;
-    dedent state)
-  else if current_context state = Type_annotation then name
-  else if state.need_dedent_after_type then (
-    state.need_dedent_after_type <- false;
-    match current_context state with
-    | Type_annotation ->
-        enqueue state name;
-        dedent state
-    | _ -> name)
-  else if state.case_opened then (
-    state.case_opened <- false;
-    name)
-  else if current_context state = Type_alias || current_context state = Type_decl
-  then name
-  else
-    match current_context state with
-    | Let ->
-        push state col Let_def;
-        name
-    | Let_def when state.last_indent_cmp = 0 ->
-        pop state;
-        push state (col + 1) Let_def;
-        enqueue state name;
-        DEDENT
-    | Let_inline ->
-        pop state;
-        push state (col + 1) Let_inline;
-        name
-    | _ -> name
-
-let handle_in state =
-  state.need_dedent_after_type <- false;
-  match current_context state with
-  | Let_inline when state.prev_token = Some DEDENT ->
-      pop state;
-      IN
-  | Let_inline ->
-      enqueue state IN;
-      dedent state
-  | _ ->
-      if current_context state = Let_def then queue_dedent state;
-      if current_context state = Case_arm_expr then (
-        queue_dedent state;
-        queue_dedent state);
-      enqueue state IN;
-      dedent state
-
-let handle_eof state =
-  (if state.need_dedent_after_type then (
-     state.need_dedent_after_type <- false;
-     match current_context state with
-     | Type_annotation -> queue_dedent state
-     | _ -> ()));
-
-  let rec close_all () =
-    match Stack.top_opt state.stack with
-    | Some (_, Top_level) -> ()
-    | Some _ ->
-        queue_dedent state;
-        close_all ()
-    | None -> Stack.push (0, Top_level) state.stack
-  in
-  close_all ();
-
-  if not (Queue.fold (fun seen t -> seen || t = EOF) false state.queue) then
-    enqueue state EOF;
-  if Queue.is_empty state.queue then EOF else Queue.take state.queue
-
-let handle_if state =
-  state.need_dedent_after_type <- false;
-  push state (current_column state) If;
-  IF
-
-let handle_else state =
-  state.need_dedent_after_type <- false;
-  pop state;
-  ELSE
-
-let handle_type_decl state _lexbuf =
-  state.need_dedent_after_type <- false;
-  push state 0 Type_decl
-
-let handle_alias state =
-  state.need_dedent_after_type <- false;
-  if current_context state = Type_decl then (
-    pop state;
-    push state 0 Type_alias);
-  ALIAS
+      next_token { state with pending } lexbuf

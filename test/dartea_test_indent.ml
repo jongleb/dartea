@@ -2,13 +2,58 @@ open OUnit2
 
 module Main = Parse.Main
 
+let layout_stream input =
+  let lexbuf = Lexing.from_string input in
+  let rec go state acc =
+    match Parse.Indenter.next_token state lexbuf with
+    | Parse.Parser.EOF, _ -> List.rev acc
+    | token, state -> go state (token :: acc)
+  in
+  go Parse.Indenter.initial []
+
+let assert_balanced input =
+  let depth, lowest =
+    List.fold_left
+      (fun (depth, lowest) token ->
+        match token with
+        | Parse.Parser.INDENT -> (depth + 1, lowest)
+        | Parse.Parser.DEDENT -> (depth - 1, min lowest (depth - 1))
+        | _ -> (depth, lowest))
+      (0, 0) (layout_stream input)
+  in
+  assert_equal ~printer:string_of_int ~msg:"unmatched DEDENT" 0 lowest;
+  assert_equal ~printer:string_of_int ~msg:"unclosed INDENT" 0 depth
+
+let splice lines index line =
+  List.concat
+    (List.mapi (fun i l -> if i = index then [ line; l ] else [ l ]) lines)
+
+let assert_blank_lines_ignored input =
+  let lines = String.split_on_char '\n' input in
+  let expected = layout_stream input in
+  List.iteri
+    (fun index _ ->
+      if index < List.length lines - 1 then
+        List.iter
+          (fun width ->
+            let blank = String.make width ' ' in
+            let spliced = String.concat "\n" (splice lines index blank) in
+            assert_bool
+              (Printf.sprintf "blank line of width %d at line %d changed layout"
+                 width index)
+              (layout_stream spliced = expected))
+          [ 0; 1; 3 ])
+    lines
+
 (** Parses successfully: the layout pass produced a balanced INDENT/DEDENT
     stream the grammar accepts. *)
 let ok name input =
   name >:: fun _ ->
-  match Main.parse input with
+  (match Main.parse input with
   | Ok _ -> assert_bool "parsed" true
-  | Error e -> assert_failure (Printexc.to_string e)
+  | Error e -> assert_failure (Printexc.to_string e));
+  assert_balanced input;
+  assert_blank_lines_ignored input
 
 (** Intentionally ill-laid-out input that must be rejected. Documents the
     error behaviour we want to keep. *)
