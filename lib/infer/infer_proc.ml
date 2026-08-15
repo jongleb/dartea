@@ -21,13 +21,15 @@ type infer_result = {
   constructors : ctor_info list;
 }
 
-let build_type_env (module_ : Canonical.Module.t) : type_env =
+let build_type_env ~(imports : Interface.t list)
+    (module_ : Canonical.Module.t) : type_env =
   let declared_here =
     Canonical.Module.String_map.fold
       (fun _ typedecl acc -> typedecl :: acc)
       module_.type_declarations []
   in
-  let visible = Builtins.types @ declared_here in
+  let imported = List.concat_map (fun (i : Interface.t) -> i.types) imports in
+  let visible = Builtins.types @ imported @ declared_here in
   let add_type acc (typedecl : Canonical.Typedecl.t) =
     Name_map.add typedecl.name typedecl acc
   in
@@ -701,8 +703,9 @@ let build_arity_env (type_env : type_env) : int Name_map.t =
         acc typedef.ctors)
     type_env.constructors Name_map.empty
 
-let infer_toplevel (module_ : Canonical.Module.t) initial_ctx =
-  let type_env = build_type_env module_ in
+let infer_toplevel ~(imports : Interface.t list)
+    (module_ : Canonical.Module.t) initial_ctx =
+  let type_env = build_type_env ~imports module_ in
 
   let ctx_with_constructors = build_initial_ctx type_env in
 
@@ -712,12 +715,28 @@ let infer_toplevel (module_ : Canonical.Module.t) initial_ctx =
       ctx_with_constructors initial_ctx
   in
 
+  let initial_ctx =
+    List.concat_map (fun (i : Interface.t) -> i.values) imports
+    |> List.fold_left
+         (fun acc (value : Interface.value) ->
+           Name_map.add value.name value.scheme acc)
+         initial_ctx
+  in
+
+  let imported_aliases =
+    List.concat_map (fun (i : Interface.t) -> i.type_aliases) imports
+    |> List.fold_left
+         (fun acc (ta : Canonical.Typealias.t) ->
+           Name_map.add ta.name (ta.params, typedef_to_type ta.typedef) acc)
+         Name_map.empty
+  in
+
   let type_aliases =
     Canonical.Module.String_map.fold
       (fun name ta acc ->
         let alias_type = typedef_to_type ta.Canonical.Typealias.typedef in
         Name_map.add (Data.Name.local name) (ta.params, alias_type) acc)
-      module_.type_aliases Name_map.empty
+      module_.type_aliases imported_aliases
   in
 
   let rec expand_type_alias ty =
@@ -868,3 +887,15 @@ let infer_toplevel (module_ : Canonical.Module.t) initial_ctx =
     siblings_env;
     constructors;
   }
+
+let interface_of (module_ : Canonical.Module.t) (result : infer_result) :
+    Interface.t =
+  let values =
+    Canonical.Module.String_map.fold
+      (fun name _ acc ->
+        Name_map.find_opt (Data.Name.local name) result.ctx
+        |> Option.map (fun scheme -> (name, scheme) :: acc)
+        |> Option.value ~default:acc)
+      module_.top_declarations []
+  in
+  Interface.of_module ~values module_

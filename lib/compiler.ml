@@ -36,7 +36,7 @@ module Make (B : BACKEND) = struct
         let frontend_module = Frontend.Module.of_impl impl_list in
         let canonical = Canonical.Module.of_frontend frontend_module in
         Infer.Infer_proc.State.reset ();
-        let result = Infer.Infer_proc.infer_toplevel canonical initial_ctx in
+        let result = Infer.Infer_proc.infer_toplevel ~imports:[] canonical initial_ctx in
         let optimized = After_typed.Optimize.optimize result.declarations in
         let sorted = After_typed.Dependency_sort.sort_declarations optimized in
         let constructors =
@@ -78,7 +78,7 @@ let compile path =
         Result.map
           (fun declarations ->
             Infer.Infer_proc.State.reset ();
-            Infer.Infer_proc.infer_toplevel declarations initial_ctx)
+            Infer.Infer_proc.infer_toplevel ~imports:[] declarations initial_ctx)
           x)
       canonicalized
   in

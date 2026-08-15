@@ -1,5 +1,6 @@
-module Names = Set.Make (String)
-module By_name = Map.Make (String)
+module Exports = Canonical.Exports
+module Names = Exports.Names
+module By_name = Exports.By_name
 
 type problem =
   | Unknown_module of { qualifier : string }
@@ -48,9 +49,7 @@ module Reported = struct
 end
 
 type namespace = Terms | Types
-type exported_type = Alias | Ctors_hidden | Ctors_exposed of Names.t
-type exports = { terms : Names.t; types : exported_type By_name.t }
-type dependency = { module_name : string; exports : exports }
+type dependency = { module_name : string; exports : Exports.t }
 type exposing = { nearest : string; earlier : string list }
 type scope = { visible : Names.t; sources : exposing By_name.t }
 
@@ -60,18 +59,13 @@ type env = {
   qualifiers : dependency By_name.t;
 }
 
-let exports_include exports namespace name =
+let exports_include (exports : Exports.t) namespace name =
   match namespace with
   | Terms -> Names.mem name exports.terms
   | Types -> By_name.mem name exports.types
 
-let everything_exported exports =
-  [
-    (Terms, exports.terms);
-    ( Types,
-      By_name.fold (fun name _ acc -> Names.add name acc) exports.types
-        Names.empty );
-  ]
+let everything_exported (exports : Exports.t) =
+  [ (Terms, exports.terms); (Types, Exports.type_names exports) ]
 
 let scope_of env = function
   | Terms -> env.term_scope
@@ -109,70 +103,6 @@ let brings_into_scope env brought ~from =
   List.fold_left
     (fun env (namespace, names) -> Names.fold (expose namespace) names env)
     env brought
-
-let declared_names map =
-  Canonical.Module.String_map.fold
-    (fun name _ acc -> Names.add name acc)
-    map Names.empty
-
-let ctors_of_type (m : Canonical.Module.t) type_name =
-  Canonical.Module.String_map.find_opt type_name m.type_declarations
-  |> Option.map (fun (td : Canonical.Typedecl.t) ->
-         Names.of_list
-           (List.map
-              (fun (ctor : Canonical.Typedecl.type_ctor) ->
-                Data.Name.base ctor.id)
-              td.ctors))
-  |> Option.value ~default:Names.empty
-
-let declared_terms (m : Canonical.Module.t) =
-  Canonical.Module.String_map.fold
-    (fun type_name _ acc -> Names.union acc (ctors_of_type m type_name))
-    m.type_declarations
-    (declared_names m.top_declarations)
-
-let declared_types (m : Canonical.Module.t) =
-  Names.union
-    (declared_names m.type_declarations)
-    (declared_names m.type_aliases)
-
-let exports_of (m : Canonical.Module.t) : exports =
-  let exported_type ~ctors_exposed name =
-    let ctors = ctors_of_type m name in
-    match (Names.is_empty ctors, ctors_exposed) with
-    | true, _ -> Alias
-    | false, false -> Ctors_hidden
-    | false, true -> Ctors_exposed ctors
-  in
-  match m.exports with
-  | Canonical.Exposed.All ->
-      let expose_type ~ctors_exposed name _ types =
-        By_name.add name (exported_type ~ctors_exposed name) types
-      in
-      {
-        terms = declared_terms m;
-        types =
-          Canonical.Module.String_map.fold
-            (expose_type ~ctors_exposed:true)
-            m.type_declarations By_name.empty
-          |> Canonical.Module.String_map.fold
-               (expose_type ~ctors_exposed:false)
-               m.type_aliases;
-      }
-  | Only items ->
-      let add acc (item : Canonical.Exposed.item) =
-        match item with
-        | Value name -> { acc with terms = Names.add name acc.terms }
-        | Type { name; ctors_exposed } ->
-            let exported = exported_type ~ctors_exposed name in
-            let terms =
-              match exported with
-              | Ctors_exposed ctors -> Names.union acc.terms ctors
-              | Alias | Ctors_hidden -> acc.terms
-            in
-            { terms; types = By_name.add name exported acc.types }
-      in
-      List.fold_left add { terms = Names.empty; types = By_name.empty } items
 
 let duplicate_declarations (m : Canonical.Module.t) : error list =
   let clashing_ctors =
@@ -231,12 +161,12 @@ let brought_in_by dependency (item : Canonical.Exposed.item) :
         (By_name.find_opt name dependency.exports.types, ctors_exposed)
       with
       | None, _ -> Error (Not_exposed { module_name; name })
-      | Some Ctors_hidden, true ->
+      | Some Exports.Ctors_hidden, true ->
           Error (Ctors_not_exposed { module_name; type_name = name })
-      | Some (Ctors_exposed ctors), true ->
+      | Some (Exports.Ctors_exposed ctors), true ->
           Ok [ (Types, Names.singleton name); (Terms, ctors) ]
-      | Some (Alias | Ctors_hidden | Ctors_exposed _), false
-      | Some Alias, true ->
+      | Some (Exports.Alias | Ctors_hidden | Ctors_exposed _), false
+      | Some Exports.Alias, true ->
           Ok [ (Types, Names.singleton name) ]
     end
 
@@ -246,7 +176,7 @@ let environment_of ~(dependencies : Canonical.Module.t list)
     List.fold_left
       (fun acc (source : Canonical.Module.t) ->
         By_name.add source.name
-          { module_name = source.name; exports = exports_of source }
+          { module_name = source.name; exports = Exports.of_module source }
           acc)
       By_name.empty dependencies
   in
@@ -283,8 +213,10 @@ let environment_of ~(dependencies : Canonical.Module.t list)
   in
   let start =
     {
-      term_scope = { visible = declared_terms m; sources = By_name.empty };
-      type_scope = { visible = declared_types m; sources = By_name.empty };
+      term_scope =
+        { visible = Exports.declared_terms m; sources = By_name.empty };
+      type_scope =
+        { visible = Exports.declared_types m; sources = By_name.empty };
       qualifiers = By_name.empty;
     }
   in
