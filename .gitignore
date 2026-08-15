@@ -24,3 +24,6 @@
 .opam
 .deps
 .locked
+
+# Generated JS output next to playground sources
+playgrounds/**/*.mjs

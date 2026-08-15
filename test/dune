@@ -12,4 +12,5 @@
   optimized
   infer
   canonicalization
-  interface))
+  interface
+  file_loader))

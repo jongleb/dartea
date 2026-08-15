@@ -36,6 +36,7 @@ type expr =
   | Binary of { left : expr; op : binop; right : expr }
   | Unary of { op : unop; arg : expr }
   | Call of { callee : expr; args : expr list }
+  | New of { callee : expr; args : expr list }
   | Function of { params : identifier list; body : stmt list }
   | Arrow of { params : identifier list; body : arrow_body }
   | Member of { object_ : expr; property : expr; computed : bool }
@@ -62,6 +63,9 @@ and stmt =
   | Switch of { discriminant : expr; cases : case list }
   | While of { test : expr; body : stmt list }
   | Continue
+  | Throw of expr
+  | Import_namespace of { local : identifier; from : string }
+  | Export of identifier list
 [@@deriving show]
 
 and case = { test : expr option; consequent : stmt list } [@@deriving show]

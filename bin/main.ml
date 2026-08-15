@@ -9,4 +9,11 @@ let () =
   |> Dartea.Compiler.compile_modules
   |> List.iter (fun (module_ : Dartea.Compiler.compiled) ->
          List.iter prerr_endline module_.warnings;
-         Printf.printf "\n=== %s ===\n%s\n" module_.module_name module_.source)
+         let file_name =
+           module_.module_name ^ "." ^ Dartea.Compiler.extension
+         in
+         Eio.Path.save
+           ~create:(`Or_truncate 0o644)
+           Eio.Path.(path / file_name)
+           module_.source;
+         prerr_endline ("wrote " ^ file_name))

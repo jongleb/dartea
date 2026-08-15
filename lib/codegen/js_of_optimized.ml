@@ -50,20 +50,46 @@ let sanitize (name : string) : string =
         (List.map op_char_token
            (List.init (String.length name) (String.get name)))
 
+let runtime_module_name = "Dartea_runtime"
+let runtime_provided : (string, unit) Hashtbl.t = Hashtbl.create 32
+
+let module_ident module_name =
+  sanitize (String.concat "$" (String.split_on_char '.' module_name))
+
 let js_of_name (name : Data.Name.t) =
   match name with
   | Data.Name.Local local -> sanitize local
   | Data.Name.Global { module_name; exported_name } ->
-      sanitize
-        (String.concat "$"
-           (String.split_on_char '.' module_name @ [ exported_name ]))
+      module_ident module_name ^ "." ^ sanitize exported_name
 
-let jid name = J.Identifier (js_of_name name)
+let runtime_reference name =
+  J.Member
+    {
+      object_ = J.Identifier runtime_module_name;
+      property = J.Identifier name;
+      computed = false;
+    }
+
+let expression_of_name (name : Data.Name.t) : J.expr =
+  match name with
+  | Data.Name.Local local when Hashtbl.mem runtime_provided (sanitize local) ->
+      runtime_reference (sanitize local)
+  | Data.Name.Local local -> J.Identifier (sanitize local)
+  | Data.Name.Global { module_name; exported_name } ->
+      J.Member
+        {
+          object_ = J.Identifier (module_ident module_name);
+          property = J.Identifier (sanitize exported_name);
+          computed = false;
+        }
+
+let jid name = expression_of_name name
 let sname loc = sanitize (Data.Located.unwrap loc)
 
 let temp_counter = ref 0
 
 module SMap = Map.Make (Data.Name)
+module Js_names = Set.Make (String)
 
 let name_counts : (string, int) Hashtbl.t = Hashtbl.create 64
 
@@ -74,6 +100,7 @@ let ctor_siblings_of name = Hashtbl.find_opt ctor_siblings name
 let js_arity : (Data.Name.t, int) Hashtbl.t = Hashtbl.create 64
 
 let reset_names () =
+  Hashtbl.reset runtime_provided;
   Hashtbl.clear name_counts;
   Hashtbl.clear ctor_siblings;
   Hashtbl.clear js_arity;
@@ -98,7 +125,10 @@ let bind_one env src =
 let ref_name env src =
   match SMap.find_opt src env with Some js -> js | None -> js_of_name src
 
-let jid_env env src = J.Identifier (ref_name env src)
+let jid_env env src =
+  match SMap.find_opt src env with
+  | Some js -> J.Identifier js
+  | None -> expression_of_name src
 
 let binop_of_string (name : string) : J.binop option =
   match name with
@@ -268,8 +298,15 @@ let switch_plan occ_e (branches : (DT.test * DT.t) list) :
   else if keyed <> [] && same_kind `Value then Some (occ_e, cases_of ())
   else None
 
-let match_error occ =
-  J.Call { callee = J.Identifier "$$matchError"; args = [ occ ] }
+let match_failure =
+  [
+    J.Throw
+      (J.New
+         {
+           callee = J.Identifier "Error";
+           args = [ J.Literal (J.String "Pattern match failed") ];
+         });
+  ]
 
 let assign_stmt r e = J.ExprStmt (J.Assignment { left = J.Identifier r; right = e })
 
@@ -285,7 +322,11 @@ let binop_expr name ea eb =
   | None -> J.Call { callee = jid (Data.Name.local name); args = [ ea; eb ] }
 
 let curry_call f args =
-  J.Call { callee = J.Identifier "$$curry"; args = [ f; J.Array args ] }
+  let callee =
+    if Hashtbl.mem runtime_provided "$$curry" then runtime_reference "$$curry"
+    else J.Identifier "$$curry"
+  in
+  J.Call { callee; args = [ f; J.Array args ] }
 
 let split_at n lst =
   let rec go i acc = function
@@ -434,7 +475,7 @@ let shared_thunks env root ~plan ~tnames clause_expr =
     (fun (id, sub) ->
       let body =
         lower_node env root ~terminating:true ~leaf
-          ~fail:(sink (match_error root)) ~sink ~plan ~tnames sub
+          ~fail:match_failure ~sink ~plan ~tnames sub
       in
       J.ConstDecl { name = List.assoc id tnames; init = arrow_of_body [] body })
     (DS.shared plan)
@@ -687,7 +728,7 @@ and emit_match_return env tc (occ : J.expr)
   let tnames = thunk_names plan in
   shared_thunks env occ ~plan ~tnames clause_expr
   @ lower env occ ~terminating:true ~leaf
-      ~fail:[ J.Return (Some (match_error occ)) ]
+      ~fail:match_failure
       ~sink ~plan ~tnames tree
 
 and emit_match_assign env (r : string) (occ : J.expr)
@@ -705,7 +746,7 @@ and emit_match_assign env (r : string) (occ : J.expr)
   let tnames = thunk_names plan in
   shared_thunks env occ ~plan ~tnames clause_expr
   @ lower env occ ~terminating:false ~leaf
-      ~fail:[ assign_stmt r (match_error occ) ]
+      ~fail:match_failure
       ~sink ~plan ~tnames tree
 
 let decl_stmts (decl : O.Declaration.t) : J.stmt list =
@@ -747,9 +788,15 @@ let decl_js_arity (decl : O.Declaration.t) =
   | [], O.Expr.Expr_lambda { params; _ } -> List.length params
   | params, _ -> List.length params
 
+let is_defined_here (name : Data.Name.t) =
+  match name with Data.Name.Local _ -> true | Data.Name.Global _ -> false
+
 let constructor_decls (constructors : (Data.Name.t * int) list) : J.stmt list =
   constructors
-  |> List.filter (fun (name, _) -> not (is_inline_constructor name))
+  |> List.filter (fun (name, _) ->
+         is_defined_here name
+         && (not (is_inline_constructor name))
+         && not (Hashtbl.mem runtime_provided (js_of_name name)))
   |> List.map (fun (name, arity) ->
          if arity = 0 then
            J.ConstDecl
@@ -768,13 +815,14 @@ let constructor_decls (constructors : (Data.Name.t * int) list) : J.stmt list =
                    };
              })
 
-let program_with_helpers ?(constructors = []) ?(siblings = [])
+let program_with_helpers ~constructors ~siblings ~exports ~from_runtime
     (decls : O.Declaration.t list) : J.program =
   reset_names ();
+  List.iter (fun name -> Hashtbl.replace runtime_provided name ()) from_runtime;
   List.iter (fun n -> reserve_name (sanitize n)) Runtime.reserved;
   List.iter
     (fun (name, arity) ->
-      reserve_name (js_of_name name);
+      if is_defined_here name then reserve_name (js_of_name name);
       Hashtbl.replace js_arity name arity)
     constructors;
   List.iter
@@ -786,20 +834,131 @@ let program_with_helpers ?(constructors = []) ?(siblings = [])
   List.iter
     (fun (name, sibs) -> Hashtbl.replace ctor_siblings name sibs)
     siblings;
-  constructor_decls constructors @ program_of_declarations decls
+  let exported =
+    match exports with
+    | [] -> []
+    | names -> [ J.Export (List.map js_of_name names) ]
+  in
+  constructor_decls constructors @ program_of_declarations decls @ exported
 
 let mentions body name =
   let nl = String.length name and hl = String.length body in
   let rec go i = i + nl <= hl && (String.sub body i nl = name || go (i + 1)) in
   go 0
 
-let emit ?(constructors = []) ?(siblings = []) (decls : O.Declaration.t list) :
+let builtin_constructors =
+  List.concat_map
+    (fun (td : Canonical.Typedecl.t) ->
+      List.map
+        (fun (ctor : Canonical.Typedecl.type_ctor) ->
+          (ctor.id, List.length ctor.data))
+        td.ctors)
+    Builtins.types
+
+let builtin_siblings =
+  List.concat_map
+    (fun (td : Canonical.Typedecl.t) ->
+      let siblings =
+        List.map
+          (fun (ctor : Canonical.Typedecl.type_ctor) ->
+            (ctor.id, List.length ctor.data))
+          td.ctors
+      in
+      List.map
+        (fun (ctor : Canonical.Typedecl.type_ctor) -> (ctor.id, siblings))
+        td.ctors)
+    Builtins.types
+
+let runtime_source () =
+  reset_names ();
+  List.iter
+    (fun (name, siblings) -> Hashtbl.replace ctor_siblings name siblings)
+    builtin_siblings;
+  let declarations = constructor_decls builtin_constructors in
+  let declared =
+    List.filter_map
+      (function J.ConstDecl { name; _ } -> Some name | _ -> None)
+      declarations
+  in
+  let exported = ("$$curry" :: List.map fst Runtime.builtins) @ declared in
+  Runtime.core
+  ^ String.concat "" (List.map (fun (_, def) -> def ^ "\n") Runtime.builtins)
+  ^ Js_to_string.program_to_string (declarations @ [ J.Export exported ])
+
+let runtime_names =
+  ("$$curry" :: List.map fst Runtime.builtins)
+  @ List.filter_map
+      (fun (name, _) ->
+        if is_inline_constructor name then None else Some (js_of_name name))
+      builtin_constructors
+
+let runtime_constructor_names =
+  Js_names.of_list
+    (List.map (fun (name, _) -> js_of_name name) builtin_constructors)
+
+let declared_in_module ~constructors (decls : O.Declaration.t list) =
+  let own_constructors =
+    List.filter_map
+      (fun (name, _) ->
+        match name with
+        | Data.Name.Local local
+          when not (Js_names.mem (sanitize local) runtime_constructor_names) ->
+            Some (sanitize local)
+        | Data.Name.Local _ | Data.Name.Global _ -> None)
+      constructors
+  in
+  Js_names.of_list
+    (List.map (fun (d : O.Declaration.t) -> sname d.name) decls
+    @ own_constructors)
+
+let provided_by_runtime ~constructors (decls : O.Declaration.t list) =
+  let declared = declared_in_module ~constructors decls in
+  List.filter (fun name -> not (Js_names.mem name declared)) runtime_names
+
+let extension = "mjs"
+
+let import_lines imports =
+  match imports with
+  | [] -> ""
+  | modules ->
+      Js_to_string.program_to_string
+        (List.map
+           (fun module_name ->
+             J.Import_namespace
+               {
+                 local = module_ident module_name;
+                 from = "./" ^ module_name ^ "." ^ extension;
+               })
+           modules)
+
+let emit_standalone ~constructors ~siblings (decls : O.Declaration.t list) :
     string =
   let body =
     Js_to_string.program_to_string
-      (program_with_helpers ~constructors ~siblings decls)
+      (program_with_helpers ~constructors ~siblings ~exports:[] ~from_runtime:[]
+         decls)
   in
-  let user = List.map (fun (d : O.Declaration.t) -> Data.Located.unwrap d.name) decls in
+  let user =
+    List.map (fun (d : O.Declaration.t) -> Data.Located.unwrap d.name) decls
+  in
   let needed (name, _) = (not (List.mem name user)) && mentions body name in
-  let defs = List.filter_map (fun b -> if needed b then Some (snd b) else None) Runtime.builtins in
+  let defs =
+    List.filter_map
+      (fun b -> if needed b then Some (snd b) else None)
+      Runtime.builtins
+  in
   Runtime.core ^ String.concat "" (List.map (fun d -> d ^ "\n") defs) ^ body
+
+let emit_module ~constructors ~siblings ~imports ~exports
+    (decls : O.Declaration.t list) : string =
+  let body =
+    Js_to_string.program_to_string
+      (program_with_helpers ~constructors ~siblings ~exports
+         ~from_runtime:(provided_by_runtime ~constructors decls)
+         decls)
+  in
+  let runtime_import =
+    if mentions body (runtime_module_name ^ ".") then [ runtime_module_name ]
+    else []
+  in
+  import_lines (runtime_import @ imports) ^ body
