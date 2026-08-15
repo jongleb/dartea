@@ -4,7 +4,8 @@ let canonical input =
   match Parse.Main.parse input with
   | Error e -> raise e
   | Ok impl_list ->
-      Canonical.Module.of_frontend (Ast.Kind.Frontend.Module.of_impl impl_list)
+      Canonical.Module.of_frontend ~fallback_name:"Main"
+        (Ast.Kind.Frontend.Module.of_impl impl_list)
 
 let resolved ~dependencies module_ =
   match Canonicalization.Resolve_names.in_module ~dependencies module_ with

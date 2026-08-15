@@ -9,7 +9,7 @@ type t = {
   top_declarations : Declaration.t String_map.t;
 }
 
-let of_frontend (frontend_module : Frontend.Module.t) : t =
+let of_frontend ~fallback_name (frontend_module : Frontend.Module.t) : t =
   let type_aliases =
     Frontend.Module.String_map.fold
       (fun name ta acc -> String_map.add name (Typealias.of_frontend ta) acc)
@@ -26,7 +26,9 @@ let of_frontend (frontend_module : Frontend.Module.t) : t =
       frontend_module.top_declarations String_map.empty
   in
   {
-    name = Data.Located.unwrap frontend_module.name;
+    name =
+      Option.map Data.Located.unwrap frontend_module.name
+      |> Option.value ~default:fallback_name;
     imports = List.map Import.of_frontend frontend_module.imports;
     exports = Exposed.of_frontend frontend_module.exports;
     type_aliases;
