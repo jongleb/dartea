@@ -11,4 +11,5 @@
   after_typed
   optimized
   infer
-  canonicalization))
+  canonicalization
+  interface))

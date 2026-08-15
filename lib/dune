@@ -6,6 +6,7 @@
   builtins
   infer
   typed
+  interface
   canonicalization
   ast
   file_loader

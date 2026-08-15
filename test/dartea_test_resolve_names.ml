@@ -469,6 +469,181 @@ x = 1
     ]
     errors
 
+let test_let_binding_shadows_import _ =
+  let module_ =
+    resolved ~dependencies:[ list_module ]
+      {|
+module Main exposing (..)
+
+import Data.List exposing (map)
+
+x =
+    let
+        map = 1
+    in
+    map
+|}
+  in
+  assert_equal ~printer:Canonical.Expr.show
+    (Canonical.Expr.Expr_let
+       {
+         binding =
+           {
+             bind_body =
+               {
+                 name = Data.Located.dummy "map";
+                 body = Canonical.Expr.Expr_int 1;
+               };
+           };
+         body = Canonical.Expr.Expr_ident (Data.Name.local "map");
+       })
+    (expr_of module_ "x")
+
+let test_pattern_binding_shadows_import _ =
+  let module_ =
+    resolved ~dependencies:[ list_module ]
+      {|
+module Main exposing (..)
+
+import Data.List exposing (map)
+
+x =
+    case 1 of
+        map -> map
+|}
+  in
+  assert_equal ~printer:Canonical.Expr.show
+    (Canonical.Expr.Expr_pattern
+       {
+         expr = Canonical.Expr.Expr_int 1;
+         pattern_data_items =
+           [
+             {
+               pattern = Canonical.Pattern.P_var "map";
+               expr = Canonical.Expr.Expr_ident (Data.Name.local "map");
+             };
+           ];
+       })
+    (expr_of module_ "x")
+
+let test_alias_hides_the_full_module_name _ =
+  let errors =
+    failing ~dependencies:[ list_module ]
+      {|
+module Main exposing (..)
+
+import Data.List as L
+
+x = Data.List.map
+|}
+  in
+  assert_equal ~printer:errors_printer
+    [
+      {
+        Canonicalization.Resolve_names.origin =
+          Value_declaration (Data.Located.dummy "x");
+        problem = Unknown_module { qualifier = "Data.List" };
+      };
+    ]
+    errors
+
+let test_type_and_alias_share_a_name _ =
+  let errors =
+    failing ~dependencies:[]
+      {|
+module Main exposing (..)
+
+type Shape = Circle
+
+type alias Shape = Int
+|}
+  in
+  assert_equal ~printer:errors_printer
+    [
+      {
+        Canonicalization.Resolve_names.origin = Type_alias "Shape";
+        problem = Duplicate_declaration { name = "Shape" };
+      };
+    ]
+    errors
+
+let test_unqualified_use_without_exposing_stays_local _ =
+  let module_ =
+    resolved ~dependencies:[ list_module ]
+      {|
+module Main exposing (..)
+
+import Data.List
+
+x = map
+|}
+  in
+  assert_equal ~printer:Canonical.Expr.show
+    (Canonical.Expr.Expr_ident (Data.Name.local "map"))
+    (expr_of module_ "x")
+
+let test_diamond_dependency_order _ =
+  let modules =
+    List.map canonical
+      [
+        {|
+module Main exposing (..)
+
+import Left
+import Right
+
+x = 1
+|};
+        {|
+module Left exposing (..)
+
+import Shared
+
+y = 2
+|};
+        {|
+module Right exposing (..)
+
+import Shared
+
+z = 3
+|};
+        {|
+module Shared exposing (..)
+
+w = 4
+|};
+      ]
+  in
+  match Canonicalization.Module_graph.in_dependency_order modules with
+  | Error e -> assert_failure (Canonicalization.Module_graph.show_error e)
+  | Ok ordered ->
+      assert_equal
+        ~printer:(String.concat ", ")
+        [ "Shared"; "Left"; "Right"; "Main" ]
+        (List.map (fun (m : Canonical.Module.t) -> m.name) ordered)
+
+let test_unknown_import_is_not_an_edge _ =
+  let modules =
+    List.map canonical
+      [
+        {|
+module Main exposing (..)
+
+import Missing
+
+x = 1
+|};
+      ]
+  in
+  match Canonicalization.Module_graph.in_dependency_order modules with
+  | Error e -> assert_failure (Canonicalization.Module_graph.show_error e)
+  | Ok ordered ->
+      assert_equal
+        ~printer:(String.concat ", ")
+        [ "Main" ]
+        (List.map (fun (m : Canonical.Module.t) -> m.name) ordered)
+
 let suite =
   [
     "dependency order" >:: test_dependency_order;
@@ -477,7 +652,8 @@ let suite =
     "exposed name becomes global" >:: test_exposed_name_becomes_global;
     "exposing (..) uses dependency exports"
     >:: test_exposing_all_uses_dependency_exports;
-    "local declaration shadows import" >:: test_local_declaration_shadows_import;
+    "local declaration shadows import"
+    >:: test_local_declaration_shadows_import;
     "parameter shadows import" >:: test_parameter_shadows_import;
     "builtins stay local" >:: test_builtins_stay_local;
     "exposed ctor in pattern" >:: test_exposed_ctor_in_pattern;
@@ -489,4 +665,13 @@ let suite =
     "ambiguous unqualified" >:: test_ambiguous_unqualified;
     "duplicate constructor" >:: test_duplicate_constructor;
     "constructors not exposed" >:: test_ctors_not_exposed;
+    "let binding shadows import" >:: test_let_binding_shadows_import;
+    "pattern binding shadows import" >:: test_pattern_binding_shadows_import;
+    "alias hides the full module name"
+    >:: test_alias_hides_the_full_module_name;
+    "type and alias share a name" >:: test_type_and_alias_share_a_name;
+    "unqualified use without exposing stays local"
+    >:: test_unqualified_use_without_exposing_stays_local;
+    "diamond dependency order" >:: test_diamond_dependency_order;
+    "unknown import is not an edge" >:: test_unknown_import_is_not_an_edge;
   ]
