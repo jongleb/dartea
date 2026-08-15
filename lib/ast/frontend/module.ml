@@ -6,7 +6,7 @@ type t = {
   type_declarations : Typedecl.t String_map.t;
   top_declarations : Declaration.t String_map.t;
   exports : Exposing.t;
-  name : string Data.Located.t;
+  name : string Data.Located.t option;
 }
 
 let of_impl impl_list =
@@ -33,14 +33,14 @@ let of_impl impl_list =
                 String_map.add td.body_part.name.thing td acc.top_declarations;
             }
         | Impl.Export e -> { acc with exports = e }
-        | Impl.ModuleName name -> { acc with name })
+        | Impl.ModuleName name -> { acc with name = Some name })
       {
         imports = [];
         type_aliases = String_map.empty;
         type_declarations = String_map.empty;
         top_declarations = String_map.empty;
         exports = Exposing.Open;
-        name = Data.Located.(~?"");
+        name = None;
       }
       impl_list
   in

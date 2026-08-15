@@ -1,4 +1,4 @@
 (executable
  (public_name playground_1)
  (name main)
- (libraries dartea ast))
+ (libraries dartea ast file_loader eio_main))
