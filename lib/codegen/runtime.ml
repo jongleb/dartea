@@ -1,9 +1,5 @@
 let core =
-  "const $$matchError = (value) => {\n\
-  \  console.error(\"Pattern match failed for value:\", value);\n\
-  \  return null;\n\
-   };\n\
-   const $$curry = (f, args) => {\n\
+  "const $$curry = (f, args) => {\n\
   \  const n = f.length === 0 ? 1 : f.length;\n\
   \  if (args.length === n) return f(...args);\n\
   \  if (args.length < n) return (...more) => $$curry(f, [...args, ...more]);\n\
@@ -26,4 +22,4 @@ let builtins =
     ("second", "const second = (t) => t[1];");
   ]
 
-let reserved = "$$matchError" :: "$$curry" :: "console" :: List.map fst builtins
+let reserved = "$$curry" :: "Error" :: List.map fst builtins

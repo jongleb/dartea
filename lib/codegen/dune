@@ -1,6 +1,6 @@
 (library
  (name codegen)
- (libraries base ast optimized data typed after_typed)
+ (libraries base ast optimized data typed after_typed builtins)
  (flags
   (-w -40 -w +26))
  (preprocess
