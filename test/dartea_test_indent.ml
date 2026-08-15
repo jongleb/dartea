@@ -105,6 +105,26 @@ f =
   let x = 1
   in x
 |};
+    ok
+      "let_block_bindings"
+      {|
+f: Int
+f =
+  let
+    x = 1
+    y = 2
+  in x
+|};
+    ok
+      "let_bindings_left_of_let_keyword"
+      {|
+f: Int
+f =
+ let x = 1 in let
+  y = 2
+  z = 3
+ in y
+|};
   ]
 
 (* -------------------------------------------------------------------------- *)
