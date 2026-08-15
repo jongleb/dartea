@@ -11,6 +11,7 @@ let suite =
          "test_type_aliases" >::: Dartea_test_type_alias.suite;
          "test_types" >::: Dartea_test_type.suite;
          "test_indent" >::: Dartea_test_indent.suite;
+         "test_layout_laws" >::: Dartea_test_layout_laws.suite;
          "test_codegen" >::: Dartea_test_codegen.suite;
          "test_exhaustive" >::: Dartea_test_exhaustive.suite;
          "test_frontend_module" >::: Dartea_test_frontend_module.suite;

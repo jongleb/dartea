@@ -1,5 +1,8 @@
 {
   open Parser
+
+  type raw = Token of token | Newline of string | Skip
+
   let get = Lexing.lexeme
 
   exception Error of string
@@ -27,64 +30,61 @@ let float =
   (('.' ['0'-'9' '_']*) (['e' 'E'] ['+' '-']? ['0'-'9'] ['0'-'9' '_']*)? |
    ('.' ['0'-'9' '_']*)? (['e' 'E'] ['+' '-']? ['0'-'9'] ['0'-'9' '_']*))
 
-rule token state = parse
-  | '\n'+ [' ' '\t']* as nl { Indenter.handle_newline state nl token lexbuf } 
-  | whitespace      { token state lexbuf }
-  | "type"          { 
-      Indenter.handle_type_decl state lexbuf;
-      TYPE
-    }
-  | "alias"         { Indenter.handle_alias state }
-  | "case"          { Indenter.handle_case state }
-  | "of"            { Indenter.handle_case_of state lexbuf }
-  | "let"           { Indenter.handle_let state lexbuf }
-  | "if"            { Indenter.handle_if state }
-  | "then"          { THEN }
-  | "else"          { Indenter.handle_else state }
-  | "in"            { Indenter.handle_in state }
-  | "exposing"      { EXPOSING }
-  | "module"        { MODULE }
-  | "import"        { IMPORT }
-  | "as"            { AS }
-  | lcname          { Indenter.handle_lcname state lexbuf }
-  | ucname          { UCNAME (Lexing.lexeme lexbuf) }
-  | ucname_q        { UCNAME_PATH (Lexing.lexeme lexbuf) }
-  | ucname_q '.' lcname { QUAL_LCNAME (Lexing.lexeme lexbuf) }
-  | '='             { Indenter.handle_equal state lexbuf }
-  | eof             { Indenter.handle_eof state }
-  | "("             { LPAREN }
-  | ")"             { RPAREN } 
-  | "{"             { LBRACE }
-  | "}"             { RBRACE }
-  | "["             { LBRACKET }
-  | "]"             { RBRACKET }
-  | ","             { COMMA }
-  | ":"             { Indenter.handle_colon state lexbuf }
-  | "|"             { PIPE }
-  | "\\"            { BACKSLASH }
-  | "->"            { Indenter.handle_arrow state lexbuf }
-  | "|>"            { PIPE_GT }
-  | "++"            { CONCAT }
-  | "+"             { PLUS }
-  | "-"             { MINUS }
-  | "_"             { WILDCARD }
-  | "*"             { TIMES }
-  | "::"            { CONS }
-  | ".."            { TWO_DOTS }
-  | "/"             { DIV }
-  | "()"            { UNIT }
-  | "=="            { EQ_EQ }
-  | "/="            { NOT_EQ }
-  | ">="            { GT_EQ }
-  | "<="            { LT_EQ }
-  | "&&"            { AND }
-  | "||"            { OR }
-  | ">"             { GT }
-  | "<"             { LT }
-  | int             { INT (int_of_string (Lexing.lexeme lexbuf)) }
-  | float           { FLOAT (float_of_string(Lexing.lexeme lexbuf)) }
-  | '"'             { STRING (string "" lexbuf) }
-  | "." (lcname as n)      {  ACCESS n }
+rule token = parse
+  | ('\n' [' ' '\t']*)+ as nl { Newline nl }
+  | whitespace      { Skip }
+  | "type"          { Token TYPE }
+  | "alias"         { Token ALIAS }
+  | "case"          { Token CASE }
+  | "of"            { Token OF }
+  | "let"           { Token LET }
+  | "if"            { Token IF }
+  | "then"          { Token (THEN) }
+  | "else"          { Token ELSE }
+  | "in"            { Token IN }
+  | "exposing"      { Token (EXPOSING) }
+  | "module"        { Token (MODULE) }
+  | "import"        { Token (IMPORT) }
+  | "as"            { Token (AS) }
+  | lcname          { Token (LCNAME (Lexing.lexeme lexbuf)) }
+  | ucname          { Token (UCNAME (Lexing.lexeme lexbuf)) }
+  | ucname_q        { Token (UCNAME_PATH (Lexing.lexeme lexbuf)) }
+  | ucname_q '.' lcname { Token (QUAL_LCNAME (Lexing.lexeme lexbuf)) }
+  | '='             { Token EQUAL }
+  | eof             { Token EOF }
+  | "("             { Token (LPAREN) }
+  | ")"             { Token (RPAREN) } 
+  | "{"             { Token LBRACE }
+  | "}"             { Token RBRACE }
+  | "["             { Token (LBRACKET) }
+  | "]"             { Token (RBRACKET) }
+  | ","             { Token (COMMA) }
+  | ":"             { Token COLON }
+  | "|"             { Token (PIPE) }
+  | "\\"            { Token (BACKSLASH) }
+  | "->"            { Token ARROW }
+  | "|>"            { Token (PIPE_GT) }
+  | "++"            { Token (CONCAT) }
+  | "+"             { Token (PLUS) }
+  | "-"             { Token (MINUS) }
+  | "_"             { Token (WILDCARD) }
+  | "*"             { Token (TIMES) }
+  | "::"            { Token (CONS) }
+  | ".."            { Token (TWO_DOTS) }
+  | "/"             { Token (DIV) }
+  | "()"            { Token (UNIT) }
+  | "=="            { Token (EQ_EQ) }
+  | "/="            { Token (NOT_EQ) }
+  | ">="            { Token (GT_EQ) }
+  | "<="            { Token (LT_EQ) }
+  | "&&"            { Token (AND) }
+  | "||"            { Token (OR) }
+  | ">"             { Token (GT) }
+  | "<"             { Token (LT) }
+  | int             { Token (INT (int_of_string (Lexing.lexeme lexbuf))) }
+  | float           { Token (FLOAT (float_of_string(Lexing.lexeme lexbuf))) }
+  | '"'             { Token (STRING (string "" lexbuf)) }
+  | "." (lcname as n)      { Token (ACCESS n) }
   | _               { raise (Error (Printf.sprintf "At offset %d: unexpected character.\n" (Lexing.lexeme_start lexbuf))) }
 
   and string acc = parse
@@ -99,4 +99,4 @@ rule token state = parse
                           with Not_found -> raise (Error "ESCAPED NOT_FOUND") 
                         }
 
-{ let token state lexbuf = Indenter.next_token state token lexbuf }
+
