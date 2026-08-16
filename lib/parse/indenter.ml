@@ -21,12 +21,22 @@ type t = {
   scopes : scope list;
   pending : token list;
   line_start : int;
+  after_line_break : bool;
+  after_space : bool;
   aligned : bool;
   prev_token : token option;
 }
 
 let initial =
-  { scopes = []; pending = []; line_start = 0; aligned = true; prev_token = None }
+  {
+    scopes = [];
+    pending = [];
+    line_start = 0;
+    after_line_break = false;
+    after_space = false;
+    aligned = true;
+    prev_token = None;
+  }
 
 let current state =
   match state.scopes with
@@ -104,24 +114,41 @@ let rec layout state ~indent =
       let* state = pop state in
       layout state ~indent
 
-let indentation_width lexeme =
-  match String.rindex_opt lexeme '\n' with
-  | None -> String.length lexeme
-  | Some last_newline -> String.length lexeme - last_newline - 1
-
 let token_column state lexbuf =
   lexbuf.Lexing.lex_start_p.Lexing.pos_cnum - state.line_start
 
-let handle_newline state newline lexbuf =
-  let indent = indentation_width newline in
-  let state =
-    { state with line_start = lexbuf.Lexing.lex_curr_p.Lexing.pos_cnum - indent }
-  in
+let begin_line state line_start =
+  { state with line_start; after_line_break = true; after_space = true }
+
+let ends_an_expression = function
+  | LCNAME _ | UCNAME _ | UCNAME_PATH _ | QUAL_LCNAME _ | ACCESS _ | INT _
+  | FLOAT _ | STRING _ | CHAR _ | RPAREN | RBRACE | RBRACKET | UNIT ->
+      true
+  | _ -> false
+
+let field_of_its_own state =
+  state.after_space
+  ||
+  match state.prev_token with
+  | Some token -> not (ends_an_expression token)
+  | None -> true
+
+let offside state lexbuf =
+  let indent = token_column state lexbuf in
   match (state.prev_token, context state) with
   | Some INDENT, Type_annotation ->
       if indent > 0 then ([], move ~column:indent state) else pop state
   | Some LET, Let_inline -> bracket (retag ~context:Let state)
   | _ -> layout state ~indent
+
+let starting_binding state lexbuf =
+  match context state with
+  | Let ->
+      {
+        (mark ~column:(token_column state lexbuf) ~context:Let_binding state) with
+        aligned = false;
+      }
+  | _ -> state
 
 let handle state lexbuf token =
   match token with
@@ -136,6 +163,8 @@ let handle state lexbuf token =
       end
   | COLON when context state = Top_level ->
       COLON +> push ~column:0 ~context:Type_annotation state
+  | COLON when context state = Let_binding ->
+      COLON +> push ~column:(token_column state lexbuf) ~context:Type_annotation state
   | CASE -> ([ CASE ], mark ~column:(column state) ~context:Case_head state)
   | OF ->
       let* state = if context state = Case_head then pop state else ([], state) in
@@ -148,7 +177,10 @@ let handle state lexbuf token =
   | TYPE -> ([ TYPE ], mark ~column:0 ~context:Type_decl state)
   | ALIAS when context state = Type_decl ->
       ([ ALIAS ], retag ~context:Type_alias state)
-  | LBRACE -> ([ LBRACE ], mark ~column:(column state) ~context:Delimited state)
+  | LPAREN -> ([ LPAREN ], starting_binding state lexbuf)
+  | LBRACE ->
+      let state = starting_binding state lexbuf in
+      ([ LBRACE ], mark ~column:(column state) ~context:Delimited state)
   | RBRACE -> close_through (function Delimited -> true | _ -> false) RBRACE state
   | IN -> close_through (function Let | Let_inline -> true | _ -> false) IN state
   | EOF -> close_through (fun _ -> false) EOF state
@@ -174,8 +206,21 @@ let rec next_token state lexbuf =
   | [] ->
       let pending, state =
         match Lexer.token lexbuf with
-        | Lexer.Skip -> ([], state)
-        | Lexer.Newline newline -> handle_newline state newline lexbuf
-        | Lexer.Token token -> handle state lexbuf token
+        | Lexer.Skip -> ([], { state with after_space = true })
+        | Lexer.Line_start line_start -> ([], begin_line state line_start)
+        | Lexer.Token token ->
+            let token =
+              match token with
+              | ACCESS field when field_of_its_own state -> ACCESSOR field
+              | token -> token
+            in
+            let state = { state with after_space = false } in
+            let opening =
+              if state.after_line_break then
+                offside { state with after_line_break = false } lexbuf
+              else ([], state)
+            in
+            let* state = opening in
+            handle state lexbuf token
       in
       next_token { state with pending } lexbuf

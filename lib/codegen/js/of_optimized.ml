@@ -26,12 +26,18 @@ let reserved =
 
 let is_reserved name = Hashtbl.mem reserved name
 
+let starts_an_identifier = function
+  | 'A' .. 'Z' | 'a' .. 'z' | '_' | '$' -> true
+  | _ -> false
+
+let continues_an_identifier = function
+  | 'A' .. 'Z' | 'a' .. 'z' | '0' .. '9' | '_' | '$' -> true
+  | _ -> false
+
 let is_valid_js_ident s =
   String.length s > 0
-  && (match s.[0] with 'A' .. 'Z' | 'a' .. 'z' | '_' | '$' -> true | _ -> false)
-  && String.for_all
-       (function 'A' .. 'Z' | 'a' .. 'z' | '0' .. '9' | '_' | '$' -> true | _ -> false)
-       s
+  && starts_an_identifier s.[0]
+  && String.for_all continues_an_identifier s
 
 let op_char_token = function
   | '+' -> "$plus" | '-' -> "$minus" | '*' -> "$star" | '/' -> "$slash"
@@ -125,24 +131,7 @@ let jid_env env src =
   | Some js -> J.Identifier js
   | None -> expression_of_name src
 
-let binop_of_string (name : string) : J.binop option =
-  match name with
-  | "+" -> Some J.Plus
-  | "-" -> Some J.Minus
-  | "*" -> Some J.Multiply
-  | "/" -> Some J.Divide
-  | "%" -> Some J.Modulo
-  | "++" -> Some J.Plus
-  | "==" -> Some J.StrictEqual
-  | "!=" -> Some J.StrictNotEqual
-  | "/=" -> Some J.StrictNotEqual
-  | "<" -> Some J.LessThan
-  | "<=" -> Some J.LessThanOrEqual
-  | ">" -> Some J.GreaterThan
-  | ">=" -> Some J.GreaterThanOrEqual
-  | "&&" -> Some J.And
-  | "||" -> Some J.Or
-  | _ -> None
+let binary op left right = J.Binary { left; op; right }
 
 let is_bool_constructor name =
   Data.Name.base name = "True" || Data.Name.base name = "False"
@@ -164,7 +153,7 @@ let is_tag_omitted name =
   | None -> false
 
 let payload_fields js_arguments =
-  List.mapi (fun i a -> ("_" ^ string_of_int i, a)) js_arguments
+  List.mapi (fun i a -> J.Field ("_" ^ string_of_int i, a)) js_arguments
 
 let constructor_to_object name js_arguments =
   if is_bool_constructor name then bool_literal name
@@ -173,7 +162,7 @@ let constructor_to_object name js_arguments =
   else if is_tag_omitted name then J.Object (payload_fields js_arguments)
   else
     J.Object
-      (("TAG", J.Literal (J.String (Data.Name.base name)))
+      (J.Field ("TAG", J.Literal (J.String (Data.Name.base name)))
       :: payload_fields js_arguments)
 
 let rec is_record_construction (expr_node : O.Expr.t) =
@@ -205,7 +194,8 @@ let rec collect_args acc (fn : O.Expr.t) =
 
 let rec list_to_cons_cells = function
   | [] -> J.Literal (J.Int 0)
-  | hd :: tl -> J.Object [ ("hd", hd); ("tl", list_to_cons_cells tl) ]
+  | hd :: tl ->
+      J.Object [ J.Field ("hd", hd); J.Field ("tl", list_to_cons_cells tl) ]
 
 let needs_temp_var = function
   | J.Identifier _ | J.Literal _ -> false
@@ -217,6 +207,31 @@ let fresh_temp () =
 
 let member object_ property =
   J.Member { object_; property = J.Identifier property; computed = false }
+
+let truncated_division left right =
+  J.Call
+    { callee = member (J.Identifier "Math") "trunc";
+      args = [ binary J.Divide left right ] }
+
+let integer_division left right =
+  binary J.BitOr (binary J.Divide left right) (J.Literal (J.Int 0))
+
+let binary_lowering : Data.Operator.t -> J.expr -> J.expr -> J.expr = function
+  | Add -> binary J.Plus
+  | Subtract -> binary J.Minus
+  | Multiply -> binary J.Multiply
+  | Divide -> truncated_division
+  | Integer_divide -> integer_division
+  | Power -> binary J.Exponent
+  | Append -> binary J.Plus
+  | Equal -> binary J.StrictEqual
+  | Not_equal -> binary J.StrictNotEqual
+  | Less -> binary J.LessThan
+  | Less_or_equal -> binary J.LessThanOrEqual
+  | Greater -> binary J.GreaterThan
+  | Greater_or_equal -> binary J.GreaterThanOrEqual
+  | Conjunction -> binary J.And
+  | Disjunction -> binary J.Or
 
 let indexed_member object_ index =
   J.Member { object_; property = J.Literal (J.Int index); computed = true }
@@ -261,37 +276,42 @@ let test_expr occ_e (test : DT.test) : J.expr =
   | DT.Test_nil -> js_eq occ_e (J.Int 0)
   | DT.Test_cons -> js_ne_zero occ_e
 
-let switch_key (test : DT.test) : ([ `Value | `Tag ] * J.literal) option =
+type discriminant = By_tag | By_value
+
+let switch_key (test : DT.test) : (discriminant * J.literal) option =
   match test with
   | DT.Test_tag n when not (is_tag_omitted n) ->
-      Some (`Tag, J.String (Data.Name.base n))
+      Some (By_tag, J.String (Data.Name.base n))
   | DT.Test_tag _ -> None
   | DT.Test_ctor n when not (is_bool_constructor n) ->
-      Some (`Value, J.String (Data.Name.base n))
-  | DT.Test_int n -> Some (`Value, J.Int n)
-  | DT.Test_str s -> Some (`Value, J.String s)
-  | DT.Test_chr c -> Some (`Value, J.String c)
+      Some (By_value, J.String (Data.Name.base n))
+  | DT.Test_int n -> Some (By_value, J.Int n)
+  | DT.Test_str s -> Some (By_value, J.String s)
+  | DT.Test_chr c -> Some (By_value, J.String c)
   | DT.Test_ctor _ | DT.Test_nil | DT.Test_cons -> None
 
 let switch_plan occ_e (branches : (DT.test * DT.t) list) :
     (J.expr * (J.literal * DT.t) list) option =
   let keyed =
-    List.map (fun (t, tr) -> (switch_key t, tr)) branches
+    List.fold_right
+      (fun (test, subtree) collected ->
+        match (collected, switch_key test) with
+        | Some cases, Some (kind, literal) ->
+            Some ((kind, literal, subtree) :: cases)
+        | _ -> None)
+      branches (Some [])
   in
-  let same_kind kind =
-    List.for_all
-      (fun (k, _) -> match k with Some (k', _) -> k' = kind | None -> false)
-      keyed
-  in
-  let cases_of () =
-    List.map
-      (fun (k, tr) ->
-        match k with Some (_, lit) -> (lit, tr) | None -> assert false)
-      keyed
-  in
-  if keyed <> [] && same_kind `Tag then Some (member occ_e "TAG", cases_of ())
-  else if keyed <> [] && same_kind `Value then Some (occ_e, cases_of ())
-  else None
+  match keyed with
+  | None | Some [] -> None
+  | Some ((kind, _, _) :: _ as cases) ->
+      if List.for_all (fun (other, _, _) -> other = kind) cases then
+        let discriminant =
+          match kind with By_tag -> member occ_e "TAG" | By_value -> occ_e
+        in
+        Some
+          ( discriminant,
+            List.map (fun (_, literal, subtree) -> (literal, subtree)) cases )
+      else None
 
 let match_failure =
   [
@@ -305,16 +325,6 @@ let match_failure =
 
 let assign_stmt r e = J.ExprStmt (J.Assignment { left = J.Identifier r; right = e })
 
-let binop_expr name ea eb =
-  match binop_of_string name with
-  | Some J.Divide ->
-      J.Call
-        {
-          callee = member (J.Identifier "Math") "trunc";
-          args = [ J.Binary { left = ea; op = J.Divide; right = eb } ];
-        }
-  | Some op -> J.Binary { left = ea; op; right = eb }
-  | None -> J.Call { callee = jid (Data.Name.local name); args = [ ea; eb ] }
 
 let curry_call f args =
   J.Call { callee = curry_reference; args = [ f; J.Array args ] }
@@ -327,8 +337,9 @@ let split_at n lst =
   in
   go n [] lst
 
-let is_operator env name =
-  (not (SMap.mem name env)) && binop_of_string (Data.Name.base name) <> None
+let operator_lowering env name =
+  if SMap.mem name env then None
+  else Option.map binary_lowering (Data.Operator.referred_to_by name)
 
 let declared_arity env name =
   if SMap.mem name env then None else Hashtbl.find_opt js_arity name
@@ -446,7 +457,9 @@ and lower_node env root ~terminating ~leaf ~fail ~sink ~plan ~tnames
           [ J.Switch { discriminant = disc; cases = js_cases @ default_case } ]
       | _ ->
           let rec build = function
-            | [] -> ( match default with Some t -> go t | None -> fail)
+            | [] -> begin
+                match default with Some t -> go t | None -> fail
+              end
             | [ (_, tr) ] when default = None -> go tr
             | (test, tr) :: rest ->
                 [
@@ -526,11 +539,13 @@ and emitted_arity env (e : O.Expr.t) : arity =
         | Exactly _ | At_least _ -> At_least 0
       end
   | O.Expr.Expr_binop _ | O.Expr.Expr_let _ | O.Expr.Expr_if_then_else _
-  | O.Expr.Expr_record _ | O.Expr.Expr_pattern _ | O.Expr.Expr_accessor _
+  | O.Expr.Expr_record _ | O.Expr.Expr_record_update _
+  | O.Expr.Expr_pattern _ | O.Expr.Expr_accessor _
   | O.Expr.Expr_access _ | O.Expr.Expr_record_extend _
   | O.Expr.Expr_record_select _ | O.Expr.Expr_record_empty | O.Expr.Expr_unit
   | O.Expr.Expr_kernel _ | O.Expr.Expr_char _ | O.Expr.Expr_string _
-  | O.Expr.Expr_int _ | O.Expr.Expr_float _ | O.Expr.Expr_list _ ->
+  | O.Expr.Expr_int _ | O.Expr.Expr_float _ | O.Expr.Expr_list _
+  | O.Expr.Expr_cons _ | O.Expr.Expr_tuple _ ->
       arity_of_type e.typ
 
 and callee_arity env (callee : O.Expr.t) : arity =
@@ -578,22 +593,39 @@ and emit_uncoerced env (e : O.Expr.t) : J.stmt list * J.expr =
   | O.Expr.Expr_binop { name; operands = a, b } ->
       let sa, ea = emit_value env a in
       let sb, eb = emit_value env b in
-      (sa @ sb, binop_expr name ea eb)
+      (sa @ sb, binary_lowering name ea eb)
   | O.Expr.Expr_constr { name; arguments } ->
       let ss, es = emit_values env arguments in
       (ss, constructor_to_object name es)
   | O.Expr.Expr_record rows ->
-      let ss, pairs =
+      let ss, members =
         fold_emit
           (fun { O.Expr.name; value } ->
             let s, v = emit_value env value in
-            (s, (name, v)))
+            (s, J.Field (name, v)))
           rows
       in
-      (ss, J.Object pairs)
+      (ss, J.Object members)
   | O.Expr.Expr_list es ->
       let ss, vs = emit_values env es in
       (ss, list_to_cons_cells vs)
+  | O.Expr.Expr_cons { head; tail } ->
+      let sh, eh = emit_value env head in
+      let st, et = emit_value env tail in
+      (sh @ st, J.Object [ J.Field ("hd", eh); J.Field ("tl", et) ])
+  | O.Expr.Expr_tuple items ->
+      let ss, vs = emit_values env items in
+      (ss, J.Array vs)
+  | O.Expr.Expr_record_update { record; fields } ->
+      let sr, er = emit_value env record in
+      let ss, members =
+        fold_emit
+          (fun { O.Expr.name; value } ->
+            let s, v = emit_value env value in
+            (s, J.Field (name, v)))
+          fields
+      in
+      (sr @ ss, J.Object (J.Spread er :: members))
   | O.Expr.Expr_apply { fn; arg } -> emit_apply env fn arg
   | O.Expr.Expr_lambda { params; body } -> ([], emit_lambda env params body)
   | O.Expr.Expr_if_then_else { if_exp; then_exp; else_exp } ->
@@ -645,25 +677,38 @@ and emit_apply env fn arg =
   if is_record_construction fn then emit_record_apply env fn arg
   else
     let callee, args = collect_args [ arg ] fn in
-    match (callee.expr, args) with
-    | O.Expr.Expr_ident op, [ a1; a2 ] when is_operator env op ->
-        let sa, ea = emit_value env a1 in
-        let sb, eb = emit_value env a2 in
-        (sa @ sb, binop_expr (Data.Name.base op) ea eb)
-    | O.Expr.Expr_kernel (Kernel_value kernel), _ ->
-        let arity = Data.Kernel.arity kernel in
-        emit_known_call env (Of_kernel.value kernel) ~arity
-          ~result_type:(O.Type.result_after ~applied:arity callee.O.Expr.typ)
-          args
-    | O.Expr.Expr_ident name, _ -> begin
-        match declared_arity env name with
-        | Some n when n >= 1 ->
-            emit_known_call env (jid_env env name) ~arity:n
-              ~result_type:(O.Type.result_after ~applied:n callee.O.Expr.typ)
+    let saturated_operator =
+      match (callee.expr, args) with
+      | O.Expr.Expr_ident op, [ left; right ] ->
+          Option.map
+            (fun lower -> (lower, left, right))
+            (operator_lowering env op)
+      | _ -> None
+    in
+    match saturated_operator with
+    | Some (lower, left, right) ->
+        let sa, ea = emit_value env left in
+        let sb, eb = emit_value env right in
+        (sa @ sb, lower ea eb)
+    | None -> begin
+        match (callee.expr, args) with
+        | O.Expr.Expr_kernel (Kernel_value kernel), _ ->
+            let arity = Data.Kernel.arity kernel in
+            emit_known_call env (Of_kernel.value kernel) ~arity
+              ~result_type:
+                (O.Type.result_after ~applied:arity callee.O.Expr.typ)
               args
-        | Some _ | None -> emit_generic env callee args
+        | O.Expr.Expr_ident name, _ -> begin
+            match declared_arity env name with
+            | Some n when n >= 1 ->
+                emit_known_call env (jid_env env name) ~arity:n
+                  ~result_type:
+                    (O.Type.result_after ~applied:n callee.O.Expr.typ)
+                  args
+            | Some _ | None -> emit_generic env callee args
+          end
+        | _ -> emit_generic env callee args
       end
-    | _ -> emit_generic env callee args
 
 and emit_known_call env callee ~arity ~result_type args =
   let statements, arguments = emit_values env args in
@@ -713,14 +758,14 @@ and emit_record_apply env fn arg =
       let sa, ea = emit_value env arg in
       (sf @ sa, J.Call { callee = ef; args = [ ea ] })
   | fields ->
-      let ss, pairs =
+      let ss, members =
         fold_emit
           (fun (n, v) ->
             let s, e = emit_value env v in
-            (s, (n, e)))
+            (s, J.Field (n, e)))
           (List.rev fields)
       in
-      (ss, J.Object pairs)
+      (ss, J.Object members)
 
 and emit_lambda env params body =
   let names =

@@ -37,6 +37,13 @@ let warnings
         in_expression left @ in_expression right
     | Expr_constr constr -> List.concat_map in_expression constr.arguments
     | Expr_list exprs -> List.concat_map in_expression exprs
+    | Expr_cons { head; tail } -> in_expression head @ in_expression tail
+    | Expr_tuple items -> List.concat_map in_expression items
+    | Expr_record_update { record; fields } ->
+        in_expression record
+        @ List.concat_map
+            (fun (row : expr_record_row) -> in_expression row.value)
+            fields
     | Expr_lambda lambda -> in_expression lambda.body
     | Expr_access access -> in_expression access.expr
     | Expr_record rows ->

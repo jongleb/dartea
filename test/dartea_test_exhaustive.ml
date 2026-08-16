@@ -16,6 +16,7 @@ let nil = mk (P.P_T_list [])
 let cons h t = mk (P.P_T_cons (h, t))
 let list xs = mk (P.P_T_list xs)
 let tuple ps = mk (P.P_T_tuple ps)
+let alias p name = mk (P.P_T_alias (p, name))
 let mkenv pairs =
   List.fold_left (fun m (k, v) -> M.add (Data.Name.local k) v m) M.empty pairs
 
@@ -206,8 +207,41 @@ let test_witness_tuple _ =
      | Some p -> (match p.P.pattern with P.P_T_tuple _ -> true | _ -> false)
      | None -> false)
 
+let test_alias_is_transparent_for_shape _ =
+  assert_exhaustive ~env:color
+    [ ctor "Red" []; ctor "Green" []; alias (ctor "Blue" []) "seen" ];
+  assert_not_exhaustive ~env:color
+    [ alias (ctor "Red" []) "seen"; ctor "Green" [] ];
+  assert_exhaustive ~env:color [ alias anything "whole" ];
+  assert_exhaustive [ alias (cons anything anything) "whole"; nil ];
+  assert_not_exhaustive [ alias (cons anything anything) "whole" ]
+
+let test_alias_over_a_wildcard_is_redundant_after_it _ =
+  assert_equal ~printer:(fun l -> String.concat "," (List.map string_of_int l))
+    [ 1 ]
+    (E.redundant_clauses color [ alias anything "whole"; ctor "Red" [] ])
+
+let test_alias_binds_the_whole_value _ =
+  let tree =
+    E.build (fun _ -> None) [ alias (cons (var "h") (var "t")) "whole" ]
+  in
+  let rec bindings (node : E.Decision_tree.t) =
+    match node with
+    | E.Decision_tree.Leaf { bindings; _ } -> List.map fst bindings
+    | E.Decision_tree.Switch { branches; default; _ } ->
+        List.concat_map (fun (_, sub) -> bindings sub) branches
+        @ (match default with None -> [] | Some sub -> bindings sub)
+    | E.Decision_tree.Fail -> []
+  in
+  let bound = List.sort compare (bindings tree) in
+  assert_equal ~printer:(String.concat ",") [ "h"; "t"; "whole" ] bound
+
 let suite =
   [
+    "alias_is_transparent_for_shape" >:: test_alias_is_transparent_for_shape;
+    "alias_over_a_wildcard_is_redundant_after_it"
+    >:: test_alias_over_a_wildcard_is_redundant_after_it;
+    "alias_binds_the_whole_value" >:: test_alias_binds_the_whole_value;
     "witness_list_nil" >:: test_witness_list_nil;
     "witness_list_cons" >:: test_witness_list_cons;
     "witness_exhaustive" >:: test_witness_exhaustive;

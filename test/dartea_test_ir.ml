@@ -24,6 +24,7 @@ let scope_problems (declaration : declaration) =
     | B_kernel { arguments; _ }
     | B_partial { arguments; _ } ->
         List.iter (atom ~bound) arguments
+    | B_tuple { items } -> List.iter (atom ~bound) items
     | B_cons { head; tail } ->
         atom ~bound head;
         atom ~bound tail
@@ -91,9 +92,9 @@ let generated_names (declaration : declaration) =
     | B_closure { parameters; body; _ } ->
         List.iter keep parameters;
         term body
-    | B_atom _ | B_construct _ | B_cons _ | B_record _ | B_record_update _
-    | B_access _ | B_call _ | B_call_closure _ | B_partial _ | B_primitive _
-    | B_kernel _ ->
+    | B_atom _ | B_construct _ | B_cons _ | B_tuple _ | B_record _
+    | B_record_update _ | B_access _ | B_call _ | B_call_closure _
+    | B_partial _ | B_primitive _ | B_kernel _ ->
         ()
   and term = function
     | T_return _ | T_jump _ | T_fail _ -> ()

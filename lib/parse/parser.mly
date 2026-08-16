@@ -10,8 +10,10 @@
 %token <string> UCNAME_PATH
 %token <string> QUAL_LCNAME
 %token <string> ACCESS
+%token <string> ACCESSOR
 %token <int> INT
 %token <string> STRING
+%token <string> CHAR
 %token <float> FLOAT
 %token EQUAL
 %token EOF
@@ -44,6 +46,11 @@
 %token MODULE
 %token INDENT DEDENT
 %token PIPE_GT
+%token APPLY_L
+%token COMPOSE_L
+%token COMPOSE_R
+%token IDIV
+%token POW
 %token UMINUS
 %token CONS
 %token BACKSLASH
@@ -55,14 +62,19 @@
 
 %nonassoc ELSE IN
 %nonassoc ARROW
+%nonassoc AS
 
+%right APPLY_L
 %left PIPE_GT
 %right OR
 %right AND
 %nonassoc EQ_EQ NOT_EQ GT LT GT_EQ LT_EQ
-%right CONCAT
+%right CONCAT CONS
 %left PLUS MINUS
-%left TIMES DIV
+%left TIMES DIV IDIV
+%right POW
+%left COMPOSE_L
+%right COMPOSE_R
 %nonassoc UMINUS
 
 %type <Ast.Kind.Frontend.Expr.t> expr
@@ -211,25 +223,30 @@ type_record_field:
 
 value_decl_with_type:
     | name1=loc(LCNAME) COLON INDENT type_alias=type_expr DEDENT
-      name2=loc(LCNAME) params=list(loc(LCNAME)) EQUAL expr=indented(loc(expr))
+      name2=loc(LCNAME) params=list(loc(pattern_atom)) EQUAL expr=indented(loc(expr))
         { 
           let type_part_data = Some Declaration.{ name=name1; type_alias } in
+          let params, body = make_parameters ~params (Data.Located.unwrap expr) in
+          let expr = { expr with Data.Located.thing = body } in
           let body_part = Declaration.{ name=name2; expr; params } in
           Impl.Top_declaration { type_part_data; body_part }
         }
-    | name=loc(LCNAME) params=list(loc(LCNAME)) EQUAL expr=indented(loc(expr))
+    | name=loc(LCNAME) params=list(loc(pattern_atom)) EQUAL expr=indented(loc(expr))
         { 
+          let params, body = make_parameters ~params (Data.Located.unwrap expr) in
+          let expr = { expr with Data.Located.thing = body } in
           let body_part = Declaration.{ name; expr; params } in
           Impl.Top_declaration { type_part_data=None; body_part }
         }
    
 expr:    
-    | e=expr_pipe { e }
+    | e=expr_lowered_binop { e }
     | MINUS e=expr %prec UMINUS { Expr_unop { name = Located.mk "-" $loc; operand = e } }
     | e=expr_app { e }
     | e=expr_binop { e }
-    | BACKSLASH params=nonempty_list(loc(lambda_param)) ARROW body=expr %prec ARROW
-        { Expr_lambda { params; body } }
+    | BACKSLASH params=nonempty_list(loc(pattern_atom)) ARROW body=expr %prec ARROW
+        { let params, body = make_parameters ~params body in
+          Expr_lambda { params; body } }
     | IF if_exp=expr THEN then_exp=expr ELSE else_exp=expr
         { Expr_if_then_else { if_exp; then_exp; else_exp } }
     | CASE expr=scrutinee OF pattern_data_items=indented(list(case_arm))
@@ -239,17 +256,35 @@ expr:
     | LET INDENT bindings=expr_let_defs DEDENT IN e=expr
         { make_expr_let ~bindings e }
 
-lambda_param:
-    | n=LCNAME { n }
-    | WILDCARD { "_" }
-
-expr_pipe:
+expr_lowered_binop:
+    | head=expr CONS tail=expr { Expr_cons { head; tail } }
     | arg=expr PIPE_GT fn=expr { Expr_apply { fn; arg } }
+    | fn=expr APPLY_L arg=expr { Expr_apply { fn; arg } }
+    | outer=expr COMPOSE_L inner=expr
+        { make_expr_apply ~args:[outer; inner] (make_qualified "Basics.composeL") }
+    | inner=expr COMPOSE_R outer=expr
+        { make_expr_apply ~args:[inner; outer] (make_qualified "Basics.composeR") }
 
 expr_let_name_bind:
-    name=loc(LCNAME) params=list(loc(LCNAME)) EQUAL INDENT body=expr DEDENT
-        {{ bind_type = None;
-           bind_body={ name; body = make_expr_lambda ~params body } }}
+    | name=loc(LCNAME) params=list(loc(pattern_atom)) EQUAL INDENT body=expr DEDENT
+        { Bind_value { bind_type = None;
+                       bind_body={ name;
+                                   body = (let params, body = make_parameters ~params body in
+                                           make_expr_lambda ~params body) } } }
+    | annotated=LCNAME COLON INDENT content=type_expr DEDENT
+      name=loc(LCNAME) params=list(loc(pattern_atom)) EQUAL INDENT body=expr DEDENT
+        { Bind_value { bind_type = Some { name = annotated; content };
+                       bind_body={ name;
+                                   body = (let params, body = make_parameters ~params body in
+                                           make_expr_lambda ~params body) } } }
+    | pattern=destructuring_pattern EQUAL INDENT value=expr DEDENT
+        { Bind_pattern { pattern; value } }
+
+destructuring_pattern:
+    | LPAREN p=pattern RPAREN { p }
+    | LPAREN p=pattern COMMA rest=separated_nonempty_list(COMMA, pattern) RPAREN
+        { P_tuple(p :: rest) }
+    | LBRACE lst=separated_list(COMMA, LCNAME) RBRACE { P_record(lst) }
 
 expr_let_defs: lst=nonempty_list(expr_let_name_bind) { lst }
 
@@ -262,16 +297,20 @@ case_arm:
         {{ pattern; expr }}    
 
 pattern:
-    | name=UCNAME args=nonempty_list(pattern_atom) { P_ctor(name, args) }
+    | name=upper_possible_dotted args=nonempty_list(pattern_atom) { P_ctor(name, args) }
     | head=pattern_atom CONS tail=pattern { P_cons(head, tail) }
+    | p=pattern AS name=LCNAME { P_alias(p, name) }
     | p=pattern_atom { p }
 
 pattern_atom:
     | i=STRING { P_str i }
+    | i=CHAR { P_chr i }
     | i=INT { P_int i }
+    | MINUS i=INT { P_int (-i) }
     | i=WILDCARD { P_anything }
+    | UNIT { P_unit }
     | i=LCNAME { P_var i }
-    | name=UCNAME { P_ctor(name, []) }
+    | name=upper_possible_dotted { P_ctor(name, []) }
     | LBRACE lst=separated_list(COMMA, LCNAME) RBRACE { P_record(lst) }
     | LBRACKET lst=separated_list(COMMA, pattern) RBRACKET { P_list(lst) }
     | LPAREN p=pattern RPAREN { p }
@@ -292,10 +331,17 @@ expr_postfix:
 
 expr_applicable:
     | LPAREN e=expr RPAREN { e }
-    | LPAREN a=expr COMMA b=expr RPAREN
-        { make_expr_apply ~args:[a; b] (make_qualified "Tuple.pair") }
+    | LPAREN name=binop RPAREN { make_operator_value ~loc:$loc name }
+    | LPAREN PIPE_GT RPAREN { make_qualified "Basics.apR" }
+    | LPAREN APPLY_L RPAREN { make_qualified "Basics.apL" }
+    | LPAREN COMPOSE_L RPAREN { make_qualified "Basics.composeL" }
+    | LPAREN COMPOSE_R RPAREN { make_qualified "Basics.composeR" }
+    | LPAREN first=expr COMMA rest=separated_nonempty_list(COMMA, expr) RPAREN
+        { make_expr_tuple (first :: rest) }
     | e=LCNAME { Expr_ident e }
     | e=STRING { Expr_string e }
+    | e=CHAR { Expr_char e }
+    | field=loc(ACCESSOR) { Expr_accessor field }
     | e=INT { Expr_int e }
     | e=FLOAT { Expr_float e }
     | e=UNIT { Expr_unit }
@@ -303,7 +349,20 @@ expr_applicable:
     | n=QUAL_LCNAME { make_qualified n }
     | n=UCNAME_PATH { make_qualified n }
     | LBRACKET e=separated_list(COMMA, expr) RBRACKET { Expr_list e }
-    | LBRACE lst=separated_list(COMMA, expr_record_field) RBRACE { Expr_record lst }
+    | LBRACE RBRACE { Expr_record [] }
+    | LBRACE name=LCNAME EQUAL value=expr rest=record_literal_rest RBRACE
+        { Expr_record ({ name; value } :: rest) }
+    | LBRACE name=LCNAME PIPE fields=record_update_fields RBRACE
+        { Expr_record_update { record = Expr_ident name; fields } }
+    | LBRACE name=QUAL_LCNAME PIPE fields=record_update_fields RBRACE
+        { Expr_record_update { record = make_qualified name; fields } }
+
+record_literal_rest:
+    | { [] }
+    | COMMA fields=separated_nonempty_list(COMMA, expr_record_field) { fields }
+
+record_update_fields:
+    | fields=separated_nonempty_list(COMMA, expr_record_field) { fields }
 
 expr_record_field:
     name=LCNAME EQUAL value=expr {{ name; value }}
@@ -313,6 +372,8 @@ binop:
     | PLUS { "+" }
     | MINUS { "-" }
     | DIV { "/" }
+    | IDIV { "//" }
+    | POW { "^" }
     | TIMES { "*" }
     | CONCAT { "++" }
     | EQ_EQ { "==" }

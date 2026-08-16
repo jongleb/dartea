@@ -74,6 +74,7 @@ and bind_lines = function
         [] )
   | B_cons { head; tail } ->
       (Printf.sprintf "cons %s %s" (atom head) (atom tail), [])
+  | B_tuple { items } -> (Printf.sprintf "tuple (%s)" (atom_list items), [])
   | B_record { fields } -> (Printf.sprintf "record {%s}" (field_list fields), [])
   | B_record_update { base; fields } ->
       (Printf.sprintf "update %s {%s}" (atom base) (field_list fields), [])
@@ -91,7 +92,9 @@ and bind_lines = function
           (Data.Name.to_string callee) (atom_list arguments) missing,
         [] )
   | B_primitive { operator; arguments } ->
-      (Printf.sprintf "primitive %s(%s)" operator (atom_list arguments), [])
+      ( Printf.sprintf "primitive %s(%s)" (Data.Operator.lexeme operator)
+          (atom_list arguments),
+        [] )
   | B_kernel { kernel; arguments } ->
       ( Printf.sprintf "kernel %s(%s)" (Data.Kernel.show kernel)
           (atom_list arguments),

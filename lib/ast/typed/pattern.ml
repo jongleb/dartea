@@ -8,7 +8,7 @@ and kind =
   | P_T_anything
   | P_T_var of string
   | P_T_record of string list
-  (* | PAlias Pattern Name ?? *)
+  | P_T_alias of (t * string)
   | P_T_unit
   | P_T_tuple of t list
   | P_T_list of t list

@@ -55,6 +55,13 @@ let ok name input =
   assert_balanced input;
   assert_blank_lines_ignored input
 
+let parses_but_owns_its_blank_lines name input =
+  name >:: fun _ ->
+  (match Main.parse input with
+  | Ok _ -> assert_bool "parsed" true
+  | Error e -> assert_failure (Printexc.to_string e));
+  assert_balanced input
+
 (** Intentionally ill-laid-out input that must be rejected. Documents the
     error behaviour we want to keep. *)
 let rejects name input =
@@ -606,6 +613,406 @@ let whitespace_tests =
   ]
 
 (* -------------------------------------------------------------------------- *)
+(* let bindings with a type annotation                                        *)
+(* -------------------------------------------------------------------------- *)
+
+let let_annotation_tests =
+  [
+    ok "string_literal_starts_a_case_arm" {|
+f: Int
+f =
+    case v of
+        "a" ->
+            1
+
+        _ ->
+            0
+|};
+    ok "char_literal_starts_a_case_arm" {|
+f: Int
+f =
+    case v of
+        'a' ->
+            1
+
+        _ ->
+            0
+|};
+    parses_but_owns_its_blank_lines "block_string_across_lines_keeps_the_layout" "\nf: Int\nf =\n    let\n        s = \"\"\"first\nsecond\"\"\"\n\n        y = 1\n    in\n    y\n";
+    ok "let_binding_with_an_annotation" {|
+f: Int
+f =
+    let
+        y : Int
+        y = 1
+    in
+    y
+|};
+    ok "let_binding_annotation_and_indented_body" {|
+f: Int
+f =
+    let
+        y : Int
+        y =
+            1
+    in
+    y
+|};
+    ok "two_annotated_let_bindings" {|
+f: Int
+f =
+    let
+        y : Int
+        y = 1
+
+        z : Int
+        z = 2
+    in
+    y + z
+|};
+    ok "annotated_and_plain_let_bindings_mixed" {|
+f: Int
+f =
+    let
+        y = 1
+
+        z : Int
+        z = 2
+
+        w = 3
+    in
+    y + z + w
+|};
+    ok "annotated_let_binding_with_parameters" {|
+f: Int
+f =
+    let
+        add : Int -> Int -> Int
+        add a b =
+            a + b
+    in
+    add 1 2
+|};
+    ok "let_annotation_across_lines" {|
+f: Int
+f =
+    let
+        add :
+            Int
+            -> Int
+        add a =
+            a
+    in
+    add 1
+|};
+    ok "annotated_let_binding_with_a_function_type" {|
+f: Int
+f =
+    let
+        apply : (Int -> Int) -> Int
+        apply g =
+            g 1
+    in
+    apply identity
+|};
+    ok "let_binding_annotation_does_not_leak_to_top_level" {|
+f: Int
+f =
+    let
+        y : Int
+        y = 1
+    in
+    y
+
+g: Int
+g = 2
+|};
+    ok "destructuring_let_binding" {|
+f: Int
+f =
+    let
+        ( a, b ) = p
+    in
+    a + b
+|};
+    ok "destructuring_let_binding_with_an_indented_body" {|
+f: Int
+f =
+    let
+        ( a, b ) =
+            p
+    in
+    a + b
+|};
+    ok "destructuring_record_let_binding" {|
+f: Int
+f =
+    let
+        { count } = model
+    in
+    count
+|};
+    ok "destructuring_and_named_let_bindings_mixed" {|
+f: Int
+f =
+    let
+        ( a, b ) = p
+
+        c = 1
+    in
+    a + b + c
+|};
+  ]
+
+(* -------------------------------------------------------------------------- *)
+(* operators                                                                  *)
+(* -------------------------------------------------------------------------- *)
+
+let operator_tests =
+  [
+    ok "operators_on_one_line" {|
+f: Int
+f = 1 + 2 * 3 // 4 ^ 5 - 6
+|};
+    ok "pipelines_across_lines" {|
+f: Int
+f =
+    5
+        |> increment
+        |> double
+|};
+    ok "apply_left_across_lines" {|
+f: Int
+f =
+    double
+        <| increment
+        <| 5
+|};
+    ok "composition_across_lines" {|
+f: Int -> Int
+f =
+    increment
+        >> double
+        >> increment
+|};
+    ok "operators_as_values" {|
+f: Int
+f = fold (+) (*) (//) (^) (++) (<<) (>>) (|>) (<|) (-) (==) (&&)
+|};
+    ok "pattern_parameters" {|
+f: Int
+f _ () ( a, b ) { count } = a
+|};
+    ok "pattern_parameters_in_a_lambda" {|
+f: Int
+f = \( a, b ) _ -> a
+|};
+    ok "pattern_parameters_in_a_let_binding" {|
+f: Int
+f =
+    let
+        g ( a, b ) _ =
+            a
+    in
+    g ( 1, 2 ) 3
+|};
+    ok "record_update_on_one_line" {|
+f: Int
+f = { model | count = 1 }
+|};
+    ok "record_update_across_lines" {|
+f: Int
+f =
+    { model
+        | count = 1
+        , name = "a"
+    }
+|};
+    ok "record_update_of_a_qualified_record" {|
+f: Int
+f = { M.model | count = 1 }
+|};
+    ok "record_literal_still_parses" {|
+f: Int
+f = { count = 1, name = "a" }
+|};
+    ok "empty_record_still_parses" {|
+f: Int
+f = {}
+|};
+    ok "tuple_pair_and_triple" {|
+f: Int
+f = g ( 1, 2 ) ( 1, 2, 3 )
+|};
+    rejects "tuple_of_four_parts" {|
+f: Int
+f = ( 1, 2, 3, 4 )
+|};
+    ok "cons_in_an_expression" {|
+f: Int
+f = 1 :: 2 :: rest
+|};
+    ok "cons_across_lines" {|
+f: Int
+f =
+    1
+        :: 2
+        :: rest
+|};
+    ok "operator_line_can_lead" {|
+f: Int
+f =
+    1
+        + 2
+        + 3
+|};
+  ]
+
+(* -------------------------------------------------------------------------- *)
+(* comments                                                                   *)
+(* -------------------------------------------------------------------------- *)
+
+let comment_tests =
+  [
+    ok "line_comment_between_declarations" {|
+-- a leading remark
+f: Int
+f = 1
+
+-- another remark
+g: Int
+g = 2
+|};
+    ok "line_comment_at_the_block_column" {|
+f: Int
+f =
+    let
+        x = 1
+        -- steady
+        y = 2
+    in
+    x + y
+|};
+    ok "line_comment_deeper_than_the_block" {|
+f: Int
+f =
+    let
+        x = 1
+                -- far to the right
+        y = 2
+    in
+    x + y
+|};
+    ok "line_comment_shallower_than_the_block" {|
+f: Int
+f =
+    let
+        x = 1
+  -- far to the left
+        y = 2
+    in
+    x + y
+|};
+    ok "line_comment_before_a_case_arm" {|
+f: Int
+f =
+    case v of
+        -- the first shape
+        A ->
+            1
+
+        -- the second shape
+        B ->
+            2
+|};
+    ok "line_comment_ends_a_case_arm_line" {|
+f: Int
+f =
+    case v of
+        A -> 1 -- one
+        B -> 2 -- two
+|};
+    ok "line_comment_inside_a_record_literal" {|
+f: Int
+f =
+    { a = 1
+    -- the second field
+    , b = 2
+    }
+|};
+    ok "line_comment_after_the_last_token" "\nf: Int\nf = 1 -- done";
+    ok "line_comment_is_the_whole_input" "-- nothing here\n";
+    ok "block_comment_inline" {|
+f: Int
+f = {- silent -} 1
+|};
+    ok "block_comment_across_lines_between_bindings" {|
+f: Int
+f =
+    let
+        x = 1
+        {- a longer
+           remark
+        -}
+        y = 2
+    in
+    x + y
+|};
+    ok "block_comment_across_lines_deeper_than_the_block" {|
+f: Int
+f =
+    let
+        x = 1
+              {- pushed
+                     right
+              -}
+        y = 2
+    in
+    x + y
+|};
+    ok "nested_block_comment" {|
+f: Int
+f = {- outer {- inner -} still outer -} 1
+|};
+    ok "nested_block_comment_across_lines" {|
+f: Int
+f =
+    let
+        x = 1
+        {- outer
+           {- inner
+           -}
+        -}
+        y = 2
+    in
+    x + y
+|};
+    ok "doc_block_comment" {|
+{-| The module remark.
+-}
+f: Int
+f = 1
+|};
+    ok "comment_markers_inside_a_string" {|
+f: String
+f = "-- not a comment {- either -}"
+|};
+    ok "block_comment_closes_a_declaration_body" {|
+f: Int
+f =
+    1
+{- between declarations
+-}
+g: Int
+g = 2
+|};
+    rejects "unterminated_block_comment" {|
+f: Int
+f = {- never closed
+|};
+  ]
+
+(* -------------------------------------------------------------------------- *)
 (* inputs that must be rejected                                               *)
 (* -------------------------------------------------------------------------- *)
 
@@ -687,6 +1094,9 @@ let suite =
       type_tests;
       toplevel_tests;
       whitespace_tests;
+      let_annotation_tests;
+      operator_tests;
+      comment_tests;
       rejected_tests;
       known_limitations;
     ]

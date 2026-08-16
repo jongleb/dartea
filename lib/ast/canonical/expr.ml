@@ -4,11 +4,11 @@ type t =
   | Expr_int of int
   | Expr_float of float (* EF.Float *)
   | Expr_list of t list
-  | Expr_constr of expr_constr
-  | Expr_binop of expr_binop
+  | Expr_cons of expr_cons
+  | Expr_tuple of t list
   | Expr_let of expr_let
   | Expr_if_then_else of expr_if_then_else
-  | Expr_record of expr_record_row list
+  | Expr_record_update of expr_record_update
   | Expr_apply of expr_apply
   | Expr_ident of Data.Name.t
   | Expr_pattern of expr_pattern
@@ -25,21 +25,16 @@ type t =
 and expr_lambda = { params : string Data.Located.t list; body : t }
 [@@deriving show]
 
-and expr_constr = { name : Data.Name.t; arguments : t list }
-[@@deriving show]
-(*ConstructorValue { qualifiedness : PossiblyQualified, name : VarName }*)
+and expr_cons = { head : t; tail : t } [@@deriving show]
 
-and expr_binop = { name : string; operands : t * t } [@@deriving show]
-(*  Binops [(Expr, A.Located Name)] Expr *)
-
-and expr_let_binding_type = { name : string (* content : Typedef.Impl.t *) }
+and expr_let_binding_type = { name : string; content : Typedef.Impl.t }
 [@@deriving show]
 
 and expr_let_binding_body = { name : string Data.Located.t; body : t }
 [@@deriving show]
 
 and expr_let_binding = {
-  (* bind_type : expr_let_binding_type option; *)
+  bind_type : expr_let_binding_type option;
   bind_body : expr_let_binding_body;
 }
 [@@deriving show]
@@ -51,6 +46,9 @@ and expr_if_then_else = { if_exp : t; then_exp : t; else_exp : t }
 [@@deriving show]
 
 and expr_record_row = { name : string; value : t } [@@deriving show]
+
+and expr_record_update = { record : t; fields : expr_record_row list }
+[@@deriving show]
 and expr_apply = { fn : t; arg : t } [@@deriving show]
 and expr_pattern_case = { pattern : Pattern.t; expr : t } [@@deriving show]
 
@@ -73,15 +71,21 @@ let of_frontend expr =
     | Expr_char c -> Expr_char c
     | Expr_unit -> Expr_unit
     | Expr_accessor field -> Expr_accessor field
-    | Expr_constr c ->
-        Expr_constr
-          {
-            name = Data.Name.local c.name;
-            arguments = List.map go c.Frontend.Expr.arguments;
-          }
     | Expr_access { expr; field } -> Expr_access { expr = go expr; field }
     | Expr_list list -> Expr_list (List.map go list)
-    | Expr_binop { name; operands = a, b } ->
+    | Expr_cons { head; tail } -> Expr_cons { head = go head; tail = go tail }
+    | Expr_tuple items -> Expr_tuple (List.map go items)
+    | Expr_record_update { record; fields } ->
+        Expr_record_update
+          {
+            record = go record;
+            fields =
+              List.map
+                (fun (row : Frontend.Expr.expr_record_row) ->
+                  { name = row.name; value = go row.value })
+                fields;
+          }
+    | Frontend.Expr.Expr_binop { name; operands = a, b } ->
         Expr_apply
           {
             fn =
@@ -96,7 +100,18 @@ let of_frontend expr =
         } ->
         Expr_let
           {
-            binding = { bind_body = { name; body = go bind_body } };
+            binding =
+              {
+                bind_type =
+                  Option.map
+                    (fun (annotation : Frontend.Expr.expr_let_binding_type) ->
+                      {
+                        name = annotation.name;
+                        content = Typedef.Impl.of_frontend annotation.content;
+                      })
+                    bind_type;
+                bind_body = { name; body = go bind_body };
+              };
             body = go body;
           }
     | Expr_apply { fn; arg } -> Expr_apply { fn = go fn; arg = go arg }
@@ -141,10 +156,3 @@ let of_frontend expr =
           }
   in
   go expr
-
-(* FIXME *)
-(* let of_frontend =
-   let rec go env = function
-   | Frontend.Expr.Expr_float i -> Expr_float i
-   | Expr_string s -> Expr_string s
-   | Expr_constr { name; arguments } -> Expr_constr { name; arguments=(List.map (go env) arguments) } *)

@@ -27,7 +27,6 @@ let binary_operation (kernel : Data.Kernel.binary) (left : J.expr)
     (right : J.expr) : J.expr =
   match kernel with
   | String_append -> binary left J.Plus right
-  | Tuple_pair -> J.Array [ left; right ]
 
 let value (kernel : Data.Kernel.t) : J.expr =
   let arrow parameters body =

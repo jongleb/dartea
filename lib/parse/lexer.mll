@@ -1,11 +1,29 @@
 {
   open Parser
 
-  type raw = Token of token | Newline of string | Skip
+  type raw = Token of token | Line_start of int | Skip
 
   let get = Lexing.lexeme
 
   exception Error of string
+
+  let position lexbuf = lexbuf.Lexing.lex_curr_p.Lexing.pos_cnum
+
+  let from_token_start lexbuf scan =
+    let start = lexbuf.Lexing.lex_start_p in
+    let value = scan lexbuf in
+    lexbuf.Lexing.lex_start_p <- start;
+    value
+
+  let line_start lexbuf lexeme =
+    match String.rindex_opt lexeme '\n' with
+    | None -> position lexbuf
+    | Some last -> position lexbuf - (String.length lexeme - last - 1)
+
+  let utf_8_encoded code =
+    let buffer = Buffer.create 4 in
+    Buffer.add_utf_8_uchar buffer (Uchar.of_int code);
+    Buffer.contents buffer
 
   let escaped_characters = [
     ("\"", "\"");
@@ -25,14 +43,18 @@ let lcname = ['a'-'z'] ['a'-'z' 'A'-'Z' '0'-'9' '_']*
 let whitespace = [' ' '\t']
 let indent = '\n' [' ' '\t']*
 let int = ['0'-'9'] ['0'-'9' '_']*
+let hex_digit = ['0'-'9' 'a'-'f' 'A'-'F']
+let hexadecimal = "0x" hex_digit (hex_digit | '_')*
 let float =
-  '-'? ['0'-'9'] ['0'-'9' '_']*
+  ['0'-'9'] ['0'-'9' '_']*
   (('.' ['0'-'9' '_']*) (['e' 'E'] ['+' '-']? ['0'-'9'] ['0'-'9' '_']*)? |
    ('.' ['0'-'9' '_']*)? (['e' 'E'] ['+' '-']? ['0'-'9'] ['0'-'9' '_']*))
 
 rule token = parse
-  | ('\n' [' ' '\t']*)+ as nl { Newline nl }
+  | ('\n' [' ' '\t']*)+ as nl { Line_start (line_start lexbuf nl) }
   | whitespace      { Skip }
+  | "--" [^ '\n']* { Skip }
+  | "{-"           { block_comment 1 None lexbuf }
   | "type"          { Token TYPE }
   | "alias"         { Token ALIAS }
   | "case"          { Token CASE }
@@ -64,7 +86,12 @@ rule token = parse
   | "\\"            { Token (BACKSLASH) }
   | "->"            { Token ARROW }
   | "|>"            { Token (PIPE_GT) }
+  | "<|"            { Token (APPLY_L) }
+  | "<<"            { Token (COMPOSE_L) }
+  | ">>"            { Token (COMPOSE_R) }
   | "++"            { Token (CONCAT) }
+  | "//"            { Token (IDIV) }
+  | "^"             { Token (POW) }
   | "+"             { Token (PLUS) }
   | "-"             { Token (MINUS) }
   | "_"             { Token (WILDCARD) }
@@ -81,11 +108,45 @@ rule token = parse
   | "||"            { Token (OR) }
   | ">"             { Token (GT) }
   | "<"             { Token (LT) }
+  | hexadecimal     { Token (INT (int_of_string (Lexing.lexeme lexbuf))) }
   | int             { Token (INT (int_of_string (Lexing.lexeme lexbuf))) }
   | float           { Token (FLOAT (float_of_string(Lexing.lexeme lexbuf))) }
-  | '"'             { Token (STRING (string "" lexbuf)) }
+  | "\"\"\""       { Token (STRING (from_token_start lexbuf (block_string ""))) }
+  | '"'             { Token (STRING (from_token_start lexbuf (string ""))) }
+  | '\''            { Token (CHAR (from_token_start lexbuf character)) }
   | "." (lcname as n)      { Token (ACCESS n) }
   | _               { raise (Error (Printf.sprintf "At offset %d: unexpected character.\n" (Lexing.lexeme_start lexbuf))) }
+
+  and block_comment depth opened_line = parse
+  | "{-"                { block_comment (depth + 1) opened_line lexbuf }
+  | "-}"                { if depth > 1 then block_comment (depth - 1) opened_line lexbuf
+                          else
+                            match opened_line with
+                            | None -> Skip
+                            | Some start -> Line_start start
+                        }
+  | '\n'                { block_comment depth (Some (position lexbuf)) lexbuf }
+  | [^ '{' '-' '\n']+   { block_comment depth opened_line lexbuf }
+  | eof                 { raise (Error "Unterminated block comment.") }
+  | _                   { block_comment depth opened_line lexbuf }
+
+  and block_string acc = parse
+  | "\"\"\""            { acc }
+  | '\\'                { let esc = escaped lexbuf in block_string (acc ^ esc) lexbuf }
+  | [^'"' '\\']+        { block_string (acc ^ (Lexing.lexeme lexbuf)) lexbuf }
+  | '"'                 { block_string (acc ^ "\"") lexbuf }
+  | eof                 { raise (Error "Unterminated block string.") }
+
+  and character = parse
+  | '\\'                { let esc = escaped lexbuf in closing_quote esc lexbuf }
+  | [^'\'' '\\']        { closing_quote (Lexing.lexeme lexbuf) lexbuf }
+  | eof                 { raise (Error "Unterminated character literal.") }
+  | _                   { raise (Error "Empty character literal.") }
+
+  and closing_quote value = parse
+  | '\''                { value }
+  | eof                 { raise (Error "Unterminated character literal.") }
+  | _                   { raise (Error "A character literal holds one character.") }
 
   and string acc = parse
   | '"'                 { acc }
@@ -94,6 +155,8 @@ rule token = parse
   | eof                 { raise (Error "STRINGEOC ERROR") }
   
   and escaped = parse
+  | 'u' '{' (hex_digit+ as code) '}'
+                        { utf_8_encoded (int_of_string ("0x" ^ code)) }
   | _                   { let str = Lexing.lexeme lexbuf in
                           try List.assoc str escaped_characters
                           with Not_found -> raise (Error "ESCAPED NOT_FOUND") 

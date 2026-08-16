@@ -5,8 +5,8 @@ module Tuple exposing
 
 
 pair : a -> b -> ( a, b )
-pair =
-    Elm.Kernel.Tuple.pair
+pair a b =
+    ( a, b )
 
 
 first : ( a1, a2 ) -> a1

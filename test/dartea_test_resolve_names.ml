@@ -490,6 +490,7 @@ x =
        {
          binding =
            {
+             bind_type = None;
              bind_body =
                {
                  name = Data.Located.dummy "map";

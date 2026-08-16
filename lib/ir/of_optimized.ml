@@ -29,7 +29,7 @@ type context = {
   constructor_arity : int By_name.t;
   toplevel_arity : int By_name.t;
   siblings_of : Data.Name.t -> (Data.Name.t * int) list option;
-  operators : Text.t;
+  operator_of : Data.Name.t -> Data.Operator.t option;
 }
 
 let spine expression =
@@ -91,13 +91,13 @@ let refers_locally ~locals (name : Data.Name.t) =
   | Data.Name.Local text -> Text.mem text locals
   | Data.Name.Global _ -> false
 
-let is_primitive_operator context ~locals (name : Data.Name.t) =
+let primitive_operator context ~locals (name : Data.Name.t) =
   match name with
   | Data.Name.Local text ->
-      (not (Text.mem text locals))
-      && (not (By_name.mem name context.toplevel_arity))
-      && Text.mem text context.operators
-  | Data.Name.Global _ -> false
+      if Text.mem text locals || By_name.mem name context.toplevel_arity then
+        None
+      else context.operator_of name
+  | Data.Name.Global _ -> None
 
 let name_atom ~locals (name : Data.Name.t) =
   match name with
@@ -184,6 +184,18 @@ let of_declaration context (source : O.Declaration.t) : declaration =
     | O.Expr.Expr_lambda { params; body } ->
         emit k (closure ~locals ~params ~body)
     | O.Expr.Expr_list items -> lower_list ~locals ~k items
+    | O.Expr.Expr_cons { head; tail } ->
+        normalize_atom ~locals head ~k:(fun head ->
+            normalize_atom ~locals tail ~k:(fun tail ->
+                emit k (B_cons { head; tail })))
+    | O.Expr.Expr_tuple items ->
+        normalize_atoms ~locals items ~k:(fun items ->
+            emit k (B_tuple { items }))
+    | O.Expr.Expr_record_update { record; fields } ->
+        lower_record ~locals ~k ~base:(Some record)
+          (List.map
+             (fun (row : O.Expr.expr_record_row) -> (row.name, row.value))
+             fields)
     | O.Expr.Expr_record rows -> lower_record_rows ~locals ~k rows
     | O.Expr.Expr_access { expr; field } ->
         normalize_atom ~locals expr ~k:(fun subject ->
@@ -366,22 +378,26 @@ let of_declaration context (source : O.Declaration.t) : declaration =
 
   and lower_apply ~locals ~k expression =
     let head, arguments = spine expression in
-    match head.O.Expr.expr with
-    | O.Expr.Expr_ident name when is_primitive_operator context ~locals name ->
-        lower_operator ~locals ~k ~operator:(Data.Name.base name) arguments
-    | O.Expr.Expr_ident name when refers_locally ~locals name ->
+    let operator =
+      match head.O.Expr.expr with
+      | O.Expr.Expr_ident name -> primitive_operator context ~locals name
+      | _ -> None
+    in
+    match (operator, head.O.Expr.expr) with
+    | Some operator, _ -> lower_operator ~locals ~k ~operator arguments
+    | None, O.Expr.Expr_ident name when refers_locally ~locals name ->
         normalize_atoms ~locals arguments ~k:(fun atoms ->
             emit k
               (B_call_closure
                  { callee = A_var (Data.Name.base name); arguments = atoms }))
-    | O.Expr.Expr_ident name ->
+    | None, O.Expr.Expr_ident name ->
         normalize_atoms ~locals arguments ~k:(fun atoms ->
             match By_name.find_opt name context.toplevel_arity with
             | Some arity -> saturated ~k ~callee:name ~arity atoms
             | None ->
                 emit k
                   (B_call_closure { callee = A_global name; arguments = atoms }))
-    | _ ->
+    | None, _ ->
         normalize_atom ~locals head ~k:(fun callee ->
             normalize_atoms ~locals arguments ~k:(fun atoms ->
                 emit k (B_call_closure { callee; arguments = atoms })))
@@ -527,10 +543,7 @@ let convert ~arities ~constructors ~siblings
       constructor_arity;
       toplevel_arity;
       siblings_of = (fun name -> By_name.find_opt name sibling_table);
-      operators =
-        List.fold_left
-          (fun known (operator, _) -> Text.add operator known)
-          Text.empty Primitives.values;
+      operator_of = Data.Operator.referred_to_by;
     }
   in
   List.map (of_declaration context) declarations

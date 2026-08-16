@@ -7,10 +7,6 @@ let inline_size_limit = 10
 let pattern_branch_cost = 2
 let optimization_rounds = 3
 
-let primitive_operators =
-  Names.of_list
-    (List.map Data.Name.local [ "+"; "-"; "*"; "/"; "=="; "<"; ">"; "++" ])
-
 let spine_of (e : O.Expr.t) : O.Expr.t * O.Expr.t list =
   let rec collect (e : O.Expr.t) arguments =
     match e.expr with
@@ -55,7 +51,7 @@ let rec is_pure (e : O.Expr.t) : bool =
   | Expr_apply _ -> begin
       match spine_of e with
       | { expr = Expr_ident name; _ }, ([ _; _ ] as operands)
-        when Names.mem name primitive_operators ->
+        when Data.Operator.referred_to_by name <> None ->
           List.for_all is_pure operands
       | _ -> false
     end
@@ -108,7 +104,7 @@ let arguments_escape_binders ~(binders : Names.t)
            (Scope.free_variables ~bound:Names.empty argument)))
     arguments
 
-let fold_primitive ~(name : string) (arguments : O.Expr.t list) :
+let fold_primitive (operator : Data.Operator.t) (arguments : O.Expr.t list) :
     O.Expr.expr option =
   let comparison order =
     match arguments with
@@ -125,22 +121,35 @@ let fold_primitive ~(name : string) (arguments : O.Expr.t list) :
         Some (boolean_constructor (String.equal a b))
     | _ -> None
   in
-  match (name, arguments) with
-  | "+", [ { expr = Expr_int a; _ }; { expr = Expr_int b; _ } ] ->
-      Some (Expr_int (a + b))
-  | "-", [ { expr = Expr_int a; _ }; { expr = Expr_int b; _ } ] ->
-      Some (Expr_int (a - b))
-  | "*", [ { expr = Expr_int a; _ }; { expr = Expr_int b; _ } ] ->
-      Some (Expr_int (a * b))
-  | "/", [ { expr = Expr_int a; _ }; { expr = Expr_int b; _ } ]
-    when b <> 0 && a mod b = 0 ->
-      Some (Expr_int (a / b))
-  | "++", [ { expr = Expr_string a; _ }; { expr = Expr_string b; _ } ] ->
-      Some (Expr_string (a ^ b))
-  | "==", _ -> equality
-  | "<", _ -> comparison ( < )
-  | ">", _ -> comparison ( > )
-  | _ -> None
+  let integers combine : O.Expr.expr option =
+    match arguments with
+    | [ { expr = Expr_int a; _ }; { expr = Expr_int b; _ } ] ->
+        Some (Expr_int (combine a b))
+    | _ -> None
+  in
+  match operator with
+  | Add -> integers ( + )
+  | Subtract -> integers ( - )
+  | Multiply -> integers ( * )
+  | Divide -> begin
+      match arguments with
+      | [ { expr = Expr_int a; _ }; { expr = Expr_int b; _ } ]
+        when b <> 0 && a mod b = 0 ->
+          Some (Expr_int (a / b))
+      | _ -> None
+    end
+  | Append -> begin
+      match arguments with
+      | [ { expr = Expr_string a; _ }; { expr = Expr_string b; _ } ] ->
+          Some (Expr_string (a ^ b))
+      | _ -> None
+    end
+  | Equal -> equality
+  | Less -> comparison ( < )
+  | Greater -> comparison ( > )
+  | Integer_divide | Power | Not_equal | Less_or_equal | Greater_or_equal
+  | Conjunction | Disjunction ->
+      None
 
 let propagate_constants (e : O.Expr.t) : O.Expr.t =
   let forget ~name constants =
@@ -219,7 +228,9 @@ let propagate_constants (e : O.Expr.t) : O.Expr.t =
         let folded = Subexpressions.transform e ~f:(propagate ~constants) in
         match spine_of folded with
         | { expr = Expr_ident name; _ }, ([ _; _ ] as arguments) ->
-            fold_primitive ~name:(Data.Name.base name) arguments
+            Data.Operator.referred_to_by name
+            |> Fun.flip Option.bind (fun operator ->
+                   fold_primitive operator arguments)
             |> Option.map (fun expr -> { folded with expr })
             |> Option.value ~default:folded
         | _ -> folded

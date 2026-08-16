@@ -5,7 +5,7 @@ type t =
   | P_anything
   | P_var of string
   | P_record of string list
-  (* | PAlias Pattern Name ?? *)
+  | P_alias of (t * string)
   | P_unit
   | P_tuple of t list
   | P_list of t list

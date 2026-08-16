@@ -1064,8 +1064,11 @@ result = Tuple.first p
 |}
   in
   assert_js ~src ~expr:"Main.result" ~expected:"1";
-  assert_bool "a tuple literal is Tuple.pair"
-    (contains ~needle:"Tuple.pair(1, " (main_source src))
+  let js = main_source src in
+  assert_bool "a tuple literal is an array, not a call to Tuple.pair"
+    (contains ~needle:{|[1, "a"]|} js);
+  assert_bool "a tuple literal needs no help from the Tuple module"
+    (not (contains ~needle:"Tuple.pair" js))
 
 let test_annotation_is_polymorphic _ =
   let src =
@@ -1090,7 +1093,7 @@ let test_runtime_is_imported_only_when_curried _ =
     (contains ~needle:{|import * as Dartea_runtime|}
        (module_source ~name:"Maybe" plain));
   assert_bool "a module that does not curry leaves the runtime alone"
-    (not (contains ~needle:"Dartea_runtime" (module_source ~name:"Basics" plain)));
+    (not (contains ~needle:"Dartea_runtime" (module_source ~name:"Tuple" plain)));
   assert_bool "a string literal naming the runtime is not a reference"
     (not
        (contains ~needle:{|import * as Dartea_runtime|}
@@ -1258,8 +1261,1068 @@ let test_unapplied_kernel_becomes_an_arrow _ =
   assert_bool "an unapplied kernel is eta-expanded once, at its declaration"
     (contains ~needle:"const length = x => x.length;" js)
 
+let test_comments_are_skipped _ =
+  let src =
+    {|
+-- the module remark
+
+{-| A block remark
+    that spans lines.
+-}
+type Box
+    = Box Int -- the only shape
+
+
+unbox : Box -> Int
+unbox b =
+    {- outer {- inner -} outer -}
+    case b of
+        -- the only arm
+        Box n ->
+            n
+
+
+result : Int
+result =
+    let
+        one =
+            unbox (Box 1)
+                -- deeper than the block
+        two =
+            unbox (Box 2)
+  -- shallower than the block
+        three =
+            unbox (Box 3)
+    in
+    one + two + three
+|}
+  in
+  assert_js ~src ~expr:"Main.result" ~expected:"6";
+  let js = main_source src in
+  assert_bool "comment text never reaches the output"
+    (not (contains ~needle:"remark" js))
+
+let test_comment_markers_inside_a_string_are_text _ =
+  let src = {|
+label : String
+label = "-- not a comment {- either -}"
+|} in
+  assert_js ~src ~expr:"Main.label"
+    ~expected:{|"-- not a comment {- either -}"|}
+
+let test_operator_precedence _ =
+  let src =
+    {|
+sum : Int
+sum = 2 + 3 * 4
+
+power : Int
+power = 2 * 3 ^ 2
+
+powerIsRightAssociative : Int
+powerIsRightAssociative = 2 ^ 3 ^ 2
+
+subtractionIsLeftAssociative : Int
+subtractionIsLeftAssociative = 10 - 3 - 2
+
+integerDivisionIsLeftAssociative : Int
+integerDivisionIsLeftAssociative = 100 // 7 // 2
+
+comparisonIsLooserThanArithmetic : Bool
+comparisonIsLooserThanArithmetic = 1 + 2 == 3
+
+andIsTighterThanOr : Bool
+andIsTighterThanOr = True || False && False
+|}
+  in
+  assert_js ~src ~expr:"Main.sum" ~expected:"14";
+  assert_js ~src ~expr:"Main.power" ~expected:"18";
+  assert_js ~src ~expr:"Main.powerIsRightAssociative" ~expected:"512";
+  assert_js ~src ~expr:"Main.subtractionIsLeftAssociative" ~expected:"5";
+  assert_js ~src ~expr:"Main.integerDivisionIsLeftAssociative" ~expected:"7";
+  assert_js ~src ~expr:"Main.comparisonIsLooserThanArithmetic" ~expected:"true";
+  assert_js ~src ~expr:"Main.andIsTighterThanOr" ~expected:"true"
+
+let test_integer_division_follows_elm_core _ =
+  let src =
+    {|
+exact : Int
+exact = 7 // 2
+
+truncatesTowardsZero : Int
+truncatesTowardsZero = negate 7 // 2
+
+byZero : Int
+byZero = 1 // 0
+|}
+  in
+  assert_js ~src ~expr:"Main.exact" ~expected:"3";
+  assert_js ~src ~expr:"Main.truncatesTowardsZero" ~expected:"-3";
+  assert_js ~src ~expr:"Main.byZero" ~expected:"0";
+  let js = main_source src in
+  assert_bool "integer division lowers to elm/core's (a / b) | 0"
+    (contains ~needle:"| 0" js)
+
+let test_division_is_still_integer_division _ =
+  let src = {|
+half : Int
+half = 7 / 2
+|} in
+  assert_js ~src ~expr:"Main.half" ~expected:"3"
+
+let test_exponent_lowers_to_the_js_operator _ =
+  let src = {|
+cube : Int
+cube = 3 ^ 3
+|} in
+  assert_js ~src ~expr:"Main.cube" ~expected:"27";
+  let js = main_source src in
+  assert_bool "exponentiation lowers to **" (contains ~needle:"**" js)
+
+let test_apply_left _ =
+  let src =
+    {|
+double : Int -> Int
+double n = n * 2
+
+viaOperator : Int
+viaOperator = double <| 1 + 2
+
+isRightAssociative : Int
+isRightAssociative = double <| double <| 5
+|}
+  in
+  assert_js ~src ~expr:"Main.viaOperator" ~expected:"6";
+  assert_js ~src ~expr:"Main.isRightAssociative" ~expected:"20"
+
+let test_composition _ =
+  let src =
+    {|
+double : Int -> Int
+double n = n * 2
+
+increment : Int -> Int
+increment n = n + 1
+
+left : Int
+left = (double << increment) 5
+
+right : Int
+right = (double >> increment) 5
+
+leftIsLeftAssociative : Int
+leftIsLeftAssociative = (double << increment << increment) 5
+
+rightIsRightAssociative : Int
+rightIsRightAssociative = (increment >> increment >> double) 5
+
+piped : Int
+piped = 5 |> increment >> double
+|}
+  in
+  assert_js ~src ~expr:"Main.left" ~expected:"12";
+  assert_js ~src ~expr:"Main.right" ~expected:"11";
+  assert_js ~src ~expr:"Main.leftIsLeftAssociative" ~expected:"14";
+  assert_js ~src ~expr:"Main.rightIsRightAssociative" ~expected:"14";
+  assert_js ~src ~expr:"Main.piped" ~expected:"12"
+
+let test_operator_as_a_value _ =
+  let src =
+    {|
+applyBinary : (Int -> Int -> Int) -> Int -> Int -> Int
+applyBinary f a b = f a b
+
+added : Int
+added = applyBinary (+) 3 4
+
+multiplied : Int
+multiplied = applyBinary (*) 3 4
+
+dividedExactly : Int
+dividedExactly = applyBinary (//) 9 2
+
+raised : Int
+raised = applyBinary (^) 2 5
+
+subtracted : Int
+subtracted = applyBinary (-) 9 2
+
+joined : String
+joined = (++) "a" "b"
+
+double : Int -> Int
+double n = n * 2
+
+increment : Int -> Int
+increment n = n + 1
+
+composed : Int
+composed = (<<) double increment 5
+
+pipedForward : Int
+pipedForward = (|>) 5 double
+
+appliedLeft : Int
+appliedLeft = (<|) double 5
+|}
+  in
+  assert_js ~src ~expr:"Main.added" ~expected:"7";
+  assert_js ~src ~expr:"Main.multiplied" ~expected:"12";
+  assert_js ~src ~expr:"Main.dividedExactly" ~expected:"4";
+  assert_js ~src ~expr:"Main.raised" ~expected:"32";
+  assert_js ~src ~expr:"Main.subtracted" ~expected:"7";
+  assert_js ~src ~expr:"Main.joined" ~expected:{|"ab"|};
+  assert_js ~src ~expr:"Main.composed" ~expected:"12";
+  assert_js ~src ~expr:"Main.pipedForward" ~expected:"10";
+  assert_js ~src ~expr:"Main.appliedLeft" ~expected:"10"
+
+let test_cons_in_expressions _ =
+  let src =
+    {|
+sum : List Int -> Int
+sum xs =
+    case xs of
+        [] ->
+            0
+
+        h :: t ->
+            h + sum t
+
+prepended : List Int
+prepended = 1 :: 2 :: [ 3, 4 ]
+
+total : Int
+total = sum prepended
+
+ontoEmpty : List Int
+ontoEmpty = 5 :: []
+
+single : Int
+single = sum ontoEmpty
+
+build : Int -> List Int -> List Int
+build n rest = n :: rest
+
+built : Int
+built = sum (build 7 (build 8 []))
+|}
+  in
+  assert_js ~src ~expr:"Main.total" ~expected:"10";
+  assert_js ~src ~expr:"Main.single" ~expected:"5";
+  assert_js ~src ~expr:"Main.built" ~expected:"15";
+  let js = main_source src in
+  assert_bool "cons builds the same cell shape as a list literal"
+    (contains ~needle:"hd:" js)
+
+let test_cons_is_right_associative _ =
+  let src =
+    {|
+head : List Int -> Int
+head xs =
+    case xs of
+        [] ->
+            0
+
+        h :: _ ->
+            h
+
+tail : List Int -> List Int
+tail xs =
+    case xs of
+        [] ->
+            []
+
+        _ :: t ->
+            t
+
+chain : List Int
+chain = 1 :: 2 :: 3 :: []
+
+second : Int
+second = head (tail chain)
+
+appendedThenConsed : List Int
+appendedThenConsed = 1 :: []
+
+firstOfAppended : Int
+firstOfAppended = head appendedThenConsed
+|}
+  in
+  assert_js ~src ~expr:"Main.second" ~expected:"2";
+  assert_js ~src ~expr:"Main.firstOfAppended" ~expected:"1"
+
+let test_triples _ =
+  let src =
+    {|
+point : ( Int, Int, Int )
+point = ( 1, 2, 3 )
+
+middle : ( Int, Int, Int ) -> Int
+middle p =
+    case p of
+        ( _, y, _ ) ->
+            y
+
+result : Int
+result = middle point
+
+nested : ( Int, ( Int, Int ) )
+nested = ( 1, ( 2, 3 ) )
+
+inner : Int
+inner =
+    case nested of
+        ( _, ( _, z ) ) ->
+            z
+|}
+  in
+  assert_js ~src ~expr:"Main.result" ~expected:"2";
+  assert_js ~src ~expr:"Main.inner" ~expected:"3";
+  let js = main_source src in
+  assert_bool "a triple is a three-element array"
+    (contains ~needle:"[1, 2, 3]" js)
+
+let test_tuple_pair_is_verbatim_elm _ =
+  let src =
+    {|
+made : ( Int, String )
+made = Tuple.pair 1 "a"
+
+result : Int
+result = Tuple.first made
+
+swapped : String
+swapped = Tuple.second (Tuple.pair 1 "a")
+|}
+  in
+  assert_js ~src ~expr:"Main.result" ~expected:"1";
+  assert_js ~src ~expr:"Main.swapped" ~expected:{|"a"|};
+  assert_bool "Tuple.pair no longer needs a kernel primitive"
+    (not (contains ~needle:"Kernel" (module_source ~name:"Tuple" src)))
+
+let test_record_update _ =
+  let src =
+    {|
+type alias Model =
+    { count : Int
+    , name : String
+    }
+
+start : Model
+start = { count = 0, name = "a" }
+
+bumped : Model
+bumped = { start | count = start.count + 1 }
+
+renamed : Model
+renamed = { start | count = 9, name = "b" }
+
+increment : Model -> Model
+increment model = { model | count = model.count + 1 }
+
+twice : Int
+twice = (increment (increment start)).count
+|}
+  in
+  assert_js ~src ~expr:"Main.bumped.count" ~expected:"1";
+  assert_js ~src ~expr:{|Main.bumped.name|} ~expected:{|"a"|};
+  assert_js ~src ~expr:"Main.renamed.count" ~expected:"9";
+  assert_js ~src ~expr:{|Main.renamed.name|} ~expected:{|"b"|};
+  assert_js ~src ~expr:"Main.twice" ~expected:"2";
+  assert_js ~src ~expr:"Main.start.count" ~expected:"0";
+  let js = main_source src in
+  assert_bool "a record update spreads the original"
+    (contains ~needle:"...start" js)
+
+let test_record_update_keeps_the_record_type _ =
+  let src =
+    {|
+type alias Point =
+    { x : Int
+    , y : Int
+    }
+
+origin : Point
+origin = { x = 0, y = 0 }
+
+moveX : Int -> Point -> Point
+moveX dx point = { point | x = point.x + dx }
+
+sumOf : Point -> Int
+sumOf point = point.x + point.y
+
+result : Int
+result = sumOf (moveX 5 origin)
+|}
+  in
+  assert_js ~src ~expr:"Main.result" ~expected:"5"
+
+let test_wildcard_and_unit_parameters _ =
+  let src =
+    {|
+type alias Model =
+    { count : Int
+    }
+
+init : () -> Model
+init () = { count = 0 }
+
+view : Model -> Int
+view _ = 42
+
+started : Int
+started = (init ()).count
+
+seen : Int
+seen = view (init ())
+
+constant : Int -> Int -> Int
+constant a _ = a
+
+kept : Int
+kept = constant 3 4
+|}
+  in
+  assert_js ~src ~expr:"Main.started" ~expected:"0";
+  assert_js ~src ~expr:"Main.seen" ~expected:"42";
+  assert_js ~src ~expr:"Main.kept" ~expected:"3";
+  let js = main_source src in
+  assert_bool "an unconditional parameter pattern needs no case"
+    (not (contains ~needle:"switch" js))
+
+let test_destructuring_parameters _ =
+  let src =
+    {|
+type alias Model =
+    { count : Int
+    , name : String
+    }
+
+fst : ( Int, Int ) -> Int
+fst ( a, b ) = a
+
+snd : ( Int, Int ) -> Int
+snd ( a, b ) = b
+
+counted : Model -> Int
+counted { count } = count
+
+both : ( Int, Int ) -> ( Int, Int ) -> Int
+both ( a, b ) ( c, d ) = a + b + c + d
+
+left : Int
+left = fst ( 1, 2 )
+
+right : Int
+right = snd ( 1, 2 )
+
+fromRecord : Int
+fromRecord = counted { count = 7, name = "a" }
+
+summed : Int
+summed = both ( 1, 2 ) ( 3, 4 )
+
+swap : ( Int, Int ) -> ( Int, Int )
+swap ( a, b ) = ( b, a )
+
+swapped : Int
+swapped = fst (swap ( 1, 2 ))
+|}
+  in
+  assert_js ~src ~expr:"Main.left" ~expected:"1";
+  assert_js ~src ~expr:"Main.right" ~expected:"2";
+  assert_js ~src ~expr:"Main.fromRecord" ~expected:"7";
+  assert_js ~src ~expr:"Main.summed" ~expected:"10";
+  assert_js ~src ~expr:"Main.swapped" ~expected:"2"
+
+let test_destructuring_lambda_parameters _ =
+  let src =
+    {|
+apply : (( Int, Int ) -> Int) -> ( Int, Int ) -> Int
+apply f p = f p
+
+added : Int
+added = apply (\( a, b ) -> a + b) ( 3, 4 )
+
+ignored : Int
+ignored = (\_ -> 5) 9
+
+unitTaken : Int
+unitTaken = (\() -> 6) ()
+|}
+  in
+  assert_js ~src ~expr:"Main.added" ~expected:"7";
+  assert_js ~src ~expr:"Main.ignored" ~expected:"5";
+  assert_js ~src ~expr:"Main.unitTaken" ~expected:"6"
+
+let test_destructuring_let_binding_parameters _ =
+  let src =
+    {|
+result : Int
+result =
+    let
+        fst ( a, b ) =
+            a
+
+        ignore _ =
+            10
+    in
+    fst ( 1, 2 ) + ignore 0
+|}
+  in
+  assert_js ~src ~expr:"Main.result" ~expected:"11"
+
+let test_refutable_parameter_throws_at_runtime _ =
+  let src =
+    {|
+unwrap : Maybe Int -> Int
+unwrap (Just n) = n
+
+result : Int
+result = unwrap (Just 5)
+|}
+  in
+  assert_js ~src ~expr:"Main.result" ~expected:"5";
+  let js = main_source src in
+  assert_bool "a refutable parameter keeps the failing branch"
+    (contains ~needle:"Pattern match failed" js)
+
+let assert_rejected ~src ~message =
+  match compiled_of src with
+  | _ -> assert_failure message
+  | exception _ -> assert_bool "rejected" true
+
+let test_let_binding_annotation _ =
+  let src =
+    {|
+type alias Model =
+    { count : Int
+    }
+
+result : Int
+result =
+    let
+        start : Model
+        start =
+            { count = 4 }
+
+        step : Int -> Int
+        step n =
+            n + 1
+
+        twice : Int -> Int
+        twice n =
+            step (step n)
+    in
+    twice start.count
+
+polymorphic : ( Int, String )
+polymorphic =
+    let
+        keep : a -> a
+        keep x =
+            x
+    in
+    ( keep 1, keep "a" )
+|}
+  in
+  assert_js ~src ~expr:"Main.result" ~expected:"6";
+  assert_js ~src ~expr:"Main.polymorphic[0]" ~expected:"1";
+  assert_js ~src ~expr:"Main.polymorphic[1]" ~expected:{|"a"|}
+
+let test_let_binding_annotation_is_checked _ =
+  assert_rejected
+    ~src:
+      {|
+result : Int
+result =
+    let
+        y : Int
+        y = "not an int"
+    in
+    1
+|}
+    ~message:"a let annotation that contradicts the body must be an error"
+
+let test_destructuring_let_bindings _ =
+  let src =
+    {|
+type alias Model =
+    { count : Int
+    , name : String
+    }
+
+pair : ( Int, Int )
+pair = ( 3, 4 )
+
+model : Model
+model = { count = 7, name = "a" }
+
+summed : Int
+summed =
+    let
+        ( a, b ) = pair
+    in
+    a + b
+
+counted : Int
+counted =
+    let
+        { count } = model
+    in
+    count
+
+mixed : Int
+mixed =
+    let
+        ( a, b ) = pair
+
+        c = 1
+
+        { count } = model
+    in
+    a + b + c + count
+|}
+  in
+  assert_js ~src ~expr:"Main.summed" ~expected:"7";
+  assert_js ~src ~expr:"Main.counted" ~expected:"7";
+  assert_js ~src ~expr:"Main.mixed" ~expected:"15"
+
+let test_alias_patterns _ =
+  let src =
+    {|
+firstAndWhole : List Int -> Int
+firstAndWhole xs =
+    case xs of
+        (h :: _) as whole ->
+            h + length whole
+
+        [] ->
+            0
+
+length : List Int -> Int
+length xs =
+    case xs of
+        [] ->
+            0
+
+        _ :: t ->
+            1 + length t
+
+result : Int
+result = firstAndWhole (5 :: 6 :: [])
+
+type Shape = Circle Int | Square Int
+
+named : Shape -> Int
+named s =
+    case s of
+        (Circle r) as kept ->
+            r + area kept
+
+        Square a ->
+            a
+
+area : Shape -> Int
+area s =
+    case s of
+        Circle r ->
+            r * 3
+
+        Square a ->
+            a * a
+
+shaped : Int
+shaped = named (Circle 2)
+|}
+  in
+  assert_js ~src ~expr:"Main.result" ~expected:"7";
+  assert_js ~src ~expr:"Main.shaped" ~expected:"8"
+
+let test_negative_literal_patterns _ =
+  let src =
+    {|
+describe : Int -> Int
+describe n =
+    case n of
+        -1 ->
+            100
+
+        0 ->
+            200
+
+        1 ->
+            300
+
+        _ ->
+            400
+
+negative : Int
+negative = describe (0 - 1)
+
+zero : Int
+zero = describe 0
+
+other : Int
+other = describe 7
+|}
+  in
+  assert_js ~src ~expr:"Main.negative" ~expected:"100";
+  assert_js ~src ~expr:"Main.zero" ~expected:"200";
+  assert_js ~src ~expr:"Main.other" ~expected:"400"
+
+let test_char_literal_type_is_still_string _ =
+  let src =
+    {|
+letter : String
+letter = 'a'
+
+quoted : String
+quoted = '\''
+
+newline : String
+newline = '\n'
+
+emoji : String
+emoji = '\u{1F600}'
+
+classify : String -> Int
+classify c =
+    case c of
+        'a' ->
+            1
+
+        'b' ->
+            2
+
+        _ ->
+            0
+
+first : Int
+first = classify 'a'
+
+second : Int
+second = classify 'b'
+
+other : Int
+other = classify 'z'
+|}
+  in
+  assert_js ~src ~expr:"Main.letter" ~expected:{|"a"|};
+  assert_js ~src ~expr:"Main.quoted" ~expected:{|"'"|};
+  assert_js ~src ~expr:"Main.newline.charCodeAt(0)" ~expected:"10";
+  assert_js ~src ~expr:"Main.emoji.codePointAt(0)" ~expected:"128512";
+  assert_js ~src ~expr:"Main.first" ~expected:"1";
+  assert_js ~src ~expr:"Main.second" ~expected:"2";
+  assert_js ~src ~expr:"Main.other" ~expected:"0"
+
+let test_block_strings _ =
+  let src =
+    {|
+plain : String
+plain = """no escaping needed for " here"""
+
+across : String
+across = """first
+second"""
+
+escaped : String
+escaped = """tab\there"""
+|}
+  in
+  assert_js ~src ~expr:"Main.plain.length" ~expected:"29";
+  assert_js ~src ~expr:{|Main.across|} ~expected:{|"first\nsecond"|};
+  assert_js ~src ~expr:"Main.escaped" ~expected:{|"tab\there"|}
+
+let test_hexadecimal_literals _ =
+  let src =
+    {|
+small : Int
+small = 0x1F
+
+upper : Int
+upper = 0xFF
+
+grouped : Int
+grouped = 0xFF_FF
+|}
+  in
+  assert_js ~src ~expr:"Main.small" ~expected:"31";
+  assert_js ~src ~expr:"Main.upper" ~expected:"255";
+  assert_js ~src ~expr:"Main.grouped" ~expected:"65535"
+
+let test_minus_before_a_number_is_subtraction _ =
+  let src = {|
+gap : Int
+gap = 5 -2
+
+spaced : Int
+spaced = 5 - 2
+|} in
+  assert_js ~src ~expr:"Main.gap" ~expected:"3";
+  assert_js ~src ~expr:"Main.spaced" ~expected:"3"
+
+let test_float_literals_print_as_javascript _ =
+  let src = {|
+whole = 2.0
+
+fraction = 1.5
+
+exponent = 1.0e10
+|} in
+  let js = main_source src in
+  assert_bool "a whole float keeps its decimal part"
+    (contains ~needle:"= 2.0;" js);
+  assert_bool "a fractional float is printed as written"
+    (contains ~needle:"= 1.5;" js);
+  assert_bool "no float is printed with a trailing dot"
+    (not (contains ~needle:".;" js));
+  assert_js ~src ~expr:"Main.whole" ~expected:"2";
+  assert_js ~src ~expr:"Main.fraction" ~expected:"1.5"
+
+let test_record_alias_constructor _ =
+  let src =
+    {|
+type alias Model =
+    { count : Int
+    , name : String
+    }
+
+start : Model
+start = Model 0 "a"
+
+renamed : Model
+renamed = Model 5 "b"
+
+build : Int -> Model
+build n = Model n "made"
+
+counted : Int
+counted = (build 9).count
+
+named : String
+named = renamed.name
+
+type alias Pair a =
+    { first : a
+    , second : a
+    }
+
+ints : Pair Int
+ints = Pair 1 2
+
+sum : Int
+sum = ints.first + ints.second
+|}
+  in
+  assert_js ~src ~expr:"Main.start.count" ~expected:"0";
+  assert_js ~src ~expr:"Main.renamed.name" ~expected:{|"b"|};
+  assert_js ~src ~expr:"Main.counted" ~expected:"9";
+  assert_js ~src ~expr:"Main.named" ~expected:{|"b"|};
+  assert_js ~src ~expr:"Main.sum" ~expected:"3"
+
+let test_record_alias_constructor_is_checked _ =
+  assert_rejected
+    ~src:
+      {|
+type alias Model =
+    { count : Int
+    , name : String
+    }
+
+wrong : Model
+wrong = Model "a" 0
+|}
+    ~message:"the alias constructor must take the fields in declaration order"
+
+let test_accessor_as_a_function _ =
+  let src =
+    {|
+type alias Model =
+    { count : Int
+    , name : String
+    }
+
+apply : (Model -> Int) -> Model -> Int
+apply f m = f m
+
+model : Model
+model = Model 3 "a"
+
+viaAccessor : Int
+viaAccessor = apply .count model
+
+viaField : Int
+viaField = model.count
+
+composed : Model -> Int
+composed = .count >> (\n -> n + 1)
+
+bumped : Int
+bumped = composed model
+
+parenthesised : Int
+parenthesised = (.count) model
+|}
+  in
+  assert_js ~src ~expr:"Main.viaAccessor" ~expected:"3";
+  assert_js ~src ~expr:"Main.viaField" ~expected:"3";
+  assert_js ~src ~expr:"Main.bumped" ~expected:"4";
+  assert_js ~src ~expr:"Main.parenthesised" ~expected:"3"
+
+let test_tea_shaped_module _ =
+  let src =
+    {|
+module Main exposing (start, afterOne, afterMany, log, label)
+
+type Msg
+    = Increment
+    | Decrement
+    | Rename String
+
+
+type alias Model =
+    { count : Int
+    , name : String
+    , history : List String
+    }
+
+
+init : () -> Model
+init () =
+    Model 0 "counter" []
+
+
+update : Msg -> Model -> Model
+update msg model =
+    case msg of
+        Increment ->
+            { model | count = model.count + 1, history = "up" :: model.history }
+
+        Decrement ->
+            { model | count = model.count - 1, history = "down" :: model.history }
+
+        Rename newName ->
+            { model | name = newName, history = newName :: model.history }
+
+
+applyAll : List Msg -> Model -> Model
+applyAll messages model =
+    case messages of
+        [] ->
+            model
+
+        msg :: rest ->
+            applyAll rest (update msg model)
+
+
+describe : Model -> String
+describe model =
+    let
+        shown : Int
+        shown =
+            model.count
+    in
+    model.name ++ ":" ++ String.fromInt shown
+
+
+view : Model -> String
+view =
+    .name >> String.append "model "
+
+
+count : List String -> Int
+count entries =
+    case entries of
+        [] ->
+            0
+
+        _ :: rest ->
+            1 + count rest
+
+
+start : Model
+start =
+    init ()
+
+
+afterOne : String
+afterOne =
+    describe (update Increment start)
+
+
+afterMany : String
+afterMany =
+    Increment :: Increment :: Decrement :: Rename "renamed" :: []
+        |> (\msgs -> applyAll msgs start)
+        |> describe
+
+
+log : Int
+log =
+    count (applyAll (Increment :: Increment :: []) start).history
+
+
+label : String
+label =
+    view start
+|}
+  in
+  assert_js ~src ~expr:"Main.start.count" ~expected:"0";
+  assert_js ~src ~expr:"Main.afterOne" ~expected:{|"counter:1"|};
+  assert_js ~src ~expr:"Main.afterMany" ~expected:{|"renamed:1"|};
+  assert_js ~src ~expr:"Main.log" ~expected:"2";
+  assert_js ~src ~expr:"Main.label" ~expected:{|"model counter"|}
+
 let suite =
   [
+    "comments_are_skipped" >:: test_comments_are_skipped;
+    "comment_markers_inside_a_string_are_text"
+    >:: test_comment_markers_inside_a_string_are_text;
+    "operator_precedence" >:: test_operator_precedence;
+    "integer_division_follows_elm_core"
+    >:: test_integer_division_follows_elm_core;
+    "division_is_still_integer_division"
+    >:: test_division_is_still_integer_division;
+    "exponent_lowers_to_the_js_operator"
+    >:: test_exponent_lowers_to_the_js_operator;
+    "apply_left" >:: test_apply_left;
+    "composition" >:: test_composition;
+    "operator_as_a_value" >:: test_operator_as_a_value;
+    "cons_in_expressions" >:: test_cons_in_expressions;
+    "cons_is_right_associative" >:: test_cons_is_right_associative;
+    "triples" >:: test_triples;
+    "tuple_pair_is_verbatim_elm" >:: test_tuple_pair_is_verbatim_elm;
+    "record_update" >:: test_record_update;
+    "record_update_keeps_the_record_type"
+    >:: test_record_update_keeps_the_record_type;
+    "wildcard_and_unit_parameters" >:: test_wildcard_and_unit_parameters;
+    "destructuring_parameters" >:: test_destructuring_parameters;
+    "destructuring_lambda_parameters"
+    >:: test_destructuring_lambda_parameters;
+    "destructuring_let_binding_parameters"
+    >:: test_destructuring_let_binding_parameters;
+    "refutable_parameter_throws_at_runtime"
+    >:: test_refutable_parameter_throws_at_runtime;
+    "let_binding_annotation" >:: test_let_binding_annotation;
+    "let_binding_annotation_is_checked"
+    >:: test_let_binding_annotation_is_checked;
+    "destructuring_let_bindings" >:: test_destructuring_let_bindings;
+    "alias_patterns" >:: test_alias_patterns;
+    "negative_literal_patterns" >:: test_negative_literal_patterns;
+    "char_literal_type_is_still_string"
+    >:: test_char_literal_type_is_still_string;
+    "block_strings" >:: test_block_strings;
+    "hexadecimal_literals" >:: test_hexadecimal_literals;
+    "minus_before_a_number_is_subtraction"
+    >:: test_minus_before_a_number_is_subtraction;
+    "float_literals_print_as_javascript"
+    >:: test_float_literals_print_as_javascript;
+    "record_alias_constructor" >:: test_record_alias_constructor;
+    "record_alias_constructor_is_checked"
+    >:: test_record_alias_constructor_is_checked;
+    "accessor_as_a_function" >:: test_accessor_as_a_function;
+    "tea_shaped_module" >:: test_tea_shaped_module;
     "arithmetic" >:: test_arithmetic;
     "unit_value" >:: test_unit_value;
     "negation" >:: test_negation;

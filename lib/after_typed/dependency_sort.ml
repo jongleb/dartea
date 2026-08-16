@@ -88,7 +88,9 @@ let sort_declarations (decls : O.Declaration.t list) :
   let evaluated_before_use (d : O.Declaration.t) =
     match d.params with
     | _ :: _ -> false
-    | [] -> ( match d.body.expr with O.Expr.Expr_lambda _ -> false | _ -> true)
+    | [] -> begin
+        match d.body.expr with O.Expr.Expr_lambda _ -> false | _ -> true
+      end
   in
   let rec go ordered = function
     | [] -> Ok (List.rev ordered)
