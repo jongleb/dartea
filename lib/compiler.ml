@@ -19,15 +19,15 @@ module type BACKEND = sig
 end
 
 module Js_backend : BACKEND = struct
-  let extension = Codegen.Js_of_optimized.extension
+  let extension = Codegen_js.Of_optimized.extension
 
   let runtime_module () =
     Some
-      ( Codegen.Js_of_optimized.runtime_module_name,
-        Codegen.Js_of_optimized.runtime_module_source () )
+      ( Codegen_js.Of_optimized.runtime_module_name,
+        Codegen_js.Of_optimized.runtime_module_source () )
 
   let emit_module ~arities ~constructors ~siblings ~imports ~exports decls =
-    Codegen.Js_of_optimized.emit_module ~arities ~constructors ~siblings
+    Codegen_js.Of_optimized.emit_module ~arities ~constructors ~siblings
       ~imports ~exports decls
 end
 

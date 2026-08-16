@@ -19,6 +19,7 @@ let suite =
          "test_resolve_names" >::: Dartea_test_resolve_names.suite;
          "test_interface" >::: Dartea_test_interface.suite;
          "test_crossmod" >::: Dartea_test_crossmod.suite;
+         "test_c_runtime" >::: Dartea_test_c_runtime.suite;
          "test_dependency_sort" >::: Dartea_test_dependency_sort.suite;
          (* "test_infer" >::: Dartea_infer_test.suite; *)
        ]

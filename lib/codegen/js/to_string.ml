@@ -1,6 +1,6 @@
 (* Convert JavaScript AST to string *)
 
-module J = Js_ast
+module J = Ast
 
 let indent_level = 2
 

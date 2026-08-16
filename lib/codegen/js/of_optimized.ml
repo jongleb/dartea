@@ -1,4 +1,4 @@
-module J = Js_ast
+module J = Ast
 module O = Optimized
 module DT = After_typed.Exhaustive.Decision_tree
 module Occ = After_typed.Exhaustive.Occurrence
@@ -564,15 +564,15 @@ and emit_uncoerced env (e : O.Expr.t) : J.stmt list * J.expr =
   | O.Expr.Expr_record_empty -> ([], J.Object [])
   | O.Expr.Expr_unit -> ([], J.Literal J.Null)
   | O.Expr.Expr_kernel (Kernel_value kernel) ->
-      ([], Js_of_kernel.value kernel)
+      ([], Of_kernel.value kernel)
   | O.Expr.Expr_kernel (Kernel_unary { kernel; argument }) ->
       let statements, subject = emit_value env argument in
-      (statements, Js_of_kernel.unary_operation kernel subject)
+      (statements, Of_kernel.unary_operation kernel subject)
   | O.Expr.Expr_kernel (Kernel_binary { kernel; left; right }) ->
       let left_statements, left = emit_value env left in
       let right_statements, right = emit_value env right in
       ( left_statements @ right_statements,
-        Js_of_kernel.binary_operation kernel left right )
+        Of_kernel.binary_operation kernel left right )
   | O.Expr.Expr_record_extend name -> ([], jid_env env (Data.Name.local name))
   | O.Expr.Expr_record_select name -> ([], jid_env env (Data.Name.local name))
   | O.Expr.Expr_accessor field -> ([], accessor_arrow field)
@@ -662,7 +662,7 @@ and emit_apply env fn arg =
         (sa @ sb, binop_expr (Data.Name.base op) ea eb)
     | O.Expr.Expr_kernel (Kernel_value kernel), _ ->
         let arity = Data.Kernel.arity kernel in
-        emit_known_call env (Js_of_kernel.value kernel) ~arity
+        emit_known_call env (Of_kernel.value kernel) ~arity
           ~result_type:(O.Type.result_after ~applied:arity callee.O.Expr.typ)
           args
     | O.Expr.Expr_ident name, _ -> begin
@@ -944,7 +944,7 @@ let program_with_helpers ~arities ~constructors ~siblings ~exports
   constructor_decls constructors @ program_of_declarations decls @ exported
 
 let runtime_module_source () =
-  Runtime.curry ^ Js_to_string.program_to_string [ J.Export [ "$$curry" ] ]
+  Runtime.curry ^ To_string.program_to_string [ J.Export [ "$$curry" ] ]
 
 let extension = "mjs"
 
@@ -952,7 +952,7 @@ let import_lines imports =
   match imports with
   | [] -> ""
   | modules ->
-      Js_to_string.program_to_string
+      To_string.program_to_string
         (List.map
            (fun module_name ->
              J.Import_namespace
@@ -972,4 +972,4 @@ let emit_module ~arities ~constructors ~siblings ~imports ~exports
     else []
   in
   import_lines (runtime_import @ imports)
-  ^ Js_to_string.program_to_string program
+  ^ To_string.program_to_string program
