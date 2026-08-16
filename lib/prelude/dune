@@ -1,12 +1,14 @@
 (rule
  (target prelude_source.ml)
- (deps Basics.elm Maybe.elm String.elm Tuple.elm)
+ (deps Basics.elm Char.elm Maybe.elm String.elm Tuple.elm)
  (action
   (with-stdout-to
    prelude_source.ml
    (progn
     (echo "let basics = {elm|")
     (cat Basics.elm)
+    (echo "|elm}\n\nlet char = {elm|")
+    (cat Char.elm)
     (echo "|elm}\n\nlet maybe = {elm|")
     (cat Maybe.elm)
     (echo "|elm}\n\nlet string = {elm|")
@@ -19,4 +21,6 @@
  (name prelude)
  (libraries canonical)
  (flags
-  (-w -40 -w +26)))
+  (-w -40 -w +26))
+ (preprocess
+  (pps ppx_jane)))

@@ -41,6 +41,12 @@ let ucname = ['A'-'Z'] ['a'-'z' 'A'-'Z' '0'-'9' '_']*
 let ucname_q = ucname ('.' ucname)*
 let lcname = ['a'-'z'] ['a'-'z' 'A'-'Z' '0'-'9' '_']*
 let whitespace = [' ' '\t']
+let utf8_tail = ['\x80'-'\xbf']
+let utf8_character =
+    ['\x00'-'\x7f']
+  | ['\xc2'-'\xdf'] utf8_tail
+  | ['\xe0'-'\xef'] utf8_tail utf8_tail
+  | ['\xf0'-'\xf4'] utf8_tail utf8_tail utf8_tail
 let indent = '\n' [' ' '\t']*
 let int = ['0'-'9'] ['0'-'9' '_']*
 let hex_digit = ['0'-'9' 'a'-'f' 'A'-'F']
@@ -139,7 +145,9 @@ rule token = parse
 
   and character = parse
   | '\\'                { let esc = escaped lexbuf in closing_quote esc lexbuf }
-  | [^'\'' '\\']        { closing_quote (Lexing.lexeme lexbuf) lexbuf }
+  | [^'\'' '\\' '\x80'-'\xff']
+                        { closing_quote (Lexing.lexeme lexbuf) lexbuf }
+  | utf8_character      { closing_quote (Lexing.lexeme lexbuf) lexbuf }
   | eof                 { raise (Error "Unterminated character literal.") }
   | _                   { raise (Error "Empty character literal.") }
 

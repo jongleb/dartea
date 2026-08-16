@@ -4,6 +4,8 @@ open Base.Export
 type t =
   | TVar of string
   | TInt
+  | TFloat
+  | TChar
   | TBool
   | TStr
   | TUnit

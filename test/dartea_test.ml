@@ -10,6 +10,7 @@ let suite =
          (* "test_exprs" >::: Dartea_test_decl_expr.suite; *)
          "test_type_aliases" >::: Dartea_test_type_alias.suite;
          "test_types" >::: Dartea_test_type.suite;
+         "test_type_system" >::: Dartea_test_type_system.suite;
          "test_indent" >::: Dartea_test_indent.suite;
          "test_layout_laws" >::: Dartea_test_layout_laws.suite;
          "test_codegen" >::: Dartea_test_codegen.suite;

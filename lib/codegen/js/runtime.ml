@@ -1,7 +1,11 @@
-let curry =
-  "const $$curry = (f, args) => {\n\
-  \  const n = f.length === 0 ? 1 : f.length;\n\
-  \  if (args.length === n) return f(...args);\n\
-  \  if (args.length < n) return (...more) => $$curry(f, [...args, ...more]);\n\
-  \  return $$curry(f(...args.slice(0, n)), args.slice(n));\n\
-   };\n"
+let module_name = "Dartea_runtime"
+let source = Runtime_source.dartea_runtime
+let curry = "$$curry"
+let append = "$$append"
+let equal = "$$eq"
+let compare = "$$cmp"
+let mod_by = "$$modBy"
+let char_to_code = "$$charToCode"
+let char_from_code = "$$charFromCode"
+let all =
+  [ curry; append; equal; compare; mod_by; char_to_code; char_from_code ]

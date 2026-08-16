@@ -218,6 +218,7 @@ module Main exposing (..)
 
 import Paint exposing (Color(..))
 
+x : Int
 x =
     case Red of
         Red -> 1

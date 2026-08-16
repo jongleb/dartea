@@ -33,10 +33,7 @@ let lexeme = function
   | Conjunction -> "&&"
   | Disjunction -> "||"
 
-let by_lexeme =
-  let table = Hashtbl.create 32 in
-  List.iter (fun operator -> Hashtbl.replace table (lexeme operator) operator) all;
-  table
+let by_lexeme = Lookup.by ~key:lexeme all
 
 let of_lexeme written = Hashtbl.find_opt by_lexeme written
 
