@@ -117,7 +117,7 @@ keepIf p m = andThen (\v -> if p v then Just v else Nothing) m
 
 safeDiv a b = if b == 0 then Nothing else Just (quot a b)
 
-addStrings a b = map2 (\x y -> x + y) (toInt a) (toInt b)
+addStrings a b = map2 (\x y -> x + y) (String.toInt a) (String.toInt b)
 
 
 type Expr
@@ -141,7 +141,7 @@ binop l op r = "(" ++ l ++ " " ++ op ++ " " ++ r ++ ")"
 
 show e =
     case e of
-        Lit n -> fromInt n
+        Lit n -> String.fromInt n
         Neg a -> "(0 - " ++ show a ++ ")"
         Add a b -> binop (show a) "+" (show b)
         Sub a b -> binop (show a) "-" (show b)
@@ -246,13 +246,13 @@ evalR e =
 
 showRes r =
     case r of
-        Ok n -> "ok " ++ fromInt n
+        Ok n -> "ok " ++ String.fromInt n
         Err msg -> "err " ++ msg
 
 
-vec x y = pair x y
-vx v = first v
-vy v = second v
+vec x y = Tuple.pair x y
+vx v = Tuple.first v
+vy v = Tuple.second v
 
 vadd a b = vec (vx a + vx b) (vy a + vy b)
 vsub a b = vec (vx a - vx b) (vy a - vy b)
@@ -260,9 +260,9 @@ vscale k v = vec (k * vx v) (k * vy v)
 vdot a b = vx a * vx b + vy a * vy b
 vlen2 v = vdot v v
 manhattan a b = abs (vx a - vx b) + abs (vy a - vy b)
-vshow v = "(" ++ fromInt (vx v) ++ ", " ++ fromInt (vy v) ++ ")"
+vshow v = "(" ++ String.fromInt (vx v) ++ ", " ++ String.fromInt (vy v) ++ ")"
 
-swap t = pair (second t) (first t)
+swap t = Tuple.pair (Tuple.second t) (Tuple.first t)
 
 
 nil = \_ z -> z
@@ -282,7 +282,7 @@ lrange lo hi = if lo > hi then nil else cons lo (lrange (lo + 1) hi)
 ljoin sep xs =
     foldr (\x acc -> if acc == "" then x else x ++ sep ++ acc) "" xs
 
-lshow xs = "[" ++ ljoin ", " (lmap fromInt xs) ++ "]"
+lshow xs = "[" ++ ljoin ", " (lmap String.fromInt xs) ++ "]"
 
 primesTo n = lfilter isPrime (lrange 2 n)
 squares n = lmap (\x -> x * x) (lrange 1 n)
@@ -292,7 +292,7 @@ fizzbuzz n =
     if divides 15 n then "FizzBuzz"
     else if divides 3 n then "Fizz"
     else if divides 5 n then "Buzz"
-    else fromInt n
+    else String.fromInt n
 
 fizzbuzzTo n = ljoin " " (lmap fizzbuzz (lrange 1 n))
 
@@ -302,7 +302,7 @@ polyTest =
         i = identity
         k = always
     in
-    pair (pair (i 1) (i "str")) (pair (k True "x") (k "y" 42))
+    Tuple.pair (Tuple.pair (i 1) (i "str")) (Tuple.pair (k True "x") (k "y" 42))
 
 
 line label value = label ++ " = " ++ value
@@ -310,15 +310,15 @@ line label value = label ++ " = " ++ value
 report =
     ljoin
         "; "
-        (cons (line "fib 25" (fromInt (fib 25)))
-            (cons (line "fact 10" (fromInt (fact 10)))
-                (cons (line "gcd 462 1071" (fromInt (gcd 462 1071)))
-                    (cons (line "2^16" (fromInt (powFast 2 16)))
-                        (cons (line "collatz 27" (fromInt (collatzSteps 27)))
-                            (cons (line "primes<100" (fromInt (countPrimes 100)))
-                                (cons (line "ack 2 3" (fromInt (ack 2 3)))
-                                    (cons (line "sumDigits 987654" (fromInt (sumDigits 987654)))
-                                        (cons (line "palindrome 12321" (fromInt (reverseInt 12321)))
+        (cons (line "fib 25" (String.fromInt (fib 25)))
+            (cons (line "fact 10" (String.fromInt (fact 10)))
+                (cons (line "gcd 462 1071" (String.fromInt (gcd 462 1071)))
+                    (cons (line "2^16" (String.fromInt (powFast 2 16)))
+                        (cons (line "collatz 27" (String.fromInt (collatzSteps 27)))
+                            (cons (line "primes<100" (String.fromInt (countPrimes 100)))
+                                (cons (line "ack 2 3" (String.fromInt (ack 2 3)))
+                                    (cons (line "sumDigits 987654" (String.fromInt (sumDigits 987654)))
+                                        (cons (line "palindrome 12321" (String.fromInt (reverseInt 12321)))
                                             nil
                                         )
                                     )
@@ -330,13 +330,13 @@ report =
             )
         )
 
-demoExpr1 = show (simplify expr1) ++ " -> " ++ (withDefault 0 (eval expr1) |> fromInt)
+demoExpr1 = show (simplify expr1) ++ " -> " ++ (withDefault 0 (eval expr1) |> String.fromInt)
 demoExpr2 = showRes (evalR expr2)
 demoExpr3 = show (simplify expr3)
 
 demoVec = vshow (vadd (vec 3 4) (vscale 2 (vec 1 1)))
-demoList = lshow (squares 10) ++ " sum=" ++ fromInt (lsum (squares 10))
+demoList = lshow (squares 10) ++ " sum=" ++ String.fromInt (lsum (squares 10))
 demoPrimes = lshow (primesTo 50)
 demoFizz = fizzbuzzTo 20
 demoMaybe = withDefault 0 (addStrings "40" "2")
-demoChain = "7" |> toInt |> mapMaybe (\x -> x * 6) |> withDefault 0 |> fromInt
+demoChain = "7" |> String.toInt |> mapMaybe (\x -> x * 6) |> withDefault 0 |> String.fromInt

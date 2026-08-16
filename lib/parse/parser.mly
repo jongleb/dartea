@@ -293,7 +293,7 @@ expr_postfix:
 expr_applicable:
     | LPAREN e=expr RPAREN { e }
     | LPAREN a=expr COMMA b=expr RPAREN
-        { make_expr_apply ~args:[a; b] (Expr_ident "pair") }
+        { make_expr_apply ~args:[a; b] (make_qualified "Tuple.pair") }
     | e=LCNAME { Expr_ident e }
     | e=STRING { Expr_string e }
     | e=INT { Expr_int e }

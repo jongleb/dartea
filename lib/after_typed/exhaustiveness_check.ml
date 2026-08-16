@@ -44,8 +44,9 @@ let warnings
           (fun (row : expr_record_row) -> in_expression row.value)
           rows
     | Expr_ident _ | Expr_accessor _ | Expr_record_extend _
-    | Expr_record_select _ | Expr_record_empty | Expr_unit | Expr_char _
-    | Expr_string _ | Expr_int _ | Expr_float _ ->
+    | Expr_record_select _ | Expr_record_empty | Expr_unit
+    | Expr_kernel _ | Expr_char _ | Expr_string _ | Expr_int _
+    | Expr_float _ ->
         []
   in
   in_expression decl.body

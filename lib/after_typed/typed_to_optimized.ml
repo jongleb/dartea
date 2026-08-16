@@ -1,6 +1,11 @@
 module T = Typed
 module O = Optimized
 
+let rec spine arguments (e : Typed.Expr.t) =
+  match e.expr with
+  | Typed.Expr.Expr_apply { fn; arg } -> spine (arg :: arguments) fn
+  | _ -> (e, arguments)
+
 let rec type_of_typed (t : T.Type.t) : O.Type.t =
   match t with
   | T.Type.TVar name -> O.Type.TVar name
@@ -71,8 +76,24 @@ let rec expr_of_typed (e : T.Expr.t) : O.Expr.t =
              (fun { T.Expr.name; value } ->
                { O.Expr.name; value = expr_of_typed value })
              rows)
-    | T.Expr.Expr_apply { fn; arg } ->
-        O.Expr.Expr_apply { fn = expr_of_typed fn; arg = expr_of_typed arg }
+    | T.Expr.Expr_apply { fn; arg } -> begin
+        let head, arguments = spine [ arg ] fn in
+        match (head.T.Expr.expr, arguments) with
+        | T.Expr.Expr_kernel (Unary kernel), [ argument ] ->
+            O.Expr.Expr_kernel
+              (Kernel_unary { kernel; argument = expr_of_typed argument })
+        | T.Expr.Expr_kernel (Binary kernel), [ left; right ] ->
+            O.Expr.Expr_kernel
+              (Kernel_binary
+                 {
+                   kernel;
+                   left = expr_of_typed left;
+                   right = expr_of_typed right;
+                 })
+        | _ ->
+            O.Expr.Expr_apply
+              { fn = expr_of_typed fn; arg = expr_of_typed arg }
+      end
     | T.Expr.Expr_ident name -> O.Expr.Expr_ident name
     | T.Expr.Expr_pattern { expr; pattern_data_items } ->
         O.Expr.Expr_pattern
@@ -94,6 +115,7 @@ let rec expr_of_typed (e : T.Expr.t) : O.Expr.t =
     | T.Expr.Expr_record_select name -> O.Expr.Expr_record_select name
     | T.Expr.Expr_record_empty -> O.Expr.Expr_record_empty
     | T.Expr.Expr_unit -> O.Expr.Expr_unit
+    | T.Expr.Expr_kernel kernel -> O.Expr.Expr_kernel (Kernel_value kernel)
     | T.Expr.Expr_lambda { params; body } ->
         let params =
           List.map

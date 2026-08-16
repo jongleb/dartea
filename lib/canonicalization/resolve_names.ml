@@ -7,6 +7,9 @@ type problem =
   | Not_exposed of { module_name : string; name : string }
   | Ctors_not_exposed of { module_name : string; type_name : string }
   | Ambiguous of { name : string; modules : string list }
+  | Unknown_kernel of { module_name : string; exported_name : string }
+  | Kernel_needs_annotation
+  | Kernel_arity_mismatch of { declared : int; kernel : int }
   | Duplicate_declaration of { name : string }
 [@@deriving show]
 
@@ -300,9 +303,16 @@ let rec expression env (e : Canonical.Expr.t) : Canonical.Expr.t Reported.t =
   let open Canonical.Expr in
   let open Reported.Let_syntax in
   match e with
-  | Expr_ident name ->
-      let%map name = resolved env Terms name in
-      Expr_ident name
+  | Expr_ident name -> begin
+      match Data.Kernel.referred_to_by name with
+      | Known kernel -> Reported.return (Expr_kernel kernel)
+      | Unknown { module_name; exported_name } ->
+          Reported.rejected (Expr_ident name)
+            (Unknown_kernel { module_name; exported_name })
+      | Not_kernel ->
+          let%map name = resolved env Terms name in
+          Expr_ident name
+    end
   | Expr_constr { name; arguments } ->
       let%map name = resolved env Terms name
       and arguments = Reported.each arguments ~f:(expression env) in
@@ -353,7 +363,8 @@ let rec expression env (e : Canonical.Expr.t) : Canonical.Expr.t Reported.t =
       let%map items = Reported.each items ~f:(expression env) in
       Expr_list items
   | ( Expr_accessor _ | Expr_record_extend _ | Expr_record_select _
-    | Expr_record_empty | Expr_unit | Expr_char _ | Expr_string _ | Expr_int _
+    | Expr_record_empty | Expr_unit | Expr_kernel _ | Expr_char _
+    | Expr_string _ | Expr_int _
     | Expr_float _ ) as leaf ->
       Reported.return leaf
 
@@ -384,6 +395,29 @@ let rec type_expression env (t : Canonical.Typedef.Impl.t) :
   in
   { Impl.parameters; body }
 
+let declared_arity (t : Canonical.Typedef.Impl.t) =
+  match t.body with
+  | Canonical.Typedef.Kind.Tkind_function { arguments } ->
+      List.length arguments - 1
+  | Tkind_var _ | Tkind_concrete _ | Tkind_unit | Tkind_record _ | Tkind_tuple _
+    ->
+      0
+
+let agreeing_with_its_kernel (declaration : Canonical.Declaration.t) =
+  match Data.Located.unwrap declaration.body_part.expr with
+  | Canonical.Expr.Expr_kernel kernel -> begin
+      match declaration.type_part_data with
+      | None -> Reported.rejected declaration Kernel_needs_annotation
+      | Some type_part ->
+          let declared = declared_arity type_part.type_alias in
+          let kernel = Data.Kernel.arity kernel in
+          if declared = kernel then Reported.return declaration
+          else
+            Reported.rejected declaration
+              (Kernel_arity_mismatch { declared; kernel })
+    end
+  | _ -> Reported.return declaration
+
 let resolved_declarations map ~f =
   let resolved, errors =
     Canonical.Module.String_map.fold
@@ -408,22 +442,25 @@ let in_module ~(dependencies : Canonical.Module.t list) (m : Canonical.Module.t)
             (Names.of_list (List.map Data.Located.unwrap d.body_part.params))
         in
         Reported.blamed (Value_declaration d.body_part.name)
-          (let%map type_part_data =
-             match d.type_part_data with
-             | None -> Reported.return None
-             | Some (tp : Canonical.Declaration.type_part) ->
-                 let%map type_alias = type_expression env tp.type_alias in
-                 Some { tp with type_alias }
-           and expr =
-             let%map expr =
-               expression inner (Data.Located.unwrap d.body_part.expr)
+          (let%bind declaration =
+             let%map type_part_data =
+               match d.type_part_data with
+               | None -> Reported.return None
+               | Some (tp : Canonical.Declaration.type_part) ->
+                   let%map type_alias = type_expression env tp.type_alias in
+                   Some { tp with type_alias }
+             and expr =
+               let%map expr =
+                 expression inner (Data.Located.unwrap d.body_part.expr)
+               in
+               { d.body_part.expr with Data.Located.thing = expr }
              in
-             { d.body_part.expr with Data.Located.thing = expr }
+             {
+               Canonical.Declaration.type_part_data;
+               body_part = { d.body_part with expr };
+             }
            in
-           {
-             Canonical.Declaration.type_part_data;
-             body_part = { d.body_part with expr };
-           }))
+           agreeing_with_its_kernel declaration))
   in
   let type_declarations, type_errors =
     resolved_declarations m.type_declarations

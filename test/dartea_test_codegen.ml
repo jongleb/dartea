@@ -1,38 +1,18 @@
 open OUnit2
 
-let read_all ic =
-  let buf = Buffer.create 256 in
-  (try
-     while true do
-       Buffer.add_channel buf ic 1
-     done
-   with End_of_file -> ());
-  Buffer.contents buf
+let compiled_of src = Dartea.Compiler.compile_source src
 
-let node_eval ~src ~expr : string =
-  let js = Dartea.Compiler.compile_string src in
-  let program = js ^ "\nconsole.log(JSON.stringify(" ^ expr ^ "));\n" in
-  let fname = Filename.temp_file "dartea_codegen" ".js" in
-  let oc = open_out fname in
-  output_string oc program;
-  close_out oc;
-  let ic = Unix.open_process_in ("node " ^ Filename.quote fname ^ " 2>&1") in
-  let out = read_all ic in
-  let _ = Unix.close_process_in ic in
-  Sys.remove fname;
-  String.trim out
+let module_source ~name src =
+  Node_runner.source_of ~module_name:name (compiled_of src)
+
+let main_source src = module_source ~name:"Main" src
+let node_eval ~src ~expr = Node_runner.evaluate ~compiled:(compiled_of src) ~expr
+let contains = Node_runner.contains
 
 let assert_js ~src ~expr ~expected =
   assert_equal ~printer:(fun s -> s) expected (node_eval ~src ~expr)
 
-let contains ~needle haystack =
-  let nl = String.length needle and hl = String.length haystack in
-  let rec go i =
-    i + nl <= hl && (String.sub haystack i nl = needle || go (i + 1))
-  in
-  go 0
-
-let test_arithmetic _ = assert_js ~src:"x = 1 + 2 * 3" ~expr:"x" ~expected:"7"
+let test_arithmetic _ = assert_js ~src:"x = 1 + 2 * 3" ~expr:"Main.x" ~expected:"7"
 
 let test_ctor_unwrap _ =
   let src =
@@ -49,7 +29,7 @@ result : Int
 result = unbox (Box 42)
 |}
   in
-  assert_js ~src ~expr:"result" ~expected:"42"
+  assert_js ~src ~expr:"Main.result" ~expected:"42"
 
 let test_nullary_match _ =
   let src =
@@ -72,7 +52,7 @@ result : Int
 result = toInt Green
 |}
   in
-  assert_js ~src ~expr:"result" ~expected:"2"
+  assert_js ~src ~expr:"Main.result" ~expected:"2"
 
 let test_ctor_is_defined _ =
   let src = {|
@@ -81,7 +61,7 @@ type Wrap = Wrap Int
 w : Wrap
 w = Wrap 7
 |} in
-  assert_js ~src ~expr:"w._0" ~expected:"7"
+  assert_js ~src ~expr:"Main.w._0" ~expected:"7"
 
 let test_nested_pattern _ =
   let src =
@@ -109,7 +89,7 @@ result : Int
 result = testAgain (F "lol")
 |}
   in
-  assert_js ~src ~expr:"result" ~expected:"5"
+  assert_js ~src ~expr:"Main.result" ~expected:"5"
 
 let test_nested_distinguishes _ =
   let src =
@@ -137,7 +117,7 @@ result : Int
 result = toInt (E D)
 |}
   in
-  assert_js ~src ~expr:"result" ~expected:"2"
+  assert_js ~src ~expr:"Main.result" ~expected:"2"
 
 let test_let_in _ =
   let src =
@@ -145,15 +125,15 @@ let test_let_in _ =
 result : Int
 result =
     let
-        y = length "hello"
+        y = String.length "hello"
     in
     y + 1
 |}
   in
-  assert_js ~src ~expr:"result" ~expected:"6";
-  let js = Dartea.Compiler.compile_string src in
+  assert_js ~src ~expr:"Main.result" ~expected:"6";
+  let js = main_source src in
   assert_bool "value local should hoist (const y)"
-    (contains ~needle:{|const y = length("hello")|} js);
+    (contains ~needle:{|const y = $$String.length("hello")|} js);
   assert_bool "value should not be an IIFE" (not (contains ~needle:"(() =>" js))
 
 let test_if_then_else _ =
@@ -170,7 +150,7 @@ result : Int
 result = f 0
 |}
   in
-  assert_js ~src ~expr:"result" ~expected:"10"
+  assert_js ~src ~expr:"Main.result" ~expected:"10"
 
 let test_comparison _ =
   let src =
@@ -186,7 +166,7 @@ result : Int
 result = f 2
 |}
   in
-  assert_js ~src ~expr:"result" ~expected:"1"
+  assert_js ~src ~expr:"Main.result" ~expected:"1"
 
 let test_fn_with_let _ =
   let src =
@@ -202,14 +182,14 @@ result : Int
 result = f 3
 |}
   in
-  assert_js ~src ~expr:"result" ~expected:"8"
+  assert_js ~src ~expr:"Main.result" ~expected:"8"
 
 let test_prefers_const_arrow _ =
   let src = {|
 add : Int -> Int -> Int
 add a b = a + b
 |} in
-  let js = Dartea.Compiler.compile_string src in
+  let js = main_source src in
   assert_bool "function should be a const binding"
     (contains ~needle:"const add = (a, b) =>" js);
   assert_bool "no function declaration" (not (contains ~needle:"function add" js))
@@ -235,8 +215,8 @@ result : Int
 result = toInt Blue
 |}
   in
-  assert_js ~src ~expr:"result" ~expected:"3";
-  let js = Dartea.Compiler.compile_string src in
+  assert_js ~src ~expr:"Main.result" ~expected:"3";
+  let js = main_source src in
 
   assert_bool "flat ADT match should switch on the scrutinee"
     (contains ~needle:"switch (c)" js)
@@ -259,8 +239,8 @@ result : Int
 result = f 10
 |}
   in
-  assert_js ~src ~expr:"result" ~expected:"16";
-  let js = Dartea.Compiler.compile_string src in
+  assert_js ~src ~expr:"Main.result" ~expected:"16";
+  let js = main_source src in
   assert_bool "inner let should hoist (const b)"
     (contains ~needle:"const b =" js);
   assert_bool "no IIFE (() =>" (not (contains ~needle:"(() =>" js));
@@ -280,8 +260,8 @@ result : Int
 result = default 5
 |}
   in
-  assert_js ~src ~expr:"result" ~expected:"6";
-  let js = Dartea.Compiler.compile_string src in
+  assert_js ~src ~expr:"Main.result" ~expected:"6";
+  let js = main_source src in
   assert_bool "reserved name should be legalized ($$default)"
     (contains ~needle:"$$default" js);
   assert_bool "no bare `const default`"
@@ -300,8 +280,8 @@ result : Int
 result = inc 5
 |}
   in
-  assert_js ~src ~expr:"result" ~expected:"6";
-  let js = Dartea.Compiler.compile_string src in
+  assert_js ~src ~expr:"Main.result" ~expected:"6";
+  let js = main_source src in
 
   assert_bool "partial application is an explicit closure"
     (contains ~needle:"=> add(1, " js)
@@ -322,8 +302,8 @@ result : Int
 result = countUp 3 4
 |}
   in
-  assert_js ~src ~expr:"result" ~expected:"7";
-  let js = Dartea.Compiler.compile_string src in
+  assert_js ~src ~expr:"Main.result" ~expected:"7";
+  let js = main_source src in
   assert_bool "saturated call is direct (countUp(3, 4))"
     (contains ~needle:"countUp(3, 4)" js)
 
@@ -341,7 +321,7 @@ result : Int
 result = f 10
 |}
   in
-  assert_js ~src ~expr:"result" ~expected:"11"
+  assert_js ~src ~expr:"Main.result" ~expected:"11"
 
 let test_value_position_match _ =
   let src =
@@ -365,7 +345,7 @@ result : Int
 result = pick B
 |}
   in
-  assert_js ~src ~expr:"result" ~expected:"21"
+  assert_js ~src ~expr:"Main.result" ~expected:"21"
 
 let test_tail_call_loop _ =
   let src =
@@ -381,8 +361,8 @@ result : Int
 result = loop 100000 0
 |}
   in
-  assert_js ~src ~expr:"result" ~expected:"5000050000";
-  let js = Dartea.Compiler.compile_string src in
+  assert_js ~src ~expr:"Main.result" ~expected:"5000050000";
+  let js = main_source src in
   assert_bool "self tail recursion should compile to a while loop"
     (contains ~needle:"while (true)" js)
 
@@ -405,7 +385,7 @@ result : Int
 result = describe [ 7 ]
 |}
   in
-  assert_js ~src ~expr:"result" ~expected:"7"
+  assert_js ~src ~expr:"Main.result" ~expected:"7"
 
 let test_cons_pattern _ =
   let src =
@@ -423,7 +403,7 @@ result : Int
 result = head [ 5, 6, 7 ]
 |}
   in
-  assert_js ~src ~expr:"result" ~expected:"5"
+  assert_js ~src ~expr:"Main.result" ~expected:"5"
 
 let test_decision_tree_nested _ =
   let src =
@@ -449,8 +429,8 @@ result : Int
 result = describe (Node (Node Leaf 5 Leaf) 7 Leaf)
 |}
   in
-  assert_js ~src ~expr:"result" ~expected:"107";
-  let js = Dartea.Compiler.compile_string src in
+  assert_js ~src ~expr:"Main.result" ~expected:"107";
+  let js = main_source src in
   assert_bool "decision tree recurses on the left sub-occurrence"
     (contains ~needle:"t._0 === \"Leaf\"" js);
   assert_bool "decision tree recurses on the right sub-occurrence"
@@ -475,8 +455,8 @@ result : Int
 result = classify 1
 |}
   in
-  assert_js ~src ~expr:"result" ~expected:"200";
-  let js = Dartea.Compiler.compile_string src in
+  assert_js ~src ~expr:"Main.result" ~expected:"200";
+  let js = main_source src in
   assert_bool "int literals dispatch through a switch"
     (contains ~needle:"switch (n)" js)
 
@@ -498,8 +478,8 @@ result : Int
 result = eval (Add 3 4)
 |}
   in
-  assert_js ~src ~expr:"result" ~expected:"7";
-  let js = Dartea.Compiler.compile_string src in
+  assert_js ~src ~expr:"Main.result" ~expected:"7";
+  let js = main_source src in
   assert_bool "payload constructors dispatch on the TAG"
     (contains ~needle:"switch (e.TAG)" js)
 
@@ -522,7 +502,7 @@ result : Int
 result = sum2 [ 3, 4, 9 ]
 |}
   in
-  assert_js ~src ~expr:"result" ~expected:"7"
+  assert_js ~src ~expr:"Main.result" ~expected:"7"
 
 let test_wildcard_default_share _ =
   let src =
@@ -542,7 +522,7 @@ result : Int
 result = f B
 |}
   in
-  assert_js ~src ~expr:"result" ~expected:"9"
+  assert_js ~src ~expr:"Main.result" ~expected:"9"
 
 let test_var_binds_scrutinee _ =
   let src =
@@ -557,8 +537,8 @@ result : Int
 result = addOne 41
 |}
   in
-  assert_js ~src ~expr:"result" ~expected:"42";
-  let js = Dartea.Compiler.compile_string src in
+  assert_js ~src ~expr:"Main.result" ~expected:"42";
+  let js = main_source src in
   assert_bool "a whole-value var pattern binds directly with no test"
     (contains ~needle:"const m = n;" js)
 
@@ -594,8 +574,8 @@ result : Int
 result = f (L B)
 |}
   in
-  assert_js ~src ~expr:"result" ~expected:"30";
-  let js = Dartea.Compiler.compile_string src in
+  assert_js ~src ~expr:"Main.result" ~expected:"30";
+  let js = main_source src in
   assert_bool "the reused non-trivial default body is emitted once as a thunk"
     (contains ~needle:"const $dt0 = () => fallback(10);" js);
   assert_bool "both branches call the shared thunk, not the body"
@@ -632,11 +612,11 @@ g p =
 |}
   in
   let result v = base ^ "r : Int\nr = g (Pair " ^ v ^ ")\n" in
-  assert_js ~src:(result "X X") ~expr:"r" ~expected:"1";
-  assert_js ~src:(result "X Y") ~expr:"r" ~expected:"2";
-  assert_js ~src:(result "Y X") ~expr:"r" ~expected:"3";
-  assert_js ~src:(result "Y Y") ~expr:"r" ~expected:"2";
-  let js = Dartea.Compiler.compile_string (result "X X") in
+  assert_js ~src:(result "X X") ~expr:"Main.r" ~expected:"1";
+  assert_js ~src:(result "X Y") ~expr:"Main.r" ~expected:"2";
+  assert_js ~src:(result "Y X") ~expr:"Main.r" ~expected:"3";
+  assert_js ~src:(result "Y Y") ~expr:"Main.r" ~expected:"2";
+  let js = main_source (result "X X") in
   match (index_of ~needle:"switch (p._1)" js, index_of ~needle:"switch (p._0)" js) with
   | Some i1, Some i0 ->
       assert_bool "pba tests the higher-necessity column (p._1) as the outer switch"
@@ -662,8 +642,8 @@ result : Int
 result = f (R 7)
 |}
   in
-  assert_js ~src ~expr:"result" ~expected:"7";
-  let js = Dartea.Compiler.compile_string src in
+  assert_js ~src ~expr:"Main.result" ~expected:"7";
+  let js = main_source src in
   assert_bool "a complete variant match emits no default branch"
     (not (contains ~needle:"default" js))
 
@@ -691,9 +671,9 @@ r2 : Int
 r2 = f A
 |}
   in
-  assert_js ~src ~expr:"r1" ~expected:"6";
-  assert_js ~src ~expr:"r2" ~expected:"10";
-  let js = Dartea.Compiler.compile_string src in
+  assert_js ~src ~expr:"Main.r1" ~expected:"6";
+  assert_js ~src ~expr:"Main.r2" ~expected:"10";
+  let js = main_source src in
   assert_bool "a type with one payload constructor drops the TAG field"
     (not (contains ~needle:"TAG" js));
   assert_bool "the single payload constructor is discriminated by typeof"
@@ -714,8 +694,8 @@ result : Int
 result = unbox (Box 42)
 |}
   in
-  assert_js ~src ~expr:"result" ~expected:"42";
-  let js = Dartea.Compiler.compile_string src in
+  assert_js ~src ~expr:"Main.result" ~expected:"42";
+  let js = main_source src in
   assert_bool "a single-constructor payload type carries no TAG"
     (not (contains ~needle:"TAG" js))
 
@@ -737,8 +717,8 @@ result : Int
 result = eval (Num 9)
 |}
   in
-  assert_js ~src ~expr:"result" ~expected:"9";
-  let js = Dartea.Compiler.compile_string src in
+  assert_js ~src ~expr:"Main.result" ~expected:"9";
+  let js = main_source src in
   assert_bool "a type with several payload constructors keeps the TAG field"
     (contains ~needle:"TAG" js)
 
@@ -746,20 +726,23 @@ let test_builtin_direct _ =
   let src =
     {|
 greeting : String
-greeting = append (fromInt 4) "2"
+greeting = String.append (String.fromInt 4) "2"
 |}
   in
-  assert_js ~src ~expr:"greeting" ~expected:{|"42"|};
-  let js = Dartea.Compiler.compile_string src in
-  assert_bool "known-arity builtin is a direct call"
-    (contains ~needle:"fromInt(4)" js);
-  assert_bool "no $$curry for known-arity builtin"
-    (not (contains ~needle:"$$curry(fromInt" js));
-  assert_bool "used builtin is emitted" (contains ~needle:"const fromInt =" js)
+  assert_js ~src ~expr:"Main.greeting" ~expected:{|"42"|};
+  let js = main_source src in
+  assert_bool "known-arity prelude value is a direct call"
+    (contains ~needle:"$$String.fromInt(4)" js);
+  assert_bool "no $$curry for a known-arity prelude value"
+    (not (contains ~needle:"$$curry($$String.fromInt" js));
+  assert_bool "the prelude value is imported, not redeclared"
+    (not (contains ~needle:"const fromInt =" js))
 
-let test_unused_builtin_absent _ =
-  let js = Dartea.Compiler.compile_string "x : Int\nx = 1 + 2" in
-  assert_bool "unused builtin not emitted"
+let test_unused_prelude_module_not_imported _ =
+  let js = main_source "x : Int\nx = 1 + 2" in
+  assert_bool "an unused prelude module is not imported"
+    (not (contains ~needle:"./Tuple.mjs" js));
+  assert_bool "no prelude declaration leaks into the module"
     (not (contains ~needle:"const first =" js))
 
 let test_constant_folding _ =
@@ -767,8 +750,8 @@ let test_constant_folding _ =
 x : Int
 x = 1 + 2 * 3
 |} in
-  assert_js ~src ~expr:"x" ~expected:"7";
-  let js = Dartea.Compiler.compile_string src in
+  assert_js ~src ~expr:"Main.x" ~expected:"7";
+  let js = main_source src in
   assert_bool "literal arithmetic is folded at compile time"
     (contains ~needle:"const x = 7;" js)
 
@@ -783,8 +766,8 @@ r =
         2
 |}
   in
-  assert_js ~src ~expr:"r" ~expected:"2";
-  let js = Dartea.Compiler.compile_string src in
+  assert_js ~src ~expr:"Main.r" ~expected:"2";
+  let js = main_source src in
   assert_bool "a literal comparison folds the whole conditional away"
     (contains ~needle:"const r = 2;" js)
 
@@ -793,8 +776,8 @@ let test_constant_folding_concat _ =
 s : String
 s = "4" ++ "2"
 |} in
-  assert_js ~src ~expr:"s" ~expected:{|"42"|};
-  let js = Dartea.Compiler.compile_string src in
+  assert_js ~src ~expr:"Main.s" ~expected:{|"42"|};
+  let js = main_source src in
   assert_bool "literal string concatenation is folded"
     (contains ~needle:{|const s = "42";|} js)
 
@@ -809,8 +792,8 @@ y =
     a * 3
 |}
   in
-  assert_js ~src ~expr:"y" ~expected:"6";
-  let js = Dartea.Compiler.compile_string src in
+  assert_js ~src ~expr:"Main.y" ~expected:"6";
+  let js = main_source src in
   assert_bool "the constant is propagated into its uses"
     (contains ~needle:"const y = 6;" js);
   assert_bool "the propagated binding is gone"
@@ -827,7 +810,7 @@ keep w =
     7
 |}
   in
-  let js = Dartea.Compiler.compile_string src in
+  let js = main_source src in
   assert_bool "an unused pure binding is dropped"
     (not (contains ~needle:"unused" js))
 
@@ -837,23 +820,23 @@ let test_dead_let_keeps_calls _ =
 keep : String -> Int
 keep w =
     let
-        used = length w
+        used = String.length w
     in
     used + 1
 |}
   in
-  assert_js ~src ~expr:{|keep("abc")|} ~expected:"4";
-  let js = Dartea.Compiler.compile_string src in
+  assert_js ~src ~expr:{|Main.keep("abc")|} ~expected:"4";
+  let js = main_source src in
   assert_bool "a call is not assumed pure, so its binding stays"
-    (contains ~needle:"const used = length(w)" js)
+    (contains ~needle:"const used = $$String.length(w)" js)
 
 let test_beta_reduction _ =
   let src = {|
 beta : Int
 beta = (\p -> p + 1) 41
 |} in
-  assert_js ~src ~expr:"beta" ~expected:"42";
-  let js = Dartea.Compiler.compile_string src in
+  assert_js ~src ~expr:"Main.beta" ~expected:"42";
+  let js = main_source src in
   assert_bool "an immediately applied lambda leaves no closure"
     (contains ~needle:"const beta = 42;" js)
 
@@ -868,8 +851,8 @@ result : Int
 result = tricky 5
 |}
   in
-  assert_js ~src ~expr:"result" ~expected:"16";
-  assert_js ~src ~expr:"tricky(5)" ~expected:"16"
+  assert_js ~src ~expr:"Main.result" ~expected:"16";
+  assert_js ~src ~expr:"Main.tricky(5)" ~expected:"16"
 
 let test_beta_reduction_shadowed_argument _ =
   let src =
@@ -882,8 +865,8 @@ result : Int
 result = tricky 5
 |}
   in
-  assert_js ~src ~expr:"result" ~expected:"16";
-  assert_js ~src ~expr:"tricky(5)" ~expected:"16"
+  assert_js ~src ~expr:"Main.result" ~expected:"16";
+  assert_js ~src ~expr:"Main.tricky(5)" ~expected:"16"
 
 let test_inline_small_function _ =
   let src =
@@ -895,8 +878,8 @@ sum : Int
 sum = add 3 4
 |}
   in
-  assert_js ~src ~expr:"sum" ~expected:"7";
-  let js = Dartea.Compiler.compile_string src in
+  assert_js ~src ~expr:"Main.sum" ~expected:"7";
+  let js = main_source src in
   assert_bool "the small function is inlined at the call site"
     (not (contains ~needle:"add(3, 4)" js));
   assert_bool "the inlined call folds to a constant"
@@ -917,8 +900,8 @@ result : Int
 result = quad 5
 |}
   in
-  assert_js ~src ~expr:"result" ~expected:"20";
-  let js = Dartea.Compiler.compile_string src in
+  assert_js ~src ~expr:"Main.result" ~expected:"20";
+  let js = main_source src in
   assert_bool "nested calls are inlined into plain bindings"
     (not (contains ~needle:"$$double(" js))
 
@@ -939,7 +922,7 @@ result =
     scale 2
 |}
   in
-  assert_js ~src ~expr:"result" ~expected:"6"
+  assert_js ~src ~expr:"Main.result" ~expected:"6"
 
 let test_inline_keeps_partial_application _ =
   let src =
@@ -954,29 +937,29 @@ result : Int
 result = partial 4
 |}
   in
-  assert_js ~src ~expr:"result" ~expected:"7"
+  assert_js ~src ~expr:"Main.result" ~expected:"7"
 
 let test_module_header_with_imports_compiles _ =
   let src =
     {|
 module Main exposing (result)
 
-import Data.List as L exposing
-    ( map
-    , filter
+import String as S exposing
+    ( length
+    , fromInt
     )
-import Extra
+import Tuple
 
 double : Int -> Int
 double n = n * 2
 
 result : Int
-result = double 21
+result = length (fromInt (S.length "abc")) + double 21
 |}
   in
-  assert_js ~src ~expr:"result" ~expected:"42"
+  assert_js ~src ~expr:"Main.result" ~expected:"43"
 
-let test_unit_value _ = assert_js ~src:"nothing = ()" ~expr:"nothing" ~expected:"null"
+let test_unit_value _ = assert_js ~src:"nothing = ()" ~expr:"Main.nothing" ~expected:"null"
 
 let test_negation _ =
   let src =
@@ -988,7 +971,142 @@ negated : Int
 negated = -value
 |}
   in
-  assert_js ~src ~expr:"negated" ~expected:"-3"
+  assert_js ~src ~expr:"Main.negated" ~expected:"-3"
+
+
+let test_prelude_is_emitted_as_modules _ =
+  let src = "y : Int\ny = String.length \"hello\"" in
+  let emitted =
+    List.map
+      (fun (c : Dartea.Compiler.compiled) -> c.module_name)
+      (compiled_of src)
+  in
+  List.iter
+    (fun expected ->
+      assert_bool (expected ^ " is compiled like any other module")
+        (List.mem expected emitted))
+    [ "Basics"; "Maybe"; "String"; "Tuple"; "Main" ];
+  assert_bool "the consumer imports the prelude module it uses"
+    (contains ~needle:{|import * as $$String from "./String.mjs";|}
+       (main_source src));
+  assert_js ~src ~expr:"Main.y" ~expected:"5"
+
+let test_runtime_module_is_only_curry _ =
+  let runtime =
+    module_source ~name:"Dartea_runtime" "x : Int\nx = 1"
+  in
+  assert_bool "the runtime module still ships $$curry"
+    (contains ~needle:"const $$curry =" runtime);
+  List.iter
+    (fun leftover ->
+      assert_bool (leftover ^ " no longer lives in the runtime module")
+        (not (contains ~needle:leftover runtime)))
+    [ "const length"; "const fromInt"; "const pair"; "const Just" ]
+
+let test_saturated_primitive_lowers_to_an_operation _ =
+  let string_module = module_source ~name:"String" "x : Int\nx = 1" in
+  assert_bool "a saturated primitive becomes the JS operation itself"
+    (contains ~needle:"Number.isInteger(Number(string))" string_module);
+  assert_bool "an unapplied primitive becomes an arrow"
+    (contains ~needle:"const length = " string_module)
+
+let test_prelude_value_is_shadowed_by_a_local_declaration _ =
+  let src =
+    {|
+length : Int -> Int
+length n =
+    n + 1
+
+result : Int
+result = length 41
+|}
+  in
+  assert_js ~src ~expr:"Main.result" ~expected:"42";
+  let js = main_source src in
+  assert_bool "the local declaration wins over the prelude"
+    (contains ~needle:"const length = n => n + 1;" js)
+
+let test_maybe_module_round_trips _ =
+  let src =
+    {|
+parsed : Int
+parsed = Maybe.withDefault 0 (String.toInt "41")
+
+missing : Int
+missing = Maybe.withDefault 7 (String.toInt "nope")
+
+sum : Int
+sum = parsed + missing
+|}
+  in
+  assert_js ~src ~expr:"Main.sum" ~expected:"48"
+
+let test_tuple_module_round_trips _ =
+  let src =
+    {|
+p : ( Int, String )
+p = (1, "a")
+
+result : Int
+result = Tuple.first p
+|}
+  in
+  assert_js ~src ~expr:"Main.result" ~expected:"1";
+  assert_bool "a tuple literal is Tuple.pair"
+    (contains ~needle:"Tuple.pair(1, " (main_source src))
+
+let test_annotation_is_polymorphic _ =
+  let src =
+    {|
+both : ( Int, String )
+both =
+    let
+        i = identity
+    in
+    (i 1, i "str")
+
+result : Int
+result = Tuple.first both
+|}
+  in
+  assert_js ~src ~expr:"Main.result" ~expected:"1"
+
+
+let test_runtime_is_imported_only_when_curried _ =
+  let plain = "result : Int\nresult = 1 + 2" in
+  assert_bool "a module that curries imports the runtime"
+    (contains ~needle:{|import * as Dartea_runtime|}
+       (module_source ~name:"Maybe" plain));
+  assert_bool "a module that does not curry leaves the runtime alone"
+    (not (contains ~needle:"Dartea_runtime" (module_source ~name:"Basics" plain)));
+  assert_bool "a string literal naming the runtime is not a reference"
+    (not
+       (contains ~needle:{|import * as Dartea_runtime|}
+          (main_source {|note = "Dartea_runtime.$$curry"|})))
+
+
+let test_kernel_application_lowers_to_an_operation _ =
+  let src =
+    {|
+result : Int
+result =
+    let
+        greeting = "hello"
+    in
+    Elm.Kernel.String.length greeting
+|}
+  in
+  assert_js ~src ~expr:"Main.result" ~expected:"5";
+  let js = main_source src in
+  assert_bool "a saturated kernel becomes the JS operation"
+    (contains ~needle:{|"hello".length|} js);
+  assert_bool "no arrow is built just to be called at once"
+    (not (contains ~needle:"=> x.length" js))
+
+let test_unapplied_kernel_becomes_an_arrow _ =
+  let js = module_source ~name:"String" "x : Int\nx = 1" in
+  assert_bool "an unapplied kernel is eta-expanded once, at its declaration"
+    (contains ~needle:"const length = x => x.length;" js)
 
 let suite =
   [
@@ -997,6 +1115,21 @@ let suite =
     "negation" >:: test_negation;
     "module_header_with_imports_compiles"
     >:: test_module_header_with_imports_compiles;
+    "prelude_is_emitted_as_modules" >:: test_prelude_is_emitted_as_modules;
+    "runtime_is_imported_only_when_curried"
+    >:: test_runtime_is_imported_only_when_curried;
+    "kernel_application_lowers_to_an_operation"
+    >:: test_kernel_application_lowers_to_an_operation;
+    "unapplied_kernel_becomes_an_arrow"
+    >:: test_unapplied_kernel_becomes_an_arrow;
+    "runtime_module_is_only_curry" >:: test_runtime_module_is_only_curry;
+    "saturated_primitive_lowers_to_an_operation"
+    >:: test_saturated_primitive_lowers_to_an_operation;
+    "prelude_value_is_shadowed_by_a_local_declaration"
+    >:: test_prelude_value_is_shadowed_by_a_local_declaration;
+    "maybe_module_round_trips" >:: test_maybe_module_round_trips;
+    "tuple_module_round_trips" >:: test_tuple_module_round_trips;
+    "annotation_is_polymorphic" >:: test_annotation_is_polymorphic;
     "constant_folding" >:: test_constant_folding;
     "constant_folding_comparison" >:: test_constant_folding_comparison;
     "constant_folding_concat" >:: test_constant_folding_concat;
@@ -1011,7 +1144,8 @@ let suite =
     "inline_respects_shadowing" >:: test_inline_respects_shadowing;
     "inline_keeps_partial_application" >:: test_inline_keeps_partial_application;
     "builtin_direct" >:: test_builtin_direct;
-    "unused_builtin_absent" >:: test_unused_builtin_absent;
+    "unused_prelude_module_not_imported"
+    >:: test_unused_prelude_module_not_imported;
     "complete_variant_no_default" >:: test_complete_variant_no_default;
     "pba_picks_needed_column" >:: test_pba_picks_needed_column;
     "shared_default_subtree" >:: test_shared_default_subtree;

@@ -1,18 +1,12 @@
 let initial_ctx =
-  let f acc (v, scheme) =
-    Infer.Infer_proc.Name_map.add (Data.Name.local v) scheme acc
-  in
-  List.fold_left f Infer.Infer_proc.Name_map.empty Builtins.values
+  List.fold_left
+    (fun ctx (operator, scheme) ->
+      Infer.Infer_proc.Name_map.add (Data.Name.local operator) scheme ctx)
+    Infer.Infer_proc.Name_map.empty Primitives.values
 
 module type BACKEND = sig
   val extension : string
   val runtime_module : unit -> (string * string) option
-
-  val emit_standalone :
-    constructors:(Data.Name.t * int) list ->
-    siblings:(Data.Name.t * (Data.Name.t * int) list) list ->
-    Optimized.Declaration.t list ->
-    string
 
   val emit_module :
     constructors:(Data.Name.t * int) list ->
@@ -29,10 +23,7 @@ module Js_backend : BACKEND = struct
   let runtime_module () =
     Some
       ( Codegen.Js_of_optimized.runtime_module_name,
-        Codegen.Js_of_optimized.runtime_source () )
-
-  let emit_standalone ~constructors ~siblings decls =
-    Codegen.Js_of_optimized.emit_standalone ~constructors ~siblings decls
+        Codegen.Js_of_optimized.runtime_module_source () )
 
   let emit_module ~constructors ~siblings ~imports ~exports decls =
     Codegen.Js_of_optimized.emit_module ~constructors ~siblings ~imports
@@ -44,6 +35,13 @@ type compiled = {
   source : string;
   warnings : string list;
 }
+
+let parsed_module ~fallback_name content =
+  match Parse.Main.parse content with
+  | Error e -> raise e
+  | Ok impl_list ->
+      Canonical.Module.of_frontend ~fallback_name
+        (Frontend.Module.of_impl impl_list)
 
 module Make (B : BACKEND) = struct
   let extension = B.extension
@@ -77,29 +75,23 @@ module Make (B : BACKEND) = struct
       constructors,
       Infer.Infer_proc.Name_map.bindings typed.siblings_env )
 
-  let compile_string (content : string) : string =
-    match Parse.Main.parse content with
-    | Error e -> raise e
-    | Ok impl_list ->
-        let canonical =
-          Canonical.Module.of_frontend ~fallback_name:"Main"
-            (Frontend.Module.of_impl impl_list)
-        in
-        Infer.Infer_proc.State.reset ();
-        let declarations, constructors, siblings =
-          prepared
-            (Infer.Infer_proc.infer_toplevel ~imports:[] canonical initial_ctx)
-        in
-        B.emit_standalone ~constructors ~siblings declarations
+  let prelude_modules =
+    lazy
+      (List.map
+         (fun module_ ->
+           parsed_module
+             ~fallback_name:(Prelude.name module_)
+             (Prelude.source module_))
+         Prelude.all)
 
   let module_of (source : File_loader.Files.Elm_file.t) =
-    match Parse.Main.parse source.content with
-    | Error e -> raise e
-    | Ok impl_list ->
-        Canonical.Module.of_frontend
-          ~fallback_name:
-            (Filename.remove_extension (Filename.basename source.path))
-          (Frontend.Module.of_impl impl_list)
+    let module_ =
+      parsed_module
+        ~fallback_name:
+          (Filename.remove_extension (Filename.basename source.path))
+        source.content
+    in
+    { module_ with imports = Prelude.default_imports @ module_.imports }
 
   let resolved_against dependencies (module_ : Canonical.Module.t) =
     match Canonicalization.Resolve_names.in_module ~dependencies module_ with
@@ -171,7 +163,7 @@ module Make (B : BACKEND) = struct
     in
     match
       Canonicalization.Module_graph.in_dependency_order
-        (List.map module_of sources)
+        (Lazy.force prelude_modules @ List.map module_of sources)
     with
     | Error error -> failwith (Canonicalization.Module_graph.show_error error)
     | Ok ordered ->
@@ -187,6 +179,10 @@ module Make (B : BACKEND) = struct
             ordered
         in
         runtime @ List.rev finished.output
+
+  let compile_source (content : string) : compiled list =
+    compile_modules
+      [ File_loader.Files.Elm_file.{ path = "Main.elm"; content } ]
 end
 
 include Make (Js_backend)
