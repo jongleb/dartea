@@ -122,8 +122,8 @@ module Ir_backend : Dartea.Compiler.BACKEND = struct
   let extension = "ir"
   let runtime_module () = None
 
-  let emit_module ~arities ~constructors ~siblings ~imports:_ ~exports:_
-      declarations =
+  let emit_module ~arities ~constructors ~siblings ~typedecls:_ ~imports:_
+      ~exports:_ declarations =
     Ir.Of_optimized.convert ~arities ~constructors ~siblings declarations
     |> Ir.To_string.program
 end
@@ -132,8 +132,8 @@ module Checked_backend : Dartea.Compiler.BACKEND = struct
   let extension = "problems"
   let runtime_module () = None
 
-  let emit_module ~arities ~constructors ~siblings ~imports:_ ~exports:_
-      declarations =
+  let emit_module ~arities ~constructors ~siblings ~typedecls:_ ~imports:_
+      ~exports:_ declarations =
     Ir.Of_optimized.convert ~arities ~constructors ~siblings declarations
     |> List.concat_map scope_problems
     |> String.concat "\n"

@@ -12,6 +12,7 @@ module type BACKEND = sig
     arities:(Data.Name.t * int) list ->
     constructors:(Data.Name.t * int) list ->
     siblings:(Data.Name.t * (Data.Name.t * int) list) list ->
+    typedecls:Optimized.Typedecl.t list ->
     imports:string list ->
     exports:Data.Name.t list ->
     Optimized.Declaration.t list ->
@@ -26,9 +27,10 @@ module Js_backend : BACKEND = struct
       ( Codegen_js.Of_optimized.runtime_module_name,
         Codegen_js.Of_optimized.runtime_module_source () )
 
-  let emit_module ~arities ~constructors ~siblings ~imports ~exports decls =
+  let emit_module ~arities ~constructors ~siblings ~typedecls ~imports ~exports
+      decls =
     Codegen_js.Of_optimized.emit_module ~arities ~constructors ~siblings
-      ~imports ~exports decls
+      ~typedecls ~imports ~exports decls
 end
 
 type compiled = {
@@ -80,6 +82,29 @@ module Make (B : BACKEND) = struct
     ( declarations,
       constructors,
       Infer.Infer_proc.Name_map.bindings typed.siblings_env )
+
+  let shaped_types (typed : Infer.Infer_proc.infer_result) :
+      Optimized.Typedecl.t list =
+    List.map
+      (fun (declared : Canonical.Typedecl.t) ->
+        {
+          Optimized.Typedecl.name = declared.name;
+          params = declared.params;
+          ctors =
+            List.map
+              (fun (ctor : Canonical.Typedecl.type_ctor) ->
+                {
+                  Optimized.Typedecl.id = ctor.id;
+                  payload =
+                    List.map
+                      (fun written ->
+                        After_typed.Typed_to_optimized.type_of_typed
+                          (Infer.Infer_proc.typedef_to_type written))
+                      ctor.data;
+                })
+              declared.ctors;
+        })
+      typed.typedecls
 
   let prelude_modules =
     lazy
@@ -159,7 +184,7 @@ module Make (B : BACKEND) = struct
           module_name = resolved.name;
           source =
             B.emit_module ~arities:(imported_arities imports) ~constructors
-              ~siblings
+              ~siblings ~typedecls:(shaped_types typed)
               ~imports:(providing_modules declarations)
               ~exports:(exported_names resolved typed)
               declarations;

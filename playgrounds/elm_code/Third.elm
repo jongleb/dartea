@@ -16,7 +16,7 @@ min a b = if a < b then a else b
 max a b = if a > b then a else b
 clamp lo hi x = min hi (max lo x)
 
-quot a b = a / b
+quot a b = a // b
 rem a b = a - quot a b * b
 divides d n = rem n d == 0
 even n = divides 2 n

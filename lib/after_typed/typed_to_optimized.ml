@@ -10,6 +10,8 @@ let rec type_of_typed (t : T.Type.t) : O.Type.t =
   match t with
   | T.Type.TVar name -> O.Type.TVar name
   | T.Type.TInt -> O.Type.TInt
+  | T.Type.TFloat -> O.Type.TFloat
+  | T.Type.TChar -> O.Type.TChar
   | T.Type.TBool -> O.Type.TBool
   | T.Type.TStr -> O.Type.TStr
   | T.Type.TUnit -> O.Type.TUnit

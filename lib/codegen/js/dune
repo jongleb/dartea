@@ -1,3 +1,14 @@
+(rule
+ (target runtime_source.ml)
+ (deps dartea_runtime.js)
+ (action
+  (with-stdout-to
+   runtime_source.ml
+   (progn
+    (echo "let dartea_runtime = {js|")
+    (cat dartea_runtime.js)
+    (echo "|js}\n")))))
+
 (library
  (name codegen_js)
  (libraries base ast optimized data typed after_typed)

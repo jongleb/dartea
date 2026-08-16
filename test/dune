@@ -17,4 +17,5 @@
   canonicalization
   interface
   ir
-  file_loader))
+  file_loader
+  codegen_js))

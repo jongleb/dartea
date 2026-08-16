@@ -1,6 +1,7 @@
 module String exposing
     ( length, append
     , toInt, fromInt
+    , toFloat, fromFloat
     )
 
 import Maybe exposing (Maybe(..))
@@ -19,6 +20,20 @@ append =
 fromInt : Int -> String
 fromInt =
     Elm.Kernel.String.fromNumber
+
+
+fromFloat : Float -> String
+fromFloat =
+    Elm.Kernel.String.fromNumber
+
+
+toFloat : String -> Maybe Float
+toFloat string =
+    if Elm.Kernel.String.isFloat string then
+        Just (Elm.Kernel.String.toFloatUnsafe string)
+
+    else
+        Nothing
 
 
 toInt : String -> Maybe Int

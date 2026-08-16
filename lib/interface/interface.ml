@@ -30,7 +30,8 @@ let rec inferred_type ~qualify (ty : Typed.Type.t) : Typed.Type.t =
   | TTup items -> TTup (List.map go items)
   | TRecord row -> TRecord (go row)
   | TRowExtend (label, field, rest) -> TRowExtend (label, go field, go rest)
-  | (TVar _ | TInt | TBool | TStr | TUnit | TRowEmpty) as leaf -> leaf
+  | (TVar _ | TInt | TFloat | TChar | TBool | TStr | TUnit | TRowEmpty) as leaf ->
+      leaf
 
 let rec written_type ~qualify (t : Canonical.Typedef.Impl.t) :
     Canonical.Typedef.Impl.t =

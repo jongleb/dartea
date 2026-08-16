@@ -1003,12 +1003,24 @@ let test_prelude_is_emitted_as_modules _ =
        (main_source src));
   assert_js ~src ~expr:"Main.y" ~expected:"5"
 
-let test_runtime_module_is_only_curry _ =
-  let runtime =
-    module_source ~name:"Dartea_runtime" "x : Int\nx = 1"
+let test_runtime_module_ships_every_declared_helper _ =
+  let runtime = module_source ~name:"Dartea_runtime" "x : Int\nx = 1" in
+  let exported =
+    match
+      List.find_opt
+        (fun line -> contains ~needle:"export {" line)
+        (String.split_on_char '\n' runtime)
+    with
+    | Some line -> line
+    | None -> assert_failure "the runtime module exports nothing"
   in
-  assert_bool "the runtime module still ships $$curry"
-    (contains ~needle:"const $$curry =" runtime);
+  List.iter
+    (fun helper ->
+      assert_bool (helper ^ " is declared but not defined in the runtime file")
+        (contains ~needle:("const " ^ helper ^ " =") runtime);
+      assert_bool (helper ^ " is declared but not exported")
+        (contains ~needle:helper exported))
+    Codegen_js.Runtime.all;
   List.iter
     (fun leftover ->
       assert_bool (leftover ^ " no longer lives in the runtime module")
@@ -1018,7 +1030,7 @@ let test_runtime_module_is_only_curry _ =
 let test_saturated_primitive_lowers_to_an_operation _ =
   let string_module = module_source ~name:"String" "x : Int\nx = 1" in
   assert_bool "a saturated primitive becomes the JS operation itself"
-    (contains ~needle:"Number.isInteger(Number(string))" string_module);
+    (contains ~needle:"Number.isInteger(Number(string" string_module);
   assert_bool "an unapplied primitive becomes an arrow"
     (contains ~needle:"const length = " string_module)
 
@@ -1363,12 +1375,855 @@ byZero = 1 // 0
   assert_bool "integer division lowers to elm/core's (a / b) | 0"
     (contains ~needle:"| 0" js)
 
-let test_division_is_still_integer_division _ =
-  let src = {|
-half : Int
+let test_division_follows_elm_core _ =
+  let src =
+    {|
+half : Float
 half = 7 / 2
+
+floored : Int
+floored = 7 // 2
+
+negative : Int
+negative = -7 // 2
+|}
+  in
+  assert_js ~src ~expr:"Main.half" ~expected:"3.5";
+  assert_js ~src ~expr:"Main.floored" ~expected:"3";
+  assert_js ~src ~expr:"Main.negative" ~expected:"-3";
+  let js = main_source src in
+  assert_bool "float division no longer truncates"
+    (not (contains ~needle:"Math.trunc" js))
+
+let test_numeric_literals_are_number_constrained _ =
+  let src =
+    {|
+mixed : Float
+mixed = 1 + 1.5
+
+scaled : Float
+scaled = 2 * 1.25
+
+counted : Int
+counted = 1 + 2
+|}
+  in
+  assert_js ~src ~expr:"Main.mixed" ~expected:"2.5";
+  assert_js ~src ~expr:"Main.scaled" ~expected:"2.5";
+  assert_js ~src ~expr:"Main.counted" ~expected:"3"
+
+let test_append_is_one_function_over_strings_and_lists _ =
+  let src =
+    {|
+glue : appendable -> appendable -> appendable
+glue a b = a ++ b
+
+greeting : String
+greeting = glue "he" "llo"
+
+joined : List Int
+joined = glue [ 1, 2 ] [ 3 ]
+
+nested : List (List Int)
+nested = glue [ [ 1 ] ] [ [ 2 ], [ 3 ] ]
+|}
+  in
+  assert_js ~src ~expr:"Main.greeting" ~expected:{|"hello"|};
+  assert_js ~src ~expr:"Main.joined"
+    ~expected:{|{"hd":1,"tl":{"hd":2,"tl":{"hd":3,"tl":0}}}|};
+  assert_js ~src ~expr:"Main.nested.tl.hd.hd" ~expected:"2";
+  assert_js ~src ~expr:"Main.nested.tl.tl.hd.hd" ~expected:"3"
+
+let test_append_on_strings_stays_a_plus _ =
+  let src = {|
+direct : String
+direct = "a" ++ "b"
+
+grown : String -> String
+grown s = s ++ "!"
 |} in
-  assert_js ~src ~expr:"Main.half" ~expected:"3"
+  let js = main_source src in
+  assert_bool "a string append does not reach the runtime"
+    (not (contains ~needle:"$$append" js));
+  assert_js ~src ~expr:{|Main.grown("hi")|} ~expected:{|"hi!"|}
+
+let test_append_on_lists_does_not_mutate_its_left_side _ =
+  let src =
+    {|
+left : List Int
+left = [ 1, 2 ]
+
+both : List Int
+both = left ++ [ 3 ]
+|}
+  in
+  assert_js ~src ~expr:"Main.left" ~expected:{|{"hd":1,"tl":{"hd":2,"tl":0}}|};
+  assert_js ~src ~expr:"Main.both"
+    ~expected:{|{"hd":1,"tl":{"hd":2,"tl":{"hd":3,"tl":0}}}|}
+
+let test_equality_is_structural _ =
+  let src =
+    {|
+type Shape
+    = Dot
+    | Line Int Int
+
+lists : Bool
+lists = [ 1, 2 ] == [ 1, 2 ]
+
+listsDiffer : Bool
+listsDiffer = [ 1, 2 ] == [ 1, 3 ]
+
+tuples : Bool
+tuples = ( 1, "a" ) == ( 1, "a" )
+
+records : Bool
+records = { x = 1, y = "a" } == { x = 1, y = "a" }
+
+recordsDiffer : Bool
+recordsDiffer = { x = 1, y = "a" } == { x = 2, y = "a" }
+
+payloads : Bool
+payloads = Line 1 2 == Line 1 2
+
+payloadsDiffer : Bool
+payloadsDiffer = Line 1 2 == Line 1 3
+
+nullary : Bool
+nullary = Dot == Dot
+
+nested : Bool
+nested = [ { x = 1 } ] == [ { x = 1 } ]
+
+nestedDiffer : Bool
+nestedDiffer = [ { x = 1 } ] == [ { x = 2 } ]
+
+notEqual : Bool
+notEqual = [ 1, 2 ] /= [ 1, 3 ]
+
+notEqualSame : Bool
+notEqualSame = [ 1, 2 ] /= [ 1, 2 ]
+|}
+  in
+  assert_js ~src ~expr:"Main.lists" ~expected:"true";
+  assert_js ~src ~expr:"Main.listsDiffer" ~expected:"false";
+  assert_js ~src ~expr:"Main.tuples" ~expected:"true";
+  assert_js ~src ~expr:"Main.records" ~expected:"true";
+  assert_js ~src ~expr:"Main.recordsDiffer" ~expected:"false";
+  assert_js ~src ~expr:"Main.payloads" ~expected:"true";
+  assert_js ~src ~expr:"Main.payloadsDiffer" ~expected:"false";
+  assert_js ~src ~expr:"Main.nullary" ~expected:"true";
+  assert_js ~src ~expr:"Main.nested" ~expected:"true";
+  assert_js ~src ~expr:"Main.nestedDiffer" ~expected:"false";
+  assert_js ~src ~expr:"Main.notEqual" ~expected:"true";
+  assert_js ~src ~expr:"Main.notEqualSame" ~expected:"false"
+
+let test_equality_on_primitives_stays_strict_equal _ =
+  let src =
+    {|
+counted : Int -> Bool
+counted n = n == 1
+
+named : String -> Bool
+named s = s == "a"
+
+flagged : Bool -> Bool
+flagged b = b == True
+
+lettered : Char -> Bool
+lettered c = c == 'a'
+|}
+  in
+  let js = main_source src in
+  assert_bool "a primitive equality does not reach the runtime"
+    (not (contains ~needle:"$$eq" js));
+  assert_bool "a primitive equality is still ===" (contains ~needle:"===" js);
+  assert_js ~src ~expr:"Main.counted(1)" ~expected:"true";
+  assert_js ~src ~expr:{|Main.lettered("a")|} ~expected:"true"
+
+let test_equality_over_a_deeply_nested_value _ =
+  let src =
+    {|
+deep : List (List (List Int))
+deep = [ [ [ 1, 2 ], [ 3 ] ], [ [ 4 ] ] ]
+
+same : Bool
+same = deep == [ [ [ 1, 2 ], [ 3 ] ], [ [ 4 ] ] ]
+
+different : Bool
+different = deep == [ [ [ 1, 2 ], [ 3 ] ], [ [ 5 ] ] ]
+|}
+  in
+  assert_js ~src ~expr:"Main.same" ~expected:"true";
+  assert_js ~src ~expr:"Main.different" ~expected:"false"
+
+let test_equality_through_a_polymorphic_slot _ =
+  let src =
+    {|
+same : a -> a -> Bool
+same x y = x == y
+
+lists : Bool
+lists = same [ 1, 2 ] [ 1, 2 ]
+
+numbers : Bool
+numbers = same 1 1
+|}
+  in
+  assert_js ~src ~expr:"Main.lists" ~expected:"true";
+  assert_js ~src ~expr:"Main.numbers" ~expected:"true"
+
+let test_comparison_is_structural _ =
+  let src =
+    {|
+lists : Bool
+lists = [ 1, 2 ] < [ 1, 3 ]
+
+listsPrefix : Bool
+listsPrefix = [ 1 ] < [ 1, 2 ]
+
+nilIsSmallest : Bool
+nilIsSmallest = [] < [ 1 ]
+
+tuples : Bool
+tuples = ( 1, "b" ) > ( 1, "a" )
+
+tuplesEqual : Bool
+tuplesEqual = ( 1, "a" ) >= ( 1, "a" )
+
+nested : Bool
+nested = [ ( 1, 'a' ) ] <= [ ( 1, 'b' ) ]
+|}
+  in
+  assert_js ~src ~expr:"Main.lists" ~expected:"true";
+  assert_js ~src ~expr:"Main.listsPrefix" ~expected:"true";
+  assert_js ~src ~expr:"Main.nilIsSmallest" ~expected:"true";
+  assert_js ~src ~expr:"Main.tuples" ~expected:"true";
+  assert_js ~src ~expr:"Main.tuplesEqual" ~expected:"true";
+  assert_js ~src ~expr:"Main.nested" ~expected:"true"
+
+let test_comparison_on_primitives_stays_an_operator _ =
+  let src =
+    {|
+smaller : Int -> Bool
+smaller n = n < 1
+
+earlier : String -> Bool
+earlier s = s < "m"
+
+lettered : Char -> Bool
+lettered c = c < 'm'
+|}
+  in
+  let js = main_source src in
+  assert_bool "a primitive comparison does not reach the runtime"
+    (not (contains ~needle:"$$cmp" js));
+  assert_js ~src ~expr:{|Main.earlier("a")|} ~expected:"true";
+  assert_js ~src ~expr:{|Main.lettered("z")|} ~expected:"false"
+
+let test_compare_returns_an_order _ =
+  let src =
+    {|
+lower : Order
+lower = compare 1 2
+
+same : Order
+same = compare "a" "a"
+
+higher : Order
+higher = compare [ 2 ] [ 1 ]
+
+described : Order -> String
+described order =
+    case order of
+        LT ->
+            "lt"
+
+        EQ ->
+            "eq"
+
+        GT ->
+            "gt"
+
+spoken : String
+spoken = described (compare ( 1, 2 ) ( 1, 3 ))
+|}
+  in
+  assert_js ~src ~expr:"Main.lower" ~expected:{|"LT"|};
+  assert_js ~src ~expr:"Main.same" ~expected:{|"EQ"|};
+  assert_js ~src ~expr:"Main.higher" ~expected:{|"GT"|};
+  assert_js ~src ~expr:"Main.spoken" ~expected:{|"lt"|}
+
+let test_min_and_max_are_written_in_the_language _ =
+  let src =
+    {|
+lower : Int
+lower = min 4 2
+
+upper : String
+upper = max "a" "b"
+
+shortest : List Int
+shortest = min [ 1, 2 ] [ 1 ]
+
+warmest : Float
+warmest = max 1.5 2.5
+|}
+  in
+  assert_js ~src ~expr:"Main.lower" ~expected:"2";
+  assert_js ~src ~expr:"Main.upper" ~expected:{|"b"|};
+  assert_js ~src ~expr:"Main.shortest" ~expected:{|{"hd":1,"tl":0}|};
+  assert_js ~src ~expr:"Main.warmest" ~expected:"2.5"
+
+let test_sorting_a_pair_through_compare _ =
+  let src =
+    {|
+ordered : ( Int, Int ) -> ( Int, Int )
+ordered pair =
+    case pair of
+        ( a, b ) ->
+            case compare a b of
+                GT ->
+                    ( b, a )
+
+                LT ->
+                    ( a, b )
+
+                EQ ->
+                    ( a, b )
+
+swapped : ( Int, Int )
+swapped = ordered ( 5, 3 )
+
+kept : ( Int, Int )
+kept = ordered ( 3, 5 )
+|}
+  in
+  assert_js ~src ~expr:"Main.swapped" ~expected:"[3,5]";
+  assert_js ~src ~expr:"Main.kept" ~expected:"[3,5]"
+
+let test_equality_specialises_records_and_tuples _ =
+  let src =
+    {|
+type alias Point =
+    { x : Int
+    , y : String
+    }
+
+samePoint : Point -> Point -> Bool
+samePoint a b = a == b
+
+samePair : ( Int, String ) -> ( Int, String ) -> Bool
+samePair a b = a == b
+
+sameList : List Int -> List Int -> Bool
+sameList a b = a == b
+
+sameAny : a -> a -> Bool
+sameAny a b = a == b
+|}
+  in
+  let js = main_source src in
+  let line_of name =
+    match
+      List.find_opt
+        (fun line -> contains ~needle:("const " ^ name ^ " =") line)
+        (String.split_on_char '\n' js)
+    with
+    | Some line -> line
+    | None -> assert_failure (name ^ " was not emitted")
+  in
+  assert_bool "a record equality compares its fields by name"
+    (contains ~needle:".x === " (line_of "samePoint"));
+  assert_bool "a record equality does not reach the runtime"
+    (not (contains ~needle:"$$eq" (line_of "samePoint")));
+  assert_bool "a tuple equality does not reach the runtime"
+    (not (contains ~needle:"$$eq" (line_of "samePair")));
+  assert_bool "a list equality uses the instance generated for its element"
+    (contains ~needle:"$eq$List$Int" (line_of "sameList"));
+  assert_bool "a list equality does not reach the runtime"
+    (not (contains ~needle:"$$eq" (line_of "sameList")));
+  assert_bool "only a type variable is left on the runtime instance"
+    (contains ~needle:"$$eq" (line_of "sameAny"));
+  assert_js ~src
+    ~expr:"Main.sameList({ hd: 1, tl: 0 }, { hd: 1, tl: 0 })"
+    ~expected:"true";
+  assert_js ~src
+    ~expr:"Main.sameList({ hd: 1, tl: 0 }, { hd: 2, tl: 0 })"
+    ~expected:"false";
+  assert_js ~src ~expr:"Main.sameList({ hd: 1, tl: 0 }, 0)" ~expected:"false";
+  assert_js ~src
+    ~expr:{|Main.samePoint({ x: 1, y: "a" }, { x: 1, y: "a" })|}
+    ~expected:"true";
+  assert_js ~src
+    ~expr:{|Main.samePoint({ x: 1, y: "a" }, { x: 1, y: "b" })|}
+    ~expected:"false";
+  assert_js ~src ~expr:{|Main.samePair([1, "a"], [1, "a"])|} ~expected:"true";
+  assert_js ~src ~expr:{|Main.samePair([1, "a"], [2, "a"])|} ~expected:"false"
+
+let test_ordering_specialises_tuples_lexicographically _ =
+  let src =
+    {|
+before : ( Int, String ) -> ( Int, String ) -> Bool
+before a b = a < b
+
+atMost : ( Int, String ) -> ( Int, String ) -> Bool
+atMost a b = a <= b
+|}
+  in
+  let js = main_source src in
+  assert_bool "a tuple ordering does not reach the runtime"
+    (not (contains ~needle:"$$cmp" js));
+  assert_js ~src ~expr:{|Main.before([1, "a"], [1, "b"])|} ~expected:"true";
+  assert_js ~src ~expr:{|Main.before([1, "b"], [1, "a"])|} ~expected:"false";
+  assert_js ~src ~expr:{|Main.before([1, "z"], [2, "a"])|} ~expected:"true";
+  assert_js ~src ~expr:{|Main.atMost([1, "a"], [1, "a"])|} ~expected:"true";
+  assert_js ~src ~expr:{|Main.atMost([2, "a"], [1, "a"])|} ~expected:"false"
+
+let test_specialised_comparison_evaluates_each_operand_once _ =
+  let src =
+    {|
+type alias Counted =
+    { value : Int
+    }
+
+made : Int -> Counted
+made n = { value = n }
+
+same : Bool
+same = made 1 == made 1
+
+different : Bool
+different = made 1 == made 2
+|}
+  in
+  let js = main_source src in
+  assert_bool "an expanded comparison binds its operands to temporaries"
+    (contains ~needle:"const $s" js);
+  assert_js ~src ~expr:"Main.same" ~expected:"true";
+  assert_js ~src ~expr:"Main.different" ~expected:"false"
+
+let test_deep_nesting_falls_back_to_the_runtime _ =
+  let src =
+    {|
+wide : ( Int, Int, Int ) -> ( Int, Int, Int ) -> Bool
+wide a b = a == b
+
+deep : ( ( Int, Int ), ( Int, Int ) ) -> ( ( Int, Int ), ( Int, Int ) ) -> Bool
+deep a b = a == b
+|}
+  in
+  assert_js ~src ~expr:"Main.wide([1, 2, 3], [1, 2, 3])" ~expected:"true";
+  assert_js ~src ~expr:"Main.wide([1, 2, 3], [1, 2, 4])" ~expected:"false";
+  assert_js ~src ~expr:"Main.deep([[1, 2], [3, 4]], [[1, 2], [3, 4]])"
+    ~expected:"true";
+  assert_js ~src ~expr:"Main.deep([[1, 2], [3, 4]], [[1, 2], [3, 5]])"
+    ~expected:"false"
+
+let test_equality_specialises_custom_types _ =
+  let src =
+    {|
+type Shape
+    = Dot
+    | Line Int Int
+    | Named String
+
+type Color
+    = Red
+    | Green
+
+type Tree
+    = Leaf
+    | Node Tree Int Tree
+
+type Boxed
+    = Boxed Int
+
+sameShape : Shape -> Shape -> Bool
+sameShape a b = a == b
+
+sameColor : Color -> Color -> Bool
+sameColor a b = a == b
+
+sameTree : Tree -> Tree -> Bool
+sameTree a b = a == b
+
+sameBoxed : Boxed -> Boxed -> Bool
+sameBoxed a b = a == b
+
+sameMaybe : Maybe Int -> Maybe Int -> Bool
+sameMaybe a b = a == b
+
+sameShapes : List Shape -> List Shape -> Bool
+sameShapes a b = a == b
+
+checks : List Bool
+checks =
+    [ sameShape Dot Dot
+    , sameShape (Line 1 2) (Line 1 2)
+    , sameShape (Line 1 2) (Line 1 3)
+    , sameShape Dot (Line 1 2)
+    , sameShape (Named "a") (Named "a")
+    , sameShape (Named "a") (Line 1 2)
+    , sameColor Red Red
+    , sameColor Red Green
+    , sameTree (Node Leaf 1 Leaf) (Node Leaf 1 Leaf)
+    , sameTree (Node Leaf 1 Leaf) (Node Leaf 2 Leaf)
+    , sameTree Leaf Leaf
+    , sameBoxed (Boxed 1) (Boxed 1)
+    , sameMaybe (Just 1) (Just 1)
+    , sameMaybe (Just 1) Nothing
+    , sameMaybe Nothing Nothing
+    , sameShapes [ Dot, Line 1 2 ] [ Dot, Line 1 2 ]
+    , sameShapes [ Dot ] [ Dot, Line 1 2 ]
+    ]
+|}
+  in
+  let js = main_source src in
+  assert_bool "a custom type gets its own equality instance"
+    (contains ~needle:"const $eq$Shape =" js);
+  assert_bool "a recursive type gets a self-recursive instance"
+    (contains ~needle:"const $eq$Tree =" js);
+  assert_bool "an all-nullary type compares in place, with no instance at all"
+    (not (contains ~needle:"$eq$Color" js));
+  assert_bool "a module comparing only concrete types never loads the runtime"
+    (not (contains ~needle:"Dartea_runtime" js));
+  assert_js ~src ~expr:"Main.checks"
+    ~expected:
+      (let flags =
+         [
+           true; true; false; false; true; false; true; false; true; false;
+           true; true; true; false; true; true; false;
+         ]
+       in
+       List.fold_right
+         (fun flag rest ->
+           Printf.sprintf {|{"hd":%b,"tl":%s}|} flag rest)
+         flags "0")
+
+let test_numeric_primitives_follow_elm_core _ =
+  let src =
+    {|
+area : Float -> Float
+area r = pi * r * r
+
+circle : Float
+circle = area 2.0
+
+roundTrip : Int
+roundTrip = round (toFloat 7 / 2.0)
+
+rounded : ( Int, Int, Int )
+rounded = ( floor 1.8, ceiling 1.2, truncate (-1.8) )
+
+roots : Float
+roots = sqrt 16.0
+
+logs : Float
+logs = logBase 2.0 256.0
+
+mods : ( Int, Int )
+mods = ( modBy 4 (-5), remainderBy 4 (-5) )
+
+absolutes : ( Int, Float )
+absolutes = ( abs (-4), abs (-8.5) )
+
+clamped : Int
+clamped = clamp 100 200 250
+
+angles : Float
+angles = degrees 180
+
+flags : ( Bool, Bool, Bool )
+flags = ( not True, xor True False, isNaN (0.0 / 0.0) )
+
+napier : Bool
+napier = e > 2.718 && e < 2.719
+|}
+  in
+  assert_js ~src ~expr:"Main.circle" ~expected:"12.566370614359172";
+  assert_js ~src ~expr:"Main.roundTrip" ~expected:"4";
+  assert_js ~src ~expr:"Main.rounded" ~expected:"[1,2,-1]";
+  assert_js ~src ~expr:"Main.roots" ~expected:"4";
+  assert_js ~src ~expr:"Main.logs" ~expected:"8";
+  assert_js ~src ~expr:"Main.mods" ~expected:"[3,-1]";
+  assert_js ~src ~expr:"Main.absolutes" ~expected:"[4,8.5]";
+  assert_js ~src ~expr:"Main.clamped" ~expected:"200";
+  assert_js ~src ~expr:"Main.angles" ~expected:"3.141592653589793";
+  assert_js ~src ~expr:"Main.flags" ~expected:"[false,true,true]";
+  assert_js ~src ~expr:"Main.napier" ~expected:"true"
+
+let test_pi_is_a_nullary_kernel _ =
+  let src = {|
+half : Float
+half = pi / 2.0
+|} in
+  let js = main_source src in
+  assert_bool "pi lowers to Math.PI without a call"
+    (contains ~needle:"Math.PI" (module_source ~name:"Basics" src));
+  assert_bool "the module reaches pi through Basics"
+    (contains ~needle:"Basics.pi" js);
+  assert_js ~src ~expr:"Main.half" ~expected:"1.5707963267948966"
+
+let test_char_module_handles_the_whole_of_unicode _ =
+  let src =
+    {|
+import Char
+
+
+emoji : Int
+emoji = Char.toCode '\u{1F600}'
+
+letter : Int
+letter = Char.toCode 'A'
+
+tree : Int
+tree = Char.toCode '木'
+
+back : Char
+back = Char.fromCode 0x1F600
+
+roundTrip : Bool
+roundTrip = Char.fromCode (Char.toCode '\u{1F600}') == '\u{1F600}'
+
+replacement : Bool
+replacement = Char.fromCode (-1) == Char.fromCode 0xFFFD
+
+classes : ( Bool, Bool, Bool )
+classes = ( Char.isUpper 'A', Char.isDigit '7', Char.isHexDigit 'f' )
+
+notClasses : ( Bool, Bool, Bool )
+notClasses = ( Char.isUpper 'a', Char.isOctDigit '8', Char.isAlpha '-' )
+
+cased : ( Char, Char )
+cased = ( Char.toUpper 'a', Char.toLower 'Z' )
+|}
+  in
+  assert_js ~src ~expr:"Main.emoji" ~expected:"128512";
+  assert_js ~src ~expr:"Main.letter" ~expected:"65";
+  assert_js ~src ~expr:"Main.tree" ~expected:"26408";
+  assert_js ~src ~expr:"Main.back" ~expected:{|"😀"|};
+  assert_js ~src ~expr:"Main.roundTrip" ~expected:"true";
+  assert_js ~src ~expr:"Main.replacement" ~expected:"true";
+  assert_js ~src ~expr:"Main.classes" ~expected:"[true,true,true]";
+  assert_js ~src ~expr:"Main.notClasses" ~expected:"[false,false,false]";
+  assert_js ~src ~expr:"Main.cased" ~expected:{|["A","z"]|}
+
+let test_a_character_literal_holds_one_code_point _ =
+  let src =
+    {|
+import Char
+
+
+greek : Int
+greek = Char.toCode 'Σ'
+
+accented : Int
+accented = Char.toCode 'é'
+|}
+  in
+  assert_js ~src ~expr:"Main.greek" ~expected:"931";
+  assert_js ~src ~expr:"Main.accented" ~expected:"233"
+
+let test_string_carries_floats_both_ways _ =
+  let src =
+    {|
+shown : String
+shown = String.fromFloat 1.5
+
+whole : String
+whole = String.fromFloat 2.0
+
+read : Maybe Float
+read = String.toFloat "1.5"
+
+refused : Maybe Float
+refused = String.toFloat "abc"
+
+doubled : Float
+doubled =
+    case String.toFloat "1.25" of
+        Just value ->
+            value * 2.0
+
+        Nothing ->
+            0.0
+|}
+  in
+  assert_js ~src ~expr:"Main.shown" ~expected:{|"1.5"|};
+  assert_js ~src ~expr:"Main.whole" ~expected:{|"2"|};
+  assert_js ~src ~expr:"Main.read" ~expected:{|{"_0":1.5}|};
+  assert_js ~src ~expr:"Main.refused" ~expected:{|"Nothing"|};
+  assert_js ~src ~expr:"Main.doubled" ~expected:"2.5"
+
+let test_the_type_system_chapter_holds_together _ =
+  let src =
+    {|
+import Char
+
+
+area : Float -> Float
+area radius =
+    pi * radius * radius
+
+
+roundedArea : Float -> Int
+roundedArea radius =
+    round (area radius)
+
+
+backAndForth : Int -> Int
+backAndForth n =
+    round (toFloat n / 2.0) * 2
+
+
+ordered : ( comparable, comparable ) -> ( comparable, comparable )
+ordered pair =
+    case pair of
+        ( left, right ) ->
+            case compare left right of
+                GT ->
+                    ( right, left )
+
+                LT ->
+                    ( left, right )
+
+                EQ ->
+                    ( left, right )
+
+
+type alias Point =
+    { x : Int
+    , y : Int
+    }
+
+
+glue : appendable -> appendable -> appendable
+glue one other =
+    one ++ other
+
+
+circleArea : Float
+circleArea = area 2.0
+
+roundedCircle : Int
+roundedCircle = roundedArea 2.0
+
+halved : Int
+halved = backAndForth 7
+
+sortedNumbers : ( Int, Int )
+sortedNumbers = ordered ( 5, 3 )
+
+sortedWords : ( String, String )
+sortedWords = ordered ( "pear", "apple" )
+
+samePoint : Bool
+samePoint = { x = 1, y = 2 } == { x = 1, y = 2 }
+
+differentPoint : Bool
+differentPoint = { x = 1, y = 2 } == { x = 1, y = 3 }
+
+samePoints : Bool
+samePoints = [ { x = 1, y = 2 } ] == [ { x = 1, y = 2 } ]
+
+differentPoints : Bool
+differentPoints = [ { x = 1, y = 2 } ] == [ { x = 9, y = 2 } ]
+
+joinedWords : String
+joinedWords = glue "hello " "world"
+
+joinedNumbers : List Int
+joinedNumbers = glue [ 1, 2 ] [ 3 ]
+
+grinning : Int
+grinning = Char.toCode '\u{1F600}'
+|}
+  in
+  assert_js ~src ~expr:"Main.circleArea" ~expected:"12.566370614359172";
+  assert_js ~src ~expr:"Main.roundedCircle" ~expected:"13";
+  assert_js ~src ~expr:"Main.halved" ~expected:"8";
+  assert_js ~src ~expr:"Main.sortedNumbers" ~expected:"[3,5]";
+  assert_js ~src ~expr:"Main.sortedWords" ~expected:{|["apple","pear"]|};
+  assert_js ~src ~expr:"Main.samePoint" ~expected:"true";
+  assert_js ~src ~expr:"Main.differentPoint" ~expected:"false";
+  assert_js ~src ~expr:"Main.samePoints" ~expected:"true";
+  assert_js ~src ~expr:"Main.differentPoints" ~expected:"false";
+  assert_js ~src ~expr:"Main.joinedWords" ~expected:{|"hello world"|};
+  assert_js ~src ~expr:"Main.joinedNumbers"
+    ~expected:{|{"hd":1,"tl":{"hd":2,"tl":{"hd":3,"tl":0}}}|};
+  assert_js ~src ~expr:"Main.grinning" ~expected:"128512"
+
+let test_class_methods_resolve_at_the_call_site _ =
+  let src =
+    {|
+type alias Point =
+    { x : Int
+    , y : Int
+    }
+
+lower : Int
+lower = min 4 2
+
+upper : String
+upper = max "a" "b"
+
+ordered : Order
+ordered = compare ( 1, "b" ) ( 1, "a" )
+
+listed : Order
+listed = compare [ 1, 2 ] [ 1, 3 ]
+
+held : ( Int, Int ) -> ( Int, Int ) -> ( Int, Int )
+held a b = min a b
+
+generic : comparable -> comparable -> comparable
+generic a b = min a b
+|}
+  in
+  let js = main_source src in
+  let line_of name =
+    match
+      List.find_opt
+        (fun line -> contains ~needle:("const " ^ name ^ " =") line)
+        (String.split_on_char '\n' js)
+    with
+    | Some line -> line
+    | None -> assert_failure (name ^ " was not emitted")
+  in
+  assert_bool "min at a known type becomes a conditional"
+    (contains ~needle:"(4 < 2)" (line_of "lower"));
+  assert_bool "max at a known type becomes a conditional"
+    (not (contains ~needle:"$$cmp" (line_of "upper")));
+  assert_bool "min on a tuple does not reach the runtime"
+    (not (contains ~needle:"$$cmp" (line_of "held")));
+  assert_bool "only a bare comparable is left on the runtime instance"
+    (contains ~needle:"$$cmp" (line_of "generic"));
+  assert_js ~src ~expr:"Main.lower" ~expected:"2";
+  assert_js ~src ~expr:"Main.upper" ~expected:{|"b"|};
+  assert_js ~src ~expr:"Main.ordered" ~expected:{|"GT"|};
+  assert_js ~src ~expr:"Main.listed" ~expected:{|"LT"|};
+  assert_js ~src ~expr:"Main.held([1, 2], [1, 3])" ~expected:"[1,2]"
+
+let test_a_number_variable_compares_in_place _ =
+  let src =
+    {|
+sameNumbers : Bool
+sameNumbers = [ 1, 2 ] == [ 1, 2 ]
+
+orderedNumbers : Bool
+orderedNumbers = [ 1, 2 ] < [ 1, 3 ]
+
+orderedWords : Bool
+orderedWords = [ "x", "y" ] < [ "x", "z" ]
+|}
+  in
+  let js = main_source src in
+  assert_bool "an unresolved number is still compared without the runtime"
+    (not (contains ~needle:"$$cmp" js || contains ~needle:"$$eq" js));
+  assert_js ~src ~expr:"Main.sameNumbers" ~expected:"true";
+  assert_js ~src ~expr:"Main.orderedNumbers" ~expected:"true";
+  assert_js ~src ~expr:"Main.orderedWords" ~expected:"true"
 
 let test_exponent_lowers_to_the_js_operator _ =
   let src = {|
@@ -1971,22 +2826,22 @@ other = describe 7
   assert_js ~src ~expr:"Main.zero" ~expected:"200";
   assert_js ~src ~expr:"Main.other" ~expected:"400"
 
-let test_char_literal_type_is_still_string _ =
+let test_char_literal_has_char_type _ =
   let src =
     {|
-letter : String
+letter : Char
 letter = 'a'
 
-quoted : String
+quoted : Char
 quoted = '\''
 
-newline : String
+newline : Char
 newline = '\n'
 
-emoji : String
+emoji : Char
 emoji = '\u{1F600}'
 
-classify : String -> Int
+classify : Char -> Int
 classify c =
     case c of
         'a' ->
@@ -2079,6 +2934,48 @@ exponent = 1.0e10
     (not (contains ~needle:".;" js));
   assert_js ~src ~expr:"Main.whole" ~expected:"2";
   assert_js ~src ~expr:"Main.fraction" ~expected:"1.5"
+
+let test_float_annotation_is_a_real_type _ =
+  let src =
+    {|
+half : Float
+half = 0.5
+
+point : Float
+point = 2.0
+
+pair : ( Float, Char )
+pair = ( 1.5, 'q' )
+|}
+  in
+  assert_js ~src ~expr:"Main.half" ~expected:"0.5";
+  assert_js ~src ~expr:"Main.point" ~expected:"2";
+  assert_js ~src ~expr:"Main.pair" ~expected:{|[1.5,"q"]|}
+
+let test_char_case_over_a_char_annotation _ =
+  let src =
+    {|
+vowel : Char -> Bool
+vowel c =
+    case c of
+        'a' ->
+            True
+
+        'e' ->
+            True
+
+        _ ->
+            False
+
+yes : Bool
+yes = vowel 'e'
+
+no : Bool
+no = vowel 'z'
+|}
+  in
+  assert_js ~src ~expr:"Main.yes" ~expected:"true";
+  assert_js ~src ~expr:"Main.no" ~expected:"false"
 
 let test_record_alias_constructor _ =
   let src =
@@ -2282,8 +3179,53 @@ let suite =
     "operator_precedence" >:: test_operator_precedence;
     "integer_division_follows_elm_core"
     >:: test_integer_division_follows_elm_core;
-    "division_is_still_integer_division"
-    >:: test_division_is_still_integer_division;
+    "division_follows_elm_core"
+    >:: test_division_follows_elm_core;
+    "numeric_literals_are_number_constrained"
+    >:: test_numeric_literals_are_number_constrained;
+    "append_is_one_function_over_strings_and_lists"
+    >:: test_append_is_one_function_over_strings_and_lists;
+    "append_on_strings_stays_a_plus" >:: test_append_on_strings_stays_a_plus;
+    "append_on_lists_does_not_mutate_its_left_side"
+    >:: test_append_on_lists_does_not_mutate_its_left_side;
+    "equality_is_structural" >:: test_equality_is_structural;
+    "equality_on_primitives_stays_strict_equal"
+    >:: test_equality_on_primitives_stays_strict_equal;
+    "equality_over_a_deeply_nested_value"
+    >:: test_equality_over_a_deeply_nested_value;
+    "equality_through_a_polymorphic_slot"
+    >:: test_equality_through_a_polymorphic_slot;
+    "comparison_is_structural" >:: test_comparison_is_structural;
+    "comparison_on_primitives_stays_an_operator"
+    >:: test_comparison_on_primitives_stays_an_operator;
+    "compare_returns_an_order" >:: test_compare_returns_an_order;
+    "min_and_max_are_written_in_the_language"
+    >:: test_min_and_max_are_written_in_the_language;
+    "sorting_a_pair_through_compare" >:: test_sorting_a_pair_through_compare;
+    "equality_specialises_records_and_tuples"
+    >:: test_equality_specialises_records_and_tuples;
+    "ordering_specialises_tuples_lexicographically"
+    >:: test_ordering_specialises_tuples_lexicographically;
+    "specialised_comparison_evaluates_each_operand_once"
+    >:: test_specialised_comparison_evaluates_each_operand_once;
+    "deep_nesting_falls_back_to_the_runtime"
+    >:: test_deep_nesting_falls_back_to_the_runtime;
+    "equality_specialises_custom_types"
+    >:: test_equality_specialises_custom_types;
+    "numeric_primitives_follow_elm_core"
+    >:: test_numeric_primitives_follow_elm_core;
+    "pi_is_a_nullary_kernel" >:: test_pi_is_a_nullary_kernel;
+    "char_module_handles_the_whole_of_unicode"
+    >:: test_char_module_handles_the_whole_of_unicode;
+    "a_character_literal_holds_one_code_point"
+    >:: test_a_character_literal_holds_one_code_point;
+    "string_carries_floats_both_ways" >:: test_string_carries_floats_both_ways;
+    "the_type_system_chapter_holds_together"
+    >:: test_the_type_system_chapter_holds_together;
+    "class_methods_resolve_at_the_call_site"
+    >:: test_class_methods_resolve_at_the_call_site;
+    "a_number_variable_compares_in_place"
+    >:: test_a_number_variable_compares_in_place;
     "exponent_lowers_to_the_js_operator"
     >:: test_exponent_lowers_to_the_js_operator;
     "apply_left" >:: test_apply_left;
@@ -2310,14 +3252,15 @@ let suite =
     "destructuring_let_bindings" >:: test_destructuring_let_bindings;
     "alias_patterns" >:: test_alias_patterns;
     "negative_literal_patterns" >:: test_negative_literal_patterns;
-    "char_literal_type_is_still_string"
-    >:: test_char_literal_type_is_still_string;
+    "char_literal_has_char_type" >:: test_char_literal_has_char_type;
     "block_strings" >:: test_block_strings;
     "hexadecimal_literals" >:: test_hexadecimal_literals;
     "minus_before_a_number_is_subtraction"
     >:: test_minus_before_a_number_is_subtraction;
     "float_literals_print_as_javascript"
     >:: test_float_literals_print_as_javascript;
+    "float_annotation_is_a_real_type" >:: test_float_annotation_is_a_real_type;
+    "char_case_over_a_char_annotation" >:: test_char_case_over_a_char_annotation;
     "record_alias_constructor" >:: test_record_alias_constructor;
     "record_alias_constructor_is_checked"
     >:: test_record_alias_constructor_is_checked;
@@ -2347,7 +3290,8 @@ let suite =
     "function_survives_a_generic_slot" >:: test_function_survives_a_generic_slot;
     "polymorphic_higher_order_still_curries"
     >:: test_polymorphic_higher_order_still_curries;
-    "runtime_module_is_only_curry" >:: test_runtime_module_is_only_curry;
+    "runtime_module_ships_every_declared_helper"
+    >:: test_runtime_module_ships_every_declared_helper;
     "saturated_primitive_lowers_to_an_operation"
     >:: test_saturated_primitive_lowers_to_an_operation;
     "prelude_value_is_shadowed_by_a_local_declaration"

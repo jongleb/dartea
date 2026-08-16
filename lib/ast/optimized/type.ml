@@ -4,6 +4,8 @@ open Base.Export
 type t =
   | TVar of string
   | TInt
+  | TFloat
+  | TChar
   | TBool
   | TStr
   | TUnit
@@ -30,3 +32,18 @@ let rec result_after ~applied t =
 let rec parameters = function
   | TFun (parameter, result) -> parameter :: parameters result
   | _ -> []
+
+let rec substitute bindings t =
+  match t with
+  | TVar name -> begin
+      match List.assoc_opt name bindings with Some bound -> bound | None -> t
+    end
+  | TInt | TFloat | TChar | TBool | TStr | TUnit | TRowEmpty -> t
+  | TFun (parameter, result) ->
+      TFun (substitute bindings parameter, substitute bindings result)
+  | TTup items -> TTup (List.map (substitute bindings) items)
+  | TCustom (name, arguments) ->
+      TCustom (name, List.map (substitute bindings) arguments)
+  | TRecord row -> TRecord (substitute bindings row)
+  | TRowExtend (label, field, rest) ->
+      TRowExtend (label, substitute bindings field, substitute bindings rest)

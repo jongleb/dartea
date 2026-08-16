@@ -56,7 +56,7 @@ let sanitize (name : string) : string =
         (List.map op_char_token
            (List.init (String.length name) (String.get name)))
 
-let runtime_module_name = "Dartea_runtime"
+let runtime_module_name = Runtime.module_name
 
 let module_ident module_name =
   sanitize (String.concat "$" (String.split_on_char '.' module_name))
@@ -67,13 +67,18 @@ let js_of_name (name : Data.Name.t) =
   | Data.Name.Global { module_name; exported_name } ->
       module_ident module_name ^ "." ^ sanitize exported_name
 
-let curry_reference =
+let runtime_reference helper =
   J.Member
     {
       object_ = J.Identifier runtime_module_name;
-      property = J.Identifier "$$curry";
+      property = J.Identifier helper;
       computed = false;
     }
+
+let curry_reference = runtime_reference Runtime.curry
+let append_reference = runtime_reference Runtime.append
+let equal_reference = runtime_reference Runtime.equal
+let compare_reference = runtime_reference Runtime.compare
 
 let expression_of_name (name : Data.Name.t) : J.expr =
   match name with
@@ -208,33 +213,596 @@ let fresh_temp () =
 let member object_ property =
   J.Member { object_; property = J.Identifier property; computed = false }
 
-let truncated_division left right =
-  J.Call
-    { callee = member (J.Identifier "Math") "trunc";
-      args = [ binary J.Divide left right ] }
-
 let integer_division left right =
   binary J.BitOr (binary J.Divide left right) (J.Literal (J.Int 0))
 
-let binary_lowering : Data.Operator.t -> J.expr -> J.expr -> J.expr = function
+let indexed_member object_ index =
+  J.Member { object_; property = J.Literal (J.Int index); computed = true }
+
+let assign_stmt r e =
+  J.ExprStmt (J.Assignment { left = J.Identifier r; right = e })
+
+let shared_operand expression =
+  if needs_temp_var expression then
+    let name = fresh_temp () in
+    ([ J.ConstDecl { name; init = expression } ], J.Identifier name)
+  else ([], expression)
+
+let strictly = function
+  | J.LessThanOrEqual -> J.LessThan
+  | J.GreaterThanOrEqual -> J.GreaterThan
+  | operator -> operator
+
+let operator_admits_equality = function
+  | J.LessThanOrEqual | J.GreaterThanOrEqual -> true
+  | _ -> false
+
+let row_fields row =
+  let rec walk collected (row : O.Type.t) =
+    match row with
+    | O.Type.TRowEmpty -> Some (List.rev collected)
+    | O.Type.TRowExtend (label, field, rest) ->
+        walk ((label, field) :: collected) rest
+    | O.Type.TVar _ | O.Type.TInt | O.Type.TFloat | O.Type.TChar
+    | O.Type.TStr | O.Type.TBool | O.Type.TUnit | O.Type.TFun _
+    | O.Type.TTup _ | O.Type.TCustom _ | O.Type.TRecord _ ->
+        None
+  in
+  walk [] row
+
+let sorted_fields row =
+  Option.map
+    (List.sort (fun (one, _) (other, _) -> String.compare one other))
+    (row_fields row)
+
+let is_list_type name = String.equal (Data.Name.base name) "List"
+
+let type_ident (name : Data.Name.t) =
+  match name with
+  | Data.Name.Local base -> base
+  | Data.Name.Global { module_name; exported_name } ->
+      module_ident module_name ^ "$" ^ exported_name
+
+let visible_types : (Data.Name.t, O.Typedecl.t) Hashtbl.t = Hashtbl.create 16
+let claimed_instances : (string, unit) Hashtbl.t = Hashtbl.create 16
+let instance_definitions : (string * J.stmt) list ref = ref []
+
+let reset_instances () =
+  Hashtbl.reset claimed_instances;
+  instance_definitions := []
+
+let variant_of (name : Data.Name.t) arguments =
+  Option.bind (Hashtbl.find_opt visible_types name) (fun decl ->
+      O.Typedecl.constructors decl ~arguments)
+
+let carries_payload (ctor : O.Typedecl.ctor) = ctor.payload <> []
+
+let all_ctors_are_nullary (name : Data.Name.t) arguments =
+  match variant_of name arguments with
+  | None -> false
+  | Some ctors -> not (List.exists carries_payload ctors)
+
+let instance_declarations () =
+  List.rev_map (fun (_, definition) -> definition) !instance_definitions
+
+let instance name define =
+  if not (Hashtbl.mem claimed_instances name) then begin
+    Hashtbl.replace claimed_instances name ();
+    let definition = define () in
+    instance_definitions := (name, definition) :: !instance_definitions
+  end;
+  J.Identifier name
+
+let every_key keys =
+  List.fold_right
+    (fun key collected ->
+      Option.bind collected (fun rest ->
+          Option.map (fun key -> key :: rest) key))
+    keys (Some [])
+
+let is_numeric_variable variable =
+  match Data.Constraint.of_variable variable with
+  | Some Data.Constraint.Number -> true
+  | Some
+      ( Data.Constraint.Comparable | Data.Constraint.Appendable
+      | Data.Constraint.Comp_appendable )
+  | None ->
+      false
+
+let rec instance_key (ty : O.Type.t) : string option =
+  let applied_to head arguments =
+    Option.map
+      (fun keys -> String.concat "$" (head :: keys))
+      (every_key (List.map instance_key arguments))
+  in
+  match ty with
+  | O.Type.TInt -> Some "Int"
+  | O.Type.TFloat -> Some "Float"
+  | O.Type.TChar -> Some "Char"
+  | O.Type.TStr -> Some "String"
+  | O.Type.TBool -> Some "Bool"
+  | O.Type.TUnit -> Some "Unit"
+  | O.Type.TTup components -> applied_to "Tuple" components
+  | O.Type.TCustom (name, arguments) -> applied_to (type_ident name) arguments
+  | O.Type.TRecord row ->
+      Option.bind (sorted_fields row) (fun fields ->
+          let labelled (label, part) =
+            Option.map (fun key -> label ^ "$" ^ key) (instance_key part)
+          in
+          Option.map
+            (fun keys -> String.concat "$" ("Record" :: keys))
+            (every_key (List.map labelled fields)))
+  | O.Type.TVar variable ->
+      if is_numeric_variable variable then
+        Some (Data.Constraint.name Data.Constraint.Number)
+      else None
+  | O.Type.TFun _ | O.Type.TRowExtend _ | O.Type.TRowEmpty -> None
+
+let expansion_budget = 8
+
+let compared_in_place (operand : O.Type.t) =
+  match operand with
+  | O.Type.TInt | O.Type.TFloat | O.Type.TChar | O.Type.TStr | O.Type.TBool
+  | O.Type.TUnit ->
+      true
+  | O.Type.TVar variable -> is_numeric_variable variable
+  | O.Type.TCustom (name, arguments) ->
+      (not (is_list_type name)) && all_ctors_are_nullary name arguments
+  | O.Type.TFun _ | O.Type.TTup _ | O.Type.TRecord _ | O.Type.TRowExtend _
+  | O.Type.TRowEmpty ->
+      false
+
+let product_parts (ty : O.Type.t) =
+  let at index subject = indexed_member subject index in
+  let field label subject = member subject label in
+  match ty with
+  | O.Type.TTup components ->
+      Some (List.mapi (fun index part -> (at index, part)) components)
+  | O.Type.TRecord row ->
+      Option.map
+        (List.map (fun (label, part) -> (field label, part)))
+        (sorted_fields row)
+  | O.Type.TVar _ | O.Type.TInt | O.Type.TFloat | O.Type.TChar | O.Type.TStr
+  | O.Type.TBool | O.Type.TUnit | O.Type.TFun _ | O.Type.TCustom _
+  | O.Type.TRowExtend _ | O.Type.TRowEmpty ->
+      None
+
+let parts_within_budget ~budget operand =
+  match product_parts operand with
+  | Some parts when List.length parts <= budget -> Some parts
+  | Some _ | None -> None
+
+let conjunction = function
+  | [] -> J.Literal (J.Bool true)
+  | first :: rest -> List.fold_left (binary J.And) first rest
+
+let call callee arguments = J.Call { callee; args = arguments }
+
+let rec equality_of ~budget (operand : O.Type.t) left right =
+  if compared_in_place operand then binary J.StrictEqual left right
+  else
+    match parts_within_budget ~budget operand with
+    | Some parts ->
+        let budget = budget - List.length parts in
+        let compared (read, part) =
+          equality_of ~budget part (read left) (read right)
+        in
+        conjunction (List.map compared parts)
+    | None ->
+        call
+          (Option.value (equality_instance operand) ~default:equal_reference)
+          [ left; right ]
+
+and three_way_of (operand : O.Type.t) left right =
+  if compared_in_place operand then
+    J.Conditional
+      {
+        test = binary J.StrictEqual left right;
+        consequent = J.Literal (J.Int 0);
+        alternate =
+          J.Conditional
+            {
+              test = binary J.LessThan left right;
+              consequent =
+                J.Unary { op = J.Negative; arg = J.Literal (J.Int 1) };
+              alternate = J.Literal (J.Int 1);
+            };
+      }
+  else
+    call
+      (Option.value (ordering_instance operand) ~default:compare_reference)
+      [ left; right ]
+
+and ordering_of ~budget ~operator (operand : O.Type.t) left right =
+  if compared_in_place operand then binary operator left right
+  else
+    match parts_within_budget ~budget operand with
+    | Some parts ->
+        let budget = budget - List.length parts in
+        let rec lexicographic = function
+          | [] -> J.Literal (J.Bool (operator_admits_equality operator))
+          | [ (read, last) ] ->
+              ordering_of ~budget ~operator last (read left) (read right)
+          | (read, part) :: rest ->
+              J.Conditional
+                {
+                  test = equality_of ~budget part (read left) (read right);
+                  consequent = lexicographic rest;
+                  alternate =
+                    ordering_of ~budget ~operator:(strictly operator) part
+                      (read left) (read right);
+                }
+        in
+        lexicographic parts
+    | None ->
+        binary operator
+          (call
+             (Option.value (ordering_instance operand)
+                ~default:compare_reference)
+             [ left; right ])
+          (J.Literal (J.Int 0))
+
+and equality_instance (operand : O.Type.t) =
+  match operand with
+  | O.Type.TCustom (name, [ element ]) when is_list_type name ->
+      Option.map
+        (fun key -> defined ("$eq$List$" ^ key) (list_equality element))
+        (instance_key element)
+  | O.Type.TCustom (name, arguments) ->
+      Option.bind (variant_of name arguments) (fun ctors ->
+          Option.map
+            (fun key -> defined ("$eq$" ^ key) (variant_equality ctors))
+            (instance_key operand))
+  | O.Type.TTup _ | O.Type.TRecord _ ->
+      Option.bind (product_parts operand) (fun parts ->
+          Option.map
+            (fun key -> defined ("$eq$" ^ key) (product_equality parts))
+            (instance_key operand))
+  | O.Type.TVar _ | O.Type.TInt | O.Type.TFloat | O.Type.TChar | O.Type.TStr
+  | O.Type.TBool | O.Type.TUnit | O.Type.TFun _ | O.Type.TRowExtend _
+  | O.Type.TRowEmpty ->
+      None
+
+and append_instance (operand : O.Type.t) =
+  match operand with
+  | O.Type.TCustom (name, [ _ ]) when is_list_type name ->
+      Some (defined "$append$List" list_append)
+  | O.Type.TVar _ | O.Type.TInt | O.Type.TFloat | O.Type.TChar | O.Type.TStr
+  | O.Type.TBool | O.Type.TUnit | O.Type.TFun _ | O.Type.TTup _
+  | O.Type.TCustom _ | O.Type.TRecord _ | O.Type.TRowExtend _
+  | O.Type.TRowEmpty ->
+      None
+
+and list_append () =
+  let cell head tail =
+    J.Object [ J.Field ("hd", head); J.Field ("tl", tail) ]
+  in
+  let assign target value = J.ExprStmt (J.Assignment { left = target; right = value }) in
+  ( [ "xs"; "ys" ],
+    [
+      J.If
+        {
+          test =
+            binary J.StrictEqual (J.Identifier "xs") (J.Literal (J.Int 0));
+          consequent = [ J.Return (Some (J.Identifier "ys")) ];
+          alternate = None;
+        };
+      J.ConstDecl
+        { name = "root"; init = cell (head_of "xs") (J.Identifier "ys") };
+      J.VarDecl { name = "last"; init = Some (J.Identifier "root") };
+      J.VarDecl
+        { name = "rest"; init = Some (member (J.Identifier "xs") "tl") };
+      J.While
+        {
+          test =
+            binary J.StrictNotEqual (J.Identifier "rest") (J.Literal (J.Int 0));
+          body =
+            [
+              J.ConstDecl
+                {
+                  name = "copied";
+                  init = cell (head_of "rest") (J.Identifier "ys");
+                };
+              assign
+                (member (J.Identifier "last") "tl")
+                (J.Identifier "copied");
+              assign_stmt "last" (J.Identifier "copied");
+              assign_stmt "rest" (member (J.Identifier "rest") "tl");
+            ];
+        };
+      J.Return (Some (J.Identifier "root"));
+    ] )
+
+and ordering_instance (operand : O.Type.t) =
+  match operand with
+  | O.Type.TCustom (name, [ element ]) when is_list_type name ->
+      Option.map
+        (fun key -> defined ("$cmp$List$" ^ key) (list_ordering element))
+        (instance_key element)
+  | O.Type.TTup _ ->
+      Option.bind (product_parts operand) (fun parts ->
+          Option.map
+            (fun key -> defined ("$cmp$" ^ key) (product_ordering parts))
+            (instance_key operand))
+  | O.Type.TVar _ | O.Type.TInt | O.Type.TFloat | O.Type.TChar | O.Type.TStr
+  | O.Type.TBool | O.Type.TUnit | O.Type.TFun _ | O.Type.TCustom _
+  | O.Type.TRecord _ | O.Type.TRowExtend _ | O.Type.TRowEmpty ->
+      None
+
+and defined name body = instance name (fun () -> arrow_declaration name (body ()))
+
+and arrow_declaration name (parameters, body) =
+  J.ConstDecl
+    { name; init = J.Arrow { params = parameters; body = J.ArrowBlock body } }
+
+and walking_both_lists step =
+  let is_cons subject =
+    binary J.StrictNotEqual (J.Identifier subject) (J.Literal (J.Int 0))
+  in
+  [
+    J.VarDecl { name = "left"; init = Some (J.Identifier "xs") };
+    J.VarDecl { name = "right"; init = Some (J.Identifier "ys") };
+    J.While
+      {
+        test = binary J.And (is_cons "left") (is_cons "right");
+        body =
+          step
+          @ [
+              assign_stmt "left" (member (J.Identifier "left") "tl");
+              assign_stmt "right" (member (J.Identifier "right") "tl");
+            ];
+      };
+  ]
+
+and head_of subject = member (J.Identifier subject) "hd"
+
+and list_equality element () =
+  ( [ "xs"; "ys" ],
+    walking_both_lists
+      [
+        J.If
+          {
+            test =
+              J.Unary
+                {
+                  op = J.Not;
+                  arg =
+                    equality_of ~budget:expansion_budget element
+                      (head_of "left") (head_of "right");
+                };
+            consequent = [ J.Return (Some (J.Literal (J.Bool false))) ];
+            alternate = None;
+          };
+      ]
+    @ [
+        J.Return
+          (Some
+             (binary J.StrictEqual (J.Identifier "left") (J.Identifier "right")));
+      ] )
+
+and returning_first_difference name ordering =
+  [
+    J.ConstDecl { name; init = ordering };
+    J.If
+      {
+        test =
+          binary J.StrictNotEqual (J.Identifier name) (J.Literal (J.Int 0));
+        consequent = [ J.Return (Some (J.Identifier name)) ];
+        alternate = None;
+      };
+  ]
+
+and list_ordering element () =
+  let exhausted subject other =
+    J.Conditional
+      {
+        test =
+          binary J.StrictNotEqual (J.Identifier subject) (J.Literal (J.Int 0));
+        consequent = J.Literal (J.Int 1);
+        alternate =
+          J.Conditional
+            {
+              test =
+                binary J.StrictNotEqual (J.Identifier other)
+                  (J.Literal (J.Int 0));
+              consequent =
+                J.Unary { op = J.Negative; arg = J.Literal (J.Int 1) };
+              alternate = J.Literal (J.Int 0);
+            };
+      }
+  in
+  ( [ "xs"; "ys" ],
+    walking_both_lists
+      (returning_first_difference "ordering"
+         (three_way_of element (head_of "left") (head_of "right")))
+    @ [ J.Return (Some (exhausted "left" "right")) ] )
+
+and product_equality parts () =
+  let compared (read, part) =
+    equality_of ~budget:max_int part
+      (read (J.Identifier "a"))
+      (read (J.Identifier "b"))
+  in
+  ([ "a"; "b" ], [ J.Return (Some (conjunction (List.map compared parts))) ])
+
+and product_ordering parts () =
+  let compared index (read, part) =
+    returning_first_difference
+      (Printf.sprintf "ordering%d" index)
+      (three_way_of part (read (J.Identifier "a")) (read (J.Identifier "b")))
+  in
+  ( [ "a"; "b" ],
+    List.concat (List.mapi compared parts)
+    @ [ J.Return (Some (J.Literal (J.Int 0))) ] )
+
+and payload_equality (ctor : O.Typedecl.ctor) =
+  let compared index part =
+    let payload subject = member (J.Identifier subject) ("_" ^ string_of_int index) in
+    equality_of ~budget:expansion_budget part (payload "a") (payload "b")
+  in
+  conjunction (List.mapi compared ctor.payload)
+
+and variant_equality ctors () =
+  let is_object subject =
+    binary J.StrictEqual
+      (J.Unary { op = J.Typeof; arg = J.Identifier subject })
+      (J.Literal (J.String "object"))
+  in
+  let identical =
+    binary J.StrictEqual (J.Identifier "a") (J.Identifier "b")
+  in
+  let returning_unless test result =
+    J.If
+      {
+        test = J.Unary { op = J.Not; arg = test };
+        consequent = [ J.Return (Some result) ];
+        alternate = None;
+      }
+  in
+  let guards =
+    [
+      returning_unless (is_object "a") identical;
+      returning_unless (is_object "b") (J.Literal (J.Bool false));
+    ]
+  in
+  let tag subject = member (J.Identifier subject) "TAG" in
+  let case (ctor : O.Typedecl.ctor) =
+    {
+      J.test = Some (J.Literal (J.String (Data.Name.base ctor.id)));
+      consequent = [ J.Return (Some (payload_equality ctor)) ];
+    }
+  in
+  let rec cases = function
+    | [] -> []
+    | [ last ] -> [ { (case last) with J.test = None } ]
+    | ctor :: rest -> case ctor :: cases rest
+  in
+  let body =
+    match List.filter carries_payload ctors with
+    | [] -> [ J.Return (Some identical) ]
+    | [ only ] -> guards @ [ J.Return (Some (payload_equality only)) ]
+    | carrying ->
+        guards
+        @ [
+            J.If
+              {
+                test = binary J.StrictNotEqual (tag "a") (tag "b");
+                consequent = [ J.Return (Some (J.Literal (J.Bool false))) ];
+                alternate = None;
+              };
+            J.Switch { discriminant = tag "a"; cases = cases carrying };
+          ]
+  in
+  ([ "a"; "b" ], body)
+
+let appending (operand : O.Type.t) left right =
+  match operand with
+  | O.Type.TStr -> binary J.Plus left right
+  | O.Type.TVar _ | O.Type.TInt | O.Type.TFloat | O.Type.TChar | O.Type.TBool
+  | O.Type.TUnit | O.Type.TFun _ | O.Type.TTup _ | O.Type.TCustom _
+  | O.Type.TRecord _ | O.Type.TRowExtend _ | O.Type.TRowEmpty ->
+      call
+        (Option.value (append_instance operand) ~default:append_reference)
+        [ left; right ]
+
+let equality operand left right =
+  equality_of ~budget:expansion_budget operand left right
+
+let inequality operand left right =
+  if compared_in_place operand then binary J.StrictNotEqual left right
+  else J.Unary { op = J.Not; arg = equality operand left right }
+
+let ordering operand operator left right =
+  ordering_of ~budget:expansion_budget ~operator operand left right
+
+let lowering ~(operand : O.Type.t) :
+    Data.Operator.t -> J.expr -> J.expr -> J.expr = function
   | Add -> binary J.Plus
   | Subtract -> binary J.Minus
   | Multiply -> binary J.Multiply
-  | Divide -> truncated_division
+  | Divide -> binary J.Divide
   | Integer_divide -> integer_division
   | Power -> binary J.Exponent
-  | Append -> binary J.Plus
-  | Equal -> binary J.StrictEqual
-  | Not_equal -> binary J.StrictNotEqual
-  | Less -> binary J.LessThan
-  | Less_or_equal -> binary J.LessThanOrEqual
-  | Greater -> binary J.GreaterThan
-  | Greater_or_equal -> binary J.GreaterThanOrEqual
+  | Append -> appending operand
+  | Equal -> equality operand
+  | Not_equal -> inequality operand
+  | Less -> ordering operand J.LessThan
+  | Less_or_equal -> ordering operand J.LessThanOrEqual
+  | Greater -> ordering operand J.GreaterThan
+  | Greater_or_equal -> ordering operand J.GreaterThanOrEqual
   | Conjunction -> binary J.And
   | Disjunction -> binary J.Or
 
-let indexed_member object_ index =
-  J.Member { object_; property = J.Literal (J.Int index); computed = true }
+let reads_operands_twice (operand : O.Type.t) (operator : Data.Operator.t) =
+  let expanded () =
+    (not (compared_in_place operand))
+    && Option.is_some (parts_within_budget ~budget:expansion_budget operand)
+  in
+  match operator with
+  | Equal | Not_equal | Less | Less_or_equal | Greater | Greater_or_equal ->
+      expanded ()
+  | Add | Subtract | Multiply | Divide | Integer_divide | Power | Append
+  | Conjunction | Disjunction ->
+      false
+
+let shared_operands ~when_duplicated left right =
+  if when_duplicated then
+    let left_bindings, left = shared_operand left in
+    let right_bindings, right = shared_operand right in
+    (left_bindings @ right_bindings, left, right)
+  else ([], left, right)
+
+let binary_lowering ~(operand : O.Type.t) (operator : Data.Operator.t) left
+    right : J.stmt list * J.expr =
+  let bindings, left, right =
+    shared_operands
+      ~when_duplicated:(reads_operands_twice operand operator)
+      left right
+  in
+  (bindings, lowering ~operand operator left right)
+
+let method_lowering (method_ : Data.Method.t) ~operand left right =
+  let bindings, left, right = shared_operands ~when_duplicated:true left right in
+  let picking test = J.Conditional { test; consequent = left; alternate = right } in
+  match method_ with
+  | Minimum ->
+      ( bindings,
+        picking
+          (ordering_of ~budget:expansion_budget ~operator:J.LessThan operand
+             left right) )
+  | Maximum ->
+      ( bindings,
+        picking
+          (ordering_of ~budget:expansion_budget ~operator:J.GreaterThan operand
+             left right) )
+  | Compare ->
+      let name = fresh_temp () in
+      let ordering = J.Identifier name in
+      let result = Data.Method.ordering_result in
+      ( bindings
+        @ [ J.ConstDecl { name; init = three_way_of operand left right } ],
+        J.Conditional
+          {
+            test = binary J.LessThan ordering (J.Literal (J.Int 0));
+            consequent = constructor_to_object result.less [];
+            alternate =
+              J.Conditional
+                {
+                  test = binary J.StrictEqual ordering (J.Literal (J.Int 0));
+                  consequent = constructor_to_object result.equal [];
+                  alternate = constructor_to_object result.greater [];
+                };
+          } )
+
+let saturated_lowering env name ~operand =
+  if SMap.mem name env then None
+  else
+    match Data.Operator.referred_to_by name with
+    | Some operator -> Some (binary_lowering ~operand operator)
+    | None ->
+        Option.map
+          (fun method_ -> method_lowering method_ ~operand)
+          (Data.Method.referred_to_by name)
 
 let js_eq left lit = J.Binary { left; op = J.StrictEqual; right = J.Literal lit }
 
@@ -323,8 +891,6 @@ let match_failure =
          });
   ]
 
-let assign_stmt r e = J.ExprStmt (J.Assignment { left = J.Identifier r; right = e })
-
 
 let curry_call f args =
   J.Call { callee = curry_reference; args = [ f; J.Array args ] }
@@ -337,9 +903,57 @@ let split_at n lst =
   in
   go n [] lst
 
-let operator_lowering env name =
+let method_lowering (method_ : Data.Method.t) ~operand left right =
+  let left_bindings, left = shared_operand left in
+  let right_bindings, right = shared_operand right in
+  let bindings = left_bindings @ right_bindings in
+  match method_ with
+  | Minimum ->
+      ( bindings,
+        J.Conditional
+          {
+            test = ordering_of ~budget:expansion_budget ~operator:J.LessThan
+                     operand left right;
+            consequent = left;
+            alternate = right;
+          } )
+  | Maximum ->
+      ( bindings,
+        J.Conditional
+          {
+            test = ordering_of ~budget:expansion_budget ~operator:J.GreaterThan
+                     operand left right;
+            consequent = left;
+            alternate = right;
+          } )
+  | Compare ->
+      let name = fresh_temp () in
+      let ordering = J.Identifier name in
+      let result = Data.Method.ordering_result in
+      ( bindings
+        @ [ J.ConstDecl { name; init = three_way_of operand left right } ],
+        J.Conditional
+          {
+            test = binary J.LessThan ordering (J.Literal (J.Int 0));
+            consequent = constructor_to_object result.less [];
+            alternate =
+              J.Conditional
+                {
+                  test = binary J.StrictEqual ordering (J.Literal (J.Int 0));
+                  consequent = constructor_to_object result.equal [];
+                  alternate = constructor_to_object result.greater [];
+                };
+          } )
+
+let saturated_lowering env name ~operand =
   if SMap.mem name env then None
-  else Option.map binary_lowering (Data.Operator.referred_to_by name)
+  else
+    match Data.Operator.referred_to_by name with
+    | Some operator -> Some (binary_lowering ~operand operator)
+    | None ->
+        Option.map
+          (fun method_ -> method_lowering method_ ~operand)
+          (Data.Method.referred_to_by name)
 
 let declared_arity env name =
   if SMap.mem name env then None else Hashtbl.find_opt js_arity name
@@ -593,7 +1207,10 @@ and emit_uncoerced env (e : O.Expr.t) : J.stmt list * J.expr =
   | O.Expr.Expr_binop { name; operands = a, b } ->
       let sa, ea = emit_value env a in
       let sb, eb = emit_value env b in
-      (sa @ sb, binary_lowering name ea eb)
+      let bindings, lowered =
+        binary_lowering ~operand:a.O.Expr.typ name ea eb
+      in
+      (sa @ sb @ bindings, lowered)
   | O.Expr.Expr_constr { name; arguments } ->
       let ss, es = emit_values env arguments in
       (ss, constructor_to_object name es)
@@ -682,14 +1299,15 @@ and emit_apply env fn arg =
       | O.Expr.Expr_ident op, [ left; right ] ->
           Option.map
             (fun lower -> (lower, left, right))
-            (operator_lowering env op)
+            (saturated_lowering env op ~operand:left.O.Expr.typ)
       | _ -> None
     in
     match saturated_operator with
     | Some (lower, left, right) ->
         let sa, ea = emit_value env left in
         let sb, eb = emit_value env right in
-        (sa @ sb, lower ea eb)
+        let bindings, lowered = lower ea eb in
+        (sa @ sb @ bindings, lowered)
     | None -> begin
         match (callee.expr, args) with
         | O.Expr.Expr_kernel (Kernel_value kernel), _ ->
@@ -952,9 +1570,14 @@ let constructor_decls (constructors : (Data.Name.t * int) list) : J.stmt list =
                    };
              })
 
-let program_with_helpers ~arities ~constructors ~siblings ~exports
+let program_with_helpers ~arities ~constructors ~siblings ~typedecls ~exports
     (decls : O.Declaration.t list) : J.program =
   reset_names ();
+  reset_instances ();
+  Hashtbl.reset visible_types;
+  List.iter
+    (fun (decl : O.Typedecl.t) -> Hashtbl.replace visible_types decl.name decl)
+    typedecls;
   List.iter (fun (name, arity) -> Hashtbl.replace js_arity name arity) arities;
   List.iter
     (fun (name, arity) ->
@@ -976,10 +1599,10 @@ let program_with_helpers ~arities ~constructors ~siblings ~exports
     | [] -> []
     | names -> [ J.Export (List.map js_of_name names) ]
   in
-  constructor_decls constructors @ program_of_declarations decls @ exported
+  let body = program_of_declarations decls in
+  constructor_decls constructors @ instance_declarations () @ body @ exported
 
-let runtime_module_source () =
-  Runtime.curry ^ To_string.program_to_string [ J.Export [ "$$curry" ] ]
+let runtime_module_source () = Runtime.source
 
 let extension = "mjs"
 
@@ -997,10 +1620,11 @@ let import_lines imports =
                })
            modules)
 
-let emit_module ~arities ~constructors ~siblings ~imports ~exports
+let emit_module ~arities ~constructors ~siblings ~typedecls ~imports ~exports
     (decls : O.Declaration.t list) : string =
   let program =
-    program_with_helpers ~arities ~constructors ~siblings ~exports decls
+    program_with_helpers ~arities ~constructors ~siblings ~typedecls ~exports
+      decls
   in
   let runtime_import =
     if J.references runtime_module_name program then [ runtime_module_name ]
