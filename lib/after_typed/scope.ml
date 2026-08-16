@@ -1,5 +1,5 @@
 module O = Optimized
-module Names = Set.Make (Data.Name)
+module Names = Data.Name.Set
 
 let union_map f items =
   List.fold_left (fun acc item -> Names.union acc (f item)) Names.empty items

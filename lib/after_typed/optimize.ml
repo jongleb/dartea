@@ -1,7 +1,7 @@
 module T = Typed
 module O = Optimized
 module Names = Scope.Names
-module By_name = Map.Make (Data.Name)
+module By_name = Data.Name.Map
 
 let inline_size_limit = 10
 let pattern_branch_cost = 2
@@ -73,14 +73,12 @@ let rec expression_size (e : O.Expr.t) : int =
 let occurs_free ~(name : Data.Name.t) (e : O.Expr.t) : bool =
   Names.mem name (Scope.free_variables ~bound:Names.empty e)
 
-let rec zip_exactly (names : string Data.Located.t list)
-    (arguments : O.Expr.t list) :
-    (string Data.Located.t * O.Expr.t) list option =
-  match (names, arguments) with
+let rec zip_exactly parameters (arguments : O.Expr.t list) =
+  match (parameters, arguments) with
   | [], [] -> Some []
-  | name :: names, argument :: arguments ->
-      zip_exactly names arguments
-      |> Option.map (fun rest -> (name, argument) :: rest)
+  | parameter :: parameters, argument :: arguments ->
+      zip_exactly parameters arguments
+      |> Option.map (fun rest -> (parameter, argument) :: rest)
   | _ -> None
 
 let bind_arguments (bindings : (string Data.Located.t * O.Expr.t) list)
@@ -309,11 +307,72 @@ let rec eliminate_dead_lets (e : O.Expr.t) : O.Expr.t =
   | _ -> e
 
 type inlinable = {
-  parameters : string Data.Located.t list;
+  parameters : O.Declaration.param list;
   parameter_names : Names.t;
   body : O.Expr.t;
   free_names : Names.t;
 }
+
+let rec matched bindings (parameter : O.Type.t) (argument : O.Type.t) =
+  match (parameter, argument) with
+  | TVar variable, _ ->
+      if O.Type.By_variable.mem variable bindings then bindings
+      else O.Type.By_variable.add variable argument bindings
+  | TFun (from_parameter, to_parameter), TFun (from_argument, to_argument) ->
+      matched
+        (matched bindings from_parameter from_argument)
+        to_parameter to_argument
+  | TTup parameters, TTup arguments -> matched_all bindings parameters arguments
+  | TCustom (_, parameters), TCustom (_, arguments) ->
+      matched_all bindings parameters arguments
+  | TRecord parameter_row, TRecord argument_row ->
+      matched bindings parameter_row argument_row
+  | ( TRowExtend (_, parameter_field, parameter_rest),
+      TRowExtend (_, argument_field, argument_rest) ) ->
+      matched
+        (matched bindings parameter_field argument_field)
+        parameter_rest argument_rest
+  | ( ( TInt | TFloat | TChar | TBool | TStr | TUnit | TRowEmpty | TFun _
+      | TTup _ | TCustom _ | TRecord _ | TRowExtend _ ),
+      _ ) ->
+      bindings
+
+and matched_all bindings parameters arguments =
+  match (parameters, arguments) with
+  | parameter :: parameters, argument :: arguments ->
+      matched_all (matched bindings parameter argument) parameters arguments
+  | [], _ | _, [] -> bindings
+
+let rec specialised bindings (e : O.Expr.t) : O.Expr.t =
+  let e = Subexpressions.transform e ~f:(specialised bindings) in
+  let expr =
+    match e.expr with
+    | Expr_lambda { params; body } ->
+        O.Expr.Expr_lambda
+          {
+            params =
+              List.map
+                (fun (p : O.Expr.expr_lambda_param) ->
+                  { p with typ = O.Type.substitute bindings p.typ })
+                params;
+            body;
+          }
+    | Expr_pattern { expr; pattern_data_items } ->
+        O.Expr.Expr_pattern
+          {
+            expr;
+            pattern_data_items =
+              List.map
+                (fun (case : O.Expr.expr_pattern_case) ->
+                  {
+                    case with
+                    pattern = O.Pattern.substitute bindings case.pattern;
+                  })
+                pattern_data_items;
+          }
+    | untyped -> untyped
+  in
+  { typ = O.Type.substitute bindings e.typ; expr }
 
 let inlinable_declarations (decls : O.Declaration.t list) :
     inlinable By_name.t =
@@ -331,8 +390,7 @@ let inlinable_declarations (decls : O.Declaration.t list) :
     then
       Some
         {
-          parameters =
-            List.map (fun (p : O.Declaration.param) -> p.name) d.params;
+          parameters = d.params;
           parameter_names = Scope.bound_by_declaration d;
           body = d.body;
           free_names;
@@ -365,8 +423,23 @@ let rec inline_calls ~(table : inlinable By_name.t) ~(bound : Names.t)
       then
         zip_exactly candidate.parameters taken
         |> Option.map (fun bindings ->
+               let specialisation =
+                 List.fold_left
+                   (fun collected
+                        ((parameter : O.Declaration.param),
+                         (argument : O.Expr.t)) ->
+                     matched collected parameter.typ argument.typ)
+                   O.Type.By_variable.empty bindings
+               in
+               let bound =
+                 List.map
+                   (fun ((parameter : O.Declaration.param), argument) ->
+                     (parameter.name, argument))
+                   bindings
+               in
                apply_to
-                 (bind_arguments bindings candidate.body)
+                 (bind_arguments bound
+                    (specialised specialisation candidate.body))
                  (List.drop arity arguments))
       else None
     in

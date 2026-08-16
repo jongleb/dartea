@@ -96,7 +96,7 @@ let sname loc = sanitize (Data.Located.unwrap loc)
 
 let temp_counter = ref 0
 
-module SMap = Map.Make (Data.Name)
+module SMap = Data.Name.Map
 
 let name_counts : (string, int) Hashtbl.t = Hashtbl.create 64
 

@@ -25,19 +25,19 @@ let failing ~dependencies source =
   | Ok _ -> assert_failure "expected resolution to fail"
   | Error errors -> errors
 
+let declaration_named module_ name =
+  List.find_opt
+    (fun (d : Canonical.Declaration.t) ->
+      String.equal (Data.Located.unwrap d.body_part.name) name)
+    module_.Canonical.Module.top_declarations
+
 let expr_of module_ name =
-  match
-    Canonical.Module.String_map.find_opt name
-      module_.Canonical.Module.top_declarations
-  with
+  match declaration_named module_ name with
   | Some (d : Canonical.Declaration.t) -> Data.Located.unwrap d.body_part.expr
   | None -> assert_failure (Printf.sprintf "declaration %s not found" name)
 
 let signature_of module_ name =
-  match
-    Canonical.Module.String_map.find_opt name
-      module_.Canonical.Module.top_declarations
-  with
+  match declaration_named module_ name with
   | Some (d : Canonical.Declaration.t) ->
       Option.map
         (fun (tp : Canonical.Declaration.type_part) -> tp.type_alias)
@@ -441,6 +441,73 @@ type Beta = Shared
     ]
     errors
 
+let test_duplicate_top_level_declaration _ =
+  let errors =
+    failing ~dependencies:[]
+      {|
+module Main exposing (..)
+
+foo = 1
+
+bar = 2
+
+foo = 3
+|}
+  in
+  assert_equal ~printer:errors_printer
+    [
+      {
+        Canonicalization.Resolve_names.origin =
+          Value_declaration (Data.Located.dummy "foo");
+        problem = Duplicate_declaration { name = "foo" };
+      };
+    ]
+    errors
+
+let test_an_annotated_duplicate_is_still_a_duplicate _ =
+  let errors =
+    failing ~dependencies:[]
+      {|
+module Main exposing (..)
+
+foo : Int
+foo = 1
+
+foo : Int
+foo = 2
+|}
+  in
+  assert_equal ~printer:errors_printer
+    [
+      {
+        Canonicalization.Resolve_names.origin =
+          Value_declaration (Data.Located.dummy "foo");
+        problem = Duplicate_declaration { name = "foo" };
+      };
+    ]
+    errors
+
+let test_declarations_keep_their_source_order _ =
+  let module_ =
+    resolved ~dependencies:[]
+      {|
+module Main exposing (..)
+
+zebra = 1
+
+alpha = 2
+
+middle = 3
+|}
+  in
+  assert_equal
+    ~printer:(String.concat ", ")
+    [ "zebra"; "alpha"; "middle" ]
+    (List.map
+       (fun (d : Canonical.Declaration.t) ->
+         Data.Located.unwrap d.body_part.name)
+       module_.Canonical.Module.top_declarations)
+
 let test_ctors_not_exposed _ =
   let errors =
     failing
@@ -728,6 +795,11 @@ let suite =
     "import of hidden name" >:: test_import_of_hidden_name;
     "ambiguous unqualified" >:: test_ambiguous_unqualified;
     "duplicate constructor" >:: test_duplicate_constructor;
+    "duplicate top level declaration" >:: test_duplicate_top_level_declaration;
+    "an annotated duplicate is still a duplicate"
+    >:: test_an_annotated_duplicate_is_still_a_duplicate;
+    "declarations keep their source order"
+    >:: test_declarations_keep_their_source_order;
     "constructors not exposed" >:: test_ctors_not_exposed;
     "let binding shadows import" >:: test_let_binding_shadows_import;
     "pattern binding shadows import" >:: test_pattern_binding_shadows_import;

@@ -96,11 +96,7 @@ module Make (B : BACKEND) = struct
                 {
                   Optimized.Typedecl.id = ctor.id;
                   payload =
-                    List.map
-                      (fun written ->
-                        After_typed.Typed_to_optimized.type_of_typed
-                          (Infer.Infer_proc.typedef_to_type written))
-                      ctor.data;
+                    List.map Infer.Infer_proc.typedef_to_type ctor.data;
                 })
               declared.ctors;
         })

@@ -6,7 +6,9 @@ type t = { name : Data.Name.t; params : string list; ctors : ctor list }
 let constructors (decl : t) ~arguments =
   if List.length decl.params <> List.length arguments then None
   else
-    let bindings = List.combine decl.params arguments in
+    let bindings =
+      List.combine decl.params arguments |> Type.By_variable.of_list
+    in
     Some
       (List.map
          (fun ctor ->

@@ -7,8 +7,7 @@ let warnings
     | Expr_pattern pattern_match ->
         let patterns =
           List.map
-            (fun (case : expr_pattern_case) ->
-              Typed_to_optimized.pattern_of_typed case.pattern)
+            (fun (case : expr_pattern_case) -> case.pattern)
             pattern_match.pattern_data_items
         in
         let here =

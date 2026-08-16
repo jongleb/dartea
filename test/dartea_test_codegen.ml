@@ -3171,6 +3171,97 @@ label =
   assert_js ~src ~expr:"Main.log" ~expected:"2";
   assert_js ~src ~expr:"Main.label" ~expected:{|"model counter"|}
 
+let test_a_later_callee_specialises_the_caller _ =
+  let src =
+    {|
+isPalindrome n = reverse n == n
+
+reverse n =
+    let
+        go m acc = if m == 0 then acc else go (quot m 10) (acc * 10 + rem m 10)
+    in
+    go n 0
+
+quot a b = a // b
+
+rem a b = a - quot a b * b
+
+result = isPalindrome 12321
+
+different = isPalindrome 12345
+|}
+  in
+  assert_js ~src ~expr:"Main.result" ~expected:"true";
+  assert_js ~src ~expr:"Main.different" ~expected:"false";
+  assert_bool "comparing two Ints does not go through the runtime"
+    (not (contains ~needle:"$$eq" (main_source src)))
+
+let test_mutual_recursion_without_annotations_runs _ =
+  let src =
+    {|
+isEven n = if n == 0 then True else isOdd (n - 1)
+
+isOdd n = if n == 0 then False else isEven (n - 1)
+
+result = isEven 10
+
+odd = isOdd 10
+|}
+  in
+  assert_js ~src ~expr:"Main.result" ~expected:"true";
+  assert_js ~src ~expr:"Main.odd" ~expected:"false"
+
+let test_inlining_keeps_the_call_site_type _ =
+  let src =
+    {|
+smallest : comparable -> comparable -> comparable
+smallest one other =
+    if one < other then
+        one
+
+    else
+        other
+
+result : Bool
+result = smallest "b" "a" == "a"
+|}
+  in
+  assert_js ~src ~expr:"Main.result" ~expected:"true";
+  assert_bool "the inlined comparison of two strings is emitted inline"
+    (contains
+       ~needle:{|const result = (("b" < "a") ? "b" : "a") === "a";|}
+       (main_source src))
+
+let test_inlining_specialises_an_unconstrained_variable _ =
+  let src =
+    {|
+same : a -> a -> Bool
+same one other =
+    one == other
+
+result : Bool
+result = same (String.length "abcd") 4
+|}
+  in
+  assert_js ~src ~expr:"Main.result" ~expected:"true";
+  assert_bool "the inlined equality on Ints is emitted inline"
+    (contains ~needle:"const result = one$1 === 4;" (main_source src))
+
+let test_a_polymorphic_definition_still_uses_the_runtime _ =
+  let src =
+    {|
+same : a -> a -> Bool
+same one other =
+    one == other
+
+result : Bool
+result = same [ 1, 2 ] [ 1, 2 ]
+|}
+  in
+  assert_js ~src ~expr:"Main.result" ~expected:"true";
+  assert_bool "structural equality on lists stays on the runtime"
+    (contains ~needle:"$$eq" (main_source src))
+
 let suite =
   [
     "comments_are_skipped" >:: test_comments_are_skipped;
@@ -3235,6 +3326,16 @@ let suite =
     "cons_is_right_associative" >:: test_cons_is_right_associative;
     "triples" >:: test_triples;
     "tuple_pair_is_verbatim_elm" >:: test_tuple_pair_is_verbatim_elm;
+    "a_later_callee_specialises_the_caller"
+    >:: test_a_later_callee_specialises_the_caller;
+    "mutual_recursion_without_annotations_runs"
+    >:: test_mutual_recursion_without_annotations_runs;
+    "inlining_keeps_the_call_site_type"
+    >:: test_inlining_keeps_the_call_site_type;
+    "inlining_specialises_an_unconstrained_variable"
+    >:: test_inlining_specialises_an_unconstrained_variable;
+    "a_polymorphic_definition_still_uses_the_runtime"
+    >:: test_a_polymorphic_definition_still_uses_the_runtime;
     "record_update" >:: test_record_update;
     "record_update_keeps_the_record_type"
     >:: test_record_update_keeps_the_record_type;

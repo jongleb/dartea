@@ -2,7 +2,7 @@ module O = Optimized
 module DT = After_typed.Exhaustive.Decision_tree
 module Occ = After_typed.Exhaustive.Occurrence
 module Scope = After_typed.Scope
-module By_name = Map.Make (Data.Name)
+module By_name = Data.Name.Map
 module Text = Set.Make (String)
 
 module By_occurrence = Map.Make (struct
