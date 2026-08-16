@@ -40,16 +40,12 @@ module Reported = struct
 
   let rejected value problem = { value; problems = [ problem ] }
 
+  let both left right =
+    bind left ~f:(fun left -> map right ~f:(fun right -> (left, right)))
+
   let recovered ~fallback = function
     | Ok value -> return value
     | Error problem -> rejected fallback problem
-
-  let each items ~f = all (List.map f items)
-
-  let option value ~f =
-    match value with
-    | None -> return None
-    | Some value -> bind (f value) ~f:(fun value -> return (Some value))
 
   let blamed origin reported =
     ( reported.value,
@@ -84,11 +80,12 @@ let with_scope env namespace scope =
   | Terms -> { env with term_scope = scope }
   | Types -> { env with type_scope = scope }
 
-let binds env names =
+let binds env binders =
   let scope = env.term_scope in
   {
     env with
-    term_scope = { scope with visible = Names.union scope.visible names };
+    term_scope =
+      { scope with visible = Scope.Binders.fold Names.add binders scope.visible };
   }
 
 let brings_into_scope env brought ~from =
@@ -112,50 +109,39 @@ let brings_into_scope env brought ~from =
     (fun env (namespace, names) -> Names.fold (expose namespace) names env)
     env brought
 
+let repeated (declarations : (origin * string) list) : error list =
+  List.fold_left
+    (fun (declared, errors) (origin, name) ->
+      if Names.mem name declared then
+        (declared, { origin; problem = Duplicate_declaration { name } } :: errors)
+      else (Names.add name declared, errors))
+    (Names.empty, []) declarations
+  |> snd |> List.rev
+
 let duplicate_declarations (m : Canonical.Module.t) : error list =
-  let clashing_ctors =
-    let declaring_types =
-      Canonical.Module.String_map.fold
-        (fun type_name (td : Canonical.Typedecl.t) owners ->
-          List.fold_left
-            (fun owners (ctor : Canonical.Typedecl.type_ctor) ->
-              By_name.update (Data.Name.base ctor.id)
-                (fun declared ->
-                  Some (type_name :: Option.value declared ~default:[]))
-                owners)
-            owners td.ctors)
-        m.type_declarations By_name.empty
-    in
-    By_name.fold
-      (fun name owners errors ->
-        match List.rev owners with
-        | [] | [ _ ] -> errors
-        | _first :: repeated ->
-            List.map
-              (fun type_name ->
-                {
-                  origin = Type_declaration type_name;
-                  problem = Duplicate_declaration { name };
-                })
-              repeated
-            @ errors)
-      declaring_types []
+  let values =
+    List.map
+      (fun (d : Canonical.Declaration.t) ->
+        (Value_declaration d.body_part.name, Data.Located.unwrap d.body_part.name))
+      m.top_declarations
   in
-  let clashing_type_names =
-    Canonical.Module.String_map.fold
-      (fun name _ errors ->
-        match Canonical.Module.String_map.find_opt name m.type_declarations with
-        | None -> errors
-        | Some _ ->
-            {
-              origin = Type_alias name;
-              problem = Duplicate_declaration { name };
-            }
-            :: errors)
-      m.type_aliases []
-    |> List.rev
+  let constructors =
+    Canonical.Module.String_map.bindings m.type_declarations
+    |> List.concat_map (fun (type_name, (td : Canonical.Typedecl.t)) ->
+           List.map
+             (fun (ctor : Canonical.Typedecl.type_ctor) ->
+               (Type_declaration type_name, Data.Name.base ctor.id))
+             td.ctors)
   in
-  clashing_ctors @ clashing_type_names
+  let named map ~origin =
+    Canonical.Module.String_map.bindings map
+    |> List.map (fun (name, _) -> (origin name, name))
+  in
+  let type_names =
+    named m.type_declarations ~origin:(fun name -> Type_declaration name)
+    @ named m.type_aliases ~origin:(fun name -> Type_alias name)
+  in
+  repeated values @ repeated constructors @ repeated type_names
 
 let brought_in_by dependency (item : Canonical.Exposed.item) :
     ((namespace * Names.t) list, problem) result =
@@ -272,153 +258,30 @@ let refers_to env namespace (name : Data.Name.t) :
 let resolved env namespace name =
   Reported.recovered ~fallback:name (refers_to env namespace name)
 
-let rec bound_by_pattern (p : Canonical.Pattern.t) : Names.t =
-  match p with
-  | P_var name -> Names.singleton name
-  | P_record fields -> Names.of_list fields
-  | P_tuple items | P_list items ->
-      List.fold_left
-        (fun acc item -> Names.union acc (bound_by_pattern item))
-        Names.empty items
-  | P_cons (head, tail) ->
-      Names.union (bound_by_pattern head) (bound_by_pattern tail)
-  | P_alias (inner, name) -> Names.add name (bound_by_pattern inner)
-  | P_ctor (_, arguments) ->
-      List.fold_left
-        (fun acc argument -> Names.union acc (bound_by_pattern argument))
-        Names.empty arguments
-  | P_anything | P_unit | P_chr _ | P_str _ | P_int _ -> Names.empty
+module Resolution = struct
+  type 'a t = 'a Reported.t
+  type scope = env
 
-let rec pattern env (p : Canonical.Pattern.t) : Canonical.Pattern.t Reported.t =
-  let open Canonical.Pattern in
-  let open Reported.Let_syntax in
-  match p with
-  | P_ctor (name, arguments) ->
-      let%map ctor = resolved env Terms name
-      and arguments = Reported.each arguments ~f:(pattern env) in
-      P_ctor (ctor, arguments)
-  | P_tuple items ->
-      let%map items = Reported.each items ~f:(pattern env) in
-      P_tuple items
-  | P_list items ->
-      let%map items = Reported.each items ~f:(pattern env) in
-      P_list items
-  | P_cons (head, tail) ->
-      let%map head = pattern env head and tail = pattern env tail in
-      P_cons (head, tail)
-  | P_alias (inner, name) ->
-      let%map inner = pattern env inner in
-      P_alias (inner, name)
-  | (P_anything | P_var _ | P_record _ | P_unit | P_chr _ | P_str _ | P_int _)
-    as leaf ->
-      Reported.return leaf
+  let return = Reported.return
+  let map = Reported.map
+  let both = Reported.both
+  let extended = binds
 
-let rec type_expression env (t : Canonical.Typedef.Impl.t) :
-    Canonical.Typedef.Impl.t Reported.t =
-  let open Canonical.Typedef in
-  let open Reported.Let_syntax in
-  let%map parameters = Reported.each t.parameters ~f:(type_expression env)
-  and body =
-    match t.body with
-    | Kind.Tkind_concrete written ->
-        let%map name = resolved env Types (Data.Located.unwrap written) in
-        Kind.Tkind_concrete { written with Data.Located.thing = name }
-    | Kind.Tkind_record { values; row_type } ->
-        let row (row : Type_record_row.t) =
-          let%map body = type_expression env row.body in
-          { row with Type_record_row.body }
-        in
-        let%map values = Reported.each values ~f:row in
-        Kind.Tkind_record { values; row_type }
-    | Kind.Tkind_tuple items ->
-        let%map items = Reported.each items ~f:(type_expression env) in
-        Kind.Tkind_tuple items
-    | Kind.Tkind_function { arguments } ->
-        let%map arguments = Reported.each arguments ~f:(type_expression env) in
-        Kind.Tkind_function { arguments }
-    | (Kind.Tkind_var _ | Kind.Tkind_unit) as leaf -> Reported.return leaf
-  in
-  { Impl.parameters; body }
+  let reference env name =
+    match Data.Kernel.referred_to_by name with
+    | Known kernel -> Reported.return (Canonical.Expr.Expr_kernel kernel)
+    | Unknown { module_name; exported_name } ->
+        Reported.rejected (Canonical.Expr.Expr_ident name)
+          (Unknown_kernel { module_name; exported_name })
+    | Not_kernel ->
+        Reported.map (resolved env Terms name) ~f:(fun name ->
+            Canonical.Expr.Expr_ident name)
 
-let rec expression env (e : Canonical.Expr.t) : Canonical.Expr.t Reported.t =
-  let open Canonical.Expr in
-  let open Reported.Let_syntax in
-  match e with
-  | Expr_ident name -> begin
-      match Data.Kernel.referred_to_by name with
-      | Known kernel -> Reported.return (Expr_kernel kernel)
-      | Unknown { module_name; exported_name } ->
-          Reported.rejected (Expr_ident name)
-            (Unknown_kernel { module_name; exported_name })
-      | Not_kernel ->
-          let%map name = resolved env Terms name in
-          Expr_ident name
-    end
-  | Expr_apply { fn; arg } ->
-      let%map fn = expression env fn and arg = expression env arg in
-      Expr_apply { fn; arg }
-  | Expr_let { binding; body } ->
-      let { bind_type; bind_body = { name; body = bound_value } } = binding in
-      let inner = binds env (Names.singleton (Data.Located.unwrap name)) in
-      let%map bound_value = expression env bound_value
-      and body = expression inner body
-      and bind_type = Reported.option bind_type ~f:(binding_annotation env) in
-      let bind_body = { name; body = bound_value } in
-      Expr_let { binding = { bind_type; bind_body }; body }
-  | Expr_if_then_else { if_exp; then_exp; else_exp } ->
-      let%map if_exp = expression env if_exp
-      and then_exp = expression env then_exp
-      and else_exp = expression env else_exp in
-      Expr_if_then_else { if_exp; then_exp; else_exp }
-  | Expr_pattern { expr; pattern_data_items } ->
-      let case (item : expr_pattern_case) =
-        let inner = binds env (bound_by_pattern item.pattern) in
-        let%map pattern = pattern env item.pattern
-        and expr = expression inner item.expr in
-        { pattern; expr }
-      in
-      let%map expr = expression env expr
-      and pattern_data_items = Reported.each pattern_data_items ~f:case in
-      Expr_pattern { expr; pattern_data_items }
-  | Expr_lambda { params; body } ->
-      let inner =
-        binds env (Names.of_list (List.map Data.Located.unwrap params))
-      in
-      let%map body = expression inner body in
-      Expr_lambda { params; body }
-  | Expr_access { expr; field } ->
-      let%map expr = expression env expr in
-      Expr_access { expr; field }
-  | Expr_list items ->
-      let%map items = Reported.each items ~f:(expression env) in
-      Expr_list items
-  | Expr_cons { head; tail } ->
-      let%map head = expression env head and tail = expression env tail in
-      Expr_cons { head; tail }
-  | Expr_tuple items ->
-      let%map items = Reported.each items ~f:(expression env) in
-      Expr_tuple items
-  | Expr_record_update { record; fields } ->
-      let%map record = expression env record
-      and fields = Reported.each fields ~f:(record_row env) in
-      Expr_record_update { record; fields }
-  | ( Expr_accessor _ | Expr_record_extend _ | Expr_record_select _
-    | Expr_record_empty | Expr_unit | Expr_kernel _ | Expr_char _
-    | Expr_string _ | Expr_int _
-    | Expr_float _ ) as leaf ->
-      Reported.return leaf
+  let constructor env name = resolved env Terms name
+  let type_reference env name = resolved env Types name
+end
 
-and binding_annotation env (annotation : Canonical.Expr.expr_let_binding_type)
-    : Canonical.Expr.expr_let_binding_type Reported.t =
-  let open Reported.Let_syntax in
-  let%map content = type_expression env annotation.content in
-  { annotation with Canonical.Expr.content }
-
-and record_row env (row : Canonical.Expr.expr_record_row) :
-    Canonical.Expr.expr_record_row Reported.t =
-  let open Reported.Let_syntax in
-  let%map value = expression env row.value in
-  { row with Canonical.Expr.value }
+module Resolving = Scope.Traversal (Resolution)
 
 let declared_arity (t : Canonical.Typedef.Impl.t) =
   match t.body with
@@ -443,6 +306,16 @@ let agreeing_with_its_kernel (declaration : Canonical.Declaration.t) =
     end
   | _ -> Reported.return declaration
 
+let resolved_values declarations ~f =
+  let resolved, errors =
+    List.fold_left
+      (fun (resolved, errors) declaration ->
+        let value, problems = f declaration in
+        (value :: resolved, List.rev_append problems errors))
+      ([], []) declarations
+  in
+  (List.rev resolved, List.rev errors)
+
 let resolved_declarations map ~f =
   let resolved, errors =
     Canonical.Module.String_map.fold
@@ -460,49 +333,28 @@ let in_module ~(dependencies : Canonical.Module.t list) (m : Canonical.Module.t)
   let open Reported.Let_syntax in
   let env, import_errors = environment_of ~dependencies m in
   let top_declarations, declaration_errors =
-    resolved_declarations m.top_declarations
-      ~f:(fun _ (d : Canonical.Declaration.t) ->
-        let inner =
-          binds env
-            (Names.of_list (List.map Data.Located.unwrap d.body_part.params))
-        in
+    resolved_values m.top_declarations
+      ~f:(fun (d : Canonical.Declaration.t) ->
         Reported.blamed (Value_declaration d.body_part.name)
-          (let%bind declaration =
-             let%map type_part_data =
-               match d.type_part_data with
-               | None -> Reported.return None
-               | Some (tp : Canonical.Declaration.type_part) ->
-                   let%map type_alias = type_expression env tp.type_alias in
-                   Some { tp with type_alias }
-             and expr =
-               let%map expr =
-                 expression inner (Data.Located.unwrap d.body_part.expr)
-               in
-               { d.body_part.expr with Data.Located.thing = expr }
-             in
-             {
-               Canonical.Declaration.type_part_data;
-               body_part = { d.body_part with expr };
-             }
-           in
+          (let%bind declaration = Resolving.declaration env d in
            agreeing_with_its_kernel declaration))
   in
   let type_declarations, type_errors =
     resolved_declarations m.type_declarations
       ~f:(fun name (td : Canonical.Typedecl.t) ->
         let ctor (ctor : Canonical.Typedecl.type_ctor) =
-          let%map data = Reported.each ctor.data ~f:(type_expression env) in
+          let%map data = Resolving.each ctor.data ~f:(Resolving.type_expression env) in
           { ctor with data }
         in
         Reported.blamed (Type_declaration name)
-          (let%map ctors = Reported.each td.ctors ~f:ctor in
+          (let%map ctors = Resolving.each td.ctors ~f:ctor in
            { td with ctors }))
   in
   let type_aliases, alias_errors =
     resolved_declarations m.type_aliases
       ~f:(fun name (ta : Canonical.Typealias.t) ->
         Reported.blamed (Type_alias name)
-          (let%map typedef = type_expression env ta.typedef in
+          (let%map typedef = Resolving.type_expression env ta.typedef in
            { ta with typedef }))
   in
   let errors =

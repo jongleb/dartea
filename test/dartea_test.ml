@@ -17,6 +17,8 @@ let suite =
          "test_exhaustive" >::: Dartea_test_exhaustive.suite;
          "test_frontend_module" >::: Dartea_test_frontend_module.suite;
          "test_canonical_module" >::: Dartea_test_canonical_module.suite;
+         "test_scope" >::: Dartea_test_scope.suite;
+         "test_declaration_graph" >::: Dartea_test_declaration_graph.suite;
          "test_resolve_names" >::: Dartea_test_resolve_names.suite;
          "test_interface" >::: Dartea_test_interface.suite;
          "test_crossmod" >::: Dartea_test_crossmod.suite;

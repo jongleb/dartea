@@ -1,6 +1,6 @@
 (library
  (name optimized)
- (libraries data)
+ (libraries data typed)
  (flags
   (-w -40 -w +26))
  (preprocess

@@ -6,7 +6,7 @@ type t = {
   exports : Exposed.t;
   type_aliases : Typealias.t String_map.t;
   type_declarations : Typedecl.t String_map.t;
-  top_declarations : Declaration.t String_map.t;
+  top_declarations : Declaration.t list;
 }
 
 let record_constructor (alias : Frontend.Typealias.t) :
@@ -80,17 +80,17 @@ let of_frontend ~fallback_name (frontend_module : Frontend.Module.t) : t =
       (fun name td acc -> String_map.add name (Typedecl.of_frontend td) acc)
       frontend_module.type_declarations String_map.empty
   in
-  let top_declarations =
+  let record_constructors =
     Frontend.Module.String_map.fold
-      (fun name d acc -> String_map.add name (Declaration.of_frontend d) acc)
-      frontend_module.top_declarations String_map.empty
-    |> Frontend.Module.String_map.fold
-         (fun name alias acc ->
-           match record_constructor alias with
-           | None -> acc
-           | Some declaration ->
-               String_map.add name (Declaration.of_frontend declaration) acc)
-         frontend_module.type_aliases
+      (fun _ alias collected ->
+        match record_constructor alias with
+        | None -> collected
+        | Some declaration -> Declaration.of_frontend declaration :: collected)
+      frontend_module.type_aliases []
+  in
+  let top_declarations =
+    List.map Declaration.of_frontend frontend_module.top_declarations
+    @ List.rev record_constructors
   in
   {
     name =

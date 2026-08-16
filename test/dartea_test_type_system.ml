@@ -386,6 +386,97 @@ firstWord xs =
 |}
     ~name:"firstWord" ~expected:"List String -> String"
 
+let recursion_without_annotations =
+  {|
+isEven n = if n == 0 then True else isOdd (n - 1)
+
+isOdd n = if n == 0 then False else isEven (n - 1)
+|}
+
+let calling_a_later_declaration =
+  {|
+divides d n = rem n d == 0
+
+quot a b = a // b
+
+rem a b = a - quot a b * b
+
+useIt : Bool
+useIt = divides "a" "b"
+|}
+
+let calling_an_earlier_declaration =
+  {|
+divides d n = arem n d == 0
+
+aquot a b = a // b
+
+arem a b = a - aquot a b * b
+
+useIt : Bool
+useIt = divides "a" "b"
+|}
+
+let test_a_callee_declared_later_is_still_typed _ =
+  assert_rejected ~src:calling_a_later_declaration ~because:"Unification failed"
+
+let test_a_callee_declared_earlier_is_typed_the_same_way _ =
+  assert_rejected ~src:calling_an_earlier_declaration
+    ~because:"Unification failed"
+
+let test_a_caller_gets_the_type_of_a_later_callee _ =
+  assert_shape
+    ~src:
+      {|
+divides d n = rem n d == 0
+
+quot a b = a // b
+
+rem a b = a - quot a b * b
+|}
+    ~name:"divides" ~expected:"Int -> Int -> Bool"
+
+let test_mutual_recursion_without_annotations_is_typed _ =
+  assert_shape ~src:recursion_without_annotations ~name:"isEven"
+    ~expected:"number -> Bool"
+
+let test_both_members_of_a_group_are_typed _ =
+  assert_shape ~src:recursion_without_annotations ~name:"isOdd"
+    ~expected:"number -> Bool"
+
+let test_a_forward_call_settles_the_callee_type _ =
+  assert_shape ~src:{|
+f x = g x
+
+g x = x + 1
+|} ~name:"f"
+    ~expected:"number -> number"
+
+let test_a_backward_call_settles_the_callee_type _ =
+  assert_shape ~src:{|
+g x = f x
+
+f x = x + 1
+|} ~name:"g"
+    ~expected:"number -> number"
+
+let test_a_group_is_generalized_against_the_context_before_it _ =
+  assert_shape
+    ~src:{|
+usedTwice = ( identity 1, identity "str" )
+
+identity x = x
+|}
+    ~name:"usedTwice" ~expected:"( number, String )"
+
+let test_a_polymorphic_declaration_stays_polymorphic _ =
+  assert_shape ~src:{|
+identity x = x
+
+usedTwice = ( identity 1, identity "str" )
+|}
+    ~name:"identity" ~expected:"* -> *"
+
 let suite =
   [
     "float_literal_is_a_float" >:: test_float_literal_is_a_float;
@@ -441,4 +532,22 @@ let suite =
     >:: test_a_longer_list_literal_keeps_its_element_type;
     "an_annotated_list_pattern_keeps_its_element_type"
     >:: test_an_annotated_list_pattern_keeps_its_element_type;
+    "a_callee_declared_later_is_still_typed"
+    >:: test_a_callee_declared_later_is_still_typed;
+    "a_callee_declared_earlier_is_typed_the_same_way"
+    >:: test_a_callee_declared_earlier_is_typed_the_same_way;
+    "a_caller_gets_the_type_of_a_later_callee"
+    >:: test_a_caller_gets_the_type_of_a_later_callee;
+    "mutual_recursion_without_annotations_is_typed"
+    >:: test_mutual_recursion_without_annotations_is_typed;
+    "both_members_of_a_group_are_typed"
+    >:: test_both_members_of_a_group_are_typed;
+    "a_forward_call_settles_the_callee_type"
+    >:: test_a_forward_call_settles_the_callee_type;
+    "a_backward_call_settles_the_callee_type"
+    >:: test_a_backward_call_settles_the_callee_type;
+    "a_group_is_generalized_against_the_context_before_it"
+    >:: test_a_group_is_generalized_against_the_context_before_it;
+    "a_polymorphic_declaration_stays_polymorphic"
+    >:: test_a_polymorphic_declaration_stays_polymorphic;
   ]

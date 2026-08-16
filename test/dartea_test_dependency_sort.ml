@@ -1,6 +1,6 @@
 open OUnit2
-module Names = After_typed.Scope.Names
-module By_name = Map.Make (Data.Name)
+module Names = Data.Name.Set
+module By_name = Data.Name.Map
 
 type graph = {
   vertices : Data.Name.t list;
@@ -20,16 +20,12 @@ let edge_map graph =
 
 let raw_components graph =
   let edges = edge_map graph in
-  let successors name =
+  let depends_on name =
     By_name.find_opt name edges |> Option.value ~default:Names.empty
   in
-  After_typed.Dependency_sort.strongly_connected_components graph.vertices
-    ~successors
+  Data.Components.strongly_connected ~name:Fun.id ~depends_on graph.vertices
 
-let names_of (component : Data.Name.t After_typed.Dependency_sort.component) =
-  match component with Acyclic name -> [ name ] | Cyclic names -> names
-
-let components graph = List.map names_of (raw_components graph)
+let components graph = List.map Data.Components.members (raw_components graph)
 
 let successors graph source =
   List.filter_map
@@ -71,7 +67,7 @@ let show_components components =
 
 let show_raw_components components =
   List.map
-    (fun (component : Data.Name.t After_typed.Dependency_sort.component) ->
+    (fun (component : Data.Name.t Data.Components.component) ->
       match component with
       | Acyclic name -> "acyclic " ^ Data.Name.to_string name
       | Cyclic names -> "cyclic " ^ show_names names)
@@ -155,9 +151,9 @@ let test_repeated_vertices_are_visited_once _ =
     ~expected:[ [ vertex 1 ]; [ vertex 0 ] ]
     { graph with vertices = graph.vertices @ graph.vertices }
 
-let test_successors_outside_the_vertex_list_are_reported _ =
+let test_a_dependency_outside_the_member_list_is_not_an_edge _ =
   assert_components
-    ~expected:[ [ vertex 1 ]; [ vertex 0 ] ]
+    ~expected:[ [ vertex 0 ] ]
     { vertices = [ vertex 0 ]; edges = [ (vertex 0, vertex 1) ] }
 
 let compile src = Dartea.Compiler.compile_source src
@@ -296,7 +292,7 @@ let law_acyclic_exactly_when_not_reachable_from_itself =
     ~name:"a component is acyclic exactly when its vertex cannot reach itself"
     ~print:print_graph graph_gen (fun graph ->
       List.for_all
-        (fun (component : Data.Name.t After_typed.Dependency_sort.component) ->
+        (fun (component : Data.Name.t Data.Components.component) ->
           match component with
           | Acyclic name -> not (Names.mem name (reachable graph name))
           | Cyclic names ->
@@ -310,7 +306,7 @@ let law_cyclic_groups_are_never_singletons_without_a_self_edge =
     ~name:"a cyclic component is a real cycle, never a bare vertex"
     ~print:print_graph graph_gen (fun graph ->
       List.for_all
-        (fun (component : Data.Name.t After_typed.Dependency_sort.component) ->
+        (fun (component : Data.Name.t Data.Components.component) ->
           match component with
           | Acyclic _ -> true
           | Cyclic [ name ] -> List.mem (name, name) graph.edges
@@ -345,8 +341,8 @@ let suite =
     "two_independent_cycles" >:: test_two_independent_cycles;
     "diamond" >:: test_diamond;
     "repeated_vertices_are_visited_once" >:: test_repeated_vertices_are_visited_once;
-    "successors_outside_the_vertex_list_are_reported"
-    >:: test_successors_outside_the_vertex_list_are_reported;
+    "a_dependency_outside_the_member_list_is_not_an_edge"
+    >:: test_a_dependency_outside_the_member_list_is_not_an_edge;
   ]
   @ QCheck_ounit.to_ounit2_test_list
       [

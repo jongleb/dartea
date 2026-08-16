@@ -3,6 +3,7 @@
  (libraries
   primitives
   canonical
+  canonicalization
   frontend
   typed
   containers-data

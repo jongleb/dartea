@@ -25,3 +25,12 @@ let base = function Local name -> name | Global { exported_name; _ } -> exported
 let to_string = function
   | Local name -> name
   | Global { module_name; exported_name } -> module_name ^ "." ^ exported_name
+
+module Key = struct
+  type nonrec t = t
+
+  let compare = compare
+end
+
+module Set = Stdlib.Set.Make (Key)
+module Map = Stdlib.Map.Make (Key)

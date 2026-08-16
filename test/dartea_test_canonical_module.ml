@@ -7,8 +7,14 @@ let canonical input =
       Canonical.Module.of_frontend ~fallback_name:"Main"
         (Ast.Kind.Frontend.Module.of_impl impl_list)
 
+let declaration_named module_ name =
+  List.find_opt
+    (fun (d : Canonical.Declaration.t) ->
+      String.equal (Data.Located.unwrap d.body_part.name) name)
+    module_.Canonical.Module.top_declarations
+
 let declaration module_ name =
-  Canonical.Module.String_map.find_opt name module_.Canonical.Module.top_declarations
+  declaration_named module_ name
   |> Option.map (fun (d : Canonical.Declaration.t) ->
          Data.Located.unwrap d.body_part.expr)
 
@@ -130,10 +136,7 @@ x : A.Thing
 x = 1
 |}
   in
-  match
-    Canonical.Module.String_map.find_opt "x"
-      module_.Canonical.Module.top_declarations
-  with
+  match declaration_named module_ "x" with
   | Some { type_part_data = Some { type_alias; _ }; _ } -> (
       match type_alias.Canonical.Typedef.Impl.body with
       | Canonical.Typedef.Kind.Tkind_concrete name -> (

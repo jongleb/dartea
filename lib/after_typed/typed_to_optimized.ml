@@ -6,50 +6,8 @@ let rec spine arguments (e : Typed.Expr.t) =
   | Typed.Expr.Expr_apply { fn; arg } -> spine (arg :: arguments) fn
   | _ -> (e, arguments)
 
-let rec type_of_typed (t : T.Type.t) : O.Type.t =
-  match t with
-  | T.Type.TVar name -> O.Type.TVar name
-  | T.Type.TInt -> O.Type.TInt
-  | T.Type.TFloat -> O.Type.TFloat
-  | T.Type.TChar -> O.Type.TChar
-  | T.Type.TBool -> O.Type.TBool
-  | T.Type.TStr -> O.Type.TStr
-  | T.Type.TUnit -> O.Type.TUnit
-  | T.Type.TFun (t1, t2) -> O.Type.TFun (type_of_typed t1, type_of_typed t2)
-  | T.Type.TTup ts -> O.Type.TTup (List.map type_of_typed ts)
-  | T.Type.TCustom (name, args) ->
-      O.Type.TCustom (name, List.map type_of_typed args)
-  | T.Type.TRecord t -> O.Type.TRecord (type_of_typed t)
-  | T.Type.TRowExtend (name, t1, t2) ->
-      O.Type.TRowExtend (name, type_of_typed t1, type_of_typed t2)
-  | T.Type.TRowEmpty -> O.Type.TRowEmpty
-
-let rec pattern_of_typed (p : T.Pattern.t) : O.Pattern.t =
-  let typ = type_of_typed p.typ in
-  let pattern =
-    match p.pattern with
-    | T.Pattern.P_T_anything -> O.Pattern.P_T_anything
-    | T.Pattern.P_T_var name -> O.Pattern.P_T_var name
-    | T.Pattern.P_T_record fields -> O.Pattern.P_T_record fields
-    | T.Pattern.P_T_unit -> O.Pattern.P_T_unit
-    | T.Pattern.P_T_tuple ps ->
-        O.Pattern.P_T_tuple (List.map pattern_of_typed ps)
-    | T.Pattern.P_T_list ps -> O.Pattern.P_T_list (List.map pattern_of_typed ps)
-    | T.Pattern.P_T_cons (hd, tl) ->
-        O.Pattern.P_T_cons (pattern_of_typed hd, pattern_of_typed tl)
-    | T.Pattern.P_T_chr c -> O.Pattern.P_T_chr c
-    | T.Pattern.P_T_str s -> O.Pattern.P_T_str s
-    | T.Pattern.P_T_int n -> O.Pattern.P_T_int n
-    | T.Pattern.P_T_ctor (name, args) ->
-        O.Pattern.P_T_ctor (name, List.map pattern_of_typed args)
-    | T.Pattern.P_T_alias (inner, name) ->
-        O.Pattern.P_T_alias (pattern_of_typed inner, name)
-  in
-  { O.Pattern.typ; pattern }
-
-(* Convert expression *)
 let rec expr_of_typed (e : T.Expr.t) : O.Expr.t =
-  let typ = type_of_typed e.typ in
+  let typ = e.typ in
   let expr =
     match e.expr with
     | T.Expr.Expr_constr { name; arguments } ->
@@ -107,7 +65,7 @@ let rec expr_of_typed (e : T.Expr.t) : O.Expr.t =
               List.map
                 (fun { T.Expr.pattern; expr } ->
                   {
-                    O.Expr.pattern = pattern_of_typed pattern;
+                    O.Expr.pattern = pattern;
                     expr = expr_of_typed expr;
                   })
                 pattern_data_items;
@@ -124,7 +82,7 @@ let rec expr_of_typed (e : T.Expr.t) : O.Expr.t =
         let params =
           List.map
             (fun (p : T.Expr.expr_lambda_param) ->
-              { O.Expr.name = p.name; typ = type_of_typed p.typ })
+              { O.Expr.name = p.name; typ = p.typ })
             params
         in
         O.Expr.Expr_lambda { params; body = expr_of_typed body }
@@ -151,21 +109,19 @@ let rec expr_of_typed (e : T.Expr.t) : O.Expr.t =
   in
   { O.Expr.typ; expr }
 
-(* Convert declaration *)
 let declaration_of_typed (d : T.Declaration.t) : O.Declaration.t =
   let params =
     List.map
       (fun (p : T.Declaration.param) ->
-        { O.Declaration.name = p.name; typ = type_of_typed p.typ })
+        { O.Declaration.name = p.name; typ = p.typ })
       d.params
   in
   {
     O.Declaration.name = d.name;
     params;
     body = expr_of_typed d.body;
-    typ = type_of_typed d.typ;
+    typ = d.typ;
   }
 
-(* Convert list of declarations *)
 let convert (decls : T.Declaration.t list) : O.Declaration.t list =
   List.map declaration_of_typed decls

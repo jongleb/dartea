@@ -7,6 +7,12 @@ type t = { terms : Names.t; types : exported_type By_name.t }
 let declared_names map =
   Module.String_map.fold (fun name _ acc -> Names.add name acc) map Names.empty
 
+let declared_values (m : Module.t) =
+  List.fold_left
+    (fun acc (d : Declaration.t) ->
+      Names.add (Data.Located.unwrap d.body_part.name) acc)
+    Names.empty m.top_declarations
+
 let ctors_of_type (m : Module.t) type_name =
   Module.String_map.find_opt type_name m.type_declarations
   |> Option.map (fun (td : Typedecl.t) ->
@@ -19,8 +25,7 @@ let ctors_of_type (m : Module.t) type_name =
 let declared_terms (m : Module.t) =
   Module.String_map.fold
     (fun type_name _ acc -> Names.union acc (ctors_of_type m type_name))
-    m.type_declarations
-    (declared_names m.top_declarations)
+    m.type_declarations (declared_values m)
 
 let declared_types (m : Module.t) =
   Names.union
@@ -62,7 +67,7 @@ let of_module (m : Module.t) : t =
             let terms =
               match exported with
               | Ctors_exposed ctors -> Names.union acc.terms ctors
-              | Alias when Module.String_map.mem name m.top_declarations ->
+              | Alias when Names.mem name (declared_values m) ->
                   Names.add name acc.terms
               | Alias | Ctors_hidden -> acc.terms
             in
