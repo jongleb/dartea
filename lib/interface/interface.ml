@@ -9,6 +9,13 @@ type t = {
   type_aliases : Canonical.Typealias.t list;
 }
 
+let arity (value : value) =
+  let rec arrows (ty : Typed.Type.t) =
+    match ty with TFun (_, result) -> 1 + arrows result | _ -> 0
+  in
+  let (Typed.Type.Scheme (_, ty)) = value.scheme in
+  arrows ty
+
 let qualifying ~module_name ~declared_types name =
   match name with
   | Data.Name.Local text when Exports.Names.mem text declared_types ->

@@ -330,8 +330,22 @@ let split_at n lst =
 let is_operator env name =
   (not (SMap.mem name env)) && binop_of_string (Data.Name.base name) <> None
 
-let rec type_arity (t : O.Type.t) =
-  match t with O.Type.TFun (_, result) -> 1 + type_arity result | _ -> 0
+let declared_arity env name =
+  if SMap.mem name env then None else Hashtbl.find_opt js_arity name
+
+type arity = Exactly of int | At_least of int
+
+let arity_of_type (t : O.Type.t) : arity =
+  let rec through arrows (t : O.Type.t) =
+    match t with
+    | O.Type.TFun (_, result) -> through (arrows + 1) result
+    | O.Type.TVar _ -> At_least arrows
+    | O.Type.TInt | O.Type.TBool | O.Type.TStr | O.Type.TUnit | O.Type.TTup _
+    | O.Type.TCustom _ | O.Type.TRecord _ | O.Type.TRowExtend _
+    | O.Type.TRowEmpty ->
+        Exactly arrows
+  in
+  through 0 t
 
 let closure_partial callee args missing =
   let rparams = List.init missing (fun _ -> fresh_temp ()) in
@@ -472,6 +486,73 @@ let shared_thunks env root ~plan ~tnames clause_expr =
     (DS.shared plan)
 
 let rec emit_value env (e : O.Expr.t) : J.stmt list * J.expr =
+  let statements, expression = emit_uncoerced env e in
+  ( statements,
+    coerced expression ~expected:(arity_of_type e.O.Expr.typ)
+      ~actual:(emitted_arity env e) )
+
+and coerced expression ~expected ~actual =
+  match (expected, actual) with
+  | Exactly wanted, Exactly given
+    when wanted <> given && wanted >= 1 && given >= 1 ->
+      let params = List.init wanted (fun _ -> fresh_temp ()) in
+      let arguments = List.map (fun p -> J.Identifier p) params in
+      let call_in_two_steps () =
+        let saturating, extra = split_at given arguments in
+        J.Call
+          {
+            callee = J.Call { callee = expression; args = saturating };
+            args = extra;
+          }
+      in
+      let body =
+        if given < wanted then call_in_two_steps ()
+        else closure_partial expression arguments (given - wanted)
+      in
+      J.Arrow { params; body = J.ArrowExpr body }
+  | (Exactly _ | At_least _), (Exactly _ | At_least _) -> expression
+
+and emitted_arity env (e : O.Expr.t) : arity =
+  match e.expr with
+  | O.Expr.Expr_lambda { params; _ } -> Exactly (List.length params)
+  | O.Expr.Expr_kernel (Kernel_value kernel) ->
+      Exactly (Data.Kernel.arity kernel)
+  | O.Expr.Expr_constr { name; arguments } ->
+      let supplied = List.length arguments in
+      begin
+        match declared_arity env name with
+        | Some n when n > supplied -> Exactly (n - supplied)
+        | Some _ | None -> arity_of_type e.typ
+      end
+  | O.Expr.Expr_ident _ -> callee_arity env e
+  | O.Expr.Expr_apply { fn; _ } when is_record_construction fn -> Exactly 0
+  | O.Expr.Expr_apply { fn; arg } ->
+      let callee, args = collect_args [ arg ] fn in
+      let supplied = List.length args in
+      begin
+        match callee_arity env callee with
+        | Exactly n when n > supplied -> Exactly (n - supplied)
+        | Exactly n when n >= 1 -> arity_of_type e.typ
+        | Exactly _ | At_least _ -> At_least 0
+      end
+  | O.Expr.Expr_binop _ | O.Expr.Expr_let _ | O.Expr.Expr_if_then_else _
+  | O.Expr.Expr_record _ | O.Expr.Expr_pattern _ | O.Expr.Expr_accessor _
+  | O.Expr.Expr_access _ | O.Expr.Expr_record_extend _
+  | O.Expr.Expr_record_select _ | O.Expr.Expr_record_empty | O.Expr.Expr_unit
+  | O.Expr.Expr_kernel _ | O.Expr.Expr_char _ | O.Expr.Expr_string _
+  | O.Expr.Expr_int _ | O.Expr.Expr_float _ | O.Expr.Expr_list _ ->
+      arity_of_type e.typ
+
+and callee_arity env (callee : O.Expr.t) : arity =
+  match callee.expr with
+  | O.Expr.Expr_ident name -> begin
+      match declared_arity env name with
+      | Some n -> Exactly n
+      | None -> arity_of_type callee.typ
+    end
+  | _ -> arity_of_type callee.typ
+
+and emit_uncoerced env (e : O.Expr.t) : J.stmt list * J.expr =
   match e.expr with
   | O.Expr.Expr_int n -> ([], J.Literal (J.Int n))
   | O.Expr.Expr_float f -> ([], J.Literal (J.Float f))
@@ -580,37 +661,57 @@ and emit_apply env fn arg =
         let sb, eb = emit_value env a2 in
         (sa @ sb, binop_expr (Data.Name.base op) ea eb)
     | O.Expr.Expr_kernel (Kernel_value kernel), _ ->
-        emit_known_call env (Js_of_kernel.value kernel)
-          ~arity:(Data.Kernel.arity kernel) args
-    | O.Expr.Expr_ident name, _ ->
-        let n =
-          match
-            if SMap.mem name env then None else Hashtbl.find_opt js_arity name
-          with
-          | Some n -> n
-          | None -> type_arity callee.O.Expr.typ
-        in
-        if n >= 1 then emit_known_call env (jid_env env name) ~arity:n args
-        else emit_generic env callee args
+        let arity = Data.Kernel.arity kernel in
+        emit_known_call env (Js_of_kernel.value kernel) ~arity
+          ~result_type:(O.Type.result_after ~applied:arity callee.O.Expr.typ)
+          args
+    | O.Expr.Expr_ident name, _ -> begin
+        match declared_arity env name with
+        | Some n when n >= 1 ->
+            emit_known_call env (jid_env env name) ~arity:n
+              ~result_type:(O.Type.result_after ~applied:n callee.O.Expr.typ)
+              args
+        | Some _ | None -> emit_generic env callee args
+      end
     | _ -> emit_generic env callee args
 
-and emit_known_call env callee ~arity args =
+and emit_known_call env callee ~arity ~result_type args =
   let statements, arguments = emit_values env args in
-  applied callee ~arity ~statements ~arguments
+  applied callee ~arity ~result_type ~statements ~arguments
 
-and applied callee ~arity ~statements ~arguments =
+and applied callee ~arity ~result_type ~statements ~arguments =
   let supplied = List.length arguments in
   if supplied = arity then (statements, J.Call { callee; args = arguments })
   else if supplied < arity then
     (statements, closure_partial callee arguments (arity - supplied))
   else
     let saturating, extra = split_at arity arguments in
-    (statements, curry_call (J.Call { callee; args = saturating }) extra)
+    let saturated = J.Call { callee; args = saturating } in
+    match arity_of_type result_type with
+    | Exactly n when n >= 1 ->
+        applied saturated ~arity:n
+          ~result_type:(O.Type.result_after ~applied:n result_type)
+          ~statements ~arguments:extra
+    | Exactly _ | At_least _ -> (statements, curry_call saturated extra)
 
 and emit_generic env callee args =
   let sc, ec = emit_value env callee in
   let ss, es = emit_values env args in
-  (sc @ ss, curry_call ec es)
+  match arity_of_type callee.O.Expr.typ with
+  | Exactly arity when arity >= 1 ->
+      let bound, target =
+        if List.length es < arity && needs_temp_var ec then
+          let t = fresh_temp () in
+          ([ J.ConstDecl { name = t; init = ec } ], J.Identifier t)
+        else ([], ec)
+      in
+      let statements, expression =
+        applied target ~arity
+          ~result_type:(O.Type.result_after ~applied:arity callee.O.Expr.typ)
+          ~statements:ss ~arguments:es
+      in
+      (sc @ bound @ statements, expression)
+  | Exactly _ | At_least _ -> (sc @ ss, curry_call ec es)
 
 and emit_record_apply env fn arg =
   let apply_expr =
@@ -759,9 +860,9 @@ and emit_match_assign env (r : string) (occ : J.expr)
 
 let decl_stmts (decl : O.Declaration.t) : J.stmt list =
   let name = sname decl.name in
+  let decl = After_typed.Eta_expand.body_lambda_merged decl in
   match decl.params with
   | [] ->
-
       let s, e = emit_value SMap.empty decl.body in
       s @ [ J.ConstDecl { name; init = e } ]
   | params ->
@@ -791,12 +892,6 @@ let decl_stmts (decl : O.Declaration.t) : J.stmt list =
 let program_of_declarations (decls : O.Declaration.t list) : J.program =
   List.concat_map decl_stmts decls
 
-let decl_js_arity (decl : O.Declaration.t) =
-  match (decl.params, decl.body.expr) with
-  | [], O.Expr.Expr_lambda { params; _ } -> List.length params
-  | [], O.Expr.Expr_kernel (Kernel_value kernel) -> Data.Kernel.arity kernel
-  | params, _ -> List.length params
-
 let is_defined_here (name : Data.Name.t) =
   match name with Data.Name.Local _ -> true | Data.Name.Global _ -> false
 
@@ -822,9 +917,10 @@ let constructor_decls (constructors : (Data.Name.t * int) list) : J.stmt list =
                    };
              })
 
-let program_with_helpers ~constructors ~siblings ~exports
+let program_with_helpers ~arities ~constructors ~siblings ~exports
     (decls : O.Declaration.t list) : J.program =
   reset_names ();
+  List.iter (fun (name, arity) -> Hashtbl.replace js_arity name arity) arities;
   List.iter
     (fun (name, arity) ->
       if is_defined_here name then reserve_name (js_of_name name);
@@ -834,7 +930,8 @@ let program_with_helpers ~constructors ~siblings ~exports
     (fun (decl : O.Declaration.t) ->
       let src = Data.Name.local (Data.Located.unwrap decl.name) in
       reserve_name (js_of_name src);
-      Hashtbl.replace js_arity src (decl_js_arity decl))
+      Hashtbl.replace js_arity src
+        (After_typed.Eta_expand.declaration_arity decl))
     decls;
   List.iter
     (fun (name, sibs) -> Hashtbl.replace ctor_siblings name sibs)
@@ -865,9 +962,11 @@ let import_lines imports =
                })
            modules)
 
-let emit_module ~constructors ~siblings ~imports ~exports
+let emit_module ~arities ~constructors ~siblings ~imports ~exports
     (decls : O.Declaration.t list) : string =
-  let program = program_with_helpers ~constructors ~siblings ~exports decls in
+  let program =
+    program_with_helpers ~arities ~constructors ~siblings ~exports decls
+  in
   let runtime_import =
     if J.references runtime_module_name program then [ runtime_module_name ]
     else []

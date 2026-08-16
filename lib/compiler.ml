@@ -9,6 +9,7 @@ module type BACKEND = sig
   val runtime_module : unit -> (string * string) option
 
   val emit_module :
+    arities:(Data.Name.t * int) list ->
     constructors:(Data.Name.t * int) list ->
     siblings:(Data.Name.t * (Data.Name.t * int) list) list ->
     imports:string list ->
@@ -25,9 +26,9 @@ module Js_backend : BACKEND = struct
       ( Codegen.Js_of_optimized.runtime_module_name,
         Codegen.Js_of_optimized.runtime_module_source () )
 
-  let emit_module ~constructors ~siblings ~imports ~exports decls =
-    Codegen.Js_of_optimized.emit_module ~constructors ~siblings ~imports
-      ~exports decls
+  let emit_module ~arities ~constructors ~siblings ~imports ~exports decls =
+    Codegen.Js_of_optimized.emit_module ~arities ~constructors ~siblings
+      ~imports ~exports decls
 end
 
 type compiled = {
@@ -121,6 +122,14 @@ module Make (B : BACKEND) = struct
     Names.inter exports.terms (Names.union declared own_constructors)
     |> Names.elements |> List.map Data.Name.local
 
+  let imported_arities (imports : Interface.t list) =
+    List.concat_map
+      (fun (interface : Interface.t) ->
+        List.map
+          (fun (value : Interface.value) -> (value.name, Interface.arity value))
+          interface.values)
+      imports
+
   let imported_interfaces (module_ : Canonical.Module.t) interfaces =
     List.filter
       (fun (interface : Interface.t) ->
@@ -144,7 +153,8 @@ module Make (B : BACKEND) = struct
         {
           module_name = resolved.name;
           source =
-            B.emit_module ~constructors ~siblings
+            B.emit_module ~arities:(imported_arities imports) ~constructors
+              ~siblings
               ~imports:(providing_modules declarations)
               ~exports:(exported_names resolved typed)
               declarations;

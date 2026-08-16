@@ -189,6 +189,61 @@ main = twice + thrice
   assert_runs ~modules:[ shared; left; right; main ] ~expr:"Main.main"
     ~expected:"50"
 
+let test_imported_arity_crosses_the_boundary _ =
+  let arith =
+    source "Arith.elm"
+      {|
+module Arith exposing (add, applyTwo, adder, curried)
+
+add : Int -> Int -> Int
+add a b = a + b
+
+adder : Int -> Int -> Int
+adder n =
+    let
+        doubled = n + n
+    in
+    \m -> doubled + m
+
+curried : Int -> Int -> Int -> Int
+curried a =
+    \b -> add (a + b)
+
+applyTwo : (Int -> Int -> Int) -> Int
+applyTwo f =
+    case f 3 4 of
+        0 ->
+            100
+
+        n ->
+            n + f 1 1
+|}
+  in
+  let main =
+    source "Main.elm"
+      {|
+module Main exposing (viaAdd, viaAdder, viaIdentity, viaCurried)
+
+import Arith
+
+viaAdd : Int
+viaAdd = Arith.applyTwo Arith.add
+
+viaAdder : Int
+viaAdder = Arith.applyTwo Arith.adder
+
+viaIdentity : Int
+viaIdentity = identity Arith.add 3 4
+
+viaCurried : Int
+viaCurried = Arith.curried 1 2 3
+|}
+  in
+  assert_runs ~modules:[ arith; main ]
+    ~expr:
+      "[Main.viaAdd, Main.viaAdder, Main.viaIdentity, Main.viaCurried].join(\",\")"
+    ~expected:{|"9,13,7,6"|}
+
 let suite =
   [
     "qualified, exposed and aliased imports"
@@ -199,4 +254,6 @@ let suite =
     >:: test_pattern_match_on_imported_ctor_with_payload;
     "runtime module is shared" >:: test_runtime_module_is_shared;
     "diamond imports" >:: test_diamond_imports;
+    "imported arity crosses the boundary"
+    >:: test_imported_arity_crosses_the_boundary;
   ]

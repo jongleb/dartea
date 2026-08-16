@@ -78,6 +78,91 @@ let rec apply_typ ty s =
   | TRecord t -> TRecord (apply_typ t s)
   | TRowExtend (l, t, r) -> TRowExtend (l, apply_typ t s, apply_typ r s)
 
+let rec substitute_pattern (p : Typed.Pattern.t) s =
+  let open Typed.Pattern in
+  let sub p = substitute_pattern p s in
+  let pattern =
+    match p.pattern with
+    | P_T_tuple items -> P_T_tuple (List.map sub items)
+    | P_T_list items -> P_T_list (List.map sub items)
+    | P_T_cons (head, tail) -> P_T_cons (sub head, sub tail)
+    | P_T_ctor (name, items) -> P_T_ctor (name, List.map sub items)
+    | (P_T_anything | P_T_var _ | P_T_record _ | P_T_unit | P_T_chr _
+      | P_T_str _ | P_T_int _) as leaf ->
+        leaf
+  in
+  { typ = apply_typ p.typ s; pattern }
+
+let rec substitute_expr (e : Typed.Expr.t) s =
+  let open Typed.Expr in
+  let sub e = substitute_expr e s in
+  let expr =
+    match e.expr with
+    | Expr_constr constr ->
+        Expr_constr { constr with arguments = List.map sub constr.arguments }
+    | Expr_binop binop ->
+        let left, right = binop.operands in
+        Expr_binop { binop with operands = (sub left, sub right) }
+    | Expr_let { binding = { bind_body = { name; body } }; body = rest } ->
+        Expr_let
+          {
+            binding = { bind_body = { name; body = sub body } };
+            body = sub rest;
+          }
+    | Expr_if_then_else { if_exp; then_exp; else_exp } ->
+        Expr_if_then_else
+          {
+            if_exp = sub if_exp;
+            then_exp = sub then_exp;
+            else_exp = sub else_exp;
+          }
+    | Expr_record rows ->
+        Expr_record
+          (List.map (fun row -> { row with value = sub row.value }) rows)
+    | Expr_apply { fn; arg } -> Expr_apply { fn = sub fn; arg = sub arg }
+    | Expr_pattern { expr; pattern_data_items } ->
+        Expr_pattern
+          {
+            expr = sub expr;
+            pattern_data_items =
+              List.map
+                (fun (case : expr_pattern_case) ->
+                  {
+                    pattern = substitute_pattern case.pattern s;
+                    expr = sub case.expr;
+                  })
+                pattern_data_items;
+          }
+    | Expr_access { expr; field } -> Expr_access { expr = sub expr; field }
+    | Expr_lambda { params; body } ->
+        Expr_lambda
+          {
+            params =
+              List.map
+                (fun (param : expr_lambda_param) ->
+                  { param with typ = apply_typ param.typ s })
+                params;
+            body = sub body;
+          }
+    | Expr_list items -> Expr_list (List.map sub items)
+    | ( Expr_ident _ | Expr_accessor _ | Expr_record_extend _
+      | Expr_record_select _ | Expr_record_empty | Expr_unit | Expr_kernel _
+      | Expr_char _ | Expr_string _ | Expr_int _ | Expr_float _ ) as leaf ->
+        leaf
+  in
+  { typ = apply_typ e.typ s; expr }
+
+let substitute_declaration (decl : Typed.Declaration.t) s =
+  let parameter (param : Typed.Declaration.param) =
+    { param with typ = apply_typ param.typ s }
+  in
+  {
+    decl with
+    params = List.map parameter decl.params;
+    body = substitute_expr decl.body s;
+    typ = apply_typ decl.typ s;
+  }
+
 let string_of_typ ty =
   let rec str_simple ty =
     match ty with
@@ -694,7 +779,7 @@ let infer_declaration { Canonical.Declaration.body_part; type_part_data } ctx
     }
   in
 
-  (s_final, typed_decl, new_ctx)
+  (s_final, substitute_declaration typed_decl s_final, new_ctx)
 
 let build_arity_env (type_env : type_env) : int Name_map.t =
   Name_map.fold
@@ -827,7 +912,7 @@ let infer_toplevel ~(imports : Interface.t list)
       }
     in
 
-    (s_final, typed_decl, new_ctx)
+    (s_final, substitute_declaration typed_decl s_final, new_ctx)
   in
 
   let ctx_with_placeholders =

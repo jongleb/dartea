@@ -263,6 +263,19 @@ let rec reduce_beta (e : O.Expr.t) : O.Expr.t =
             (_ :: _ as arguments) ) ->
             let arguments = List.map reduce_beta arguments in
             reduce lambda ~params ~body ~arguments
+        | { expr = Expr_let { binding; body }; _ }, (_ :: _ as arguments)
+          when not
+                 (arguments_escape_binders
+                    ~binders:
+                      (Names.singleton
+                         (Data.Name.local
+                            (Data.Located.unwrap binding.bind_body.name)))
+                    ~arguments) ->
+            Some
+              {
+                e with
+                expr = Expr_let { binding; body = apply_to body arguments };
+              }
         | _ -> None
       end
     | _ -> None
@@ -414,4 +427,5 @@ let optimize (decls : T.Declaration.t list) : O.Declaration.t list =
     if remaining <= 0 then decls
     else rounds ~remaining:(remaining - 1) (round decls)
   in
-  Typed_to_optimized.convert decls |> rounds ~remaining:optimization_rounds
+  Typed_to_optimized.convert decls |> Eta_expand.saturate
+  |> rounds ~remaining:optimization_rounds
