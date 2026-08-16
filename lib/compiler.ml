@@ -64,8 +64,13 @@ module Make (B : BACKEND) = struct
 
   let prepared (typed : Infer.Infer_proc.infer_result) =
     let declarations =
-      After_typed.Optimize.optimize typed.declarations
-      |> After_typed.Dependency_sort.sort_declarations
+      match
+        After_typed.Optimize.optimize typed.declarations
+        |> After_typed.Dependency_sort.sort_declarations
+      with
+      | Ok declarations -> declarations
+      | Error error ->
+          failwith (After_typed.Dependency_sort.show_error error)
     in
     let constructors =
       List.map
