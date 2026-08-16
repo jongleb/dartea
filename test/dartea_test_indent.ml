@@ -116,6 +116,81 @@ f =
   in x
 |};
     ok
+      "let_block_function_binding_with_indented_body"
+      {|
+f: Int
+f =
+    let
+        keep g = g
+
+        unbox b =
+            b
+    in
+    keep (unbox 1)
+|};
+    ok
+      "let_block_every_binding_has_an_indented_body"
+      {|
+f: Int
+f =
+    let
+        keep g =
+            g
+
+        unbox b =
+            b
+    in
+    keep (unbox 1)
+|};
+    ok
+      "let_block_function_binding_with_several_parameters"
+      {|
+f: Int
+f =
+    let
+        a = 1
+
+        add x y z =
+            x + y + z
+    in
+    add a a a
+|};
+    ok
+      "let_block_three_function_bindings"
+      {|
+f: Int
+f =
+    let
+        one x =
+            x
+
+        two x =
+            x
+
+        three x =
+            x
+    in
+    one (two (three 1))
+|};
+    ok
+      "let_block_binding_body_is_a_case"
+      {|
+f: Int
+f =
+    let
+        keep g = g
+
+        unbox b =
+            case b of
+                A ->
+                    1
+
+                _ ->
+                    0
+    in
+    keep (unbox v)
+|};
+    ok
       "let_bindings_left_of_let_keyword"
       {|
 f: Int

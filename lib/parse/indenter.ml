@@ -154,18 +154,18 @@ let handle state lexbuf token =
   | EOF -> close_through (fun _ -> false) EOF state
   | LCNAME _ ->
       let name_column = token_column state lexbuf in
-      begin
+      let* state =
         match context state with
-        | Type_annotation when name_column = 0 ->
-            let* state = pop state in
-            ([ token ], state)
-        | Let -> ([ token ], mark ~column:name_column ~context:Let_binding state)
+        | Type_annotation when name_column = 0 -> pop state
+        | Let ->
+            ([], mark ~column:name_column ~context:Let_binding state)
         | Let_binding when state.aligned ->
             let* state = unbracket state in
-            ([ token ], move ~column:(name_column + 1) state)
-        | Let_inline -> ([ token ], move ~column:(name_column + 1) state)
-        | _ -> ([ token ], state)
-      end
+            ([], move ~column:(name_column + 1) state)
+        | Let_inline -> ([], move ~column:(name_column + 1) state)
+        | _ -> ([], state)
+      in
+      ([ token ], { state with aligned = false })
   | token -> ([ token ], state)
 
 let rec next_token state lexbuf =
