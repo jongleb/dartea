@@ -244,6 +244,79 @@ viaCurried = Arith.curried 1 2 3
       "[Main.viaAdd, Main.viaAdder, Main.viaIdentity, Main.viaCurried].join(\",\")"
     ~expected:{|"9,13,7,6"|}
 
+let test_qualified_constructor_in_a_pattern _ =
+  let main =
+    source "Main.elm"
+      {|
+module Main exposing (viaQualified, viaQualifiedPayload)
+
+import Color
+
+describe : Color.Color -> Int
+describe c =
+    case c of
+        Color.Red ->
+            1
+
+        Color.Green ->
+            2
+
+        Color.Blue ->
+            3
+
+viaQualified : Int
+viaQualified = describe Color.Green
+
+viaQualifiedPayload : Int
+viaQualifiedPayload =
+    case Color.Blue of
+        Color.Blue ->
+            30
+
+        _ ->
+            0
+|}
+  in
+  assert_runs ~modules:[ color; main ]
+    ~expr:"[Main.viaQualified, Main.viaQualifiedPayload].join(\",\")"
+    ~expected:{|"2,30"|}
+
+let test_record_alias_constructor_crosses_the_boundary _ =
+  let shapes =
+    source "Shapes.elm"
+      {|
+module Shapes exposing (Point, origin)
+
+type alias Point =
+    { x : Int
+    , y : Int
+    }
+
+origin : Point
+origin = Point 0 0
+|}
+  in
+  let main =
+    source "Main.elm"
+      {|
+module Main exposing (viaQualifiedAlias, viaExposedAlias)
+
+import Shapes exposing (Point)
+
+made : Point
+made = Point 3 4
+
+viaExposedAlias : Int
+viaExposedAlias = made.x + made.y
+
+viaQualifiedAlias : Int
+viaQualifiedAlias = (Shapes.Point 5 6).x + Shapes.origin.y
+|}
+  in
+  assert_runs ~modules:[ shapes; main ]
+    ~expr:"[Main.viaExposedAlias, Main.viaQualifiedAlias].join(\",\")"
+    ~expected:{|"7,5"|}
+
 let suite =
   [
     "qualified, exposed and aliased imports"
@@ -252,6 +325,10 @@ let suite =
     >:: test_imported_ctor_string_survives_the_boundary;
     "pattern match on imported ctor with payload"
     >:: test_pattern_match_on_imported_ctor_with_payload;
+    "qualified constructor in a pattern"
+    >:: test_qualified_constructor_in_a_pattern;
+    "record alias constructor crosses the boundary"
+    >:: test_record_alias_constructor_crosses_the_boundary;
     "runtime module is shared" >:: test_runtime_module_is_shared;
     "diamond imports" >:: test_diamond_imports;
     "imported arity crosses the boundary"

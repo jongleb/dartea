@@ -223,7 +223,9 @@ open QCheck2
 let name_gen = Gen.oneof_list [ "a"; "b"; "x"; "y"; "value"; "item" ]
 let ctor_gen = Gen.oneof_list [ "A"; "B"; "Just"; "Nothing" ]
 let type_name_gen = Gen.oneof_list [ "Color"; "User"; "Shape"; "Main" ]
-let op_gen = Gen.oneof_list [ "+"; "-"; "*"; "=="; "&&"; "|>"; "++" ]
+let op_gen =
+  Gen.oneof_list
+    [ "+"; "-"; "*"; "//"; "^"; "=="; "&&"; "|>"; "<|"; "<<"; ">>"; "++"; "::" ]
 
 let rec simple_gen depth =
   let leaf =
@@ -370,6 +372,41 @@ let law_blank_lines =
           (List.concat
              (List.mapi
                 (fun i line -> if i = index then [ blank; line ] else [ line ])
+                lines))
+      in
+      layout_stream spliced = layout_stream source)
+
+let law_comment_lines_ignored =
+  Test.make ~count:2000 ~name:"a comment line does not change the layout"
+    ~print:(fun (source, _, _) -> source)
+    (Gen.triple source_gen Gen.nat_small (Gen.int_range 0 12))
+    (fun (source, position, indent) ->
+      let lines = String.split_on_char '\n' source in
+      let index = position mod max 1 (List.length lines - 1) in
+      let remark = String.make indent ' ' ^ "-- remark" in
+      let spliced =
+        String.concat "\n"
+          (List.concat
+             (List.mapi
+                (fun i line -> if i = index then [ remark; line ] else [ line ])
+                lines))
+      in
+      layout_stream spliced = layout_stream source)
+
+let law_block_comments_ignored =
+  Test.make ~count:2000 ~name:"a block comment does not change the layout"
+    ~print:(fun (source, _, _) -> source)
+    (Gen.triple source_gen Gen.nat_small (Gen.int_range 0 12))
+    (fun (source, position, indent) ->
+      let lines = String.split_on_char '\n' source in
+      let index = position mod max 1 (List.length lines - 1) in
+      let pad = String.make indent ' ' in
+      let remark = pad ^ "{- a {- nested -} remark\n" ^ pad ^ "-}" in
+      let spliced =
+        String.concat "\n"
+          (List.concat
+             (List.mapi
+                (fun i line -> if i = index then [ remark; line ] else [ line ])
                 lines))
       in
       layout_stream spliced = layout_stream source)
@@ -545,6 +582,8 @@ let suite =
       law_parses;
       law_balanced;
       law_blank_lines;
+      law_comment_lines_ignored;
+      law_block_comments_ignored;
       law_style_irrelevant;
       law_only_inserts_brackets;
       law_layout_idempotent;

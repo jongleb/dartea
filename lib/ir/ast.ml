@@ -16,13 +16,14 @@ type bind =
   | B_atom of atom
   | B_construct of { name : Data.Name.t; arguments : atom list }
   | B_cons of { head : atom; tail : atom }
+  | B_tuple of { items : atom list }
   | B_record of { fields : (string * atom) list }
   | B_record_update of { base : atom; fields : (string * atom) list }
   | B_access of { subject : atom; step : Occurrence.step }
   | B_call of { callee : Data.Name.t; arguments : atom list }
   | B_call_closure of { callee : atom; arguments : atom list }
   | B_partial of { callee : Data.Name.t; arguments : atom list; missing : int }
-  | B_primitive of { operator : string; arguments : atom list }
+  | B_primitive of { operator : Data.Operator.t; arguments : atom list }
   | B_kernel of { kernel : Data.Kernel.t; arguments : atom list }
   | B_closure of {
       parameters : string list;

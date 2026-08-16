@@ -5,7 +5,7 @@ type t =
   | P_anything
   | P_var of string
   | P_record of string list
-  (* | PAlias Pattern Name ?? *)
+  | P_alias of (t * string)
   | P_unit
   | P_tuple of t list
   | P_list of t list
@@ -26,7 +26,8 @@ let rec of_frontend = function
   | P_str s -> P_str s
   | P_int i -> P_int i
   | P_ctor (ctor, arguments) ->
-      P_ctor (Data.Name.local ctor, List.map of_frontend arguments)
+      P_ctor (Data.Name.of_dotted ctor, List.map of_frontend arguments)
+  | P_alias (inner, name) -> P_alias (of_frontend inner, name)
   | P_unit -> P_unit
   | P_var s -> P_var s
   | P_record r -> P_record r

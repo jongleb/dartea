@@ -5,7 +5,7 @@ type unary =
   | String_to_int_unsafe
 [@@deriving show]
 
-type binary = String_append | Tuple_pair [@@deriving show]
+type binary = String_append [@@deriving show]
 type t = Unary of unary | Binary of binary [@@deriving show]
 
 let arity = function Unary _ -> 1 | Binary _ -> 2
@@ -31,7 +31,6 @@ let referred_to_by (name : Name.t) : reference =
     | "String", "fromNumber" -> Some (Unary String_from_number)
     | "String", "isInt" -> Some (Unary String_is_int)
     | "String", "toIntUnsafe" -> Some (Unary String_to_int_unsafe)
-    | "Tuple", "pair" -> Some (Binary Tuple_pair)
     | _ -> None
   in
   match name with

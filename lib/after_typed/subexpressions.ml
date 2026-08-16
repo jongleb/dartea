@@ -44,6 +44,19 @@ let transform (e : O.Expr.t) ~(f : O.Expr.t -> O.Expr.t) : O.Expr.t =
     | Expr_lambda { params; body } ->
         O.Expr.Expr_lambda { params; body = f body }
     | Expr_list items -> O.Expr.Expr_list (List.map f items)
+    | Expr_cons { head; tail } ->
+        O.Expr.Expr_cons { head = f head; tail = f tail }
+    | Expr_tuple items -> O.Expr.Expr_tuple (List.map f items)
+    | Expr_record_update { record; fields } ->
+        O.Expr.Expr_record_update
+          {
+            record = f record;
+            fields =
+              List.map
+                (fun (row : O.Expr.expr_record_row) ->
+                  { row with value = f row.value })
+                fields;
+          }
     | Expr_kernel (Kernel_unary { kernel; argument }) ->
         O.Expr.Expr_kernel (Kernel_unary { kernel; argument = f argument })
     | Expr_kernel (Kernel_binary { kernel; left; right }) ->

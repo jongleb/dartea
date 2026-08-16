@@ -11,7 +11,7 @@ let analyze ~shareable (tree : DT.t) : t =
       match node with
       | DT.Switch { branches; default; _ } ->
           List.iter (fun (_, child) -> count child) branches;
-          (match default with Some child -> count child | None -> ())
+          Option.iter count default
       | DT.Fail | DT.Leaf _ -> ()
   in
   count tree;
@@ -19,18 +19,21 @@ let analyze ~shareable (tree : DT.t) : t =
   let order = ref [] in
   let next = ref 0 in
   let rec visit (node : DT.t) =
-    if not (Hashtbl.mem ids node) then (
-      (match node with
-      | DT.Switch { branches; default; _ } ->
-          List.iter (fun (_, child) -> visit child) branches;
-          (match default with Some child -> visit child | None -> ())
-      | DT.Fail | DT.Leaf _ -> ());
+    if not (Hashtbl.mem ids node) then begin
+      begin
+        match node with
+        | DT.Switch { branches; default; _ } ->
+            List.iter (fun (_, child) -> visit child) branches;
+            Option.iter visit default
+        | DT.Fail | DT.Leaf _ -> ()
+      end;
       match Hashtbl.find_opt counts node with
       | Some n when n >= 2 && shareable node ->
           Hashtbl.add ids node !next;
           order := (!next, node) :: !order;
           incr next
-      | _ -> ())
+      | _ -> ()
+    end
   in
   visit tree;
   { ids; order = List.rev !order }

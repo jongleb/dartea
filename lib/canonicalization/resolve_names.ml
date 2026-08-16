@@ -46,6 +46,11 @@ module Reported = struct
 
   let each items ~f = all (List.map f items)
 
+  let option value ~f =
+    match value with
+    | None -> return None
+    | Some value -> bind (f value) ~f:(fun value -> return (Some value))
+
   let blamed origin reported =
     ( reported.value,
       List.map (fun problem -> { origin; problem }) reported.problems )
@@ -160,6 +165,11 @@ let brought_in_by dependency (item : Canonical.Exposed.item) :
       Ok [ (Terms, Names.singleton name) ]
   | Value name -> Error (Not_exposed { module_name; name })
   | Type { name; ctors_exposed } -> begin
+      let same_named_term =
+        if Names.mem name dependency.exports.terms then
+          [ (Terms, Names.singleton name) ]
+        else []
+      in
       match
         (By_name.find_opt name dependency.exports.types, ctors_exposed)
       with
@@ -170,7 +180,7 @@ let brought_in_by dependency (item : Canonical.Exposed.item) :
           Ok [ (Types, Names.singleton name); (Terms, ctors) ]
       | Some (Exports.Alias | Ctors_hidden | Ctors_exposed _), false
       | Some Exports.Alias, true ->
-          Ok [ (Types, Names.singleton name) ]
+          Ok ((Types, Names.singleton name) :: same_named_term)
     end
 
 let environment_of ~(dependencies : Canonical.Module.t list)
@@ -272,6 +282,7 @@ let rec bound_by_pattern (p : Canonical.Pattern.t) : Names.t =
         Names.empty items
   | P_cons (head, tail) ->
       Names.union (bound_by_pattern head) (bound_by_pattern tail)
+  | P_alias (inner, name) -> Names.add name (bound_by_pattern inner)
   | P_ctor (_, arguments) ->
       List.fold_left
         (fun acc argument -> Names.union acc (bound_by_pattern argument))
@@ -295,77 +306,11 @@ let rec pattern env (p : Canonical.Pattern.t) : Canonical.Pattern.t Reported.t =
   | P_cons (head, tail) ->
       let%map head = pattern env head and tail = pattern env tail in
       P_cons (head, tail)
+  | P_alias (inner, name) ->
+      let%map inner = pattern env inner in
+      P_alias (inner, name)
   | (P_anything | P_var _ | P_record _ | P_unit | P_chr _ | P_str _ | P_int _)
     as leaf ->
-      Reported.return leaf
-
-let rec expression env (e : Canonical.Expr.t) : Canonical.Expr.t Reported.t =
-  let open Canonical.Expr in
-  let open Reported.Let_syntax in
-  match e with
-  | Expr_ident name -> begin
-      match Data.Kernel.referred_to_by name with
-      | Known kernel -> Reported.return (Expr_kernel kernel)
-      | Unknown { module_name; exported_name } ->
-          Reported.rejected (Expr_ident name)
-            (Unknown_kernel { module_name; exported_name })
-      | Not_kernel ->
-          let%map name = resolved env Terms name in
-          Expr_ident name
-    end
-  | Expr_constr { name; arguments } ->
-      let%map name = resolved env Terms name
-      and arguments = Reported.each arguments ~f:(expression env) in
-      Expr_constr { name; arguments }
-  | Expr_binop { name; operands = left, right } ->
-      let%map left = expression env left and right = expression env right in
-      Expr_binop { name; operands = (left, right) }
-  | Expr_apply { fn; arg } ->
-      let%map fn = expression env fn and arg = expression env arg in
-      Expr_apply { fn; arg }
-  | Expr_let { binding = { bind_body = { name; body = bound_value } }; body } ->
-      let inner = binds env (Names.singleton (Data.Located.unwrap name)) in
-      let%map bound_value = expression env bound_value
-      and body = expression inner body in
-      Expr_let { binding = { bind_body = { name; body = bound_value } }; body }
-  | Expr_if_then_else { if_exp; then_exp; else_exp } ->
-      let%map if_exp = expression env if_exp
-      and then_exp = expression env then_exp
-      and else_exp = expression env else_exp in
-      Expr_if_then_else { if_exp; then_exp; else_exp }
-  | Expr_record rows ->
-      let row (row : expr_record_row) =
-        let%map value = expression env row.value in
-        { row with value }
-      in
-      let%map rows = Reported.each rows ~f:row in
-      Expr_record rows
-  | Expr_pattern { expr; pattern_data_items } ->
-      let case (item : expr_pattern_case) =
-        let inner = binds env (bound_by_pattern item.pattern) in
-        let%map pattern = pattern env item.pattern
-        and expr = expression inner item.expr in
-        { pattern; expr }
-      in
-      let%map expr = expression env expr
-      and pattern_data_items = Reported.each pattern_data_items ~f:case in
-      Expr_pattern { expr; pattern_data_items }
-  | Expr_lambda { params; body } ->
-      let inner =
-        binds env (Names.of_list (List.map Data.Located.unwrap params))
-      in
-      let%map body = expression inner body in
-      Expr_lambda { params; body }
-  | Expr_access { expr; field } ->
-      let%map expr = expression env expr in
-      Expr_access { expr; field }
-  | Expr_list items ->
-      let%map items = Reported.each items ~f:(expression env) in
-      Expr_list items
-  | ( Expr_accessor _ | Expr_record_extend _ | Expr_record_select _
-    | Expr_record_empty | Expr_unit | Expr_kernel _ | Expr_char _
-    | Expr_string _ | Expr_int _
-    | Expr_float _ ) as leaf ->
       Reported.return leaf
 
 let rec type_expression env (t : Canonical.Typedef.Impl.t) :
@@ -394,6 +339,86 @@ let rec type_expression env (t : Canonical.Typedef.Impl.t) :
     | (Kind.Tkind_var _ | Kind.Tkind_unit) as leaf -> Reported.return leaf
   in
   { Impl.parameters; body }
+
+let rec expression env (e : Canonical.Expr.t) : Canonical.Expr.t Reported.t =
+  let open Canonical.Expr in
+  let open Reported.Let_syntax in
+  match e with
+  | Expr_ident name -> begin
+      match Data.Kernel.referred_to_by name with
+      | Known kernel -> Reported.return (Expr_kernel kernel)
+      | Unknown { module_name; exported_name } ->
+          Reported.rejected (Expr_ident name)
+            (Unknown_kernel { module_name; exported_name })
+      | Not_kernel ->
+          let%map name = resolved env Terms name in
+          Expr_ident name
+    end
+  | Expr_apply { fn; arg } ->
+      let%map fn = expression env fn and arg = expression env arg in
+      Expr_apply { fn; arg }
+  | Expr_let { binding; body } ->
+      let { bind_type; bind_body = { name; body = bound_value } } = binding in
+      let inner = binds env (Names.singleton (Data.Located.unwrap name)) in
+      let%map bound_value = expression env bound_value
+      and body = expression inner body
+      and bind_type = Reported.option bind_type ~f:(binding_annotation env) in
+      let bind_body = { name; body = bound_value } in
+      Expr_let { binding = { bind_type; bind_body }; body }
+  | Expr_if_then_else { if_exp; then_exp; else_exp } ->
+      let%map if_exp = expression env if_exp
+      and then_exp = expression env then_exp
+      and else_exp = expression env else_exp in
+      Expr_if_then_else { if_exp; then_exp; else_exp }
+  | Expr_pattern { expr; pattern_data_items } ->
+      let case (item : expr_pattern_case) =
+        let inner = binds env (bound_by_pattern item.pattern) in
+        let%map pattern = pattern env item.pattern
+        and expr = expression inner item.expr in
+        { pattern; expr }
+      in
+      let%map expr = expression env expr
+      and pattern_data_items = Reported.each pattern_data_items ~f:case in
+      Expr_pattern { expr; pattern_data_items }
+  | Expr_lambda { params; body } ->
+      let inner =
+        binds env (Names.of_list (List.map Data.Located.unwrap params))
+      in
+      let%map body = expression inner body in
+      Expr_lambda { params; body }
+  | Expr_access { expr; field } ->
+      let%map expr = expression env expr in
+      Expr_access { expr; field }
+  | Expr_list items ->
+      let%map items = Reported.each items ~f:(expression env) in
+      Expr_list items
+  | Expr_cons { head; tail } ->
+      let%map head = expression env head and tail = expression env tail in
+      Expr_cons { head; tail }
+  | Expr_tuple items ->
+      let%map items = Reported.each items ~f:(expression env) in
+      Expr_tuple items
+  | Expr_record_update { record; fields } ->
+      let%map record = expression env record
+      and fields = Reported.each fields ~f:(record_row env) in
+      Expr_record_update { record; fields }
+  | ( Expr_accessor _ | Expr_record_extend _ | Expr_record_select _
+    | Expr_record_empty | Expr_unit | Expr_kernel _ | Expr_char _
+    | Expr_string _ | Expr_int _
+    | Expr_float _ ) as leaf ->
+      Reported.return leaf
+
+and binding_annotation env (annotation : Canonical.Expr.expr_let_binding_type)
+    : Canonical.Expr.expr_let_binding_type Reported.t =
+  let open Reported.Let_syntax in
+  let%map content = type_expression env annotation.content in
+  { annotation with Canonical.Expr.content }
+
+and record_row env (row : Canonical.Expr.expr_record_row) :
+    Canonical.Expr.expr_record_row Reported.t =
+  let open Reported.Let_syntax in
+  let%map value = expression env row.value in
+  { row with Canonical.Expr.value }
 
 let declared_arity (t : Canonical.Typedef.Impl.t) =
   match t.body with

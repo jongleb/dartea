@@ -9,6 +9,7 @@ type type_env = {
   types : Canonical.Typedecl.t Name_map.t;
   constructors :
     (Canonical.Typedecl.t * Canonical.Typedecl.type_ctor) Name_map.t;
+  aliases : (string list * Typed.Type.t) Name_map.t;
 }
 
 type ctor_info = { name : Data.Name.t; arity : int; index : int; total : int }
@@ -20,29 +21,6 @@ type infer_result = {
   siblings_env : (Data.Name.t * int) list Name_map.t;
   constructors : ctor_info list;
 }
-
-let build_type_env ~(imports : Interface.t list)
-    (module_ : Canonical.Module.t) : type_env =
-  let declared_here =
-    Canonical.Module.String_map.fold
-      (fun _ typedecl acc -> typedecl :: acc)
-      module_.type_declarations []
-  in
-  let imported = List.concat_map (fun (i : Interface.t) -> i.types) imports in
-  let visible = Primitives.types @ imported @ declared_here in
-  let add_type acc (typedecl : Canonical.Typedecl.t) =
-    Name_map.add typedecl.name typedecl acc
-  in
-  let add_constructors acc (typedecl : Canonical.Typedecl.t) =
-    List.fold_left
-      (fun acc (ctor : Canonical.Typedecl.type_ctor) ->
-        Name_map.add ctor.id (typedecl, ctor) acc)
-      acc typedecl.ctors
-  in
-  {
-    types = List.fold_left add_type Name_map.empty visible;
-    constructors = List.fold_left add_constructors Name_map.empty visible;
-  }
 
 let primitive_ctx : ctx =
   List.fold_left
@@ -69,7 +47,7 @@ let rec ftv_typ = function
 
 let rec apply_typ ty s =
   match ty with
-  | TVar v -> ( match Map.find_opt v s with Some t -> t | None -> ty)
+  | TVar v -> begin match Map.find_opt v s with Some t -> t | None -> ty end
   | TInt | TBool | TStr | TUnit | TRowEmpty -> ty
   | TFun (p, r) -> TFun (apply_typ p s, apply_typ r s)
   | TTup l -> TTup (List.map (fun ty -> apply_typ ty s) l)
@@ -87,6 +65,7 @@ let rec substitute_pattern (p : Typed.Pattern.t) s =
     | P_T_list items -> P_T_list (List.map sub items)
     | P_T_cons (head, tail) -> P_T_cons (sub head, sub tail)
     | P_T_ctor (name, items) -> P_T_ctor (name, List.map sub items)
+    | P_T_alias (inner, name) -> P_T_alias (sub inner, name)
     | (P_T_anything | P_T_var _ | P_T_record _ | P_T_unit | P_T_chr _
       | P_T_str _ | P_T_int _) as leaf ->
         leaf
@@ -145,6 +124,18 @@ let rec substitute_expr (e : Typed.Expr.t) s =
             body = sub body;
           }
     | Expr_list items -> Expr_list (List.map sub items)
+    | Expr_cons { head; tail } -> Expr_cons { head = sub head; tail = sub tail }
+    | Expr_tuple items -> Expr_tuple (List.map sub items)
+    | Expr_record_update { record; fields } ->
+        Expr_record_update
+          {
+            record = sub record;
+            fields =
+              List.map
+                (fun (row : expr_record_row) ->
+                  { row with value = sub row.value })
+                fields;
+          }
     | ( Expr_ident _ | Expr_accessor _ | Expr_record_extend _
       | Expr_record_select _ | Expr_record_empty | Expr_unit | Expr_kernel _
       | Expr_char _ | Expr_string _ | Expr_int _ | Expr_float _ ) as leaf ->
@@ -199,7 +190,7 @@ let string_of_typ ty =
         let rec str_row first = function
           | TRowEmpty -> ""
           | TVar v -> if first then v ^ " | " else " | " ^ v
-          | TRowExtend (label, typ, rest) -> (
+          | TRowExtend (label, typ, rest) -> begin
               match rest with
               | TVar v ->
                   let prefix = if first then v ^ " | " else ", " in
@@ -211,7 +202,8 @@ let string_of_typ ty =
                   let sep = if first then "" else ", " in
                   sep
                   ^ Printf.sprintf "%s : %s" label (str_simple typ)
-                  ^ str_row false rest)
+                  ^ str_row false rest
+            end
           | _ -> failwith "Invalid row type in record"
         in
         Printf.sprintf "{ %s }" (str_row true row)
@@ -276,7 +268,7 @@ let rec rewrite_row row label =
   match row with
   | TRowEmpty -> failwith (Printf.sprintf "label %s cannot be inserted" label)
   | TRowExtend (label2, ty, tail) when label = label2 -> (ty, tail, Map.empty)
-  | TRowExtend (label2, ty, tail) -> (
+  | TRowExtend (label2, ty, tail) -> begin
       match tail with
       | TVar a ->
           let new_r = new_var "r" in
@@ -286,7 +278,8 @@ let rec rewrite_row row label =
             Map.singleton a (TRowExtend (label, new_a, new_r)) )
       | _ ->
           let ty2, tail2, s = rewrite_row tail label in
-          (ty2, TRowExtend (label2, ty, tail2), s))
+          (ty2, TRowExtend (label2, ty, tail2), s)
+    end
   | _ -> failwith (Printf.sprintf "Unexpected type: %s" (Type.show row))
 
 let rec unify ty1 ty2 =
@@ -325,7 +318,7 @@ let rec unify ty1 ty2 =
         failwith (Printf.sprintf "Extra field '%s' in record" label)
     | TRowExtend (label, _, _), TRowEmpty ->
         failwith (Printf.sprintf "Missing field '%s' in record" label)
-    | TRowExtend (l1, ty1, rt1), (TRowExtend (_, _, _) as row2) -> (
+    | TRowExtend (l1, ty1, rt1), (TRowExtend (_, _, _) as row2) -> begin
         let ty2, rt2, s1 = rewrite_row row2 l1 in
         let rec to_list ty =
           match ty with
@@ -343,7 +336,8 @@ let rec unify ty1 ty2 =
             let s2 = unify' (apply_typ ty1 s1, apply_typ ty2 s1) in
             let s3 = s2 ++ s1 in
             let s4 = unify' (apply_typ rt1 s3, apply_typ rt2 s3) in
-            s4 ++ s3)
+            s4 ++ s3
+      end
     | _ -> unify_err ty1 ty2
   in
   unify' (ty1, ty2)
@@ -382,13 +376,14 @@ let typedef_to_type (impl : Canonical.Typedef.Impl.t) =
     | Kind.Tkind_var v -> TVar v.thing
     | Kind.Tkind_concrete c -> concrete_type c.thing args
     | Kind.Tkind_tuple types -> TTup (List.map conv types)
-    | Kind.Tkind_function fn -> (
+    | Kind.Tkind_function fn -> begin
         match List.rev fn.arguments with
         | [] -> failwith "Empty function type"
         | return_impl :: rev_params ->
             List.fold_left
               (fun acc (param : Impl.t) -> TFun (conv param, acc))
-              (conv return_impl) rev_params)
+              (conv return_impl) rev_params
+      end
     | Kind.Tkind_unit -> TUnit
     | Kind.Tkind_record fields ->
         let base =
@@ -431,6 +426,200 @@ let build_initial_ctx (type_env : type_env) : ctx =
       Name_map.add ctor_name (Scheme (typedef.params, ctor_type)) acc)
     type_env.constructors primitive_ctx
 
+let build_type_env ~(imports : Interface.t list)
+    (module_ : Canonical.Module.t) : type_env =
+  let declared_here =
+    Canonical.Module.String_map.fold
+      (fun _ typedecl acc -> typedecl :: acc)
+      module_.type_declarations []
+  in
+  let imported = List.concat_map (fun (i : Interface.t) -> i.types) imports in
+  let visible = Primitives.types @ imported @ declared_here in
+  let add_type acc (typedecl : Canonical.Typedecl.t) =
+    Name_map.add typedecl.name typedecl acc
+  in
+  let add_constructors acc (typedecl : Canonical.Typedecl.t) =
+    List.fold_left
+      (fun acc (ctor : Canonical.Typedecl.type_ctor) ->
+        Name_map.add ctor.id (typedecl, ctor) acc)
+      acc typedecl.ctors
+  in
+  let add_alias name (alias : Canonical.Typealias.t) acc =
+    Name_map.add name (alias.params, typedef_to_type alias.typedef) acc
+  in
+  let imported_aliases =
+    List.concat_map (fun (i : Interface.t) -> i.type_aliases) imports
+    |> List.fold_left
+         (fun acc (alias : Canonical.Typealias.t) ->
+           add_alias alias.name alias acc)
+         Name_map.empty
+  in
+  let aliases =
+    Canonical.Module.String_map.fold
+      (fun name alias acc -> add_alias (Data.Name.local name) alias acc)
+      module_.type_aliases imported_aliases
+  in
+  {
+    types = List.fold_left add_type Name_map.empty visible;
+    constructors = List.fold_left add_constructors Name_map.empty visible;
+    aliases;
+  }
+
+let rec expand_type_alias type_env ty =
+  let expand = expand_type_alias type_env in
+  match ty with
+  | TCustom (name, args) -> begin
+      match Name_map.find_opt name type_env.aliases with
+      | None -> TCustom (name, List.map expand args)
+      | Some (params, alias_body)
+        when List.length params = List.length args ->
+          let substitution =
+            List.fold_left2
+              (fun acc param arg -> Map.add param (expand arg) acc)
+              Map.empty params args
+          in
+          expand (apply_typ alias_body substitution)
+      | Some (params, _) ->
+          failwith
+            (Printf.sprintf "Type alias %s expects %d arguments, got %d"
+               (Data.Name.to_string name) (List.length params)
+               (List.length args))
+    end
+  | TFun (p, r) -> TFun (expand p, expand r)
+  | TTup l -> TTup (List.map expand l)
+  | TRecord t -> TRecord (expand t)
+  | TRowExtend (label, t, r) -> TRowExtend (label, expand t, expand r)
+  | t -> t
+
+let rec infer_pattern (type_env : type_env) (pattern : Canonical.Pattern.t) :
+    Type.t Map.t * Typed.Pattern.t * ctx =
+  let go = infer_pattern type_env in
+  match pattern with
+      | Canonical.Pattern.P_var v ->
+          ( Map.empty,
+            { Pattern.typ = new_var "a"; pattern = P_T_var v },
+            Name_map.singleton (Data.Name.local v)
+              (Scheme ([], new_var "a")) )
+      | P_anything ->
+          ( Map.empty,
+            { typ = new_var "a"; pattern = P_T_anything },
+            Name_map.empty )
+      | P_int i ->
+          (Map.empty, { typ = TInt; pattern = P_T_int i }, Name_map.empty)
+      | P_str s ->
+          (Map.empty, { typ = TStr; pattern = P_T_str s }, Name_map.empty)
+      | P_chr c ->
+          (Map.empty, { typ = TStr; pattern = P_T_chr c }, Name_map.empty)
+      | P_unit ->
+          (Map.empty, { typ = TUnit; pattern = P_T_unit }, Name_map.empty)
+      | P_tuple list ->
+          let s, resolved, ctx =
+            List.fold_left
+              (fun (s_acc, res_acc, ctx_acc) pat ->
+                let s, ty, ctx' = go pat in
+                (s ++ s_acc, ty :: res_acc, merge_ctx ctx_acc ctx'))
+              (Map.empty, [], Name_map.empty) list
+          in
+          ( s,
+            {
+              typ = TTup (List.rev_map (fun t -> t.Pattern.typ) resolved);
+              pattern = P_T_tuple (List.rev resolved);
+            },
+            ctx )
+      | P_list list ->
+          let elem_type = new_var "a" in
+          let s, resolved, ctx =
+            List.fold_left
+              (fun (s_acc, res_acc, ctx_acc) pat ->
+                let s, ty, ctx' = go pat in
+                let s_unify = unify (apply_typ elem_type s) ty.typ in
+                ( s_unify ++ s ++ s_acc,
+                  ty :: res_acc,
+                  merge_ctx ctx_acc ctx' ))
+              (Map.empty, [], Name_map.empty) list
+          in
+          ( s,
+            {
+              typ = TCustom (Data.Name.local "List", [ elem_type ]);
+              pattern = P_T_list (List.rev resolved);
+            },
+            ctx )
+      | P_alias (inner, name) ->
+          let s, aliased, bound = go inner in
+          let typ = aliased.Pattern.typ in
+          ( s,
+            { typ; pattern = P_T_alias (aliased, name) },
+            Name_map.add (Data.Name.local name) (Scheme ([], typ)) bound )
+      | P_cons (head, tail) ->
+          let s1, ty_head, ctx1 = go head in
+          let s2, ty_tail, ctx2 = go tail in
+          let list_type = TCustom (Data.Name.local "List", [ ty_head.typ ]) in
+          let s3 = unify (apply_typ ty_tail.typ s2) list_type in
+          ( s3 ++ s2 ++ s1,
+            { typ = list_type; pattern = P_T_cons (ty_head, ty_tail) },
+            merge_ctx ctx1 ctx2 )
+      | P_ctor (name, arguments) -> begin
+          match Name_map.find_opt name type_env.constructors with
+          | None ->
+              failwith
+                (Printf.sprintf "Unknown constructor %s"
+                   (Data.Name.to_string name))
+          | Some (declared, ctor) ->
+              let payload_variable (payload : Canonical.Typedef.Impl.t) =
+                match payload.body with
+                | Canonical.Typedef.Kind.Tkind_var written ->
+                    Some (Data.Located.unwrap written)
+                | _ -> None
+              in
+              let take (s_acc, bindings, patterns, bound) argument payload =
+                let s, typed_argument, bound_here = go argument in
+                let bindings =
+                  match payload_variable payload with
+                  | None -> bindings
+                  | Some variable -> Map.add variable typed_argument.typ bindings
+                in
+                ( s_acc ++ s,
+                  bindings,
+                  typed_argument :: patterns,
+                  merge_ctx bound bound_here )
+              in
+              let s, bindings, patterns, bound =
+                List.fold_left2 take
+                  (Map.empty, Map.empty, [], Name_map.empty)
+                  arguments ctor.data
+              in
+              let argument_of parameter =
+                match Map.find_opt parameter bindings with
+                | Some typ -> typ
+                | None -> new_var "a"
+              in
+              ( s,
+                {
+                  typ =
+                    concrete_type declared.name
+                      (List.map argument_of declared.params);
+                  pattern = P_T_ctor (name, List.rev patterns);
+                },
+                bound )
+        end
+      | P_record fields ->
+          let row_var = new_var "r" in
+          let row_type, bound =
+            List.fold_right
+              (fun field_name (row, bound) ->
+                let field_type = new_var "a" in
+                ( TRowExtend (field_name, field_type, row),
+                  Name_map.add
+                    (Data.Name.local field_name)
+                    (Scheme ([], field_type))
+                    bound ))
+              fields
+              (row_var, Name_map.empty)
+          in
+          ( Map.empty,
+            { typ = TRecord row_type; pattern = P_T_record fields },
+            bound )
+
 let rec infer_with_env (exp : Canonical.Expr.t) ctx (type_env : type_env) :
     Type.t Map.t * Typed.Expr.t =
   let infer exp ctx = infer_with_env exp ctx type_env in
@@ -443,13 +632,15 @@ let rec infer_with_env (exp : Canonical.Expr.t) ctx (type_env : type_env) :
   | Expr_kernel primitive ->
       ( Map.empty,
         { expr = Typed.Expr.Expr_kernel primitive; typ = new_var "a" } )
-  | Expr_ident v -> (
+  | Expr_ident v -> begin
       match Name_map.find_opt v ctx with
-      | Some s ->
-          let _, ty = instantiate s in
-          (Map.empty, { expr = Expr_ident v; typ = ty })
+      | Some scheme ->
+          let _, typ = instantiate scheme in
+          (Map.empty, { expr = Expr_ident v; typ })
       | None ->
-          Printf.sprintf "Unbound value %s" (Data.Name.to_string v) |> failwith)
+          failwith
+            (Printf.sprintf "Unbound value %s" (Data.Name.to_string v))
+    end
   | Expr_apply { fn; arg } ->
       let s1, t1 = infer fn ctx in
       let s2, t2 = infer arg (apply_ctx ctx s1) in
@@ -486,15 +677,76 @@ let rec infer_with_env (exp : Canonical.Expr.t) ctx (type_env : type_env) :
           expr = Expr_list (List.rev typed_elems);
           typ = TCustom (Data.Name.local "List", [ ty ]);
         } )
-  | Expr_let { binding = { bind_body = { name; body = rhs } }; body } ->
+  | Expr_record_update { record; fields } ->
+      let s1, typed_record = infer record ctx in
+      let s, reversed =
+        List.fold_left
+          (fun (s_acc, acc) (row : Canonical.Expr.expr_record_row) ->
+            let s_value, typed_value = infer row.value (apply_ctx ctx s_acc) in
+            let s_acc = s_value ++ s_acc in
+            let others = new_var "r" in
+            let s_field =
+              unify
+                (apply_typ typed_record.typ s_acc)
+                (TRecord (TRowExtend (row.name, typed_value.typ, others)))
+            in
+            ( s_field ++ s_acc,
+              { Typed.Expr.name = row.name; value = typed_value } :: acc ))
+          (s1, []) fields
+      in
+      let substituted (row : Typed.Expr.expr_record_row) =
+        { row with Typed.Expr.value = substitute_expr row.value s }
+      in
+      ( s,
+        {
+          expr =
+            Expr_record_update
+              {
+                record = substitute_expr typed_record s;
+                fields = List.rev_map substituted reversed;
+              };
+          typ = apply_typ typed_record.typ s;
+        } )
+  | Expr_tuple items ->
+      let s, reversed =
+        List.fold_left
+          (fun (s_acc, acc) item ->
+            let s, typed_item = infer item (apply_ctx ctx s_acc) in
+            (s ++ s_acc, typed_item :: acc))
+          (Map.empty, []) items
+      in
+      let items = List.rev_map (fun item -> substitute_expr item s) reversed in
+      let component (item : Typed.Expr.t) = item.typ in
+      (s, { expr = Expr_tuple items; typ = TTup (List.map component items) })
+  | Expr_cons { head; tail } ->
+      let s_head, typed_head = infer head ctx in
+      let s_tail, typed_tail = infer tail (apply_ctx ctx s_head) in
+      let element = apply_typ typed_head.typ s_tail in
+      let list_type = TCustom (Data.Name.local "List", [ element ]) in
+      let s_list = unify typed_tail.typ list_type in
+      let typ = apply_typ list_type s_list in
+      ( s_list ++ s_tail ++ s_head,
+        { expr = Expr_cons { head = typed_head; tail = typed_tail }; typ } )
+  | Expr_let { binding = { bind_type; bind_body = { name; body = rhs } }; body }
+    ->
       let self_ty = new_var "a" in
       let ctx_rec =
         Name_map.add (Data.Name.local name.thing) (Scheme ([], self_ty)) ctx
       in
       let s_rhs, t1 = infer rhs ctx_rec in
       let s_self = unify (apply_typ self_ty s_rhs) t1.typ in
-      let s1 = s_self ++ s_rhs in
-      let t1 = { t1 with Typed.Expr.typ = apply_typ t1.typ s_self } in
+      let s_declared =
+        match bind_type with
+        | None -> Map.empty
+        | Some annotation ->
+            unify
+              (apply_typ t1.typ s_self)
+              (expand_type_alias type_env (typedef_to_type annotation.content))
+      in
+      let s1 = s_declared ++ s_self ++ s_rhs in
+      let t1 =
+        { t1 with Typed.Expr.typ = apply_typ t1.typ (s_declared ++ s_self) }
+      in
       let ctx' = apply_ctx ctx s1 in
       let gen_ty = generalize t1.typ ctx' in
       let ctx'' = Name_map.add (Data.Name.local name.thing) gen_ty ctx' in
@@ -508,117 +760,6 @@ let rec infer_with_env (exp : Canonical.Expr.t) ctx (type_env : type_env) :
         } )
   | Expr_pattern { expr; pattern_data_items } ->
       let s0, t0 = infer expr ctx in
-
-      let m_pattern (pattern : Canonical.Pattern.t) =
-        let rec go = function
-          | Canonical.Pattern.P_var v ->
-              ( Map.empty,
-                { Pattern.typ = new_var "a"; pattern = P_T_var v },
-                Name_map.singleton (Data.Name.local v)
-                  (Scheme ([], new_var "a")) )
-          | P_anything ->
-              ( Map.empty,
-                { typ = new_var "a"; pattern = P_T_anything },
-                Name_map.empty )
-          | P_int i ->
-              (Map.empty, { typ = TInt; pattern = P_T_int i }, Name_map.empty)
-          | P_str s ->
-              (Map.empty, { typ = TStr; pattern = P_T_str s }, Name_map.empty)
-          | P_chr c ->
-              (Map.empty, { typ = TStr; pattern = P_T_chr c }, Name_map.empty)
-          | P_unit ->
-              (Map.empty, { typ = TUnit; pattern = P_T_unit }, Name_map.empty)
-          | P_tuple list ->
-              let s, resolved, ctx =
-                List.fold_left
-                  (fun (s_acc, res_acc, ctx_acc) pat ->
-                    let s, ty, ctx' = go pat in
-                    (s ++ s_acc, ty :: res_acc, merge_ctx ctx_acc ctx'))
-                  (Map.empty, [], Name_map.empty) list
-              in
-              ( s,
-                {
-                  typ = TTup (List.rev_map (fun t -> t.Pattern.typ) resolved);
-                  pattern = P_T_tuple (List.rev resolved);
-                },
-                ctx )
-          | P_list list ->
-              let elem_type = new_var "a" in
-              let s, resolved, ctx =
-                List.fold_left
-                  (fun (s_acc, res_acc, ctx_acc) pat ->
-                    let s, ty, ctx' = go pat in
-                    let s_unify = unify (apply_typ elem_type s) ty.typ in
-                    ( s_unify ++ s ++ s_acc,
-                      ty :: res_acc,
-                      merge_ctx ctx_acc ctx' ))
-                  (Map.empty, [], Name_map.empty) list
-              in
-              ( s,
-                {
-                  typ = TCustom (Data.Name.local "List", [ elem_type ]);
-                  pattern = P_T_list (List.rev resolved);
-                },
-                ctx )
-          | P_cons (head, tail) ->
-              let s1, ty_head, ctx1 = go head in
-              let s2, ty_tail, ctx2 = go tail in
-              let list_type = TCustom (Data.Name.local "List", [ ty_head.typ ]) in
-              let s3 = unify (apply_typ ty_tail.typ s2) list_type in
-              ( s3 ++ s2 ++ s1,
-                { typ = list_type; pattern = P_T_cons (ty_head, ty_tail) },
-                merge_ctx ctx1 ctx2 )
-          | P_ctor (name, list) -> (
-              let decl = Name_map.find_opt name type_env.constructors in
-              match decl with
-              | Some (type_, d) ->
-                  let s, resolved_types, patterns, ctx =
-                    List.fold_left2
-                      (fun (acc, m, patterns, ctx)
-                           (pattern : Canonical.Pattern.t)
-                           (ctor : Canonical.Typedef.Impl.t) ->
-                        let s, ty_arg, ctx' = go pattern in
-                        ( acc ++ s,
-                          (match ctor.body with
-                          | Canonical.Typedef.Kind.Tkind_var v ->
-                              Map.add v.thing ty_arg.typ m
-                          | _ -> m),
-                          ty_arg :: patterns,
-                          merge_ctx ctx ctx' ))
-                      (Map.empty, Map.empty, [], Name_map.empty)
-                      list d.data
-                  in
-                  let args =
-                    List.map
-                      (fun p ->
-                        resolved_types |> Map.find_opt p
-                        |> CCOption.get_lazy (fun () -> new_var "a"))
-                      type_.params
-                  in
-                  ( s,
-                    {
-                      typ = concrete_type type_.name args;
-                      pattern = P_T_ctor (name, List.rev patterns);
-                    },
-                    ctx )
-              | None ->
-                  failwith
-                    (Printf.sprintf "Unknown constructor %s"
-                       (Data.Name.to_string name)))
-          | P_record fields ->
-              let row_var = new_var "r" in
-              let row_type =
-                List.fold_right
-                  (fun field_name acc ->
-                    TRowExtend (field_name, new_var "a", acc))
-                  fields row_var
-              in
-              ( Map.empty,
-                { typ = TRecord row_type; pattern = P_T_record fields },
-                Name_map.empty )
-        in
-        go pattern
-      in
 
       let fn (patterns, (s0, ty0), (s1, ty1), typed_cases)
           { pattern; expr = case_expr } =
@@ -636,7 +777,7 @@ let rec infer_with_env (exp : Canonical.Expr.t) ctx (type_env : type_env) :
             (s5 ++ s4', apply_typ t3.typ s5),
             typed_case :: typed_cases )
         in
-        fn_apply @@ m_pattern pattern
+        fn_apply (infer_pattern type_env pattern)
       in
 
       let patterns, (s1, t1), (s2, ty2), typed_cases =
@@ -671,6 +812,15 @@ let rec infer_with_env (exp : Canonical.Expr.t) ctx (type_env : type_env) :
       ( Map.empty,
         {
           expr = Expr_record_select label;
+          typ = TFun (TRecord (TRowExtend (label, a, r)), a);
+        } )
+  | Expr_accessor field ->
+      let a = new_var "a" in
+      let r = new_var "r" in
+      let label = Data.Located.unwrap field in
+      ( Map.empty,
+        {
+          expr = Expr_accessor field;
           typ = TFun (TRecord (TRowExtend (label, a, r)), a);
         } )
   | Expr_access { expr; field } ->
@@ -710,7 +860,6 @@ let rec infer_with_env (exp : Canonical.Expr.t) ctx (type_env : type_env) :
           expr = Expr_lambda { params = typed_params; body = typed_body };
           typ = fn_ty;
         } )
-  | _ -> failwith "Expression not implemented"
 
 let infer_exp exp ctx type_env =
   State.reset ();
@@ -722,7 +871,11 @@ let infer' exp ctx type_env = infer_with_env exp ctx type_env
 
 let infer exp =
   infer_exp exp primitive_ctx
-    { types = Name_map.empty; constructors = Name_map.empty }
+    {
+      types = Name_map.empty;
+      constructors = Name_map.empty;
+      aliases = Name_map.empty;
+    }
 
 let infer_declaration { Canonical.Declaration.body_part; type_part_data } ctx
     type_env =
@@ -811,50 +964,7 @@ let infer_toplevel ~(imports : Interface.t list)
          initial_ctx
   in
 
-  let imported_aliases =
-    List.concat_map (fun (i : Interface.t) -> i.type_aliases) imports
-    |> List.fold_left
-         (fun acc (ta : Canonical.Typealias.t) ->
-           Name_map.add ta.name (ta.params, typedef_to_type ta.typedef) acc)
-         Name_map.empty
-  in
-
-  let type_aliases =
-    Canonical.Module.String_map.fold
-      (fun name ta acc ->
-        let alias_type = typedef_to_type ta.Canonical.Typealias.typedef in
-        Name_map.add (Data.Name.local name) (ta.params, alias_type) acc)
-      module_.type_aliases imported_aliases
-  in
-
-  let rec expand_type_alias ty =
-    match ty with
-    | TCustom (name, args) -> (
-        match Name_map.find_opt name type_aliases with
-        | Some (params, alias_body) ->
-            if List.length params = List.length args then
-              let subst =
-                List.fold_left2
-                  (fun acc param arg ->
-                    Map.add param (expand_type_alias arg) acc)
-                  Map.empty params args
-              in
-              expand_type_alias (apply_typ alias_body subst)
-            else if List.length params = 0 && List.length args = 0 then
-              expand_type_alias alias_body
-            else
-              failwith
-                (Printf.sprintf "Type alias %s expects %d arguments, got %d"
-                   (Data.Name.to_string name)
-                   (List.length params) (List.length args))
-        | None -> TCustom (name, List.map expand_type_alias args))
-    | TFun (p, r) -> TFun (expand_type_alias p, expand_type_alias r)
-    | TTup l -> TTup (List.map expand_type_alias l)
-    | TRecord t -> TRecord (expand_type_alias t)
-    | TRowExtend (label, t, r) ->
-        TRowExtend (label, expand_type_alias t, expand_type_alias r)
-    | t -> t
-  in
+  let expand_type_alias = expand_type_alias type_env in
 
   let infer_declaration_with_expansion
       { Canonical.Declaration.body_part; type_part_data } ctx =

@@ -62,6 +62,8 @@ let of_module (m : Module.t) : t =
             let terms =
               match exported with
               | Ctors_exposed ctors -> Names.union acc.terms ctors
+              | Alias when Module.String_map.mem name m.top_declarations ->
+                  Names.add name acc.terms
               | Alias | Ctors_hidden -> acc.terms
             in
             { terms; types = By_name.add name exported acc.types }

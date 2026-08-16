@@ -46,8 +46,16 @@ type shape =
   | Record of string list
   | Head of head * P.t list
 
-let shape_of p =
+let rec peeled p =
+  match p.P.pattern with P.P_T_alias (inner, _) -> peeled inner | _ -> p
+
+let rec alias_names p =
   match p.P.pattern with
+  | P.P_T_alias (inner, name) -> name :: alias_names inner
+  | _ -> []
+
+let shape_of p =
+  match (peeled p).P.pattern with
   | P.P_T_anything | P.P_T_unit -> Wild
   | P.P_T_var x -> Var x
   | P.P_T_tuple ps -> Tuple ps
@@ -58,7 +66,9 @@ let shape_of p =
   | P.P_T_chr c -> Head (H_chr c, [])
   | P.P_T_cons (hd, tl) -> Head (H_cons, [ hd; tl ])
   | P.P_T_list [] -> Head (H_nil, [])
-  | P.P_T_list (x :: xs) -> Head (H_cons, [ x; { p with P.pattern = P.P_T_list xs } ])
+  | P.P_T_list (x :: xs) ->
+      Head (H_cons, [ x; { p with P.pattern = P.P_T_list xs } ])
+  | P.P_T_alias _ -> Wild
 
 let head_of p = match shape_of p with Head (h, _) -> Some h | _ -> None
 let subpats p = match shape_of p with Head (_, subs) -> subs | _ -> []
@@ -248,7 +258,11 @@ let test_of h subs =
 
 let front_column m = column (List.map (fun row -> row.pats) m.rows)
 
+let bind_aliases front occ0 binds =
+  List.fold_left (fun acc name -> (name, occ0) :: acc) binds (alias_names front)
+
 let bind_front front occ0 binds =
+  let binds = bind_aliases front occ0 binds in
   match shape_of front with
   | Var x -> (x, occ0) :: binds
   | Record fields ->
@@ -290,7 +304,7 @@ let expand_tuple m n =
         | front :: rest ->
             let subs, binds =
               match shape_of front with
-              | Tuple ps -> (ps, row.binds)
+              | Tuple ps -> (ps, bind_aliases front occ0 row.binds)
               | _ -> (wildcards n, bind_front front occ0 row.binds)
             in
             { row with pats = subs @ rest; binds }
@@ -366,7 +380,13 @@ let specialization ~head ~arity m =
                     binds = bind_front front occ0 row.binds;
                   }
             | Some h ->
-                if h = head then Some { row with pats = subpats front @ rest }
+                if h = head then
+                  Some
+                    {
+                      row with
+                      pats = subpats front @ rest;
+                      binds = bind_aliases front occ0 row.binds;
+                    }
                 else None
           end)
       m.rows
@@ -394,7 +414,10 @@ let rec compile siblings m =
         List.concat
           (List.map2
              (fun (p : P.t) occ ->
-               match shape_of p with Var x -> [ (x, occ) ] | _ -> [])
+               List.map (fun name -> (name, occ)) (alias_names p)
+               @ begin
+                   match shape_of p with Var x -> [ (x, occ) ] | _ -> []
+                 end)
              r0.pats m.occs)
       in
       Leaf { action = r0.action; bindings = r0.binds @ extra }

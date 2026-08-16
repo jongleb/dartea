@@ -9,6 +9,8 @@ let rec bound_by_pattern (p : O.Pattern.t) : Names.t =
   | P_T_var name -> Names.singleton (Data.Name.local name)
   | P_T_record fields -> Names.of_list (List.map Data.Name.local fields)
   | P_T_tuple items | P_T_list items -> union_map bound_by_pattern items
+  | P_T_alias (inner, name) ->
+      Names.add (Data.Name.local name) (bound_by_pattern inner)
   | P_T_cons (head, tail) ->
       Names.union (bound_by_pattern head) (bound_by_pattern tail)
   | P_T_ctor (_, arguments) -> union_map bound_by_pattern arguments
@@ -55,7 +57,7 @@ let rec free_variables ~(bound : Names.t) (e : O.Expr.t) : Names.t =
       let operands =
         Names.union (free_variables ~bound left) (free_variables ~bound right)
       in
-      let operator = Data.Name.local name in
+      let operator = Data.Name.local (Data.Operator.lexeme name) in
       if Names.mem operator bound then operands
       else Names.add operator operands
   | _ -> union_map (free_variables ~bound) (Subexpressions.list e)
@@ -68,6 +70,7 @@ let rec referenced_in_pattern (p : O.Pattern.t) : Names.t =
   | P_T_ctor (name, arguments) ->
       Names.add name (union_map referenced_in_pattern arguments)
   | P_T_tuple items | P_T_list items -> union_map referenced_in_pattern items
+  | P_T_alias (inner, _) -> referenced_in_pattern inner
   | P_T_cons (head, tail) ->
       Names.union (referenced_in_pattern head) (referenced_in_pattern tail)
   | P_T_var _ | P_T_record _ | P_T_anything | P_T_unit | P_T_chr _ | P_T_str _
@@ -79,7 +82,8 @@ let rec referenced_in_expression (e : O.Expr.t) : Names.t =
   match e.expr with
   | Expr_ident name -> Names.add name children
   | Expr_constr { name; _ } -> Names.add name children
-  | Expr_binop { name; _ } -> Names.add (Data.Name.local name) children
+  | Expr_binop { name; _ } ->
+      Names.add (Data.Name.local (Data.Operator.lexeme name)) children
   | Expr_pattern { pattern_data_items; _ } ->
       List.fold_left
         (fun acc (case : O.Expr.expr_pattern_case) ->

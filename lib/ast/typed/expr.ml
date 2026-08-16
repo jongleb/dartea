@@ -6,6 +6,7 @@ and expr =
   | Expr_let of expr_let
   | Expr_if_then_else of expr_if_then_else
   | Expr_record of expr_record_row list
+  | Expr_record_update of expr_record_update
   | Expr_apply of expr_apply
   | Expr_ident of Data.Name.t
   | Expr_pattern of expr_pattern
@@ -22,6 +23,8 @@ and expr =
   | Expr_int of int
   | Expr_float of float (* EF.Float *)
   | Expr_list of t list
+  | Expr_cons of expr_cons
+  | Expr_tuple of t list
 [@@deriving show]
 
 and expr_lambda_param = { name : string Data.Located.t; typ : Type.t }
@@ -30,10 +33,12 @@ and expr_lambda_param = { name : string Data.Located.t; typ : Type.t }
 and expr_lambda = { params : expr_lambda_param list; body : t }
 [@@deriving show]
 
+and expr_cons = { head : t; tail : t } [@@deriving show]
+
 and expr_constr = { name : Data.Name.t; arguments : t list } [@@deriving show]
 (*ConstructorValue { qualifiedness : PossiblyQualified, name : VarName }*)
 
-and expr_binop = { name : string; operands : t * t } [@@deriving show]
+and expr_binop = { name : Data.Operator.t; operands : t * t } [@@deriving show]
 (*  Binops [(Expr, A.Located Name)] Expr *)
 
 and expr_let_binding_type = { name : string (* content : Typedef.Impl.t *) }
@@ -55,6 +60,9 @@ and expr_if_then_else = { if_exp : t; then_exp : t; else_exp : t }
 [@@deriving show]
 
 and expr_record_row = { name : string; value : t } [@@deriving show]
+
+and expr_record_update = { record : t; fields : expr_record_row list }
+[@@deriving show]
 and expr_apply = { fn : t; arg : t } [@@deriving show]
 and expr_pattern_case = { pattern : Pattern.t; expr : t } [@@deriving show]
 

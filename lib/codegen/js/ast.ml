@@ -16,6 +16,8 @@ type binop =
   | Multiply
   | Divide
   | Modulo
+  | Exponent
+  | BitOr
   | Equal
   | NotEqual
   | StrictEqual
@@ -41,9 +43,12 @@ type expr =
   | Arrow of { params : identifier list; body : arrow_body }
   | Member of { object_ : expr; property : expr; computed : bool }
   | Conditional of { test : expr; consequent : expr; alternate : expr }
-  | Object of (identifier * expr) list
+  | Object of object_member list
   | Array of expr list
   | Assignment of { left : expr; right : expr }
+[@@deriving show]
+
+and object_member = Field of identifier * expr | Spread of expr
 [@@deriving show]
 
 and arrow_body = ArrowExpr of expr | ArrowBlock of stmt list [@@deriving show]
@@ -90,7 +95,10 @@ let rec expression_references (wanted : identifier) (e : expr) : bool =
       references object_ || (computed && references property)
   | Conditional { test; consequent; alternate } ->
       references test || references consequent || references alternate
-  | Object rows -> List.exists (fun (_, value) -> references value) rows
+  | Object members ->
+      List.exists
+        (function Field (_, value) | Spread value -> references value)
+        members
   | Array items -> any items
   | Assignment { left; right } -> references left || references right
 
