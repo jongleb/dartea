@@ -271,16 +271,28 @@ let test_partial_application _ =
   let src =
     {|
 add : Int -> Int -> Int
-add a b = a + b
+add a b =
+    case a of
+        0 ->
+            b
 
-inc : Int -> Int
-inc = add 1
+        _ ->
+            add (a - 1) (b + 1)
+
+applyTimes : Int -> (Int -> Int) -> Int -> Int
+applyTimes k f n =
+    case k of
+        0 ->
+            n
+
+        _ ->
+            applyTimes (k - 1) f (f n)
 
 result : Int
-result = inc 5
+result = applyTimes 3 (add 1) 5
 |}
   in
-  assert_js ~src ~expr:"Main.result" ~expected:"6";
+  assert_js ~src ~expr:"Main.result" ~expected:"8";
   let js = main_source src in
 
   assert_bool "partial application is an explicit closure"
@@ -1103,6 +1115,128 @@ result =
   assert_bool "no arrow is built just to be called at once"
     (not (contains ~needle:"=> x.length" js))
 
+let test_concrete_higher_order_call_is_direct _ =
+  let src =
+    {|
+add : Int -> Int -> Int
+add a b = a + b
+
+twice : (Int -> Int) -> Int -> Int
+twice f n =
+    f (f n)
+
+result : Int
+result = twice (add 1) 5
+|}
+  in
+  assert_js ~src ~expr:"Main.result" ~expected:"7";
+  let js = main_source src in
+  assert_bool "a parameter of concrete function type is called directly"
+    (not (contains ~needle:"$$curry" js))
+
+let test_declaration_is_saturated_to_its_type_arity _ =
+  let src =
+    {|
+adder : Int -> Int -> Int
+adder n =
+    let
+        doubled = n + n
+    in
+    \m -> doubled + m
+
+useAdder : (Int -> Int -> Int) -> Int
+useAdder f =
+    case f 3 4 of
+        0 ->
+            100
+
+        n ->
+            n + f 1 1
+
+result : Int
+result = useAdder adder
+|}
+  in
+  assert_js ~src ~expr:"Main.result" ~expected:"13";
+  let js = main_source src in
+  assert_bool "a declaration takes as many parameters as its type has arrows"
+    (contains ~needle:"const adder = (n, " js);
+  assert_bool "the added parameter reaches the body, not an applied arrow"
+    (contains ~needle:"return doubled + " js)
+
+let test_over_application_chains_calls _ =
+  let src =
+    {|
+add : Int -> Int -> Int
+add a b = a + b
+
+result : Int
+result = identity add 3 4
+|}
+  in
+  assert_js ~src ~expr:"Main.result" ~expected:"7";
+  let js = main_source src in
+  assert_bool "extra arguments are a second call, not a curry"
+    (contains ~needle:"(add)(3, 4)" js)
+
+let test_computed_callee_is_called_directly _ =
+  let src =
+    {|
+add : Int -> Int -> Int
+add a b = a + b
+
+pick : Bool -> (Int -> Int) -> (Int -> Int) -> Int -> Int
+pick c f g n =
+    (if c then f else g) n
+
+result : Int
+result = pick True (add 1) (add 2) 5
+|}
+  in
+  assert_js ~src ~expr:"Main.result" ~expected:"6";
+  let js = main_source src in
+  assert_bool "a callee that is not an identifier still uses its type arity"
+    (not (contains ~needle:"$$curry" js))
+
+let test_function_survives_a_generic_slot _ =
+  let src =
+    {|
+add : Int -> Int -> Int
+add a b = a + b
+
+box : (a -> b) -> Maybe (a -> b)
+box f = Just f
+
+result : Int
+result =
+    case box add of
+        Just g ->
+            g 1 2
+
+        Nothing ->
+            0
+|}
+  in
+  assert_js ~src ~expr:"Main.result" ~expected:"3"
+
+let test_polymorphic_higher_order_still_curries _ =
+  let src =
+    {|
+add : Int -> Int -> Int
+add a b = a + b
+
+apply : (a -> b) -> a -> b
+apply f x = f x
+
+result : Int
+result = apply add 3 4
+|}
+  in
+  assert_js ~src ~expr:"Main.result" ~expected:"7";
+  let js = main_source src in
+  assert_bool "a call on a parameter of polymorphic type keeps the runtime"
+    (contains ~needle:"$$curry" js)
+
 let test_unapplied_kernel_becomes_an_arrow _ =
   let js = module_source ~name:"String" "x : Int\nx = 1" in
   assert_bool "an unapplied kernel is eta-expanded once, at its declaration"
@@ -1122,6 +1256,16 @@ let suite =
     >:: test_kernel_application_lowers_to_an_operation;
     "unapplied_kernel_becomes_an_arrow"
     >:: test_unapplied_kernel_becomes_an_arrow;
+    "concrete_higher_order_call_is_direct"
+    >:: test_concrete_higher_order_call_is_direct;
+    "declaration_is_saturated_to_its_type_arity"
+    >:: test_declaration_is_saturated_to_its_type_arity;
+    "over_application_chains_calls" >:: test_over_application_chains_calls;
+    "computed_callee_is_called_directly"
+    >:: test_computed_callee_is_called_directly;
+    "function_survives_a_generic_slot" >:: test_function_survives_a_generic_slot;
+    "polymorphic_higher_order_still_curries"
+    >:: test_polymorphic_higher_order_still_curries;
     "runtime_module_is_only_curry" >:: test_runtime_module_is_only_curry;
     "saturated_primitive_lowers_to_an_operation"
     >:: test_saturated_primitive_lowers_to_an_operation;
