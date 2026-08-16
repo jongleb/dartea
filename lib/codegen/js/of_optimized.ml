@@ -333,19 +333,9 @@ let is_operator env name =
 let declared_arity env name =
   if SMap.mem name env then None else Hashtbl.find_opt js_arity name
 
-type arity = Exactly of int | At_least of int
+type arity = After_typed.Arity.t = Exactly of int | At_least of int
 
-let arity_of_type (t : O.Type.t) : arity =
-  let rec through arrows (t : O.Type.t) =
-    match t with
-    | O.Type.TFun (_, result) -> through (arrows + 1) result
-    | O.Type.TVar _ -> At_least arrows
-    | O.Type.TInt | O.Type.TBool | O.Type.TStr | O.Type.TUnit | O.Type.TTup _
-    | O.Type.TCustom _ | O.Type.TRecord _ | O.Type.TRowExtend _
-    | O.Type.TRowEmpty ->
-        Exactly arrows
-  in
-  through 0 t
+let arity_of_type = After_typed.Arity.of_type
 
 let closure_partial callee args missing =
   let rparams = List.init missing (fun _ -> fresh_temp ()) in

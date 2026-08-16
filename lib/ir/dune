@@ -1,0 +1,5 @@
+(library
+ (name ir)
+ (libraries data optimized after_typed primitives)
+ (flags
+  (-w -40 -w +26)))
