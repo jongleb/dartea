@@ -1115,6 +1115,22 @@ result =
   assert_bool "no arrow is built just to be called at once"
     (not (contains ~needle:"=> x.length" js))
 
+let test_let_block_with_function_bindings_runs _ =
+  let src =
+    {|
+result : Int
+result =
+    let
+        double x = x + x
+
+        shout n =
+            double n + 1
+    in
+    shout 20
+|}
+  in
+  assert_js ~src ~expr:"Main.result" ~expected:"41"
+
 let test_concrete_higher_order_call_is_direct _ =
   let src =
     {|
@@ -1256,6 +1272,8 @@ let suite =
     >:: test_kernel_application_lowers_to_an_operation;
     "unapplied_kernel_becomes_an_arrow"
     >:: test_unapplied_kernel_becomes_an_arrow;
+    "let_block_with_function_bindings_runs"
+    >:: test_let_block_with_function_bindings_runs;
     "concrete_higher_order_call_is_direct"
     >:: test_concrete_higher_order_call_is_direct;
     "declaration_is_saturated_to_its_type_arity"
