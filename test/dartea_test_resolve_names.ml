@@ -645,8 +645,70 @@ x = 1
         [ "Main" ]
         (List.map (fun (m : Canonical.Module.t) -> m.name) ordered)
 
+
+let test_kernel_reference_becomes_a_kernel_node _ =
+  let module_ = resolved ~dependencies:[] {|
+module M exposing (length)
+
+length : String -> Int
+length = Elm.Kernel.String.length
+|} in
+  assert_equal ~printer:Canonical.Expr.show
+    (Canonical.Expr.Expr_kernel (Data.Kernel.Unary Data.Kernel.String_length))
+    (expr_of module_ "length")
+
+let problems_of errors =
+  List.map (fun (e : Canonicalization.Resolve_names.error) -> e.problem) errors
+
+let problems_printer problems =
+  String.concat "\n"
+    (List.map Canonicalization.Resolve_names.show_problem problems)
+
+let test_unknown_kernel_reference_is_reported _ =
+  assert_equal ~printer:problems_printer
+    [
+      Canonicalization.Resolve_names.Unknown_kernel
+        { module_name = "Elm.Kernel.String"; exported_name = "reverse" };
+    ]
+    (problems_of
+       (failing ~dependencies:[] {|
+module M exposing (bogus)
+
+bogus : String -> String
+bogus = Elm.Kernel.String.reverse
+|}))
+
+let test_kernel_without_a_signature_is_reported _ =
+  assert_equal ~printer:problems_printer
+    [ Canonicalization.Resolve_names.Kernel_needs_annotation ]
+    (problems_of
+       (failing ~dependencies:[] {|
+module M exposing (length)
+
+length = Elm.Kernel.String.length
+|}))
+
+let test_kernel_arity_must_match_the_signature _ =
+  assert_equal ~printer:problems_printer
+    [ Canonicalization.Resolve_names.Kernel_arity_mismatch { declared = 2; kernel = 1 } ]
+    (problems_of
+       (failing ~dependencies:[] {|
+module M exposing (length)
+
+length : String -> String -> Int
+length = Elm.Kernel.String.length
+|}))
+
 let suite =
   [
+    "kernel reference becomes a kernel node"
+    >:: test_kernel_reference_becomes_a_kernel_node;
+    "kernel without a signature is reported"
+    >:: test_kernel_without_a_signature_is_reported;
+    "kernel arity must match the signature"
+    >:: test_kernel_arity_must_match_the_signature;
+    "unknown kernel reference is reported"
+    >:: test_unknown_kernel_reference_is_reported;
     "dependency order" >:: test_dependency_order;
     "import cycle" >:: test_import_cycle;
     "alias is the real module" >:: test_alias_is_the_real_module;

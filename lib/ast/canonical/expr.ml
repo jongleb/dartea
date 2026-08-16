@@ -18,6 +18,7 @@ type t =
   | Expr_record_select of string
   | Expr_record_empty
   | Expr_unit
+  | Expr_kernel of Data.Kernel.t
   | Expr_lambda of expr_lambda
 [@@deriving show]
 

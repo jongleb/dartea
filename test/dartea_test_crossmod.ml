@@ -1,41 +1,9 @@
 open OUnit2
 
-let read_all ic =
-  let buf = Buffer.create 256 in
-  (try
-     while true do
-       Buffer.add_channel buf ic 1
-     done
-   with End_of_file -> ());
-  Buffer.contents buf
-
-let source path content = File_loader.Files.Elm_file.{ path; content }
+let source = Node_runner.source
 
 let node_eval ~modules ~expr =
-  let directory = Filename.temp_dir "dartea_crossmod" "" in
-  List.iter
-    (fun (compiled : Dartea.Compiler.compiled) ->
-      let file =
-        Filename.concat directory
-          (compiled.module_name ^ "." ^ Dartea.Compiler.extension)
-      in
-      let out = open_out file in
-      output_string out compiled.source;
-      close_out out)
-    (Dartea.Compiler.compile_modules modules);
-  let program =
-    Printf.sprintf
-      "import * as Main from \"./Main.%s\"; console.log(JSON.stringify(%s));"
-      Dartea.Compiler.extension expr
-  in
-  let command =
-    Printf.sprintf "cd %s && node --input-type=module -e %s 2>&1"
-      (Filename.quote directory) (Filename.quote program)
-  in
-  let ic = Unix.open_process_in command in
-  let out = read_all ic in
-  let (_ : Unix.process_status) = Unix.close_process_in ic in
-  String.trim out
+  Node_runner.evaluate ~compiled:(Dartea.Compiler.compile_modules modules) ~expr
 
 let assert_runs ~modules ~expr ~expected =
   assert_equal ~printer:Fun.id expected (node_eval ~modules ~expr)
@@ -158,7 +126,7 @@ module Labels exposing (label)
 
 label : Int -> String
 label n =
-    "n=" ++ fromInt n
+    "n=" ++ String.fromInt n
 |}
   in
   let main =

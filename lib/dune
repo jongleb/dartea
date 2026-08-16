@@ -3,7 +3,8 @@
  (libraries
   base
   parse
-  builtins
+  prelude
+  primitives
   infer
   typed
   interface

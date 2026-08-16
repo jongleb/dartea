@@ -15,12 +15,19 @@ and expr =
   | Expr_record_select of string
   | Expr_record_empty
   | Expr_unit
+  | Expr_kernel of expr_kernel
   | Expr_lambda of expr_lambda
   | Expr_char of string
   | Expr_string of string
   | Expr_int of int
   | Expr_float of float
   | Expr_list of t list
+[@@deriving show]
+
+and expr_kernel =
+  | Kernel_value of Data.Kernel.t
+  | Kernel_unary of { kernel : Data.Kernel.unary; argument : t }
+  | Kernel_binary of { kernel : Data.Kernel.binary; left : t; right : t }
 [@@deriving show]
 
 and expr_lambda_param = { name : string Data.Located.t; typ : Type.t }

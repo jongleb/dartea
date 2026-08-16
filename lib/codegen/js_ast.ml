@@ -71,3 +71,50 @@ and stmt =
 and case = { test : expr option; consequent : stmt list } [@@deriving show]
 
 type program = stmt list [@@deriving show]
+
+let rec expression_references (wanted : identifier) (e : expr) : bool =
+  let references = expression_references wanted in
+  let any = List.exists references in
+  match e with
+  | Identifier name -> String.equal name wanted
+  | Literal _ -> false
+  | Binary { left; right; _ } -> references left || references right
+  | Unary { arg; _ } -> references arg
+  | Call { callee; args } | New { callee; args } ->
+      references callee || any args
+  | Function { body; _ } -> List.exists (statement_references wanted) body
+  | Arrow { body = ArrowExpr result; _ } -> references result
+  | Arrow { body = ArrowBlock body; _ } ->
+      List.exists (statement_references wanted) body
+  | Member { object_; property; computed } ->
+      references object_ || (computed && references property)
+  | Conditional { test; consequent; alternate } ->
+      references test || references consequent || references alternate
+  | Object rows -> List.exists (fun (_, value) -> references value) rows
+  | Array items -> any items
+  | Assignment { left; right } -> references left || references right
+
+and statement_references (wanted : identifier) (s : stmt) : bool =
+  let references = expression_references wanted in
+  let block = List.exists (statement_references wanted) in
+  match s with
+  | ExprStmt e | Throw e | ConstDecl { init = e; _ }
+  | VarDecl { init = Some e; _ }
+  | Return (Some e) ->
+      references e
+  | Return None | VarDecl { init = None; _ } | Continue | Import_namespace _
+  | Export _ ->
+      false
+  | FunctionDecl { body; _ } | Block body | While { body; _ } -> block body
+  | If { test; consequent; alternate } ->
+      references test || block consequent
+      || Option.fold ~none:false ~some:block alternate
+  | Switch { discriminant; cases } ->
+      references discriminant
+      || List.exists
+           (fun { test; consequent } ->
+             Option.fold ~none:false ~some:references test || block consequent)
+           cases
+
+let references (wanted : identifier) (p : program) : bool =
+  List.exists (statement_references wanted) p

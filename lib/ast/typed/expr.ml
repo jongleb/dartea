@@ -15,6 +15,7 @@ and expr =
   | Expr_record_select of string
   | Expr_record_empty
   | Expr_unit
+  | Expr_kernel of Data.Kernel.t
   | Expr_lambda of expr_lambda
   | Expr_char of string (* elm type: Chr ES.String, NEED IMPLEMENT *)
   | Expr_string of string (* Chr ES.String *)

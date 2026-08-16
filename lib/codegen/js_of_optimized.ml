@@ -51,7 +51,6 @@ let sanitize (name : string) : string =
            (List.init (String.length name) (String.get name)))
 
 let runtime_module_name = "Dartea_runtime"
-let runtime_provided : (string, unit) Hashtbl.t = Hashtbl.create 32
 
 let module_ident module_name =
   sanitize (String.concat "$" (String.split_on_char '.' module_name))
@@ -62,18 +61,16 @@ let js_of_name (name : Data.Name.t) =
   | Data.Name.Global { module_name; exported_name } ->
       module_ident module_name ^ "." ^ sanitize exported_name
 
-let runtime_reference name =
+let curry_reference =
   J.Member
     {
       object_ = J.Identifier runtime_module_name;
-      property = J.Identifier name;
+      property = J.Identifier "$$curry";
       computed = false;
     }
 
 let expression_of_name (name : Data.Name.t) : J.expr =
   match name with
-  | Data.Name.Local local when Hashtbl.mem runtime_provided (sanitize local) ->
-      runtime_reference (sanitize local)
   | Data.Name.Local local -> J.Identifier (sanitize local)
   | Data.Name.Global { module_name; exported_name } ->
       J.Member
@@ -89,7 +86,6 @@ let sname loc = sanitize (Data.Located.unwrap loc)
 let temp_counter = ref 0
 
 module SMap = Map.Make (Data.Name)
-module Js_names = Set.Make (String)
 
 let name_counts : (string, int) Hashtbl.t = Hashtbl.create 64
 
@@ -100,7 +96,6 @@ let ctor_siblings_of name = Hashtbl.find_opt ctor_siblings name
 let js_arity : (Data.Name.t, int) Hashtbl.t = Hashtbl.create 64
 
 let reset_names () =
-  Hashtbl.reset runtime_provided;
   Hashtbl.clear name_counts;
   Hashtbl.clear ctor_siblings;
   Hashtbl.clear js_arity;
@@ -322,11 +317,7 @@ let binop_expr name ea eb =
   | None -> J.Call { callee = jid (Data.Name.local name); args = [ ea; eb ] }
 
 let curry_call f args =
-  let callee =
-    if Hashtbl.mem runtime_provided "$$curry" then runtime_reference "$$curry"
-    else J.Identifier "$$curry"
-  in
-  J.Call { callee; args = [ f; J.Array args ] }
+  J.Call { callee = curry_reference; args = [ f; J.Array args ] }
 
 let split_at n lst =
   let rec go i acc = function
@@ -491,6 +482,16 @@ let rec emit_value env (e : O.Expr.t) : J.stmt list * J.expr =
   | O.Expr.Expr_ident name -> ([], jid_env env name)
   | O.Expr.Expr_record_empty -> ([], J.Object [])
   | O.Expr.Expr_unit -> ([], J.Literal J.Null)
+  | O.Expr.Expr_kernel (Kernel_value kernel) ->
+      ([], Js_of_kernel.value kernel)
+  | O.Expr.Expr_kernel (Kernel_unary { kernel; argument }) ->
+      let statements, subject = emit_value env argument in
+      (statements, Js_of_kernel.unary_operation kernel subject)
+  | O.Expr.Expr_kernel (Kernel_binary { kernel; left; right }) ->
+      let left_statements, left = emit_value env left in
+      let right_statements, right = emit_value env right in
+      ( left_statements @ right_statements,
+        Js_of_kernel.binary_operation kernel left right )
   | O.Expr.Expr_record_extend name -> ([], jid_env env (Data.Name.local name))
   | O.Expr.Expr_record_select name -> ([], jid_env env (Data.Name.local name))
   | O.Expr.Expr_accessor field -> ([], accessor_arrow field)
@@ -578,6 +579,9 @@ and emit_apply env fn arg =
         let sa, ea = emit_value env a1 in
         let sb, eb = emit_value env a2 in
         (sa @ sb, binop_expr (Data.Name.base op) ea eb)
+    | O.Expr.Expr_kernel (Kernel_value kernel), _ ->
+        emit_known_call env (Js_of_kernel.value kernel)
+          ~arity:(Data.Kernel.arity kernel) args
     | O.Expr.Expr_ident name, _ ->
         let n =
           match
@@ -586,18 +590,22 @@ and emit_apply env fn arg =
           | Some n -> n
           | None -> type_arity callee.O.Expr.typ
         in
-        if n >= 1 then emit_known_call env (jid_env env name) n args
+        if n >= 1 then emit_known_call env (jid_env env name) ~arity:n args
         else emit_generic env callee args
     | _ -> emit_generic env callee args
 
-and emit_known_call env callee n args =
-  let ss, es = emit_values env args in
-  let len = List.length es in
-  if len = n then (ss, J.Call { callee; args = es })
-  else if len < n then (ss, closure_partial callee es (n - len))
+and emit_known_call env callee ~arity args =
+  let statements, arguments = emit_values env args in
+  applied callee ~arity ~statements ~arguments
+
+and applied callee ~arity ~statements ~arguments =
+  let supplied = List.length arguments in
+  if supplied = arity then (statements, J.Call { callee; args = arguments })
+  else if supplied < arity then
+    (statements, closure_partial callee arguments (arity - supplied))
   else
-    let firstn, rest = split_at n es in
-    (ss, curry_call (J.Call { callee; args = firstn }) rest)
+    let saturating, extra = split_at arity arguments in
+    (statements, curry_call (J.Call { callee; args = saturating }) extra)
 
 and emit_generic env callee args =
   let sc, ec = emit_value env callee in
@@ -786,6 +794,7 @@ let program_of_declarations (decls : O.Declaration.t list) : J.program =
 let decl_js_arity (decl : O.Declaration.t) =
   match (decl.params, decl.body.expr) with
   | [], O.Expr.Expr_lambda { params; _ } -> List.length params
+  | [], O.Expr.Expr_kernel (Kernel_value kernel) -> Data.Kernel.arity kernel
   | params, _ -> List.length params
 
 let is_defined_here (name : Data.Name.t) =
@@ -794,9 +803,7 @@ let is_defined_here (name : Data.Name.t) =
 let constructor_decls (constructors : (Data.Name.t * int) list) : J.stmt list =
   constructors
   |> List.filter (fun (name, _) ->
-         is_defined_here name
-         && (not (is_inline_constructor name))
-         && not (Hashtbl.mem runtime_provided (js_of_name name)))
+         is_defined_here name && not (is_inline_constructor name))
   |> List.map (fun (name, arity) ->
          if arity = 0 then
            J.ConstDecl
@@ -815,11 +822,9 @@ let constructor_decls (constructors : (Data.Name.t * int) list) : J.stmt list =
                    };
              })
 
-let program_with_helpers ~constructors ~siblings ~exports ~from_runtime
+let program_with_helpers ~constructors ~siblings ~exports
     (decls : O.Declaration.t list) : J.program =
   reset_names ();
-  List.iter (fun name -> Hashtbl.replace runtime_provided name ()) from_runtime;
-  List.iter (fun n -> reserve_name (sanitize n)) Runtime.reserved;
   List.iter
     (fun (name, arity) ->
       if is_defined_here name then reserve_name (js_of_name name);
@@ -841,79 +846,8 @@ let program_with_helpers ~constructors ~siblings ~exports ~from_runtime
   in
   constructor_decls constructors @ program_of_declarations decls @ exported
 
-let mentions body name =
-  let nl = String.length name and hl = String.length body in
-  let rec go i = i + nl <= hl && (String.sub body i nl = name || go (i + 1)) in
-  go 0
-
-let builtin_constructors =
-  List.concat_map
-    (fun (td : Canonical.Typedecl.t) ->
-      List.map
-        (fun (ctor : Canonical.Typedecl.type_ctor) ->
-          (ctor.id, List.length ctor.data))
-        td.ctors)
-    Builtins.types
-
-let builtin_siblings =
-  List.concat_map
-    (fun (td : Canonical.Typedecl.t) ->
-      let siblings =
-        List.map
-          (fun (ctor : Canonical.Typedecl.type_ctor) ->
-            (ctor.id, List.length ctor.data))
-          td.ctors
-      in
-      List.map
-        (fun (ctor : Canonical.Typedecl.type_ctor) -> (ctor.id, siblings))
-        td.ctors)
-    Builtins.types
-
-let runtime_source () =
-  reset_names ();
-  List.iter
-    (fun (name, siblings) -> Hashtbl.replace ctor_siblings name siblings)
-    builtin_siblings;
-  let declarations = constructor_decls builtin_constructors in
-  let declared =
-    List.filter_map
-      (function J.ConstDecl { name; _ } -> Some name | _ -> None)
-      declarations
-  in
-  let exported = ("$$curry" :: List.map fst Runtime.builtins) @ declared in
-  Runtime.core
-  ^ String.concat "" (List.map (fun (_, def) -> def ^ "\n") Runtime.builtins)
-  ^ Js_to_string.program_to_string (declarations @ [ J.Export exported ])
-
-let runtime_names =
-  ("$$curry" :: List.map fst Runtime.builtins)
-  @ List.filter_map
-      (fun (name, _) ->
-        if is_inline_constructor name then None else Some (js_of_name name))
-      builtin_constructors
-
-let runtime_constructor_names =
-  Js_names.of_list
-    (List.map (fun (name, _) -> js_of_name name) builtin_constructors)
-
-let declared_in_module ~constructors (decls : O.Declaration.t list) =
-  let own_constructors =
-    List.filter_map
-      (fun (name, _) ->
-        match name with
-        | Data.Name.Local local
-          when not (Js_names.mem (sanitize local) runtime_constructor_names) ->
-            Some (sanitize local)
-        | Data.Name.Local _ | Data.Name.Global _ -> None)
-      constructors
-  in
-  Js_names.of_list
-    (List.map (fun (d : O.Declaration.t) -> sname d.name) decls
-    @ own_constructors)
-
-let provided_by_runtime ~constructors (decls : O.Declaration.t list) =
-  let declared = declared_in_module ~constructors decls in
-  List.filter (fun name -> not (Js_names.mem name declared)) runtime_names
+let runtime_module_source () =
+  Runtime.curry ^ Js_to_string.program_to_string [ J.Export [ "$$curry" ] ]
 
 let extension = "mjs"
 
@@ -931,34 +865,12 @@ let import_lines imports =
                })
            modules)
 
-let emit_standalone ~constructors ~siblings (decls : O.Declaration.t list) :
-    string =
-  let body =
-    Js_to_string.program_to_string
-      (program_with_helpers ~constructors ~siblings ~exports:[] ~from_runtime:[]
-         decls)
-  in
-  let user =
-    List.map (fun (d : O.Declaration.t) -> Data.Located.unwrap d.name) decls
-  in
-  let needed (name, _) = (not (List.mem name user)) && mentions body name in
-  let defs =
-    List.filter_map
-      (fun b -> if needed b then Some (snd b) else None)
-      Runtime.builtins
-  in
-  Runtime.core ^ String.concat "" (List.map (fun d -> d ^ "\n") defs) ^ body
-
 let emit_module ~constructors ~siblings ~imports ~exports
     (decls : O.Declaration.t list) : string =
-  let body =
-    Js_to_string.program_to_string
-      (program_with_helpers ~constructors ~siblings ~exports
-         ~from_runtime:(provided_by_runtime ~constructors decls)
-         decls)
-  in
+  let program = program_with_helpers ~constructors ~siblings ~exports decls in
   let runtime_import =
-    if mentions body (runtime_module_name ^ ".") then [ runtime_module_name ]
+    if J.references runtime_module_name program then [ runtime_module_name ]
     else []
   in
-  import_lines (runtime_import @ imports) ^ body
+  import_lines (runtime_import @ imports)
+  ^ Js_to_string.program_to_string program

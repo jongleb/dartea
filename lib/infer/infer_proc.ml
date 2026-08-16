@@ -29,7 +29,7 @@ let build_type_env ~(imports : Interface.t list)
       module_.type_declarations []
   in
   let imported = List.concat_map (fun (i : Interface.t) -> i.types) imports in
-  let visible = Builtins.types @ imported @ declared_here in
+  let visible = Primitives.types @ imported @ declared_here in
   let add_type acc (typedecl : Canonical.Typedecl.t) =
     Name_map.add typedecl.name typedecl acc
   in
@@ -44,10 +44,10 @@ let build_type_env ~(imports : Interface.t list)
     constructors = List.fold_left add_constructors Name_map.empty visible;
   }
 
-let builtin_ctx : ctx =
+let primitive_ctx : ctx =
   List.fold_left
     (fun acc (name, scheme) -> Name_map.add (Data.Name.local name) scheme acc)
-    Name_map.empty Builtins.values
+    Name_map.empty Primitives.values
 
 open Canonical.Expr
 module Str_set = Set.Make (String)
@@ -344,7 +344,7 @@ let build_initial_ctx (type_env : type_env) : ctx =
               param_types result_type
       in
       Name_map.add ctor_name (Scheme (typedef.params, ctor_type)) acc)
-    type_env.constructors builtin_ctx
+    type_env.constructors primitive_ctx
 
 let rec infer_with_env (exp : Canonical.Expr.t) ctx (type_env : type_env) :
     Type.t Map.t * Typed.Expr.t =
@@ -355,6 +355,9 @@ let rec infer_with_env (exp : Canonical.Expr.t) ctx (type_env : type_env) :
   | Expr_string s -> (Map.empty, { expr = Expr_string s; typ = TStr })
   | Expr_char c -> (Map.empty, { expr = Expr_char c; typ = TStr })
   | Expr_unit -> (Map.empty, { expr = Typed.Expr.Expr_unit; typ = TUnit })
+  | Expr_kernel primitive ->
+      ( Map.empty,
+        { expr = Typed.Expr.Expr_kernel primitive; typ = new_var "a" } )
   | Expr_ident v -> (
       match Name_map.find_opt v ctx with
       | Some s ->
@@ -633,7 +636,7 @@ let infer_exp exp ctx type_env =
 let infer' exp ctx type_env = infer_with_env exp ctx type_env
 
 let infer exp =
-  infer_exp exp builtin_ctx
+  infer_exp exp primitive_ctx
     { types = Name_map.empty; constructors = Name_map.empty }
 
 let infer_declaration { Canonical.Declaration.body_part; type_part_data } ctx
@@ -835,7 +838,7 @@ let infer_toplevel ~(imports : Interface.t list)
           | Some type_part ->
               let declared_ty = typedef_to_type type_part.type_alias in
               let expanded_ty = expand_type_alias declared_ty in
-              Scheme ([], expanded_ty)
+              generalize expanded_ty Name_map.empty
           | None -> Scheme ([], new_var "a")
         in
         Name_map.add (Data.Name.local name) ty_scheme acc)
