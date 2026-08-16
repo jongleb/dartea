@@ -20,6 +20,7 @@ let suite =
          "test_interface" >::: Dartea_test_interface.suite;
          "test_crossmod" >::: Dartea_test_crossmod.suite;
          "test_c_runtime" >::: Dartea_test_c_runtime.suite;
+         "test_ir" >::: Dartea_test_ir.suite;
          "test_dependency_sort" >::: Dartea_test_dependency_sort.suite;
          (* "test_infer" >::: Dartea_infer_test.suite; *)
        ]
