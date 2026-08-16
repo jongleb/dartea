@@ -1,4 +1,4 @@
-module J = Js_ast
+module J = Ast
 
 let member object_ property =
   J.Member { object_; property = J.Identifier property; computed = false }
