@@ -767,6 +767,81 @@ length : String -> String -> Int
 length = Elm.Kernel.String.length
 |}))
 
+let test_a_name_bound_twice_in_one_pattern_is_rejected _ =
+  let errors =
+    failing ~dependencies:[]
+      {|
+module Main exposing (..)
+
+good =
+    case ( 1, 2 ) of
+        ( a, a ) ->
+            a
+|}
+  in
+  assert_equal ~printer:errors_printer
+    [
+      {
+        Canonicalization.Resolve_names.origin =
+          Value_declaration (Data.Located.dummy "good");
+        problem = Duplicate_binder { name = "a" };
+      };
+    ]
+    errors
+
+let test_a_parameter_bound_twice_is_rejected _ =
+  let errors =
+    failing ~dependencies:[]
+      {|
+module Main exposing (..)
+
+good a a = a
+|}
+  in
+  assert_equal ~printer:errors_printer
+    [
+      {
+        Canonicalization.Resolve_names.origin =
+          Value_declaration (Data.Located.dummy "good");
+        problem = Duplicate_binder { name = "a" };
+      };
+    ]
+    errors
+
+let test_a_lambda_parameter_bound_twice_is_rejected _ =
+  let errors =
+    failing ~dependencies:[]
+      {|
+module Main exposing (..)
+
+good = \a a -> a
+|}
+  in
+  assert_equal ~printer:errors_printer
+    [
+      {
+        Canonicalization.Resolve_names.origin =
+          Value_declaration (Data.Located.dummy "good");
+        problem = Duplicate_binder { name = "a" };
+      };
+    ]
+    errors
+
+let test_a_binder_may_shadow_an_outer_name _ =
+  let module_ =
+    resolved ~dependencies:[]
+      {|
+module Main exposing (..)
+
+good a =
+    case ( 1, 2 ) of
+        ( a, b ) ->
+            a
+|}
+  in
+  assert_bool "shadowing a parameter is not a duplicate"
+    (Option.is_some (declaration_named module_ "good"))
+
 let suite =
   [
     "kernel reference becomes a kernel node"
@@ -810,4 +885,12 @@ let suite =
     >:: test_unqualified_use_without_exposing_stays_local;
     "diamond dependency order" >:: test_diamond_dependency_order;
     "unknown import is not an edge" >:: test_unknown_import_is_not_an_edge;
+    "a_name_bound_twice_in_one_pattern_is_rejected"
+    >:: test_a_name_bound_twice_in_one_pattern_is_rejected;
+    "a_parameter_bound_twice_is_rejected"
+    >:: test_a_parameter_bound_twice_is_rejected;
+    "a_lambda_parameter_bound_twice_is_rejected"
+    >:: test_a_lambda_parameter_bound_twice_is_rejected;
+    "a_binder_may_shadow_an_outer_name"
+    >:: test_a_binder_may_shadow_an_outer_name;
   ]

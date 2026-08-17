@@ -116,7 +116,7 @@ let make_parameters ~params body =
     let taken names wrap = (index + 1, names, wrap) in
     match parameter.Data.Located.thing with
     | Pattern.P_var written -> taken (renamed written :: names) wrap
-    | Pattern.P_anything | Pattern.P_unit ->
+    | Pattern.P_anything ->
         taken (renamed (unwritable_parameter index) :: names) wrap
     | destructured ->
         let subject = unwritable_parameter index in

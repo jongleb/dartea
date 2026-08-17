@@ -170,7 +170,7 @@ module Make (B : BACKEND) = struct
     let compile_module progress module_ =
       let resolved = resolved_against progress.dependencies module_ in
       let imports = imported_interfaces resolved progress.interfaces in
-      Infer.Infer_proc.State.reset ();
+      Infer.Infer_proc.Fresh.reset ();
       let typed =
         Infer.Infer_proc.infer_toplevel ~imports resolved initial_ctx
       in

@@ -16,7 +16,7 @@ let resolved module_ =
            (List.map Canonicalization.Resolve_names.show_error errors))
 
 let inferred source =
-  Infer.Infer_proc.State.reset ();
+  Infer.Infer_proc.Fresh.reset ();
   Infer.Infer_proc.infer_toplevel ~imports:[]
     (resolved (canonical source))
     Dartea.Compiler.initial_ctx
@@ -477,6 +477,268 @@ usedTwice = ( identity 1, identity "str" )
 |}
     ~name:"identity" ~expected:"* -> *"
 
+let test_a_constructor_payload_has_its_declared_type _ =
+  assert_rejected
+    ~src:
+      {|
+type Box = Box Int
+
+bad : String
+bad =
+    case Box 1 of
+        Box p ->
+            p
+|}
+    ~because:"Unification failed"
+
+let test_a_payload_reached_through_a_parameter_has_its_declared_type _ =
+  assert_rejected
+    ~src:
+      {|
+type Box = Box Int
+
+bad : Box -> String
+bad b =
+    case b of
+        Box p ->
+            p
+|}
+    ~because:"Unification failed"
+
+let test_a_polymorphic_payload_follows_the_scrutinee _ =
+  assert_rejected
+    ~src:
+      {|
+type Maybe a = Just a | Nothing
+
+bad : String
+bad =
+    case Just 1 of
+        Just n ->
+            n
+
+        Nothing ->
+            "e"
+|}
+    ~because:"String does not satisfy number"
+
+let test_a_nested_constructor_payload_has_its_declared_type _ =
+  assert_rejected
+    ~src:
+      {|
+type Wrap = Wrap Int
+
+type Box = Box Wrap
+
+bad : String
+bad =
+    case Box (Wrap 1) of
+        Box (Wrap n) ->
+            n
+|}
+    ~because:"Unification failed"
+
+let test_a_tuple_pattern_binds_each_position _ =
+  assert_rejected
+    ~src:
+      {|
+bad : Int
+bad =
+    case ( 1, "a" ) of
+        ( a, b ) ->
+            b
+|}
+    ~because:"Unification failed"
+
+let test_a_cons_pattern_binds_the_head_to_the_element _ =
+  assert_rejected
+    ~src:
+      {|
+bad : String
+bad =
+    case [ 1 ] of
+        x :: rest ->
+            x
+
+        [] ->
+            "e"
+|}
+    ~because:"String does not satisfy number"
+
+let test_an_alias_pattern_keeps_typing_the_names_beneath_it _ =
+  assert_rejected
+    ~src:
+      {|
+type Box = Box Int
+
+bad : String
+bad =
+    case Box 1 of
+        (Box p) as whole ->
+            p
+|}
+    ~because:"Unification failed"
+
+let test_a_record_pattern_binds_the_field_type _ =
+  assert_rejected
+    ~src:{|
+bad : String
+bad =
+    (\{ count } -> count) { count = 1 }
+|}
+    ~because:"String does not satisfy number"
+
+let test_a_let_destructuring_binds_each_position _ =
+  assert_rejected
+    ~src:
+      {|
+bad : Int
+bad =
+    let
+        ( a, b ) =
+            ( 1, "a" )
+    in
+    b
+|}
+    ~because:"Unification failed"
+
+let test_a_destructured_declaration_parameter_carries_the_payload _ =
+  assert_rejected
+    ~src:{|
+type Box = Box Int
+
+bad : Box -> String
+bad (Box n) =
+    n
+|}
+    ~because:"Unification failed"
+
+let test_a_destructured_lambda_parameter_binds_each_position _ =
+  assert_rejected
+    ~src:{|
+bad : Int
+bad =
+    (\( a, b ) -> b) ( 1, "a" )
+|}
+    ~because:"Unification failed"
+
+let test_a_unit_parameter_is_a_unit _ =
+  assert_rejected ~src:{|
+bad : Int -> Int
+bad () =
+    1
+|}
+    ~because:"Unification failed"
+
+let test_a_polymorphic_payload_stays_polymorphic _ =
+  assert_shape
+    ~src:
+      {|
+type Maybe a = Just a | Nothing
+
+keep m =
+    case m of
+        Just n ->
+            Just n
+
+        Nothing ->
+            Nothing
+|}
+    ~name:"keep" ~expected:"Maybe * -> Maybe *"
+
+let test_a_constructor_pattern_checks_its_arity _ =
+  assert_rejected
+    ~src:{|
+type Box = Box Int
+
+bad : Box -> Int
+bad b =
+    case b of
+        Box ->
+            1
+|}
+    ~because:"takes 1 argument"
+
+let test_a_tuple_pattern_accepts_the_matching_positions _ =
+  assert_shape
+    ~src:{|
+good : Int
+good =
+    case ( 1, "a" ) of
+        ( a, b ) ->
+            a
+|}
+    ~name:"good" ~expected:"Int"
+
+let test_a_cons_pattern_accepts_the_matching_element _ =
+  assert_shape
+    ~src:
+      {|
+good : String
+good =
+    case [ "a" ] of
+        x :: rest ->
+            x
+
+        [] ->
+            "e"
+|}
+    ~name:"good" ~expected:"String"
+
+let test_an_alias_pattern_names_the_whole_scrutinee _ =
+  assert_shape
+    ~src:
+      {|
+type Box = Box Int
+
+good : Box
+good =
+    case Box 1 of
+        (Box p) as whole ->
+            whole
+|}
+    ~name:"good" ~expected:"Box"
+
+let test_a_branch_body_complains_about_the_bound_name _ =
+  assert_rejected
+    ~src:
+      {|
+type Box = Box Int
+
+bad : Box -> String
+bad b =
+    case b of
+        Box p ->
+            p ++ "!"
+|}
+    ~because:"appendable"
+
+let test_a_written_type_variable_never_collides_with_a_generated_one _ =
+  assert_shape
+    ~src:
+      {|
+first : ( a0, a1 ) -> a0
+first t =
+    case t of
+        ( x, y ) ->
+            x
+
+used : String
+used = first ( "s", 1 )
+|}
+    ~name:"used" ~expected:"String"
+
+let test_a_written_number_variable_is_still_constrained _ =
+  assert_rejected
+    ~src:{|
+twice : number0 -> number0
+twice n = n
+
+bad : String
+bad = twice "a"
+|}
+    ~because:"String does not satisfy number"
+
 let suite =
   [
     "float_literal_is_a_float" >:: test_float_literal_is_a_float;
@@ -550,4 +812,43 @@ let suite =
     >:: test_a_group_is_generalized_against_the_context_before_it;
     "a_polymorphic_declaration_stays_polymorphic"
     >:: test_a_polymorphic_declaration_stays_polymorphic;
+    "a_constructor_payload_has_its_declared_type"
+    >:: test_a_constructor_payload_has_its_declared_type;
+    "a_payload_reached_through_a_parameter_has_its_declared_type"
+    >:: test_a_payload_reached_through_a_parameter_has_its_declared_type;
+    "a_polymorphic_payload_follows_the_scrutinee"
+    >:: test_a_polymorphic_payload_follows_the_scrutinee;
+    "a_nested_constructor_payload_has_its_declared_type"
+    >:: test_a_nested_constructor_payload_has_its_declared_type;
+    "a_tuple_pattern_binds_each_position"
+    >:: test_a_tuple_pattern_binds_each_position;
+    "a_cons_pattern_binds_the_head_to_the_element"
+    >:: test_a_cons_pattern_binds_the_head_to_the_element;
+    "an_alias_pattern_keeps_typing_the_names_beneath_it"
+    >:: test_an_alias_pattern_keeps_typing_the_names_beneath_it;
+    "a_record_pattern_binds_the_field_type"
+    >:: test_a_record_pattern_binds_the_field_type;
+    "a_let_destructuring_binds_each_position"
+    >:: test_a_let_destructuring_binds_each_position;
+    "a_destructured_declaration_parameter_carries_the_payload"
+    >:: test_a_destructured_declaration_parameter_carries_the_payload;
+    "a_destructured_lambda_parameter_binds_each_position"
+    >:: test_a_destructured_lambda_parameter_binds_each_position;
+    "a_unit_parameter_is_a_unit" >:: test_a_unit_parameter_is_a_unit;
+    "a_polymorphic_payload_stays_polymorphic"
+    >:: test_a_polymorphic_payload_stays_polymorphic;
+    "a_constructor_pattern_checks_its_arity"
+    >:: test_a_constructor_pattern_checks_its_arity;
+    "a_tuple_pattern_accepts_the_matching_positions"
+    >:: test_a_tuple_pattern_accepts_the_matching_positions;
+    "a_cons_pattern_accepts_the_matching_element"
+    >:: test_a_cons_pattern_accepts_the_matching_element;
+    "an_alias_pattern_names_the_whole_scrutinee"
+    >:: test_an_alias_pattern_names_the_whole_scrutinee;
+    "a_branch_body_complains_about_the_bound_name"
+    >:: test_a_branch_body_complains_about_the_bound_name;
+    "a_written_type_variable_never_collides_with_a_generated_one"
+    >:: test_a_written_type_variable_never_collides_with_a_generated_one;
+    "a_written_number_variable_is_still_constrained"
+    >:: test_a_written_number_variable_is_still_constrained;
   ]

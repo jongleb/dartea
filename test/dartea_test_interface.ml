@@ -16,7 +16,7 @@ let resolved ~dependencies module_ =
            (List.map Canonicalization.Resolve_names.show_error errors))
 
 let inferred ~imports module_ =
-  Infer.Infer_proc.State.reset ();
+  Infer.Infer_proc.Fresh.reset ();
   Infer.Infer_proc.infer_toplevel ~imports module_ Dartea.Compiler.initial_ctx
 
 let published source =
