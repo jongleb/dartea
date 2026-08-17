@@ -11,6 +11,7 @@ type problem =
   | Kernel_needs_annotation
   | Kernel_arity_mismatch of { declared : int; kernel : int }
   | Duplicate_declaration of { name : string }
+  | Duplicate_binder of { name : string }
 [@@deriving show]
 
 type origin =
@@ -79,14 +80,6 @@ let with_scope env namespace scope =
   match namespace with
   | Terms -> { env with term_scope = scope }
   | Types -> { env with type_scope = scope }
-
-let binds env binders =
-  let scope = env.term_scope in
-  {
-    env with
-    term_scope =
-      { scope with visible = Scope.Binders.fold Names.add binders scope.visible };
-  }
 
 let brings_into_scope env brought ~from =
   let expose namespace name env =
@@ -265,7 +258,15 @@ module Resolution = struct
   let return = Reported.return
   let map = Reported.map
   let both = Reported.both
-  let extended = binds
+  let binding env (binders : Scope.binders) inner =
+    let scope = env.term_scope in
+    let visible = Scope.Binders.fold Names.add binders.names scope.visible in
+    Scope.Binders.fold
+      (fun name reported ->
+        Reported.bind reported ~f:(fun value ->
+            Reported.rejected value (Duplicate_binder { name })))
+      binders.repeated
+      (inner { env with term_scope = { scope with visible } })
 
   let reference env name =
     match Data.Kernel.referred_to_by name with

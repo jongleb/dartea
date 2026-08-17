@@ -3,16 +3,15 @@ module Fib exposing (fib, fibUpTo, main)
 
 fib : Int -> Int
 fib n =
-    let
-        go i a b =
-            if i == 0 then
-                a
+    case n of
+        0 ->
+            0
 
-            else
-                go (i - 1) b (a + b)
-    in
-    go n 0 1
+        1 ->
+            1
 
+        _ ->
+            fib (n - 1) + fib (n - 2)
 
 fibUpTo : Int -> String
 fibUpTo n =

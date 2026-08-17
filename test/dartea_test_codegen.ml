@@ -3262,6 +3262,70 @@ result = same [ 1, 2 ] [ 1, 2 ]
   assert_bool "structural equality on lists stays on the runtime"
     (contains ~needle:"$$eq" (main_source src))
 
+let test_a_payload_comparison_is_primitive _ =
+  let src =
+    {|
+type Msg = Increment Int | Reset
+
+same : Msg -> Msg -> Bool
+same left right =
+    case ( left, right ) of
+        ( Increment x, Increment y ) ->
+            x == y
+
+        _ ->
+            False
+
+result : Bool
+result = same (Increment 2) (Increment 2)
+|}
+  in
+  let js = main_source src in
+  assert_js ~src ~expr:"Main.result" ~expected:"true";
+  assert_bool "a payload known to be Int compares with ==="
+    (contains ~needle:"x === y" js);
+  assert_bool "no runtime equality on a known payload"
+    (not (contains ~needle:"$$eq" js))
+
+let test_a_destructured_payload_keeps_its_type _ =
+  let src =
+    {|
+type Box = Box Int
+
+doubled : Box -> Int
+doubled (Box n) =
+    n + n
+
+result : Int
+result = doubled (Box 21)
+|}
+  in
+  assert_js ~src ~expr:"Main.result" ~expected:"42"
+
+let test_a_tuple_pattern_keeps_each_position _ =
+  let src =
+    {|
+result : String
+result =
+    case ( 1, "a" ) of
+        ( a, b ) ->
+            b
+|}
+  in
+  assert_js ~src ~expr:"Main.result" ~expected:{|"a"|}
+
+let test_a_unit_parameter_still_takes_an_argument _ =
+  let src = {|
+answer : () -> Int
+answer () =
+    42
+
+result : Int
+result = answer ()
+|}
+  in
+  assert_js ~src ~expr:"Main.result" ~expected:"42"
+
 let suite =
   [
     "comments_are_skipped" >:: test_comments_are_skipped;
@@ -3448,4 +3512,12 @@ let suite =
     "tag_omission_single_payload" >:: test_tag_omission_single_payload;
     "tag_omission_single_ctor" >:: test_tag_omission_single_ctor;
     "tag_kept_for_multi_payload" >:: test_tag_kept_for_multi_payload;
+    "a_payload_comparison_is_primitive"
+    >:: test_a_payload_comparison_is_primitive;
+    "a_destructured_payload_keeps_its_type"
+    >:: test_a_destructured_payload_keeps_its_type;
+    "a_tuple_pattern_keeps_each_position"
+    >:: test_a_tuple_pattern_keeps_each_position;
+    "a_unit_parameter_still_takes_an_argument"
+    >:: test_a_unit_parameter_still_takes_an_argument;
   ]

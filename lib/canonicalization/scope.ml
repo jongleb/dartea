@@ -1,23 +1,38 @@
 module Names = Data.Name.Set
 module Binders = Set.Make (String)
 
-let union_map f items =
-  List.fold_left (fun acc item -> Binders.union acc (f item)) Binders.empty
-    items
+type binders = { names : Binders.t; repeated : Binders.t }
 
-let rec bound_by_pattern (p : Canonical.Pattern.t) : Binders.t =
+let nothing_bound = { names = Binders.empty; repeated = Binders.empty }
+let bound_by_name name =
+  { names = Binders.singleton name; repeated = Binders.empty }
+
+let alongside left right =
+  {
+    names = Binders.union left.names right.names;
+    repeated =
+      Binders.union
+        (Binders.inter left.names right.names)
+        (Binders.union left.repeated right.repeated);
+  }
+
+let union_map f items =
+  List.fold_left (fun known item -> alongside known (f item)) nothing_bound items
+
+let rec bound_by_pattern (p : Canonical.Pattern.t) : binders =
   match p with
-  | P_var name -> Binders.singleton name
-  | P_record fields -> Binders.of_list fields
+  | P_var name -> bound_by_name name
+  | P_record fields -> union_map bound_by_name fields
   | P_tuple items | P_list items -> union_map bound_by_pattern items
   | P_cons (head, tail) ->
-      Binders.union (bound_by_pattern head) (bound_by_pattern tail)
-  | P_alias (inner, name) -> Binders.add name (bound_by_pattern inner)
+      alongside (bound_by_pattern head) (bound_by_pattern tail)
+  | P_alias (inner, name) ->
+      alongside (bound_by_pattern inner) (bound_by_name name)
   | P_ctor (_, arguments) -> union_map bound_by_pattern arguments
-  | P_anything | P_unit | P_chr _ | P_str _ | P_int _ -> Binders.empty
+  | P_anything | P_unit | P_chr _ | P_str _ | P_int _ -> nothing_bound
 
-let bound_by_parameters (params : string Data.Located.t list) : Binders.t =
-  Binders.of_list (List.map Data.Located.unwrap params)
+let bound_by_parameters (params : string Data.Located.t list) : binders =
+  union_map (fun param -> bound_by_name (Data.Located.unwrap param)) params
 
 module type VISITOR = sig
   type 'a t
@@ -26,7 +41,7 @@ module type VISITOR = sig
   val return : 'a -> 'a t
   val map : 'a t -> f:('a -> 'b) -> 'b t
   val both : 'a t -> 'b t -> ('a * 'b) t
-  val extended : scope -> Binders.t -> scope
+  val binding : scope -> binders -> (scope -> 'a t) -> 'a t
   val reference : scope -> Data.Name.t -> Canonical.Expr.t t
   val constructor : scope -> Data.Name.t -> Data.Name.t t
   val type_reference : scope -> Data.Name.t -> Data.Name.t t
@@ -101,21 +116,21 @@ module Traversal (V : VISITOR) = struct
         Expr_apply { fn; arg }
     | Expr_let { binding; body } ->
         let { bind_type; bind_body = { name; body = bound_value } } = binding in
-        let inner =
-          V.extended scope (Binders.singleton (Data.Located.unwrap name))
-        in
-        let+ bound_value = expression scope bound_value
-        and+ body = expression inner body
-        and+ bind_type =
-          match bind_type with
-          | None -> V.return None
-          | Some annotation ->
-              let+ content = type_expression scope annotation.content in
-              Some { annotation with content }
-        in
-        Expr_let
-          { binding = { bind_type; bind_body = { name; body = bound_value } };
-            body }
+        V.binding scope (bound_by_name (Data.Located.unwrap name)) (fun inner ->
+            let+ bound_value = expression scope bound_value
+            and+ body = expression inner body
+            and+ bind_type =
+              match bind_type with
+              | None -> V.return None
+              | Some annotation ->
+                  let+ content = type_expression scope annotation.content in
+                  Some { annotation with content }
+            in
+            Expr_let
+              {
+                binding = { bind_type; bind_body = { name; body = bound_value } };
+                body;
+              })
     | Expr_if_then_else { if_exp; then_exp; else_exp } ->
         let+ if_exp = expression scope if_exp
         and+ then_exp = expression scope then_exp
@@ -123,18 +138,18 @@ module Traversal (V : VISITOR) = struct
         Expr_if_then_else { if_exp; then_exp; else_exp }
     | Expr_pattern { expr; pattern_data_items } ->
         let case (item : expr_pattern_case) =
-          let inner = V.extended scope (bound_by_pattern item.pattern) in
-          let+ pattern = pattern scope item.pattern
-          and+ expr = expression inner item.expr in
-          { pattern; expr }
+          V.binding scope (bound_by_pattern item.pattern) (fun inner ->
+              let+ pattern = pattern scope item.pattern
+              and+ expr = expression inner item.expr in
+              { pattern; expr })
         in
         let+ expr = expression scope expr
         and+ pattern_data_items = each pattern_data_items ~f:case in
         Expr_pattern { expr; pattern_data_items }
     | Expr_lambda { params; body } ->
-        let inner = V.extended scope (bound_by_parameters params) in
-        let+ body = expression inner body in
-        Expr_lambda { params; body }
+        V.binding scope (bound_by_parameters params) (fun inner ->
+            let+ body = expression inner body in
+            Expr_lambda { params; body })
     | Expr_access { expr; field } ->
         let+ expr = expression scope expr in
         Expr_access { expr; field }
@@ -162,21 +177,21 @@ module Traversal (V : VISITOR) = struct
 
   let declaration scope (d : Canonical.Declaration.t) :
       Canonical.Declaration.t V.t =
-    let inner = V.extended scope (bound_by_parameters d.body_part.params) in
-    let+ type_part_data =
-      match d.type_part_data with
-      | None -> V.return None
-      | Some (tp : Canonical.Declaration.type_part) ->
-          let+ type_alias = type_expression scope tp.type_alias in
-          Some { tp with type_alias }
-    and+ expr =
-      let+ expr = expression inner (Data.Located.unwrap d.body_part.expr) in
-      { d.body_part.expr with Data.Located.thing = expr }
-    in
-    {
-      Canonical.Declaration.type_part_data;
-      body_part = { d.body_part with expr };
-    }
+    V.binding scope (bound_by_parameters d.body_part.params) (fun inner ->
+        let+ type_part_data =
+          match d.type_part_data with
+          | None -> V.return None
+          | Some (tp : Canonical.Declaration.type_part) ->
+              let+ type_alias = type_expression scope tp.type_alias in
+              Some { tp with type_alias }
+        and+ expr =
+          let+ expr = expression inner (Data.Located.unwrap d.body_part.expr) in
+          { d.body_part.expr with Data.Located.thing = expr }
+        in
+        {
+          Canonical.Declaration.type_part_data;
+          body_part = { d.body_part with expr };
+        })
 end
 
 module Mentions = struct
@@ -186,10 +201,12 @@ module Mentions = struct
   let return _ = Names.empty
   let map mentioned ~f:_ = mentioned
   let both = Names.union
-  let extended scope binders =
-    Binders.fold
-      (fun binder scope -> Names.add (Data.Name.local binder) scope)
-      binders scope
+
+  let binding scope binders inner =
+    inner
+      (Binders.fold
+         (fun name known -> Names.add (Data.Name.local name) known)
+         binders.names scope)
 
   let mentioned scope name =
     if Names.mem name scope then Names.empty else Names.singleton name
