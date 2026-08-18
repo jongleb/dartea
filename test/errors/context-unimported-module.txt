@@ -1,0 +1,16 @@
+-- NAMING ERROR ------------------------------------------------------- Main.elm
+
+I cannot find a `List.map` variable:
+
+1| xs = List.map (\x -> x) [ 1, 2 ]
+        ^^^^^^^^
+
+I cannot find a `List` import. These names seem close though:
+
+    max
+    tan
+    min
+    apR
+
+Hint: Read <https://elm-lang.org/0.19.1/imports> to see how `import`
+declarations work in Elm.

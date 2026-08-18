@@ -1,31 +1,13 @@
 module Exports = Canonical.Exports
 module Names = Exports.Names
 module By_name = Exports.By_name
+module Problem = Reporting.Name_error
 
-type problem =
-  | Unknown_module of { qualifier : string }
-  | Not_exposed of { module_name : string; name : string }
-  | Ctors_not_exposed of { module_name : string; type_name : string }
-  | Ambiguous of { name : string; modules : string list }
-  | Unknown_kernel of { module_name : string; exported_name : string }
-  | Kernel_needs_annotation
-  | Kernel_arity_mismatch of { declared : int; kernel : int }
-  | Duplicate_declaration of { name : string }
-  | Duplicate_binder of { name : string }
-[@@deriving show]
-
-type origin =
-  | Import of string
-  | Value_declaration of string Data.Located.t
-  | Type_declaration of string
-  | Type_alias of string
-[@@deriving show]
-
-type error = { origin : origin; problem : problem } [@@deriving show]
+type error = Reporting.Error.t
 
 module Reported = struct
   module Basic = struct
-    type 'a t = { value : 'a; problems : problem list }
+    type 'a t = { value : 'a; problems : error list }
 
     let return value = { value; problems = [] }
 
@@ -39,18 +21,17 @@ module Reported = struct
   include Basic
   include Base.Monad.Make (Basic)
 
-  let rejected value problem = { value; problems = [ problem ] }
+  let rejected value ~region problem =
+    { value; problems = [ Reporting.Error.name ~region problem ] }
 
   let both left right =
     bind left ~f:(fun left -> map right ~f:(fun right -> (left, right)))
 
-  let recovered ~fallback = function
+  let recovered ~fallback ~region = function
     | Ok value -> return value
-    | Error problem -> rejected fallback problem
+    | Error problem -> rejected fallback ~region problem
 
-  let blamed origin reported =
-    ( reported.value,
-      List.map (fun problem -> { origin; problem }) reported.problems )
+  let collected reported = (reported.value, reported.problems)
 end
 
 type namespace = Terms | Types
@@ -102,11 +83,13 @@ let brings_into_scope env brought ~from =
     (fun env (namespace, names) -> Names.fold (expose namespace) names env)
     env brought
 
-let repeated (declarations : (origin * string) list) : error list =
+let repeated (declarations : (Data.Region.t * string) list) : error list =
   List.fold_left
-    (fun (declared, errors) (origin, name) ->
+    (fun (declared, errors) (region, name) ->
       if Names.mem name declared then
-        (declared, { origin; problem = Duplicate_declaration { name } } :: errors)
+        ( declared,
+          Reporting.Error.name ~region (Problem.Duplicate_declaration { name })
+          :: errors )
       else (Names.add name declared, errors))
     (Names.empty, []) declarations
   |> snd |> List.rev
@@ -115,34 +98,45 @@ let duplicate_declarations (m : Canonical.Module.t) : error list =
   let values =
     List.map
       (fun (d : Canonical.Declaration.t) ->
-        (Value_declaration d.body_part.name, Data.Located.unwrap d.body_part.name))
+        (d.body_part.name.region, Data.Located.unwrap d.body_part.name))
       m.top_declarations
   in
   let constructors =
     Canonical.Module.String_map.bindings m.type_declarations
-    |> List.concat_map (fun (type_name, (td : Canonical.Typedecl.t)) ->
+    |> List.concat_map (fun (_, (td : Canonical.Typedecl.t)) ->
            List.map
              (fun (ctor : Canonical.Typedecl.type_ctor) ->
-               (Type_declaration type_name, Data.Name.base ctor.id))
+               (ctor.region, Data.Name.base ctor.id))
              td.ctors)
   in
-  let named map ~origin =
-    Canonical.Module.String_map.bindings map
-    |> List.map (fun (name, _) -> (origin name, name))
-  in
   let type_names =
-    named m.type_declarations ~origin:(fun name -> Type_declaration name)
-    @ named m.type_aliases ~origin:(fun name -> Type_alias name)
+    (Canonical.Module.String_map.bindings m.type_declarations
+    |> List.map (fun (name, (td : Canonical.Typedecl.t)) -> (td.region, name)))
+    @ (Canonical.Module.String_map.bindings m.type_aliases
+      |> List.map (fun (name, (ta : Canonical.Typealias.t)) -> (ta.region, name)))
   in
   repeated values @ repeated constructors @ repeated type_names
 
+let exposed_names (exports : Exports.t) =
+  Names.elements exports.terms @ Names.elements (Exports.type_names exports)
+
 let brought_in_by dependency (item : Canonical.Exposed.item) :
-    ((namespace * Names.t) list, problem) result =
+    ((namespace * Names.t) list, Problem.t) result =
   let module_name = dependency.module_name in
+  let not_exposed name =
+    Problem.Not_exposed
+      {
+        module_name;
+        name;
+        near =
+          Reporting.Suggest.nearest ~target:name (exposed_names dependency.exports)
+          |> List.filteri (fun index _ -> index < 4);
+      }
+  in
   match item with
   | Value name when Names.mem name dependency.exports.terms ->
       Ok [ (Terms, Names.singleton name) ]
-  | Value name -> Error (Not_exposed { module_name; name })
+  | Value name -> Error (not_exposed name)
   | Type { name; ctors_exposed } -> begin
       let same_named_term =
         if Names.mem name dependency.exports.terms then
@@ -152,9 +146,9 @@ let brought_in_by dependency (item : Canonical.Exposed.item) :
       match
         (By_name.find_opt name dependency.exports.types, ctors_exposed)
       with
-      | None, _ -> Error (Not_exposed { module_name; name })
+      | None, _ -> Error (not_exposed name)
       | Some Exports.Ctors_hidden, true ->
-          Error (Ctors_not_exposed { module_name; type_name = name })
+          Error (Problem.Ctors_not_exposed { module_name; type_name = name })
       | Some (Exports.Ctors_exposed ctors), true ->
           Ok [ (Types, Names.singleton name); (Terms, ctors) ]
       | Some (Exports.Alias | Ctors_hidden | Ctors_exposed _), false
@@ -174,8 +168,18 @@ let environment_of ~(dependencies : Canonical.Module.t list)
   in
   let from_import env (import : Canonical.Import.t) =
     let module_name = import.module_name in
+    let region = import.region in
     match By_name.find_opt module_name known with
-    | None -> Reported.rejected env (Unknown_module { qualifier = module_name })
+    | None ->
+        Reported.rejected env ~region
+          (Problem.Unknown_module
+             {
+               qualifier = module_name;
+               near =
+                 Reporting.Suggest.nearest ~target:module_name
+                   (By_name.fold (fun known _ found -> known :: found) known [])
+                 |> List.filteri (fun index _ -> index < 4);
+             })
     | Some dependency ->
         let qualified =
           {
@@ -197,7 +201,7 @@ let environment_of ~(dependencies : Canonical.Module.t list)
           | Only items ->
               let take reported item =
                 Reported.bind reported ~f:(fun env ->
-                    Reported.recovered ~fallback:env
+                    Reported.recovered ~fallback:env ~region
                       (Result.map (bring env) (brought_in_by dependency item)))
               in
               List.fold_left take (Reported.return qualified) items
@@ -206,32 +210,75 @@ let environment_of ~(dependencies : Canonical.Module.t list)
   let start =
     {
       term_scope =
-        { visible = Exports.declared_terms m; sources = By_name.empty };
+        {
+          visible =
+            List.fold_left
+              (fun known name -> Names.add name known)
+              (Exports.declared_terms m) Primitives.term_names;
+          sources = By_name.empty;
+        };
       type_scope =
-        { visible = Exports.declared_types m; sources = By_name.empty };
+        {
+          visible =
+            List.fold_left
+              (fun known name -> Names.add name known)
+              (Exports.declared_types m) Primitives.type_names;
+          sources = By_name.empty;
+        };
       qualifiers = By_name.empty;
     }
   in
   let env, errors =
     List.fold_left
       (fun (env, errors) (import : Canonical.Import.t) ->
-        let env, problems =
-          Reported.blamed (Import import.module_name) (from_import env import)
-        in
+        let env, problems = Reported.collected (from_import env import) in
         (env, List.rev_append problems errors))
       (start, []) m.imports
   in
   (env, List.rev errors)
 
+let nearest ~target candidates =
+  Reporting.Suggest.nearest ~target candidates
+  |> List.filteri (fun index _ -> index < 4)
+
+let visible_names env namespace =
+  let scope = scope_of env namespace in
+  let locals = Names.elements scope.visible in
+  let brought = By_name.fold (fun name _ found -> name :: found) scope.sources [] in
+  let qualified =
+    By_name.fold
+      (fun qualifier (dependency : dependency) found ->
+        let exported =
+          match namespace with
+          | Terms -> dependency.exports.terms
+          | Types -> Exports.type_names dependency.exports
+        in
+        Names.fold (fun name found -> (qualifier ^ "." ^ name) :: found) exported found)
+      env.qualifiers []
+  in
+  locals @ brought @ qualified
+
+let starts_with_an_upper_case text =
+  String.length text > 0 && Char.equal (Char.uppercase_ascii text.[0]) text.[0]
+
+let missing env namespace ?(prefix = Reporting.Name_error.No_prefix) name =
+  let near = nearest ~target:(Data.Name.base name) (visible_names env namespace) in
+  match (namespace, Data.Name.base name) with
+  | Types, _ -> Problem.Unknown_type { name; prefix; near }
+  | Terms, written when starts_with_an_upper_case written ->
+      Problem.Unknown_constructor { name; prefix; near }
+  | Terms, _ -> Problem.Unbound_value { name; prefix; near }
+
 let refers_to env namespace (name : Data.Name.t) :
-    (Data.Name.t, problem) result =
+    (Data.Name.t, Problem.t) result =
   match name with
   | Local text -> begin
       let scope = scope_of env namespace in
       match
         (Names.mem text scope.visible, By_name.find_opt text scope.sources)
       with
-      | true, _ | false, None -> Ok name
+      | true, _ -> Ok name
+      | false, None -> Error (missing env namespace name)
       | false, Some { nearest; earlier = [] } ->
           Ok (Data.Name.global ~module_name:nearest ~exported_name:text)
       | false, Some { nearest; earlier } ->
@@ -240,16 +287,33 @@ let refers_to env namespace (name : Data.Name.t) :
     end
   | Global { module_name = qualifier; exported_name } -> begin
       match By_name.find_opt qualifier env.qualifiers with
-      | None -> Error (Unknown_module { qualifier })
+      | None -> Error (missing env namespace ~prefix:(Unknown_prefix qualifier) name)
       | Some { module_name; exports }
         when exports_include exports namespace exported_name ->
           Ok (Data.Name.global ~module_name ~exported_name)
-      | Some { module_name; _ } ->
-          Error (Not_exposed { module_name; name = exported_name })
+      | Some { module_name; exports } ->
+          let near =
+            Reporting.Suggest.nearest ~target:exported_name
+              (Names.elements exports.terms
+              @ Names.elements (Exports.type_names exports))
+            |> List.filteri (fun index _ -> index < 4)
+          in
+          Error
+            (match namespace with
+            | Types ->
+                Problem.Unknown_type
+                  { name; prefix = Known_prefix module_name; near }
+            | Terms when starts_with_an_upper_case exported_name ->
+                Problem.Unknown_constructor
+                  { name; prefix = Known_prefix module_name; near }
+            | Terms ->
+                Problem.Unbound_value
+                  { name; prefix = Known_prefix module_name; near })
     end
 
-let resolved env namespace name =
-  Reported.recovered ~fallback:name (refers_to env namespace name)
+let resolved env namespace (name : Data.Name.t Data.Located.t) =
+  Reported.recovered ~fallback:name.thing ~region:name.region
+    (refers_to env namespace name.thing)
 
 module Resolution = struct
   type 'a t = 'a Reported.t
@@ -260,23 +324,30 @@ module Resolution = struct
   let both = Reported.both
   let binding env (binders : Scope.binders) inner =
     let scope = env.term_scope in
-    let visible = Scope.Binders.fold Names.add binders.names scope.visible in
+    let visible =
+      Scope.Binders.fold
+        (fun name _ visible -> Names.add name visible)
+        binders.names scope.visible
+    in
     Scope.Binders.fold
-      (fun name reported ->
+      (fun name region reported ->
         Reported.bind reported ~f:(fun value ->
-            Reported.rejected value (Duplicate_binder { name })))
+            Reported.rejected value ~region (Problem.Duplicate_binder { name })))
       binders.repeated
       (inner { env with term_scope = { scope with visible } })
 
-  let reference env name =
-    match Data.Kernel.referred_to_by name with
-    | Known kernel -> Reported.return (Canonical.Expr.Expr_kernel kernel)
+  let reference env (name : Data.Name.t Data.Located.t) =
+    let same expr = Data.Located.at name.region expr in
+    match Data.Kernel.referred_to_by name.thing with
+    | Known kernel -> Reported.return (same (Canonical.Expr.Expr_kernel kernel))
     | Unknown { module_name; exported_name } ->
-        Reported.rejected (Canonical.Expr.Expr_ident name)
-          (Unknown_kernel { module_name; exported_name })
+        Reported.rejected
+          (same (Canonical.Expr.Expr_ident name.thing))
+          ~region:name.region
+          (Problem.Unknown_kernel { module_name; exported_name })
     | Not_kernel ->
-        Reported.map (resolved env Terms name) ~f:(fun name ->
-            Canonical.Expr.Expr_ident name)
+        Reported.map (resolved env Terms name) ~f:(fun resolved ->
+            same (Canonical.Expr.Expr_ident resolved))
 
   let constructor env name = resolved env Terms name
   let type_reference env name = resolved env Types name
@@ -286,26 +357,35 @@ module Resolving = Scope.Traversal (Resolution)
 
 let declared_arity (t : Canonical.Typedef.Impl.t) =
   match t.body with
-  | Canonical.Typedef.Kind.Tkind_function { arguments } ->
-      List.length arguments - 1
+  | Canonical.Typedef.Kind.Tkind_function { arguments; _ } ->
+      List.length arguments
   | Tkind_var _ | Tkind_concrete _ | Tkind_unit | Tkind_record _ | Tkind_tuple _
     ->
       0
 
 let agreeing_with_its_kernel (declaration : Canonical.Declaration.t) =
-  match Data.Located.unwrap declaration.body_part.expr with
+  let region = declaration.body_part.name.region in
+  match declaration.body_part.expr.thing with
   | Canonical.Expr.Expr_kernel kernel -> begin
       match declaration.type_part_data with
-      | None -> Reported.rejected declaration Kernel_needs_annotation
+      | None ->
+          Reported.rejected declaration ~region
+            (Problem.Kernel_needs_annotation
+               { name = declaration.body_part.name.thing })
       | Some type_part ->
           let declared = declared_arity type_part.type_alias in
           let kernel = Data.Kernel.arity kernel in
           if declared = kernel then Reported.return declaration
           else
-            Reported.rejected declaration
-              (Kernel_arity_mismatch { declared; kernel })
+            Reported.rejected declaration ~region
+              (Problem.Kernel_arity_mismatch { declared; kernel })
     end
-  | _ -> Reported.return declaration
+  | Expr_char _ | Expr_string _ | Expr_int _ | Expr_float _ | Expr_list _
+  | Expr_cons _ | Expr_tuple _ | Expr_let _ | Expr_if_then_else _
+  | Expr_record_update _ | Expr_apply _ | Expr_ident _ | Expr_pattern _
+  | Expr_accessor _ | Expr_access _ | Expr_record_extend _
+  | Expr_record_select _ | Expr_record_empty | Expr_unit | Expr_lambda _ ->
+      Reported.return declaration
 
 let resolved_values declarations ~f =
   let resolved, errors =
@@ -336,7 +416,7 @@ let in_module ~(dependencies : Canonical.Module.t list) (m : Canonical.Module.t)
   let top_declarations, declaration_errors =
     resolved_values m.top_declarations
       ~f:(fun (d : Canonical.Declaration.t) ->
-        Reported.blamed (Value_declaration d.body_part.name)
+        Reported.collected
           (let%bind declaration = Resolving.declaration env d in
            agreeing_with_its_kernel declaration))
   in
@@ -347,14 +427,14 @@ let in_module ~(dependencies : Canonical.Module.t list) (m : Canonical.Module.t)
           let%map data = Resolving.each ctor.data ~f:(Resolving.type_expression env) in
           { ctor with data }
         in
-        Reported.blamed (Type_declaration name)
+        Reported.collected
           (let%map ctors = Resolving.each td.ctors ~f:ctor in
            { td with ctors }))
   in
   let type_aliases, alias_errors =
     resolved_declarations m.type_aliases
       ~f:(fun name (ta : Canonical.Typealias.t) ->
-        Reported.blamed (Type_alias name)
+        Reported.collected
           (let%map typedef = Resolving.type_expression env ta.typedef in
            { ta with typedef }))
   in

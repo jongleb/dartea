@@ -352,7 +352,7 @@ let print_source source = source
 let law_parses =
   Test.make ~count:2000 ~name:"generated programs parse" ~print:print_source
     source_gen
-    (fun source -> Result.is_ok (Parse.Main.parse source))
+    (fun source -> Result.is_ok (Parse.Main.parse ~file:"Main.elm" source))
 
 let law_balanced =
   Test.make ~count:2000 ~name:"layout emits a balanced bracket word"

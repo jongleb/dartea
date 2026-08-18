@@ -3,6 +3,8 @@
     open Data
     open Expr
     open Pattern
+
+    let located loc value = Located.at (Region.of_lexing loc) value
 %}
 
 %token <string> LCNAME
@@ -104,7 +106,7 @@ upper_possible_dotted:
     | what=UCNAME_PATH { what }
 
 loc(X):
-    what=X { Located.mk what $loc }
+    what=X { located $loc what }
 
 module_:
     | MODULE name=loc(upper_possible_dotted) EXPOSING exposing=exposing
@@ -128,7 +130,7 @@ exposing:
 exposing_item:
     | name=loc(UCNAME) { Exposing.Upper { name; privacy=Private } }
     | name=loc(LCNAME) { Exposing.Lower name }
-    | name=loc(UCNAME) LPAREN TWO_DOTS RPAREN { Exposing.Upper { name; privacy=Public($loc) } }
+    | name=loc(UCNAME) LPAREN TWO_DOTS RPAREN { Exposing.Upper { name; privacy=Public (Region.of_lexing $loc) } }
 
 
 type_alias_decl:
@@ -137,7 +139,7 @@ type_alias_decl:
 
 
 type_decl:
-    | TYPE name=UCNAME params=list(LCNAME) EQUAL ctors=indented(type_constructors)
+    | TYPE name=loc(UCNAME) params=list(LCNAME) EQUAL ctors=indented(type_constructors)
         { Impl.Type_dec { Typedecl.name; params; ctors } }
 
 type_constructors:
@@ -145,7 +147,7 @@ type_constructors:
         { first :: rest }
 
 type_constructor:
-    | id=UCNAME data=list(type_constructor_arg)
+    | id=loc(UCNAME) data=list(type_constructor_arg)
         { { Typedecl.id; data } }
 
 type_constructor_arg:
@@ -160,13 +162,17 @@ type_expr:
     | t=type_function { t }
 
 type_function:
-    | args=separated_nonempty_list(ARROW, type_app)
-        { 
-          match args with
-          | [single] -> single
-          | _ -> { Typedef.Impl.parameters = []; 
-                   body = Typedef.Kind.Tkind_function { Typedef.Type_function.arguments = args } }
-        }
+    | t=type_app { t }
+    | first=type_app ARROW rest=arrow_chain
+        { let arguments, result = rest in
+          { Typedef.Impl.parameters = [];
+            body = Typedef.Kind.Tkind_function
+                     { Typedef.Type_function.arguments = first :: arguments; result } } }
+
+arrow_chain:
+    | t=type_app { ([], t) }
+    | t=type_app ARROW rest=arrow_chain
+        { let arguments, result = rest in (t :: arguments, result) }
 
 type_app:
     | t=type_atom_no_parens { { Typedef.Impl.parameters = []; body = t } }
@@ -219,72 +225,73 @@ type_record_fields_rest:
 
 type_record_field:
     | name=LCNAME COLON body=type_expr
-        { { Typedef.Type_record_row.name = Located.mk name $loc(name); body } }
+        { { Typedef.Type_record_row.name = located $loc(name) name; body } }
 
 value_decl_with_type:
     | name1=loc(LCNAME) COLON INDENT type_alias=type_expr DEDENT
-      name2=loc(LCNAME) params=list(loc(pattern_atom)) EQUAL expr=indented(loc(expr))
+      name2=loc(LCNAME) params=list(pattern_atom) EQUAL written=indented(expr)
         { 
           let type_part_data = Some Declaration.{ name=name1; type_alias } in
-          let params, body = make_parameters ~params (Data.Located.unwrap expr) in
-          let expr = { expr with Data.Located.thing = body } in
+          let params, expr = make_parameters ~params written in
           let body_part = Declaration.{ name=name2; expr; params } in
           Impl.Top_declaration { type_part_data; body_part }
         }
-    | name=loc(LCNAME) params=list(loc(pattern_atom)) EQUAL expr=indented(loc(expr))
+    | name=loc(LCNAME) params=list(pattern_atom) EQUAL written=indented(expr)
         { 
-          let params, body = make_parameters ~params (Data.Located.unwrap expr) in
-          let expr = { expr with Data.Located.thing = body } in
+          let params, expr = make_parameters ~params written in
           let body_part = Declaration.{ name; expr; params } in
           Impl.Top_declaration { type_part_data=None; body_part }
         }
    
 expr:    
     | e=expr_lowered_binop { e }
-    | MINUS e=expr %prec UMINUS { Expr_unop { name = Located.mk "-" $loc; operand = e } }
+    | minus=MINUS e=expr %prec UMINUS
+        { located $loc (Expr_unop { name = located $loc(minus) "-"; operand = e }) }
     | e=expr_app { e }
     | e=expr_binop { e }
-    | BACKSLASH params=nonempty_list(loc(pattern_atom)) ARROW body=expr %prec ARROW
-        { let params, body = make_parameters ~params body in
-          Expr_lambda { params; body } }
+    | BACKSLASH params=nonempty_list(pattern_atom) ARROW written=expr %prec ARROW
+        { let params, body = make_parameters ~params written in
+          located $loc (Expr_lambda { params; body }) }
     | IF if_exp=expr THEN then_exp=expr ELSE else_exp=expr
-        { Expr_if_then_else { if_exp; then_exp; else_exp } }
+        { located $loc (Expr_if_then_else { if_exp; then_exp; else_exp }) }
     | CASE expr=scrutinee OF pattern_data_items=indented(list(case_arm))
-        { Expr_pattern { expr; pattern_data_items } }
+        { located $loc (Expr_pattern { expr; pattern_data_items }) }
     | LET binding=expr_let_name_bind IN e=expr
         { make_expr_let ~bindings:[binding] e }
     | LET INDENT bindings=expr_let_defs DEDENT IN e=expr
         { make_expr_let ~bindings e }
 
 expr_lowered_binop:
-    | head=expr CONS tail=expr { Expr_cons { head; tail } }
-    | arg=expr PIPE_GT fn=expr { Expr_apply { fn; arg } }
-    | fn=expr APPLY_L arg=expr { Expr_apply { fn; arg } }
-    | outer=expr COMPOSE_L inner=expr
-        { make_expr_apply ~args:[outer; inner] (make_qualified "Basics.composeL") }
-    | inner=expr COMPOSE_R outer=expr
-        { make_expr_apply ~args:[inner; outer] (make_qualified "Basics.composeR") }
+    | head=expr CONS tail=expr { located $loc (Expr_cons { head; tail }) }
+    | arg=expr PIPE_GT fn=expr { located $loc (Expr_apply { fn; arg }) }
+    | fn=expr APPLY_L arg=expr { located $loc (Expr_apply { fn; arg }) }
+    | outer=expr op=COMPOSE_L inner=expr
+        { make_expr_apply ~args:[outer; inner]
+            (make_qualified ~region:(Region.of_lexing $loc(op)) "Basics.composeL") }
+    | inner=expr op=COMPOSE_R outer=expr
+        { make_expr_apply ~args:[inner; outer]
+            (make_qualified ~region:(Region.of_lexing $loc(op)) "Basics.composeR") }
 
 expr_let_name_bind:
-    | name=loc(LCNAME) params=list(loc(pattern_atom)) EQUAL INDENT body=expr DEDENT
-        { Bind_value { bind_type = None;
+    | name=loc(LCNAME) params=list(pattern_atom) EQUAL INDENT written=expr DEDENT
+        { let params, body = make_parameters ~params written in
+          Bind_value { bind_type = None;
                        bind_body={ name;
-                                   body = (let params, body = make_parameters ~params body in
-                                           make_expr_lambda ~params body) } } }
+                                   body = make_expr_lambda ~region:(Region.of_lexing $loc) ~params body } } }
     | annotated=LCNAME COLON INDENT content=type_expr DEDENT
-      name=loc(LCNAME) params=list(loc(pattern_atom)) EQUAL INDENT body=expr DEDENT
-        { Bind_value { bind_type = Some { name = annotated; content };
+      name=loc(LCNAME) params=list(pattern_atom) EQUAL INDENT written=expr DEDENT
+        { let params, body = make_parameters ~params written in
+          Bind_value { bind_type = Some { name = annotated; content };
                        bind_body={ name;
-                                   body = (let params, body = make_parameters ~params body in
-                                           make_expr_lambda ~params body) } } }
+                                   body = make_expr_lambda ~region:(Region.of_lexing $loc) ~params body } } }
     | pattern=destructuring_pattern EQUAL INDENT value=expr DEDENT
         { Bind_pattern { pattern; value } }
 
 destructuring_pattern:
     | LPAREN p=pattern RPAREN { p }
     | LPAREN p=pattern COMMA rest=separated_nonempty_list(COMMA, pattern) RPAREN
-        { P_tuple(p :: rest) }
-    | LBRACE lst=separated_list(COMMA, LCNAME) RBRACE { P_record(lst) }
+        { located $loc (P_tuple(p :: rest)) }
+    | LBRACE lst=separated_list(COMMA, LCNAME) RBRACE { located $loc (P_record(lst)) }
 
 expr_let_defs: lst=nonempty_list(expr_let_name_bind) { lst }
 
@@ -297,65 +304,71 @@ case_arm:
         {{ pattern; expr }}    
 
 pattern:
-    | name=upper_possible_dotted args=nonempty_list(pattern_atom) { P_ctor(name, args) }
-    | head=pattern_atom CONS tail=pattern { P_cons(head, tail) }
-    | p=pattern AS name=LCNAME { P_alias(p, name) }
+    | name=upper_possible_dotted args=nonempty_list(pattern_atom) { located $loc (P_ctor(name, args)) }
+    | head=pattern_atom CONS tail=pattern { located $loc (P_cons(head, tail)) }
+    | p=pattern AS name=LCNAME { located $loc (P_alias(p, name)) }
     | p=pattern_atom { p }
 
 pattern_atom:
-    | i=STRING { P_str i }
-    | i=CHAR { P_chr i }
-    | i=INT { P_int i }
-    | MINUS i=INT { P_int (-i) }
-    | i=WILDCARD { P_anything }
-    | UNIT { P_unit }
-    | i=LCNAME { P_var i }
-    | name=upper_possible_dotted { P_ctor(name, []) }
-    | LBRACE lst=separated_list(COMMA, LCNAME) RBRACE { P_record(lst) }
-    | LBRACKET lst=separated_list(COMMA, pattern) RBRACKET { P_list(lst) }
+    | i=STRING { located $loc (P_str i) }
+    | i=CHAR { located $loc (P_chr i) }
+    | i=INT { located $loc (P_int i) }
+    | MINUS i=INT { located $loc (P_int (-i)) }
+    | WILDCARD { located $loc P_anything }
+    | UNIT { located $loc P_unit }
+    | i=LCNAME { located $loc (P_var i) }
+    | name=upper_possible_dotted { located $loc (P_ctor(name, [])) }
+    | LBRACE lst=separated_list(COMMA, LCNAME) RBRACE { located $loc (P_record(lst)) }
+    | LBRACKET lst=separated_list(COMMA, pattern) RBRACKET { located $loc (P_list(lst)) }
     | LPAREN p=pattern RPAREN { p }
     | LPAREN p=pattern COMMA rest=separated_nonempty_list(COMMA, pattern) RPAREN
-        { P_tuple(p :: rest) }
+        { located $loc (P_tuple(p :: rest)) }
 
 expr_binop:
-    e1=expr name=binop e2=expr { Expr_binop { name; operands=(e1, e2) } }
+    e1=expr name=binop e2=expr { located $loc (Expr_binop { name; operands=(e1, e2) }) }
 
 expr_app:
     | e=expr_postfix { e }
-    | fn=expr_app arg=expr_postfix { Expr_apply { fn; arg } }
+    | fn=expr_app arg=expr_postfix { located $loc (Expr_apply { fn; arg }) }
 
 expr_postfix:
     | base=expr_applicable fields=list(loc(ACCESS)) {
-        List.fold_left (fun acc field -> Expr_access { expr = acc; field }) base fields
+        List.fold_left
+          (fun acc field ->
+             Located.at (Region.merge acc.Located.region field.Located.region)
+               (Expr_access { expr = acc; field }))
+          base fields
     }
 
 expr_applicable:
     | LPAREN e=expr RPAREN { e }
-    | LPAREN name=binop RPAREN { make_operator_value ~loc:$loc name }
-    | LPAREN PIPE_GT RPAREN { make_qualified "Basics.apR" }
-    | LPAREN APPLY_L RPAREN { make_qualified "Basics.apL" }
-    | LPAREN COMPOSE_L RPAREN { make_qualified "Basics.composeL" }
-    | LPAREN COMPOSE_R RPAREN { make_qualified "Basics.composeR" }
+    | LPAREN name=binop RPAREN { make_operator_value ~region:(Region.of_lexing $loc) name }
+    | LPAREN PIPE_GT RPAREN { make_qualified ~region:(Region.of_lexing $loc) "Basics.apR" }
+    | LPAREN APPLY_L RPAREN { make_qualified ~region:(Region.of_lexing $loc) "Basics.apL" }
+    | LPAREN COMPOSE_L RPAREN { make_qualified ~region:(Region.of_lexing $loc) "Basics.composeL" }
+    | LPAREN COMPOSE_R RPAREN { make_qualified ~region:(Region.of_lexing $loc) "Basics.composeR" }
     | LPAREN first=expr COMMA rest=separated_nonempty_list(COMMA, expr) RPAREN
-        { make_expr_tuple (first :: rest) }
-    | e=LCNAME { Expr_ident e }
-    | e=STRING { Expr_string e }
-    | e=CHAR { Expr_char e }
-    | field=loc(ACCESSOR) { Expr_accessor field }
-    | e=INT { Expr_int e }
-    | e=FLOAT { Expr_float e }
-    | e=UNIT { Expr_unit }
-    | n=UCNAME { Expr_constr_fixed n }
-    | n=QUAL_LCNAME { make_qualified n }
-    | n=UCNAME_PATH { make_qualified n }
-    | LBRACKET e=separated_list(COMMA, expr) RBRACKET { Expr_list e }
-    | LBRACE RBRACE { Expr_record [] }
+        { make_expr_tuple ~region:(Region.of_lexing $loc) (first :: rest) }
+    | e=LCNAME { located $loc (Expr_ident e) }
+    | e=STRING { located $loc (Expr_string e) }
+    | e=CHAR { located $loc (Expr_char e) }
+    | field=loc(ACCESSOR) { located $loc (Expr_accessor field) }
+    | e=INT { located $loc (Expr_int e) }
+    | e=FLOAT { located $loc (Expr_float e) }
+    | UNIT { located $loc Expr_unit }
+    | n=UCNAME { located $loc (Expr_constr_fixed n) }
+    | n=QUAL_LCNAME { make_qualified ~region:(Region.of_lexing $loc) n }
+    | n=UCNAME_PATH { make_qualified ~region:(Region.of_lexing $loc) n }
+    | LBRACKET e=separated_list(COMMA, expr) RBRACKET { located $loc (Expr_list e) }
+    | LBRACE RBRACE { located $loc (Expr_record []) }
     | LBRACE name=LCNAME EQUAL value=expr rest=record_literal_rest RBRACE
-        { Expr_record ({ name; value } :: rest) }
-    | LBRACE name=LCNAME PIPE fields=record_update_fields RBRACE
-        { Expr_record_update { record = Expr_ident name; fields } }
-    | LBRACE name=QUAL_LCNAME PIPE fields=record_update_fields RBRACE
-        { Expr_record_update { record = make_qualified name; fields } }
+        { located $loc (Expr_record ({ name; value } :: rest)) }
+    | LBRACE record=loc(LCNAME) PIPE fields=record_update_fields RBRACE
+        { located $loc (Expr_record_update
+            { record = Located.map (fun name -> Expr_ident name) record; fields }) }
+    | LBRACE record=loc(QUAL_LCNAME) PIPE fields=record_update_fields RBRACE
+        { located $loc (Expr_record_update
+            { record = make_qualified ~region:record.Located.region record.Located.thing; fields }) }
 
 record_literal_rest:
     | { [] }

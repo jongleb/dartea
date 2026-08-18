@@ -3,7 +3,9 @@ open OUnit2
 let source = Node_runner.source
 
 let node_eval ~modules ~expr =
-  Node_runner.evaluate ~compiled:(Dartea.Compiler.compile_modules modules) ~expr
+  Node_runner.evaluate
+    ~compiled:(Node_runner.output_of (Dartea.Compiler.compile_modules modules))
+    ~expr
 
 let assert_runs ~modules ~expr ~expected =
   assert_equal ~printer:Fun.id expected (node_eval ~modules ~expr)

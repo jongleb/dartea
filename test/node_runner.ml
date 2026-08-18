@@ -9,6 +9,11 @@ let read_all ic =
 
 let source path content = File_loader.Files.Elm_file.{ path; content }
 
+let output_of (outcome : Dartea.Compiler.outcome) =
+  match outcome.errors with
+  | [] -> outcome.output
+  | error :: _ -> raise (Reporting.Error.Found error)
+
 let source_of ~module_name (compiled : Dartea.Compiler.compiled list) =
   List.filter_map
     (fun (c : Dartea.Compiler.compiled) ->

@@ -2,7 +2,7 @@ open OUnit2
 open Ast.Kind.Frontend
 module Main = Parse.Main
 
-let parse_exn input = match Main.parse input with Ok r -> r | Error e -> raise e
+let parse_exn input = match Main.parse ~file:"Main.elm" input with Ok r -> r | Error error -> raise (Reporting.Error.Found error)
 
 let exposed_summary = function
   | Exposing.Lower n -> "lower:" ^ Data.Located.unwrap n
@@ -31,7 +31,7 @@ let decl_expr result name =
     (function
       | Impl.Top_declaration (d : Declaration.t)
         when Data.Located.unwrap d.body_part.name = name ->
-          Some (Data.Located.unwrap d.body_part.expr)
+          Some d.body_part.expr
       | _ -> None)
     result
 
@@ -69,7 +69,7 @@ x = 1
   in
   assert_imports ~expected:[ "Data.List|L|lower:map" ] input;
   match decl_expr (parse_exn input) "x" with
-  | Some (Expr.Expr_int 1) -> ()
+  | Some { thing = Expr.Expr_int 1; _ } -> ()
   | _ -> assert_failure "declaration after imports did not parse"
 
 let test_multiline_exposing _ =
@@ -114,7 +114,7 @@ x = 1
   in
   assert_imports ~expected:[ "A|-|lower:foo,lower:bar"; "B|Bee|()" ] input;
   match decl_expr (parse_exn input) "x" with
-  | Some (Expr.Expr_int 1) -> ()
+  | Some { thing = Expr.Expr_int 1; _ } -> ()
   | _ -> assert_failure "declarations after multiline exposing did not parse"
 
 let test_module_of_impl_keeps_import_order _ =
@@ -156,7 +156,7 @@ x t = 1
   with
   | Some { Declaration.type_alias; _ } -> (
       match type_alias.Typedef.Impl.body with
-      | Typedef.Kind.Tkind_function { Typedef.Type_function.arguments = a :: _ }
+      | Typedef.Kind.Tkind_function { Typedef.Type_function.arguments = a :: _; _ }
         -> (
           match a.Typedef.Impl.body with
           | Typedef.Kind.Tkind_concrete name ->
@@ -167,7 +167,7 @@ x t = 1
 
 let assert_expr ~name ~input ~check =
   match decl_expr (parse_exn input) name with
-  | Some e -> check e
+  | Some e -> check (Data.Located.unwrap e)
   | None -> assert_failure (Printf.sprintf "declaration %s not found" name)
 
 let test_qualified_refs _ =
@@ -182,13 +182,13 @@ c = A.B.foo
   in
   assert_expr ~name:"a" ~input ~check:(function
     | Expr.Expr_qualified { qualifier = "A"; name = "foo" } -> ()
-    | e -> assert_failure ("a: " ^ Expr.show e));
+    | e -> assert_failure ("a: " ^ Expr.show_expr e));
   assert_expr ~name:"b" ~input ~check:(function
     | Expr.Expr_qualified { qualifier = "A"; name = "Ctor" } -> ()
-    | e -> assert_failure ("b: " ^ Expr.show e));
+    | e -> assert_failure ("b: " ^ Expr.show_expr e));
   assert_expr ~name:"c" ~input ~check:(function
     | Expr.Expr_qualified { qualifier = "A.B"; name = "foo" } -> ()
-    | e -> assert_failure ("c: " ^ Expr.show e))
+    | e -> assert_failure ("c: " ^ Expr.show_expr e))
 
 let test_qualified_then_record_access _ =
   assert_expr ~name:"d"
@@ -199,10 +199,12 @@ d = A.foo.bar
 |}
     ~check:(function
       | Expr.Expr_access
-          { expr = Expr.Expr_qualified { qualifier = "A"; name = "foo" }; field }
-        ->
+          {
+            expr = { thing = Expr.Expr_qualified { qualifier = "A"; name = "foo" }; _ };
+            field;
+          } ->
           assert_equal ~printer:Fun.id "bar" (Data.Located.unwrap field)
-      | e -> assert_failure ("d: " ^ Expr.show e))
+      | e -> assert_failure ("d: " ^ Expr.show_expr e))
 
 let test_plain_record_access_unaffected _ =
   assert_expr ~name:"e"
@@ -212,9 +214,9 @@ module Main exposing (..)
 e = r.foo
 |}
     ~check:(function
-      | Expr.Expr_access { expr = Expr.Expr_ident "r"; field } ->
+      | Expr.Expr_access { expr = { thing = Expr.Expr_ident "r"; _ }; field } ->
           assert_equal ~printer:Fun.id "foo" (Data.Located.unwrap field)
-      | e -> assert_failure ("e: " ^ Expr.show e))
+      | e -> assert_failure ("e: " ^ Expr.show_expr e))
 
 let test_qualified_in_nested_positions _ =
   let input =
@@ -234,7 +236,7 @@ f =
   in
   assert_expr ~name:"f" ~input ~check:(function
     | Expr.Expr_let _ -> ()
-    | e -> assert_failure ("f: " ^ Expr.show e))
+    | e -> assert_failure ("f: " ^ Expr.show_expr e))
 
 let test_qualified_constructor_applied _ =
   assert_expr ~name:"g"
@@ -246,11 +248,11 @@ g = A.Ctor 1
     ~check:(function
       | Expr.Expr_apply
           {
-            fn = Expr.Expr_qualified { qualifier = "A"; name = "Ctor" };
-            arg = Expr.Expr_int 1;
+            fn = { thing = Expr.Expr_qualified { qualifier = "A"; name = "Ctor" }; _ };
+            arg = { thing = Expr.Expr_int 1; _ };
           } ->
           ()
-      | e -> assert_failure ("g: " ^ Expr.show e))
+      | e -> assert_failure ("g: " ^ Expr.show_expr e))
 
 let suite =
   [

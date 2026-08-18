@@ -1,8 +1,8 @@
 open OUnit2
 
 let canonical input =
-  match Parse.Main.parse input with
-  | Error e -> raise e
+  match Parse.Main.parse ~file:"Main.elm" input with
+  | Error error -> raise (Reporting.Error.Found error)
   | Ok impl_list ->
       Canonical.Module.of_frontend ~fallback_name:"Main"
         (Ast.Kind.Frontend.Module.of_impl impl_list)
@@ -13,7 +13,7 @@ let resolved module_ =
   | Error errors ->
       assert_failure
         (String.concat "\n"
-           (List.map Canonicalization.Resolve_names.show_error errors))
+           (List.map Reporting.Error.show errors))
 
 let inferred source =
   Infer.Declarations.infer_toplevel ~imports:[] (resolved (canonical source))
@@ -29,7 +29,7 @@ let scheme_of source name =
 
 let printed source name =
   match scheme_of source name with
-  | Typed.Type.Scheme (_, ty) -> Infer.Message.of_type ty
+  | Typed.Type.Scheme (_, ty) -> Reporting.Message.of_type ty
 
 let rec shape (ty : Typed.Type.t) =
   let parenthesised inner =
@@ -51,7 +51,7 @@ let rec shape (ty : Typed.Type.t) =
       ^ String.concat " " (List.map parenthesised arguments)
   | TInt | TFloat | TChar | TStr | TBool | TUnit | TRecord _ | TRowExtend _
   | TRowEmpty ->
-      Infer.Message.of_type ty
+      Reporting.Message.of_type ty
 
 let assert_shape ~src ~name ~expected =
   match scheme_of src name with
@@ -61,16 +61,67 @@ let assert_shape ~src ~name ~expected =
 let assert_type ~src ~name ~expected =
   assert_equal ~printer:(fun s -> s) expected (printed src name)
 
-let assert_rejected ~src ~because =
+let written = Reporting.Message.of_type
+
+let sides (problem : Reporting.Error.problem) =
+  match problem with
+  | Type (Bad_expression { found; expected; _ }) ->
+      Some (written found, written (Reporting.Expectation.expected_type expected))
+  | Type (Bad_pattern { found; expected; _ }) ->
+      Some
+        ( written found,
+          written (Reporting.Expectation.expected_pattern_type expected) )
+  | Type (Infinite_type _ | Bad_arity _ | Case_without_branches)
+  | Name _ | Syntax _ ->
+      None
+
+let constraint_names = [ "number"; "comparable"; "appendable"; "compappend" ]
+let is_mismatch problem = Option.is_some (sides problem)
+
+let mismatch ~found ~expected problem =
+  match sides problem with
+  | Some (one, other) -> String.equal one found && String.equal other expected
+  | None -> false
+
+let unsatisfied ~required problem =
+  match sides problem with
+  | Some (one, other) -> String.equal one required || String.equal other required
+  | None -> false
+
+let unsatisfied_by ~found ~required problem =
+  match sides problem with
+  | Some (one, other) ->
+      (String.equal one found && String.equal other required)
+      || (String.equal one required && String.equal other found)
+  | None -> false
+
+let is_constraint_clash problem =
+  match sides problem with
+  | Some (one, other) ->
+      List.mem one constraint_names && List.mem other constraint_names
+  | None -> false
+
+let is_constructor_arity (problem : Reporting.Error.problem) =
+  match problem with
+  | Type (Bad_arity { thing = A_variant; _ }) -> true
+  | _ -> false
+
+let rejection src =
   match inferred src with
-  | exception Failure message ->
+  | result -> (
+      match result.Infer.Declarations.errors with
+      | [] -> None
+      | error :: _ -> Some error)
+  | exception Reporting.Error.Found error -> Some error
+
+let assert_rejected ~src ~because =
+  match rejection src with
+  | Some error ->
       assert_bool
-        (Printf.sprintf "expected a message mentioning %S, got %S" because
-           message)
-        (Node_runner.contains ~needle:because message)
-  | _ ->
-      assert_failure
-        (Printf.sprintf "expected a rejection mentioning %S" because)
+        (Printf.sprintf "unexpected rejection: %s"
+           (Reporting.Error.show_problem error.problem))
+        (because error.problem)
+  | None -> assert_failure "expected a rejection"
 
 let test_float_literal_is_a_float _ =
   assert_type ~src:"x = 1.5" ~name:"x" ~expected:"Float"
@@ -97,14 +148,14 @@ let test_float_is_not_an_int _ =
 count : Int
 count = 1.5
 |}
-    ~because:"Unification failed for Float and Int"
+    ~because:(mismatch ~found:"Float" ~expected:"Int")
 
 let test_char_is_not_a_string _ =
   assert_rejected ~src:{|
 letter : String
 letter = 'a'
 |}
-    ~because:"Unification failed for Char and String"
+    ~because:(mismatch ~found:"Char" ~expected:"String")
 
 let test_char_pattern_forces_a_char_scrutinee _ =
   assert_rejected
@@ -119,7 +170,7 @@ classify s =
         _ ->
             0
 |}
-    ~because:"Char"
+    ~because:is_mismatch
 
 
 let test_constraint_survives_instantiation _ =
@@ -159,7 +210,7 @@ keep n = n
 label : String
 label = keep "one"
 |}
-    ~because:"String does not satisfy number"
+    ~because:(unsatisfied_by ~found:"String" ~required:"number")
 
 let test_comparable_does_not_accept_a_record _ =
   assert_rejected
@@ -171,7 +222,7 @@ smaller x = x
 placed : { x : Int }
 placed = smaller { x = 1 }
 |}
-    ~because:"does not satisfy comparable"
+    ~because:(unsatisfied ~required:"comparable")
 
 let test_appendable_does_not_accept_an_int _ =
   assert_rejected
@@ -183,7 +234,7 @@ glue a = a
 total : Int -> Int
 total n = glue n
 |}
-    ~because:"Int does not satisfy appendable"
+    ~because:(unsatisfied_by ~found:"Int" ~required:"appendable")
 
 let test_appendable_does_not_accept_a_numeric_literal _ =
   assert_rejected
@@ -194,7 +245,7 @@ glue a = a
 total : Int
 total = glue 1
 |}
-    ~because:"cannot be the same type variable"
+    ~because:is_constraint_clash
 
 let test_comparable_accepts_a_list_of_comparables _ =
   assert_shape
@@ -218,7 +269,7 @@ smaller x = x
 sorted : List { x : Int }
 sorted = smaller [ { x = 1 } ]
 |}
-    ~because:"does not satisfy comparable"
+    ~because:(unsatisfied ~required:"comparable")
 
 let test_comparable_accepts_a_tuple_of_comparables _ =
   assert_shape
@@ -242,7 +293,7 @@ smaller x = x
 placed : ( Int, { x : Int } )
 placed = smaller ( 1, { x = 1 } )
 |}
-    ~because:"does not satisfy comparable"
+    ~because:(unsatisfied ~required:"comparable")
 
 let test_appendable_meets_comparable_as_compappend _ =
   assert_shape
@@ -272,7 +323,7 @@ double n = n
 confused : number -> number
 confused n = glue (double n)
 |}
-    ~because:"cannot be the same type variable"
+    ~because:is_constraint_clash
 
 let test_a_variable_named_numbers_is_unconstrained _ =
   assert_shape ~src:{|
@@ -317,21 +368,21 @@ smaller x = x
 picked : Shade
 picked = smaller Light
 |}
-    ~because:"does not satisfy comparable"
+    ~because:(unsatisfied ~required:"comparable")
 
 let test_integer_division_stays_on_ints _ =
   assert_rejected ~src:{|
 half : Int
 half = 1.5 // 2
 |}
-    ~because:"Unification failed"
+    ~because:is_mismatch
 
 let test_float_division_does_not_produce_an_int _ =
   assert_rejected ~src:{|
 half : Int
 half = 7 / 2
 |}
-    ~because:"Unification failed"
+    ~because:is_mismatch
 
 let test_appendable_does_not_accept_a_float _ =
   assert_rejected
@@ -343,7 +394,7 @@ glue a = a
 total : Float -> Float
 total n = glue n
 |}
-    ~because:"Float does not satisfy appendable"
+    ~because:(unsatisfied_by ~found:"Float" ~required:"appendable")
 
 let test_number_does_not_accept_a_char _ =
   assert_rejected
@@ -354,7 +405,7 @@ twice n = n
 letter : Char -> Char
 letter c = twice c
 |}
-    ~because:"Char does not satisfy number"
+    ~because:(unsatisfied_by ~found:"Char" ~required:"number")
 
 let test_a_list_literal_keeps_its_element_type _ =
   assert_shape ~src:{|
@@ -415,11 +466,11 @@ useIt = divides "a" "b"
 |}
 
 let test_a_callee_declared_later_is_still_typed _ =
-  assert_rejected ~src:calling_a_later_declaration ~because:"Unification failed"
+  assert_rejected ~src:calling_a_later_declaration ~because:is_mismatch
 
 let test_a_callee_declared_earlier_is_typed_the_same_way _ =
   assert_rejected ~src:calling_an_earlier_declaration
-    ~because:"Unification failed"
+    ~because:is_mismatch
 
 let test_a_caller_gets_the_type_of_a_later_callee _ =
   assert_shape
@@ -506,7 +557,7 @@ bad =
         Box p ->
             p
 |}
-    ~because:"Unification failed"
+    ~because:is_mismatch
 
 let test_a_payload_reached_through_a_parameter_has_its_declared_type _ =
   assert_rejected
@@ -520,7 +571,7 @@ bad b =
         Box p ->
             p
 |}
-    ~because:"Unification failed"
+    ~because:is_mismatch
 
 let test_a_polymorphic_payload_follows_the_scrutinee _ =
   assert_rejected
@@ -537,7 +588,7 @@ bad =
         Nothing ->
             "e"
 |}
-    ~because:"String does not satisfy number"
+    ~because:(unsatisfied_by ~found:"String" ~required:"number")
 
 let test_a_nested_constructor_payload_has_its_declared_type _ =
   assert_rejected
@@ -553,7 +604,7 @@ bad =
         Box (Wrap n) ->
             n
 |}
-    ~because:"Unification failed"
+    ~because:is_mismatch
 
 let test_a_tuple_pattern_binds_each_position _ =
   assert_rejected
@@ -565,7 +616,7 @@ bad =
         ( a, b ) ->
             b
 |}
-    ~because:"Unification failed"
+    ~because:is_mismatch
 
 let test_a_cons_pattern_binds_the_head_to_the_element _ =
   assert_rejected
@@ -580,7 +631,7 @@ bad =
         [] ->
             "e"
 |}
-    ~because:"String does not satisfy number"
+    ~because:(unsatisfied_by ~found:"String" ~required:"number")
 
 let test_an_alias_pattern_keeps_typing_the_names_beneath_it _ =
   assert_rejected
@@ -594,7 +645,7 @@ bad =
         (Box p) as whole ->
             p
 |}
-    ~because:"Unification failed"
+    ~because:is_mismatch
 
 let test_a_record_pattern_binds_the_field_type _ =
   assert_rejected
@@ -603,7 +654,7 @@ bad : String
 bad =
     (\{ count } -> count) { count = 1 }
 |}
-    ~because:"String does not satisfy number"
+    ~because:(unsatisfied_by ~found:"String" ~required:"number")
 
 let test_a_let_destructuring_binds_each_position _ =
   assert_rejected
@@ -617,7 +668,7 @@ bad =
     in
     b
 |}
-    ~because:"Unification failed"
+    ~because:is_mismatch
 
 let test_a_destructured_declaration_parameter_carries_the_payload _ =
   assert_rejected
@@ -628,7 +679,7 @@ bad : Box -> String
 bad (Box n) =
     n
 |}
-    ~because:"Unification failed"
+    ~because:is_mismatch
 
 let test_a_destructured_lambda_parameter_binds_each_position _ =
   assert_rejected
@@ -637,7 +688,7 @@ bad : Int
 bad =
     (\( a, b ) -> b) ( 1, "a" )
 |}
-    ~because:"Unification failed"
+    ~because:is_mismatch
 
 let test_a_unit_parameter_is_a_unit _ =
   assert_rejected ~src:{|
@@ -645,7 +696,7 @@ bad : Int -> Int
 bad () =
     1
 |}
-    ~because:"Unification failed"
+    ~because:is_mismatch
 
 let test_a_polymorphic_payload_stays_polymorphic _ =
   assert_shape
@@ -674,7 +725,7 @@ bad b =
         Box ->
             1
 |}
-    ~because:"takes 1 argument"
+    ~because:is_constructor_arity
 
 let test_a_tuple_pattern_accepts_the_matching_positions _ =
   assert_shape
@@ -728,7 +779,7 @@ bad b =
         Box p ->
             p ++ "!"
 |}
-    ~because:"appendable"
+    ~because:(unsatisfied ~required:"appendable")
 
 let test_a_written_type_variable_never_collides_with_a_generated_one _ =
   assert_shape
@@ -754,7 +805,7 @@ twice n = n
 bad : String
 bad = twice "a"
 |}
-    ~because:"String does not satisfy number"
+    ~because:(unsatisfied_by ~found:"String" ~required:"number")
 
 let suite =
   [

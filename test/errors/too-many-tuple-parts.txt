@@ -1,0 +1,9 @@
+-- BAD TUPLE ---------------------------------------------------------- Main.elm
+
+I only accept tuples of two or three parts, but this one has 4:
+
+1| x = ( 1, 2, 3, 4 )
+       ^^^^^^^^^^^^^^
+
+Switch to a record. Records can hold as many values as you need, and each one
+has a name.

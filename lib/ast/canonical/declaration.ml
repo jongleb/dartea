@@ -7,7 +7,7 @@ and type_part = { name : string Data.Located.t; type_alias : Typedef.Impl.t }
 
 and body_part = {
   name : string Data.Located.t;
-  expr : Expr.t Data.Located.t;
+  expr : Expr.t;
   params : string Data.Located.t list;
 }
 [@@deriving show]
@@ -21,7 +21,7 @@ let of_frontend_type_part (tp : Frontend.Declaration.type_part) : type_part =
 let of_frontend_body_part (bp : Frontend.Declaration.body_part) : body_part =
   {
     name = bp.Frontend.Declaration.name;
-    expr = Data.Located.map Expr.of_frontend bp.expr;
+    expr = Expr.of_frontend bp.expr;
     params = bp.params;
   }
 

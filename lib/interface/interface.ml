@@ -49,9 +49,12 @@ let rec written_type ~qualify (t : Canonical.Typedef.Impl.t) :
           }
     | Kind.Tkind_tuple items ->
         Kind.Tkind_tuple (List.map (written_type ~qualify) items)
-    | Kind.Tkind_function { arguments } ->
+    | Kind.Tkind_function { arguments; result } ->
         Kind.Tkind_function
-          { arguments = List.map (written_type ~qualify) arguments }
+          {
+            arguments = List.map (written_type ~qualify) arguments;
+            result = written_type ~qualify result;
+          }
     | (Kind.Tkind_var _ | Kind.Tkind_unit) as leaf -> leaf
   in
   { parameters = List.map (written_type ~qualify) t.parameters; body }
@@ -72,6 +75,7 @@ let of_module ~(values : (string * Typed.Type.scheme) list)
           List.map
             (fun (ctor : Canonical.Typedecl.type_ctor) ->
               {
+                ctor with
                 Canonical.Typedecl.id = exported (Data.Name.base ctor.id);
                 data = List.map (written_type ~qualify) ctor.data;
               })

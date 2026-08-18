@@ -13,7 +13,8 @@
   file_loader
   data
   after_typed
-  codegen_js)
+  codegen_js
+  reporting)
  (flags
   (-w -40 -w +26))
  (preprocess

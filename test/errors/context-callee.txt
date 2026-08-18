@@ -1,0 +1,8 @@
+-- TOO MANY ARGS ------------------------------------------------------ Main.elm
+
+This value is not a function, but it was given 1 argument.
+
+1| x = 1 2
+       ^
+
+Are there any missing commas? Or missing parentheses?

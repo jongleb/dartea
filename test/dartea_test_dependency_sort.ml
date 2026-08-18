@@ -156,7 +156,7 @@ let test_a_dependency_outside_the_member_list_is_not_an_edge _ =
     ~expected:[ [ vertex 0 ] ]
     { vertices = [ vertex 0 ]; edges = [ (vertex 0, vertex 1) ] }
 
-let compile src = Dartea.Compiler.compile_source src
+let compile src = Node_runner.output_of (Dartea.Compiler.compile_source src)
 
 let test_value_cycle_is_rejected _ =
   let src = {j|
@@ -168,11 +168,11 @@ b = a + 1
 |j} in
   match compile src with
   | _ -> assert_failure "expected a cycle to be reported"
-  | exception Failure message ->
-      assert_bool ("unexpected message: " ^ message)
-        (Node_runner.contains message ~needle:"cycle"
-        && Node_runner.contains message ~needle:"a"
-        && Node_runner.contains message ~needle:"b")
+  | exception
+      Reporting.Error.Found
+        { problem = Name (Recursive_value { names }); _ } ->
+      assert_equal ~printer:(String.concat ", ") [ "a"; "b" ]
+        (List.sort String.compare names)
 
 let test_function_cycle_is_accepted _ =
   let src = {j|

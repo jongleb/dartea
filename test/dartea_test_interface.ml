@@ -1,8 +1,8 @@
 open OUnit2
 
 let canonical input =
-  match Parse.Main.parse input with
-  | Error e -> raise e
+  match Parse.Main.parse ~file:"Main.elm" input with
+  | Error error -> raise (Reporting.Error.Found error)
   | Ok impl_list ->
       Canonical.Module.of_frontend ~fallback_name:"Main"
         (Ast.Kind.Frontend.Module.of_impl impl_list)
@@ -13,7 +13,7 @@ let resolved ~dependencies module_ =
   | Error errors ->
       assert_failure
         (String.concat "\n"
-           (List.map Canonicalization.Resolve_names.show_error errors))
+           (List.map Reporting.Error.show errors))
 
 let inferred ~imports module_ =
   Infer.Declarations.infer_toplevel ~imports module_
@@ -103,30 +103,33 @@ let test_value_scheme_is_globalized _ =
     (Some (Typed.Type.TCustom (global "Paint" "Color", [])))
     scheme
 
+let described (declared : Canonical.Typedecl.t option) =
+  match declared with
+  | None -> "<absent>"
+  | Some td ->
+      Data.Name.show td.name ^ " = "
+      ^ String.concat " | "
+          (List.map
+             (fun (c : Canonical.Typedecl.type_ctor) -> Data.Name.show c.id)
+             td.ctors)
+
 let test_type_and_ctors_are_globalized _ =
   let _, interface = published paint in
   let color = type_named interface (global "Paint" "Color") in
-  assert_equal
-    ~printer:(function
-      | None -> "<absent>"
-      | Some (td : Canonical.Typedecl.t) ->
-          Data.Name.show td.name ^ " = "
-          ^ String.concat " | "
-              (List.map
-                 (fun (c : Canonical.Typedecl.type_ctor) ->
-                   Data.Name.show c.id)
-                 td.ctors))
-    (Some
-       {
-         Canonical.Typedecl.name = global "Paint" "Color";
-         params = [];
-         ctors =
-           [
-             { id = global "Paint" "Red"; data = [] };
-             { id = global "Paint" "Blue"; data = [] };
-           ];
-       })
-    color
+  assert_equal ~printer:Fun.id
+    (described
+       (Some
+          {
+            Canonical.Typedecl.name = global "Paint" "Color";
+            params = [];
+            region = Data.Region.nowhere;
+            ctors =
+              [
+                { id = global "Paint" "Red"; data = []; region = Data.Region.nowhere };
+                { id = global "Paint" "Blue"; data = []; region = Data.Region.nowhere };
+              ];
+          }))
+    (described color)
 
 let test_type_without_ctors_keeps_them_private _ =
   let _, interface =
@@ -449,12 +452,15 @@ let test_a_module_does_not_inherit_the_level_of_the_one_before _ =
   let _ = published "module One exposing (one)\n\none = 1\n" in
   assert_equal ~printer:string_of_int before (Typed.Variable.current_level ());
   let refused =
-    try
-      let _ =
-        published "module Two exposing (two)\n\ntwo : String\ntwo = 1\n"
-      in
-      false
-    with Failure _ -> true
+    match published "module Two exposing (two)\n\ntwo : String\ntwo = 1\n" with
+    | module_, _ ->
+        ignore module_;
+        (Infer.Declarations.infer_toplevel ~imports:[]
+           (resolved ~dependencies:[]
+              (canonical "module Two exposing (two)\n\ntwo : String\ntwo = 1\n")))
+          .errors
+        <> []
+    | exception Reporting.Error.Found _ -> true
   in
   assert_bool "the second module is refused" refused;
   assert_equal ~printer:string_of_int before (Typed.Variable.current_level ())

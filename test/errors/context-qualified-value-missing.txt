@@ -1,0 +1,14 @@
+-- NAMING ERROR ------------------------------------------------------- Main.elm
+
+I cannot find a `Paint.secret` variable:
+
+5| x = Paint.secret
+       ^^^^^^^^^^^^
+
+The `Paint` module does not expose a `secret` variable. These names seem close
+though:
+
+    shown
+
+Hint: Read <https://elm-lang.org/0.19.1/imports> to see how `import`
+declarations work in Elm.

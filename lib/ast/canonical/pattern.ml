@@ -1,7 +1,6 @@
-open Ppx_compare_lib.Builtin
-open Base.Export
+type t = kind Data.Located.t [@@deriving show]
 
-type t =
+and kind =
   | P_anything
   | P_var of string
   | P_record of string list
@@ -10,24 +9,25 @@ type t =
   | P_tuple of t list
   | P_list of t list
   | P_cons of (t * t)
-  (* | PBool Union Bool*)
   | P_chr of string
   | P_str of string
   | P_int of int
   | P_ctor of (Data.Name.t * t list)
-[@@deriving show, compare, equal, hash]
+[@@deriving show]
 
-let rec of_frontend = function
-  | Frontend.Pattern.P_anything -> P_anything
-  | P_tuple t -> P_tuple (List.map of_frontend t)
-  | P_list l -> P_list (List.map of_frontend l)
-  | P_cons (a, b) -> P_cons (of_frontend a, of_frontend b)
-  | P_chr c -> P_chr c
-  | P_str s -> P_str s
-  | P_int i -> P_int i
+let rec of_frontend (pattern : Frontend.Pattern.t) : t =
+  let same kind = Data.Located.at pattern.region kind in
+  match pattern.thing with
+  | Frontend.Pattern.P_anything -> same P_anything
+  | P_tuple items -> same (P_tuple (List.map of_frontend items))
+  | P_list items -> same (P_list (List.map of_frontend items))
+  | P_cons (head, tail) -> same (P_cons (of_frontend head, of_frontend tail))
+  | P_chr letter -> same (P_chr letter)
+  | P_str text -> same (P_str text)
+  | P_int value -> same (P_int value)
   | P_ctor (ctor, arguments) ->
-      P_ctor (Data.Name.of_dotted ctor, List.map of_frontend arguments)
-  | P_alias (inner, name) -> P_alias (of_frontend inner, name)
-  | P_unit -> P_unit
-  | P_var s -> P_var s
-  | P_record r -> P_record r
+      same (P_ctor (Data.Name.of_dotted ctor, List.map of_frontend arguments))
+  | P_alias (inner, name) -> same (P_alias (of_frontend inner, name))
+  | P_unit -> same P_unit
+  | P_var name -> same (P_var name)
+  | P_record fields -> same (P_record fields)

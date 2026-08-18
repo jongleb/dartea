@@ -1,0 +1,16 @@
+-- NAMING ERROR ------------------------------------------------------- Main.elm
+
+I cannot find a `Missing` variant:
+
+1| x = Missing
+       ^^^^^^^
+
+These names seem close though:
+
+    sin
+    min
+    isNaN
+    ceiling
+
+Hint: Read <https://elm-lang.org/0.19.1/imports> to see how `import`
+declarations work in Elm.

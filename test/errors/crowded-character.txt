@@ -1,0 +1,8 @@
+-- CHAR TOO BIG ------------------------------------------------------- Main.elm
+
+This character literal holds more than one character:
+
+1| x = 'ab'
+       ^^^
+
+Characters hold exactly one character. Use double quotes for text of any length.

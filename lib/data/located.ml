@@ -1,43 +1,10 @@
-open Lexing
+type 'a t = { region : Region.t; thing : 'a } [@@deriving show]
 
-type loc = position * position
-
-(* FIXME: SUPER DIRTY HACK . REMOVE ME SOMEWHEN*)
-let _is_loc_empty_mode = ref false
-
-let show_position position =
-  Format.asprintf
-    "{pos_fname = %s; npos_lnum = %d; npos_bol = %d; npos_cnum = %d;}"
-    (if position.pos_fname = "" then {|""|} else position.pos_fname)
-    position.pos_lnum position.pos_cnum position.pos_cnum
-
-let pp_position fmt position = Format.fprintf position fmt
-
-let show_loc (a, b) =
-  Printf.sprintf "(%s,%s)" (show_position a) (show_position b)
-
-let pp_loc fmt ab = Format.pp_print_string fmt @@ show_loc ab
-
-let range_string loc =
-  let pos_start, pos_end = loc in
-  let line_start = pos_start.pos_lnum in
-  let line_end = pos_end.pos_lnum in
-  let col_start = pos_start.pos_cnum - pos_start.pos_bol in
-  let col_end = pos_end.pos_cnum - pos_end.pos_bol in
-  match (line_start, col_start, line_end, col_end) with
-  | 0, -1, 0, -1 -> "(?, ?)-(?, ?)"
-  | ls, cs, le, ce -> Printf.sprintf "(%d,%d)-(%d,%d)" ls cs le ce
-
-type 'a t = { loc : loc; thing : 'a } [@@deriving show]
-
-let mk thing loc =
-  (* FIXME: SUPER DIRTY HACK . REMOVE ME SOMEWHEN*)
-  if not @@ !_is_loc_empty_mode then { thing; loc }
-  else { thing; loc = (dummy_pos, dummy_pos) }
-
-let dummy_pair = (dummy_pos, dummy_pos)
-let dummy value = mk value dummy_pair
+let at region thing = { region; thing }
+let mk thing lexing_positions = at (Region.of_lexing lexing_positions) thing
+let dummy thing = at Region.nowhere thing
 let ( ~? ) = dummy
-let line { loc = pos_start, _; _ } = pos_start.pos_lnum
+let region { region; _ } = region
+let line { region; _ } = region.Region.start.line
 let unwrap { thing; _ } = thing
-let map f { loc; thing } = { loc; thing = f thing }
+let map f { region; thing } = { region; thing = f thing }

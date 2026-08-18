@@ -30,12 +30,18 @@ end
 type compiled = {
   module_name : string;
   source : string;
-  warnings : string list;
+  warnings : Reporting.Warning.t list;
 }
 
-let parsed_module ~fallback_name content =
-  match Parse.Main.parse content with
-  | Error e -> raise e
+type outcome = {
+  output : compiled list;
+  errors : Reporting.Error.t list;
+  sources : (string * string) list;
+}
+
+let parsed_module ~file ~fallback_name content =
+  match Parse.Main.parse ~file content with
+  | Error error -> raise (Reporting.Error.Found error)
   | Ok impl_list ->
       Canonical.Module.of_frontend ~fallback_name
         (Frontend.Module.of_impl impl_list)
@@ -47,6 +53,7 @@ module Make (B : BACKEND) = struct
     dependencies : Canonical.Module.t list;
     interfaces : Interface.t list;
     output : compiled list;
+    errors : Reporting.Error.t list;
   }
 
   let providing_modules declarations =
@@ -65,8 +72,19 @@ module Make (B : BACKEND) = struct
         |> After_typed.Dependency_sort.sort_declarations
       with
       | Ok declarations -> declarations
-      | Error error ->
-          failwith (After_typed.Dependency_sort.show_error error)
+      | Error (After_typed.Dependency_sort.Bad_recursion names) ->
+          let written = List.map Data.Name.base names in
+          let region =
+            List.find_map
+              (fun (declaration : Typed.Declaration.t) ->
+                if List.mem (Data.Located.unwrap declaration.name) written then
+                  Some declaration.name.region
+                else None)
+              typed.declarations
+            |> Option.value ~default:Data.Region.nowhere
+          in
+          Reporting.Error.raise_name ~region
+            (Reporting.Name_error.Recursive_value { names = written })
     in
     let constructors =
       List.map
@@ -97,13 +115,14 @@ module Make (B : BACKEND) = struct
       (List.map
          (fun module_ ->
            parsed_module
+             ~file:(Prelude.name module_ ^ ".elm")
              ~fallback_name:(Prelude.name module_)
              (Prelude.source module_))
          Prelude.all)
 
   let module_of (source : File_loader.Files.Elm_file.t) =
     let module_ =
-      parsed_module
+      parsed_module ~file:source.path
         ~fallback_name:
           (Filename.remove_extension (Filename.basename source.path))
         source.content
@@ -111,11 +130,7 @@ module Make (B : BACKEND) = struct
     { module_ with imports = Prelude.default_imports @ module_.imports }
 
   let resolved_against dependencies (module_ : Canonical.Module.t) =
-    match Canonicalization.Resolve_names.in_module ~dependencies module_ with
-    | Ok resolved -> resolved
-    | Error errors ->
-        List.map Canonicalization.Resolve_names.show_error errors
-        |> String.concat "\n" |> failwith
+    Canonicalization.Resolve_names.in_module ~dependencies module_
 
   let exported_names (module_ : Canonical.Module.t)
       (typed : Infer.Declarations.infer_result) =
@@ -155,42 +170,98 @@ module Make (B : BACKEND) = struct
           module_.imports)
       interfaces
 
-  let compile_modules (sources : File_loader.Files.Elm_file.t list) :
-      compiled list =
+  let cycle_region ~modules sources =
+    let importing = List.nth_opt modules 0 in
+    List.find_map
+      (fun (source : File_loader.Files.Elm_file.t) ->
+        let module_ = module_of source in
+        match importing with
+        | Some name when String.equal module_.name name ->
+            List.find_map
+              (fun (import : Canonical.Import.t) ->
+                if List.mem import.module_name modules then Some import.region
+                else None)
+              module_.imports
+        | Some _ | None -> None)
+      sources
+    |> Option.value ~default:Data.Region.nowhere
+
+  let compile_modules (sources : File_loader.Files.Elm_file.t list) : outcome =
+    let written =
+      List.map
+        (fun (source : File_loader.Files.Elm_file.t) ->
+          (source.path, source.content))
+        sources
+      @ List.map
+          (fun module_ ->
+            (Prelude.name module_ ^ ".elm", Prelude.source module_))
+          Prelude.all
+    in
     let compile_module progress module_ =
-      let resolved = resolved_against progress.dependencies module_ in
-      let imports = imported_interfaces resolved progress.interfaces in
-      let typed =
-        Infer.Declarations.infer_toplevel ~imports resolved
-      in
-      let declarations, constructors, siblings = prepared typed in
-      let compiled =
-        {
-          module_name = resolved.name;
-          source =
-            B.emit_module ~arities:(imported_arities imports) ~constructors
-              ~siblings ~typedecls:(shaped_types typed)
-              ~imports:(providing_modules declarations)
-              ~exports:(exported_names resolved typed)
-              declarations;
-          warnings =
-            List.concat_map
-              (After_typed.Exhaustiveness_check.warnings typed.siblings_env)
-              typed.declarations;
-        }
-      in
-      {
-        dependencies = resolved :: progress.dependencies;
-        interfaces =
-          Infer.Declarations.interface_of resolved typed :: progress.interfaces;
-        output = compiled :: progress.output;
-      }
+      match resolved_against progress.dependencies module_ with
+      | Error found ->
+          { progress with errors = List.rev_append found progress.errors }
+      | Ok resolved -> (
+          let imports = imported_interfaces resolved progress.interfaces in
+          match Infer.Declarations.infer_toplevel ~imports resolved with
+          | exception Reporting.Error.Found error ->
+              {
+                progress with
+                dependencies = resolved :: progress.dependencies;
+                errors = error :: progress.errors;
+              }
+          | typed when typed.errors <> [] ->
+              {
+                progress with
+                dependencies = resolved :: progress.dependencies;
+                interfaces =
+                  Infer.Declarations.interface_of resolved typed
+                  :: progress.interfaces;
+                errors = List.rev_append typed.errors progress.errors;
+              }
+          | typed ->
+              let declarations, constructors, siblings = prepared typed in
+              let compiled =
+                {
+                  module_name = resolved.name;
+                  source =
+                    B.emit_module ~arities:(imported_arities imports)
+                      ~constructors ~siblings ~typedecls:(shaped_types typed)
+                      ~imports:(providing_modules declarations)
+                      ~exports:(exported_names resolved typed)
+                      declarations;
+                  warnings =
+                    List.concat_map
+                      (After_typed.Exhaustiveness_check.warnings
+                         typed.siblings_env)
+                      typed.declarations;
+                }
+              in
+              {
+                dependencies = resolved :: progress.dependencies;
+                interfaces =
+                  Infer.Declarations.interface_of resolved typed
+                  :: progress.interfaces;
+                output = compiled :: progress.output;
+                errors = progress.errors;
+              })
     in
     match
       Canonicalization.Module_graph.in_dependency_order
         (Lazy.force prelude_modules @ List.map module_of sources)
     with
-    | Error error -> failwith (Canonicalization.Module_graph.show_error error)
+    | exception Reporting.Error.Found error ->
+        { output = []; errors = [ error ]; sources = written }
+    | Error (Canonicalization.Module_graph.Import_cycle modules) ->
+        {
+          output = [];
+          sources = written;
+          errors =
+            [
+              Reporting.Error.name ~region:(cycle_region ~modules sources)
+                (Reporting.Name_error.Import_cycle { modules });
+            ];
+        }
     | Ok ordered ->
         let runtime =
           match B.runtime_module () with
@@ -200,12 +271,16 @@ module Make (B : BACKEND) = struct
         in
         let finished =
           List.fold_left compile_module
-            { dependencies = []; interfaces = []; output = [] }
+            { dependencies = []; interfaces = []; output = []; errors = [] }
             ordered
         in
-        runtime @ List.rev finished.output
+        {
+          output = (if finished.errors = [] then runtime @ List.rev finished.output else []);
+          errors = List.rev finished.errors;
+          sources = written;
+        }
 
-  let compile_source (content : string) : compiled list =
+  let compile_source (content : string) : outcome =
     compile_modules
       [ File_loader.Files.Elm_file.{ path = "Main.elm"; content } ]
 end

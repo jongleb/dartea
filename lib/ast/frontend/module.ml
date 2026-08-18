@@ -24,7 +24,7 @@ let of_impl impl_list =
             {
               acc with
               type_declarations =
-                String_map.add td.name td acc.type_declarations;
+                String_map.add td.name.thing td acc.type_declarations;
             }
         | Impl.Top_declaration td ->
             {

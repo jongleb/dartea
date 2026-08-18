@@ -1,0 +1,11 @@
+-- IMPORT CYCLE ------------------------------------------------------- Main.elm
+
+Your module imports form a cycle:
+
+3| import Other
+          ^^^^^
+
+    Main -> Other -> Main
+
+Learn more about why this is not allowed at
+<https://elm-lang.org/0.19.1/import-cycles>.

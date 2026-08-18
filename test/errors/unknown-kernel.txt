@@ -1,0 +1,9 @@
+-- UNKNOWN KERNEL ----------------------------------------------------- Main.elm
+
+There is no `Elm.Kernel.String.reverse` kernel value:
+
+2| reverse = Elm.Kernel.String.reverse
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Kernel values are the primitives the compiler knows about, and this is not one
+of them.

@@ -1,0 +1,9 @@
+-- EMPTY CHAR --------------------------------------------------------- Main.elm
+
+I thought I was parsing a character, but I got stuck here:
+
+1| x = ''
+       ^^
+
+Characters look like 'c' and hold exactly one character. For text, use double
+quotes instead.

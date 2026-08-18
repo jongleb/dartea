@@ -1,0 +1,16 @@
+-- TYPE MISMATCH ------------------------------------------------------ Main.elm
+
+I cannot update the `name` field like this:
+
+2| rename r = { r | name = 1 }
+                           ^
+
+This `r` value is a:
+
+    { name : String }
+
+But it should be:
+
+    { name : number, a }
+
+Hint: Try using String.toInt to convert it to an integer?

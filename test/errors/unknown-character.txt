@@ -1,0 +1,8 @@
+-- UNKNOWN CHARACTER -------------------------------------------------- Main.elm
+
+I do not know what `?` means here:
+
+1| x = ?
+       ^
+
+This character cannot start anything I know of.

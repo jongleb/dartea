@@ -1,4 +1,5 @@
-type t = { typ : Type.t; expr : expr } [@@deriving show]
+type t = { typ : Type.t; expr : expr; region : Data.Region.t }
+[@@deriving show]
 
 and expr =
   | Expr_constr of expr_constr
@@ -64,16 +65,17 @@ and expr_record_row = { name : string; value : t } [@@deriving show]
 and expr_record_update = { record : t; fields : expr_record_row list }
 [@@deriving show]
 and expr_apply = { fn : t; arg : t } [@@deriving show]
-and expr_pattern_case = { pattern : Pattern.t; expr : t } [@@deriving show]
+and expr_pattern_case = {
+  pattern : Pattern.t;
+  expr : t;
+  pattern_region : Data.Region.t;
+}
+[@@deriving show]
 
 and expr_pattern = { expr : t; pattern_data_items : expr_pattern_case list }
 [@@deriving show]
 
 and expr_access = { expr : t; field : string Data.Located.t } [@@deriving show]
-
-module Str_set = Set.Make (String)
-
-type canonicalize_env = { constrs : Str_set.t }
 
 let rec zonk (e : t) =
   let inner = zonk in
@@ -107,7 +109,7 @@ let rec zonk (e : t) =
             pattern_data_items =
               List.map
                 (fun (case : expr_pattern_case) ->
-                  { pattern = Pattern.zonk case.pattern; expr = inner case.expr })
+                  { case with pattern = Pattern.zonk case.pattern; expr = inner case.expr })
                 pattern_data_items;
           }
     | Expr_access { expr; field } -> Expr_access { expr = inner expr; field }
@@ -137,5 +139,5 @@ let rec zonk (e : t) =
       | Expr_char _ | Expr_string _ | Expr_int _ | Expr_float _ ) as leaf ->
         leaf
   in
-  { typ = Type.zonk e.typ; expr = settled }
+  { typ = Type.zonk e.typ; expr = settled; region = e.region }
 

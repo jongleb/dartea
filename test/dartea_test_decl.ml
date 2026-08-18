@@ -5,6 +5,9 @@ open Located
 open Expr
 module Main = Parse.Main
 
+let parsed result =
+  Result.get_ok result |> List.map Utils.dummify_all_locs
+
 let test_decl_string _ =
   let expect_data =
     [
@@ -32,8 +35,8 @@ let test_decl_string _ =
   let input = {|
    thisIsTheString: String
    thisIsTheString = "This"|} in
-  let result = Main.parse input in
-  assert_equal (Ok expect_data) result
+  let result = Main.parse ~file:"Main.elm" input in
+  assert_equal expect_data (parsed result)
 
 (* let test_let_in _ =
      let expect_data =
@@ -73,8 +76,8 @@ let test_decl_string _ =
      let input = {|
    lol: Kek
    lol = let a = 2 in 2|} in
-     let result = Main.parse input in
-     assert_equal (Ok expect_data) result
+     let result = Main.parse ~file:"Main.elm" input in
+     assert_equal expect_data (parsed result)
 
    let test_let_in_binop _ =
      let expect_data =
@@ -121,8 +124,8 @@ let test_decl_string _ =
    lol: Kek
    lol = let a = 2 in 2 + 3|}
      in
-     let result = Main.parse input in
-     assert_equal (Ok expect_data) result
+     let result = Main.parse ~file:"Main.elm" input in
+     assert_equal expect_data (parsed result)
 
    let test_let_in_let_in_let _ =
      let expect_data =
@@ -201,8 +204,8 @@ let test_decl_string _ =
    kek: Lol
    kek = let a = let b = let c = 3 in 3 in 3 in 3|}
      in
-     let result = Main.parse input in
-     assert_equal expect_data (Result.get_ok result)
+     let result = Main.parse ~file:"Main.elm" input in
+     assert_equal expect_data (parsed result)
 
    let test_math _ =
      let expect_data =
@@ -248,7 +251,7 @@ let test_decl_string _ =
      let input = {|
    kek: Int
    kek = 2 + 3 * 8 / 2|} in
-     let result = Main.parse input in
+     let result = Main.parse ~file:"Main.elm" input in
      let head = List.hd (Result.get_ok result) in
      let rec calc_binops = function
        | Expr.Expr_binop { name = "/"; operands = a, b } ->
@@ -268,7 +271,7 @@ let test_decl_string _ =
            calc_binops thing
        | _ -> assert false
      in
-     assert_equal expect_data (Result.get_ok result);
+     assert_equal expect_data (parsed result);
      assert_equal (2 + (3 * 8 / 2)) math_result
 
    let test_multiple_let _ =
@@ -323,8 +326,8 @@ let test_decl_string _ =
    b = 3
    c = 4 in 3|}
      in
-     let result = Main.parse input in
-     assert_equal expect_data (Result.get_ok result)
+     let result = Main.parse ~file:"Main.elm" input in
+     assert_equal expect_data (parsed result)
 
    let test_multiple_let_with_types _ =
      let expect_data =
@@ -402,8 +405,8 @@ let test_decl_string _ =
    c: Int
    c = 4 in 3|}
      in
-     let result = Main.parse input in
-     assert_equal expect_data (Result.get_ok result)
+     let result = Main.parse ~file:"Main.elm" input in
+     assert_equal expect_data (parsed result)
 
    let test_if_then_else _ =
      let expect_data =
@@ -451,8 +454,8 @@ let test_decl_string _ =
    lol: Kek
    lol = if True then 3 + 2 else 4 + 5|}
      in
-     let result = Main.parse input in
-     assert_equal expect_data (Result.get_ok result)
+     let result = Main.parse ~file:"Main.elm" input in
+     assert_equal expect_data (parsed result)
 
    let test_if_then_else_if_else _ =
      let expect_data =
@@ -515,8 +518,8 @@ let test_decl_string _ =
    lol: Kek
    lol = if True then 3 + 2 else if False then 4 else if True then 10 else 155|}
      in
-     let result = Main.parse input in
-     assert_equal expect_data (Result.get_ok result)
+     let result = Main.parse ~file:"Main.elm" input in
+     assert_equal expect_data (parsed result)
 
    let test_record _ =
      let expect_data =
@@ -551,8 +554,8 @@ let test_decl_string _ =
    lel: Kek
    lel = { a = "LOL", b = 69 }|}
      in
-     let result = Main.parse input in
-     assert_equal expect_data (Result.get_ok result) *)
+     let result = Main.parse ~file:"Main.elm" input in
+     assert_equal expect_data (parsed result) *)
 
 (* let test_call_fn_inside_record _ =
      let expect_data =
@@ -593,8 +596,8 @@ let test_decl_string _ =
      let input = {|
    lel: Lol
    kek = {a=fn 2 3}|} in
-     let result = Main.parse input in
-     assert_equal expect_data (Result.get_ok result) *)
+     let result = Main.parse ~file:"Main.elm" input in
+     assert_equal expect_data (parsed result) *)
 
 (* let test_call_fn_inside_record_plus_fn _ =
      let expect_data =
@@ -645,8 +648,8 @@ let test_decl_string _ =
    kek: Any
    kek = {a=fn 2 (fn2 2 3) }|}
      in
-     let result = Main.parse input in
-     assert_equal expect_data (Result.get_ok result) *)
+     let result = Main.parse ~file:"Main.elm" input in
+     assert_equal expect_data (parsed result) *)
 
 let test_list_pm _ =
   let expect_data =
@@ -671,50 +674,50 @@ let test_list_pm _ =
                 ~?(Expr.Expr_pattern
                      {
                        Expr.expr =
-                         Expr.Expr_list
-                           [ Expr.Expr_int 1; Expr.Expr_int 2; Expr.Expr_int 4 ];
+                         ~?(Expr.Expr_list
+                           [ ~?(Expr.Expr_int 1); ~?(Expr.Expr_int 2); ~?(Expr.Expr_int 4) ]);
                        pattern_data_items =
                          [
                            {
                              Expr.pattern =
-                               Pattern.P_list
+                               ~?(Pattern.P_list
                                  [
-                                   Pattern.P_int 1;
-                                   Pattern.P_int 3;
-                                   Pattern.P_int 5;
-                                   Pattern.P_int 6;
-                                 ];
-                             expr = Expr.Expr_int 123;
+                                   ~?(Pattern.P_int 1);
+                                   ~?(Pattern.P_int 3);
+                                   ~?(Pattern.P_int 5);
+                                   ~?(Pattern.P_int 6);
+                                 ]);
+                             expr = ~?(Expr.Expr_int 123);
                            };
                            {
                              Expr.pattern =
-                               Pattern.P_list
+                               ~?(Pattern.P_list
                                  [
-                                   Pattern.P_anything;
-                                   Pattern.P_anything;
-                                   Pattern.P_anything;
-                                   Pattern.P_int 19;
-                                 ];
-                             expr = Expr.Expr_int 60;
+                                   ~?(Pattern.P_anything);
+                                   ~?(Pattern.P_anything);
+                                   ~?(Pattern.P_anything);
+                                   ~?(Pattern.P_int 19);
+                                 ]);
+                             expr = ~?(Expr.Expr_int 60);
                            };
                            {
-                             Expr.pattern = Pattern.P_anything;
+                             Expr.pattern = ~?(Pattern.P_anything);
                              expr =
-                               Expr.Expr_pattern
+                               ~?(Expr.Expr_pattern
                                  {
-                                   Expr.expr = Expr.Expr_int 2;
+                                   Expr.expr = ~?(Expr.Expr_int 2);
                                    pattern_data_items =
                                      [
                                        {
-                                         Expr.pattern = Pattern.P_int 2;
-                                         expr = Expr.Expr_int 6;
+                                         Expr.pattern = ~?(Pattern.P_int 2);
+                                         expr = ~?(Expr.Expr_int 6);
                                        };
                                        {
-                                         Expr.pattern = Pattern.P_anything;
-                                         expr = Expr.Expr_int 0;
+                                         Expr.pattern = ~?(Pattern.P_anything);
+                                         expr = ~?(Expr.Expr_int 0);
                                        };
                                      ];
-                                 };
+                                 });
                            };
                          ];
                      });
@@ -732,8 +735,8 @@ listTestPM = case [1, 2, 4] of
     2 -> 6
     _ -> 0|}
   in
-  let result = Main.parse input in
-  assert_equal expect_data (Result.get_ok result)
+  let result = Main.parse ~file:"Main.elm" input in
+  assert_equal expect_data (parsed result)
 
 let test_record_pm _ =
   let expect_data =
@@ -757,16 +760,16 @@ let test_record_pm _ =
               expr =
                 ~?(Expr.Expr_pattern
                      {
-                       Expr.expr = Expr.Expr_int 2;
+                       Expr.expr = ~?(Expr.Expr_int 2);
                        pattern_data_items =
                          [
                            {
-                             Expr.pattern = Pattern.P_record [ "a"; "b"; "c" ];
-                             expr = Expr.Expr_int 3;
+                             Expr.pattern = ~?(Pattern.P_record [ "a"; "b"; "c" ]);
+                             expr = ~?(Expr.Expr_int 3);
                            };
                            {
-                             Expr.pattern = Pattern.P_anything;
-                             expr = Expr.Expr_int 5;
+                             Expr.pattern = ~?(Pattern.P_anything);
+                             expr = ~?(Expr.Expr_int 5);
                            };
                          ];
                      });
@@ -781,8 +784,8 @@ dfsf = case 2 of
   {a, b, c} -> 3
   _ -> 5|}
   in
-  let result = Main.parse input in
-  assert_equal expect_data (Result.get_ok result)
+  let result = Main.parse ~file:"Main.elm" input in
+  assert_equal expect_data (parsed result)
 
 let test_constr_pm _ =
   let expect_data =
@@ -806,35 +809,35 @@ let test_constr_pm _ =
               expr =
                 ~?(Expr.Expr_pattern
                      {
-                       Expr.expr = Expr.Expr_ident "b";
+                       Expr.expr = ~?(Expr.Expr_ident "b");
                        pattern_data_items =
                          [
                            {
                              Expr.pattern =
-                               Pattern.P_ctor
+                               ~?(Pattern.P_ctor
                                  ( "F",
                                    [
-                                     Pattern.P_ctor
+                                     ~?(Pattern.P_ctor
                                        ( "C",
                                          [
-                                           Pattern.P_ctor
-                                             ("D", [ Pattern.P_str "" ]);
-                                         ] );
-                                   ] );
-                             expr = Expr.Expr_int 3;
+                                           ~?(Pattern.P_ctor
+                                             ("D", [ ~?(Pattern.P_str "") ]));
+                                         ] ));
+                                   ] ));
+                             expr = ~?(Expr.Expr_int 3);
                            };
                            {
                              Expr.pattern =
-                               Pattern.P_ctor
+                               ~?(Pattern.P_ctor
                                  ( "F",
                                    [
-                                     Pattern.P_ctor ("C", [ Pattern.P_anything ]);
-                                   ] );
-                             expr = Expr.Expr_int 6;
+                                     ~?(Pattern.P_ctor ("C", [ ~?(Pattern.P_anything) ]));
+                                   ] ));
+                             expr = ~?(Expr.Expr_int 6);
                            };
                            {
-                             Expr.pattern = Pattern.P_anything;
-                             expr = Expr.Expr_int 4;
+                             Expr.pattern = ~?(Pattern.P_anything);
+                             expr = ~?(Expr.Expr_int 4);
                            };
                          ];
                      });
@@ -850,8 +853,8 @@ abcd = case b of
   F (C _) -> 6
   _ -> 4|}
   in
-  let result = Main.parse input in
-  assert_equal expect_data (Result.get_ok result)
+  let result = Main.parse ~file:"Main.elm" input in
+  assert_equal expect_data (parsed result)
 
 let test_cons_pm _ =
   let expect_data =
@@ -875,19 +878,19 @@ let test_cons_pm _ =
               expr =
                 ~?(Expr.Expr_pattern
                      {
-                       Expr.expr = Expr.Expr_int 2;
+                       Expr.expr = ~?(Expr.Expr_int 2);
                        pattern_data_items =
                          [
                            {
                              Expr.pattern =
-                               Pattern.P_cons
-                                 ( Pattern.P_int 2,
-                                   Pattern.P_list [ Pattern.P_int 2 ] );
-                             expr = Expr.Expr_int 3;
+                               ~?(Pattern.P_cons
+                                 ( ~?(Pattern.P_int 2),
+                                   ~?(Pattern.P_list [ ~?(Pattern.P_int 2) ]) ));
+                             expr = ~?(Expr.Expr_int 3);
                            };
                            {
-                             Expr.pattern = Pattern.P_anything;
-                             expr = Expr.Expr_int 5;
+                             Expr.pattern = ~?(Pattern.P_anything);
+                             expr = ~?(Expr.Expr_int 5);
                            };
                          ];
                      });
@@ -902,8 +905,8 @@ dfsf = case 2 of
     2 :: [2] -> 3
     _ -> 5|}
   in
-  let result = Main.parse input in
-  assert_equal expect_data (Result.get_ok result)
+  let result = Main.parse ~file:"Main.elm" input in
+  assert_equal expect_data (parsed result)
 
 let test_import_maybe_two_dots _ =
   let expect_data =
@@ -918,7 +921,7 @@ let test_import_maybe_two_dots _ =
                 Exposing.Upper
                   {
                     Exposing.name = ~?"Maybe";
-                    privacy = Exposing.Public dummy_pair;
+                    privacy = Exposing.Public Data.Region.nowhere;
                   };
               ];
         };
@@ -926,7 +929,7 @@ let test_import_maybe_two_dots _ =
   in
   let input = {|import Maybe exposing ( Maybe(..) )|} in
   let result =
-    input |> Main.parse |> Result.get_ok |> List.map Utils.dummify_all_locs
+    input |> Main.parse ~file:"Main.elm" |> Result.get_ok |> List.map Utils.dummify_all_locs
   in
   assert_equal expect_data result
 
@@ -943,7 +946,7 @@ let test_import_maybe_as_m _ =
   in
   let input = {|import Maybe as M|} in
   let result =
-    input |> Main.parse |> Result.get_ok |> List.map Utils.dummify_all_locs
+    input |> Main.parse ~file:"Main.elm" |> Result.get_ok |> List.map Utils.dummify_all_locs
   in
   assert_equal expect_data result
 
@@ -967,7 +970,7 @@ let test_import_maybe_enum _ =
   in
   let input = {|import List exposing ( map, foldl )|} in
   let result =
-    input |> Main.parse |> Result.get_ok |> List.map Utils.dummify_all_locs
+    input |> Main.parse ~file:"Main.elm" |> Result.get_ok |> List.map Utils.dummify_all_locs
   in
   assert_equal expect_data result
 
@@ -985,11 +988,11 @@ let test_access _ =
                 ~?(Expr.Expr_access
                      {
                        Expr.expr =
-                         Expr.Expr_access
+                         ~?(Expr.Expr_access
                            {
-                             Expr.expr = Expr.Expr_ident "test";
+                             Expr.expr = ~?(Expr.Expr_ident "test");
                              field = ~?"lol";
-                           };
+                           });
                        field = ~?"kek";
                      });
             };
@@ -997,8 +1000,8 @@ let test_access _ =
     ]
   in
   let input = {|abcd = test.lol.kek|} in
-  let result = input |> Main.parse in
-  assert_equal expect_data (Result.get_ok result)
+  let result = input |> Main.parse ~file:"Main.elm" in
+  assert_equal expect_data (parsed result)
 
 (* let test_accessor _ =
    let expect_data =
@@ -1023,15 +1026,15 @@ let test_access _ =
      ]
    in
    let input = {|abcd = map .xField list|} in
-   let result = input |> Main.parse in
-   assert_equal expect_data (Result.get_ok result) *)
+   let result = input |> Main.parse ~file:"Main.elm" in
+   assert_equal expect_data (parsed result) *)
 
 let test_module_export_all _ =
   let expect_data = [ Impl.ModuleName ~?"Lol"; Impl.Export Exposing.Open ] in
   let input = "module Lol exposing (..)\n" in
   (* FIXME: \n terminated (think about it) *)
-  let result = input |> Main.parse in
-  assert_equal expect_data (Result.get_ok result)
+  let result = input |> Main.parse ~file:"Main.elm" in
+  assert_equal expect_data (parsed result)
 
 let test_apply _ =
   let expect_data =
@@ -1050,22 +1053,22 @@ let test_apply _ =
                          {
                            bind_type = None;
                            bind_body =
-                             { Expr.name = ~?"a"; body = Expr.Expr_int 2 };
+                             { Expr.name = ~?"a"; body = ~?(Expr.Expr_int 2) };
                          };
                        body =
-                         Expr.Expr_binop
+                         ~?(Expr.Expr_binop
                            {
                              Expr.name = "+";
-                             operands = (Expr.Expr_ident "a", Expr.Expr_int 3);
-                           };
+                             operands = (~?(Expr.Expr_ident "a"), ~?(Expr.Expr_int 3));
+                           });
                      });
             };
         };
     ]
   in
   let input = {|abcd = let a = 2 in a + 3|} in
-  let result = input |> Main.parse in
-  assert_equal expect_data (Result.get_ok result)
+  let result = input |> Main.parse ~file:"Main.elm" in
+  assert_equal expect_data (parsed result)
 
 let test_apply_long _ =
   let expect_data =
@@ -1084,47 +1087,47 @@ let test_apply_long _ =
                          {
                            bind_type = None;
                            bind_body =
-                             { Expr.name = ~?"a"; body = Expr.Expr_int 2 };
+                             { Expr.name = ~?"a"; body = ~?(Expr.Expr_int 2) };
                          };
                        body =
-                         Expr.Expr_apply
+                         ~?(Expr.Expr_apply
                            {
                              fn =
-                               Expr.Expr_apply
+                               ~?(Expr.Expr_apply
                                  {
                                    fn =
-                                     Expr.Expr_apply
+                                     ~?(Expr.Expr_apply
                                        {
-                                         fn = Expr.Expr_ident "eklmn";
-                                         arg = Expr.Expr_int 5;
-                                       };
-                                   arg = Expr.Expr_ident "a";
-                                 };
+                                         fn = ~?(Expr.Expr_ident "eklmn");
+                                         arg = ~?(Expr.Expr_int 5);
+                                       });
+                                   arg = ~?(Expr.Expr_ident "a");
+                                 });
                              arg =
-                               Expr.Expr_apply
+                               ~?(Expr.Expr_apply
                                  {
                                    fn =
-                                     Expr.Expr_apply
+                                     ~?(Expr.Expr_apply
                                        {
                                          fn =
-                                           Expr.Expr_apply
+                                           ~?(Expr.Expr_apply
                                              {
-                                               fn = Expr.Expr_ident "fb";
-                                               arg = Expr.Expr_int 1;
-                                             };
-                                         arg = Expr.Expr_int 2;
-                                       };
-                                   arg = Expr.Expr_int 3;
-                                 };
-                           };
+                                               fn = ~?(Expr.Expr_ident "fb");
+                                               arg = ~?(Expr.Expr_int 1);
+                                             });
+                                         arg = ~?(Expr.Expr_int 2);
+                                       });
+                                   arg = ~?(Expr.Expr_int 3);
+                                 });
+                           });
                      });
             };
         };
     ]
   in
   let input = {|abcd = let a = 2 in eklmn 5 a (fb 1 2 3)|} in
-  let result = input |> Main.parse in
-  assert_equal expect_data (Result.get_ok result)
+  let result = input |> Main.parse ~file:"Main.elm" in
+  assert_equal expect_data (parsed result)
 
 let decls_wih_a_lot_of_gaps_and_newlines_between _ =
   let expect_data =
@@ -1146,7 +1149,7 @@ let decls_wih_a_lot_of_gaps_and_newlines_between _ =
                 ~?(Expr.Expr_binop
                      {
                        Expr.name = "+";
-                       operands = (Expr.Expr_int 2, Expr.Expr_int 2);
+                       operands = (~?(Expr.Expr_int 2), ~?(Expr.Expr_int 2));
                      });
             };
         };
@@ -1161,7 +1164,7 @@ let decls_wih_a_lot_of_gaps_and_newlines_between _ =
                 ~?(Expr.Expr_binop
                      {
                        Expr.name = "+";
-                       operands = (Expr.Expr_int 2, Expr.Expr_int 3);
+                       operands = (~?(Expr.Expr_int 2), ~?(Expr.Expr_int 3));
                      });
             };
         };
@@ -1185,8 +1188,8 @@ test =
 
 |}
   in
-  let result = input |> Main.parse in
-  assert_equal expect_data (Result.get_ok result)
+  let result = input |> Main.parse ~file:"Main.elm" in
+  assert_equal expect_data (parsed result)
 
 let decl_case_of _ =
   let expect_data =
@@ -1201,25 +1204,25 @@ let decl_case_of _ =
               expr =
                 ~?(Expr.Expr_pattern
                      {
-                       Expr.expr = Expr.Expr_int 2;
+                       Expr.expr = ~?(Expr.Expr_int 2);
                        pattern_data_items =
                          [
                            {
-                             Expr.pattern = Pattern.P_int 2;
-                             expr = Expr.Expr_int 26;
+                             Expr.pattern = ~?(Pattern.P_int 2);
+                             expr = ~?(Expr.Expr_int 26);
                            };
                            {
-                             Expr.pattern = Pattern.P_int 3;
-                             expr = Expr.Expr_int 4;
+                             Expr.pattern = ~?(Pattern.P_int 3);
+                             expr = ~?(Expr.Expr_int 4);
                            };
                            {
-                             Expr.pattern = Pattern.P_anything;
+                             Expr.pattern = ~?(Pattern.P_anything);
                              expr =
-                               Expr.Expr_binop
+                               ~?(Expr.Expr_binop
                                  {
                                    Expr.name = "+";
-                                   operands = (Expr.Expr_int 2, Expr.Expr_int 3);
-                                 };
+                                   operands = (~?(Expr.Expr_int 2), ~?(Expr.Expr_int 3));
+                                 });
                            };
                          ];
                      });
@@ -1240,8 +1243,8 @@ dfsdsf = case 2 of
     + 3
 |}
   in
-  let result = input |> Main.parse in
-  assert_equal expect_data (Result.get_ok result)
+  let result = input |> Main.parse ~file:"Main.elm" in
+  assert_equal expect_data (parsed result)
 
 let decl_case_of_plus_case_of _ =
   let expect_data =
@@ -1256,53 +1259,53 @@ let decl_case_of_plus_case_of _ =
               expr =
                 ~?(Expr.Expr_pattern
                      {
-                       Expr.expr = Expr.Expr_int 2;
+                       Expr.expr = ~?(Expr.Expr_int 2);
                        pattern_data_items =
                          [
                            {
-                             Expr.pattern = Pattern.P_int 2;
-                             expr = Expr.Expr_int 26;
+                             Expr.pattern = ~?(Pattern.P_int 2);
+                             expr = ~?(Expr.Expr_int 26);
                            };
                            {
-                             Expr.pattern = Pattern.P_int 3;
-                             expr = Expr.Expr_int 4;
+                             Expr.pattern = ~?(Pattern.P_int 3);
+                             expr = ~?(Expr.Expr_int 4);
                            };
                            {
-                             Expr.pattern = Pattern.P_anything;
+                             Expr.pattern = ~?(Pattern.P_anything);
                              expr =
-                               Expr.Expr_binop
+                               ~?(Expr.Expr_binop
                                  {
                                    Expr.name = "+";
                                    operands =
-                                     ( Expr.Expr_int 2,
-                                       Expr.Expr_pattern
+                                     ( ~?(Expr.Expr_int 2),
+                                       ~?(Expr.Expr_pattern
                                          {
-                                           Expr.expr = Expr.Expr_int 211;
+                                           Expr.expr = ~?(Expr.Expr_int 211);
                                            pattern_data_items =
                                              [
                                                {
-                                                 Expr.pattern = Pattern.P_int 66;
-                                                 expr = Expr.Expr_int 99;
+                                                 Expr.pattern = ~?(Pattern.P_int 66);
+                                                 expr = ~?(Expr.Expr_int 99);
                                                };
                                                {
-                                                 Expr.pattern = Pattern.P_int 77;
-                                                 expr = Expr.Expr_int 0;
+                                                 Expr.pattern = ~?(Pattern.P_int 77);
+                                                 expr = ~?(Expr.Expr_int 0);
                                                };
                                                {
                                                  Expr.pattern =
-                                                   Pattern.P_anything;
+                                                   ~?(Pattern.P_anything);
                                                  expr =
-                                                   Expr.Expr_binop
+                                                   ~?(Expr.Expr_binop
                                                      {
                                                        Expr.name = "+";
                                                        operands =
-                                                         ( Expr.Expr_int 0,
-                                                           Expr.Expr_int 3 );
-                                                     };
+                                                         ( ~?(Expr.Expr_int 0),
+                                                           ~?(Expr.Expr_int 3) );
+                                                     });
                                                };
                                              ];
-                                         } );
-                                 };
+                                         }) );
+                                 });
                            };
                          ];
                      });
@@ -1330,8 +1333,8 @@ dfsdsf = case 2 of
 
 |}
   in
-  let result = input |> Main.parse in
-  assert_equal expect_data (Result.get_ok result)
+  let result = input |> Main.parse ~file:"Main.elm" in
+  assert_equal expect_data (parsed result)
 
 let let_name_equal_expr _ =
   let expect_data =
@@ -1349,34 +1352,34 @@ let let_name_equal_expr _ =
                        binding =
                          {
                            bind_type = None;
-                           bind_body = { name = ~?"a"; body = Expr_int 2 };
+                           bind_body = { name = ~?"a"; body = ~?(Expr_int 2) };
                          };
                        body =
-                         Expr.Expr_binop
+                         ~?(Expr.Expr_binop
                            {
                              Expr.name = "+";
                              operands =
-                               ( Expr.Expr_binop
+                               ( ~?(Expr.Expr_binop
                                    {
                                      Expr.name = "-";
                                      operands =
-                                       ( Expr.Expr_binop
+                                       ( ~?(Expr.Expr_binop
                                            {
                                              Expr.name = "+";
                                              operands =
-                                               ( Expr.Expr_binop
+                                               ( ~?(Expr.Expr_binop
                                                    {
                                                      Expr.name = "+";
                                                      operands =
-                                                       ( Expr.Expr_ident "a",
-                                                         Expr.Expr_int 3 );
-                                                   },
-                                                 Expr.Expr_int 2 );
-                                           },
-                                         Expr.Expr_int 7 );
-                                   },
-                                 Expr.Expr_int 4 );
-                           };
+                                                       ( ~?(Expr.Expr_ident "a"),
+                                                         ~?(Expr.Expr_int 3) );
+                                                   }),
+                                                 ~?(Expr.Expr_int 2) );
+                                           }),
+                                         ~?(Expr.Expr_int 7) );
+                                   }),
+                                 ~?(Expr.Expr_int 4) );
+                           });
                      });
             };
         };
@@ -1393,57 +1396,55 @@ let let_name_equal_expr _ =
                        binding =
                          {
                            bind_type = None;
-                           bind_body = { name = ~?"a"; body = Expr_int 2 };
+                           bind_body = { name = ~?"a"; body = ~?(Expr_int 2) };
                          };
                        body =
-                         Expr.Expr_let
+                         ~?(Expr.Expr_let
                            {
                              binding =
                                {
                                  bind_type = None;
-                                 bind_body = { name = ~?"y"; body = Expr_int 3 };
+                                 bind_body = { name = ~?"y"; body = ~?(Expr_int 3) };
                                };
                              body =
-                               Expr.Expr_let
+                               ~?(Expr.Expr_let
                                  {
                                    binding =
                                      {
                                        bind_type = None;
                                        bind_body =
-                                         { name = ~?"d"; body = Expr_int 300 };
+                                         { name = ~?"d"; body = ~?(Expr_int 300) };
                                      };
                                    body =
-                                     Expr.Expr_binop
+                                     ~?(Expr.Expr_binop
                                        {
                                          Expr.name = "+";
                                          operands =
-                                           ( Expr.Expr_binop
+                                           ( ~?(Expr.Expr_binop
                                                {
                                                  Expr.name = "-";
                                                  operands =
-                                                   ( Expr.Expr_binop
+                                                   ( ~?(Expr.Expr_binop
                                                        {
                                                          Expr.name = "+";
                                                          operands =
-                                                           ( Expr.Expr_binop
+                                                           ( ~?(Expr.Expr_binop
                                                                {
                                                                  Expr.name = "+";
                                                                  operands =
-                                                                   ( Expr
-                                                                     .Expr_ident
-                                                                       "a",
-                                                                     Expr
-                                                                     .Expr_int
-                                                                       3 );
-                                                               },
-                                                             Expr.Expr_int 2 );
-                                                       },
-                                                     Expr.Expr_int 7 );
-                                               },
-                                             Expr.Expr_int 4 );
-                                       };
-                                 };
-                           };
+                                                                   ( ~?(Expr.Expr_ident
+                                                                       "a"),
+                                                                     ~?(Expr.Expr_int
+                                                                       3) );
+                                                               }),
+                                                             ~?(Expr.Expr_int 2) );
+                                                       }),
+                                                     ~?(Expr.Expr_int 7) );
+                                               }),
+                                             ~?(Expr.Expr_int 4) );
+                                       });
+                                 });
+                           });
                      });
             };
         };
@@ -1460,14 +1461,14 @@ let let_name_equal_expr _ =
                        binding =
                          {
                            bind_type = None;
-                           bind_body = { name = ~?"b"; body = Expr_int 2 };
+                           bind_body = { name = ~?"b"; body = ~?(Expr_int 2) };
                          };
                        body =
-                         Expr.Expr_binop
+                         ~?(Expr.Expr_binop
                            {
                              Expr.name = "+";
-                             operands = (Expr.Expr_int 5, Expr.Expr_int 7);
-                           };
+                             operands = (~?(Expr.Expr_int 5), ~?(Expr.Expr_int 7));
+                           });
                      });
             };
         };
@@ -1484,24 +1485,24 @@ let let_name_equal_expr _ =
                        binding =
                          {
                            bind_type = None;
-                           bind_body = { name = ~?"b"; body = Expr_int 3 };
+                           bind_body = { name = ~?"b"; body = ~?(Expr_int 3) };
                          };
                        body =
-                         Expr.Expr_let
+                         ~?(Expr.Expr_let
                            {
                              binding =
                                {
                                  bind_type = None;
-                                 bind_body = { name = ~?"c"; body = Expr_int 7 };
+                                 bind_body = { name = ~?"c"; body = ~?(Expr_int 7) };
                                };
                              body =
-                               Expr.Expr_binop
+                               ~?(Expr.Expr_binop
                                  {
                                    Expr.name = "+";
                                    operands =
-                                     (Expr.Expr_ident "b", Expr.Expr_ident "c");
-                                 };
-                           };
+                                     (~?(Expr.Expr_ident "b"), ~?(Expr.Expr_ident "c"));
+                                 });
+                           });
                      });
             };
         };
@@ -1518,25 +1519,25 @@ let let_name_equal_expr _ =
                        binding =
                          {
                            bind_type = None;
-                           bind_body = { name = ~?"b"; body = Expr_int 3 };
+                           bind_body = { name = ~?"b"; body = ~?(Expr_int 3) };
                          };
                        body =
-                         Expr.Expr_let
+                         ~?(Expr.Expr_let
                            {
                              binding =
                                {
                                  bind_type = None;
                                  bind_body =
-                                   { name = ~?"x"; body = Expr_int 222 };
+                                   { name = ~?"x"; body = ~?(Expr_int 222) };
                                };
                              body =
-                               Expr.Expr_binop
+                               ~?(Expr.Expr_binop
                                  {
                                    Expr.name = "+";
                                    operands =
-                                     (Expr.Expr_ident "b", Expr.Expr_ident "c");
-                                 };
-                           };
+                                     (~?(Expr.Expr_ident "b"), ~?(Expr.Expr_ident "c"));
+                                 });
+                           });
                      });
             };
         };
@@ -1550,43 +1551,43 @@ let let_name_equal_expr _ =
               expr =
                 ~?(Expr.Expr_pattern
                      {
-                       Expr.expr = Expr.Expr_int 2;
+                       Expr.expr = ~?(Expr.Expr_int 2);
                        pattern_data_items =
                          [
                            {
-                             Expr.pattern = Pattern.P_int 2;
-                             expr = Expr.Expr_int 26;
+                             Expr.pattern = ~?(Pattern.P_int 2);
+                             expr = ~?(Expr.Expr_int 26);
                            };
                            {
-                             Expr.pattern = Pattern.P_int 3;
-                             expr = Expr.Expr_int 4;
+                             Expr.pattern = ~?(Pattern.P_int 3);
+                             expr = ~?(Expr.Expr_int 4);
                            };
                            {
-                             Expr.pattern = Pattern.P_anything;
+                             Expr.pattern = ~?(Pattern.P_anything);
                              expr =
-                               Expr.Expr_binop
+                               ~?(Expr.Expr_binop
                                  {
                                    Expr.name = "+";
                                    operands =
-                                     ( Expr.Expr_int 2,
-                                       Expr.Expr_pattern
+                                     ( ~?(Expr.Expr_int 2),
+                                       ~?(Expr.Expr_pattern
                                          {
-                                           Expr.expr = Expr.Expr_int 211;
+                                           Expr.expr = ~?(Expr.Expr_int 211);
                                            pattern_data_items =
                                              [
                                                {
-                                                 Expr.pattern = Pattern.P_int 66;
-                                                 expr = Expr.Expr_int 99;
+                                                 Expr.pattern = ~?(Pattern.P_int 66);
+                                                 expr = ~?(Expr.Expr_int 99);
                                                };
                                                {
-                                                 Expr.pattern = Pattern.P_int 77;
-                                                 expr = Expr.Expr_int 0;
+                                                 Expr.pattern = ~?(Pattern.P_int 77);
+                                                 expr = ~?(Expr.Expr_int 0);
                                                };
                                                {
                                                  Expr.pattern =
-                                                   Pattern.P_anything;
+                                                   ~?(Pattern.P_anything);
                                                  expr =
-                                                   Expr.Expr_let
+                                                   ~?(Expr.Expr_let
                                                      {
                                                        binding =
                                                          {
@@ -1595,22 +1596,20 @@ let let_name_equal_expr _ =
                                                              {
                                                                name = ~?"a";
                                                                body =
-                                                                 Expr.Expr_binop
+                                                                 ~?(Expr.Expr_binop
                                                                    {
                                                                      Expr.name =
                                                                        "+";
                                                                      operands =
-                                                                       ( Expr
-                                                                         .Expr_int
-                                                                           3,
-                                                                         Expr
-                                                                         .Expr_int
-                                                                           4 );
-                                                                   };
+                                                                       ( ~?(Expr.Expr_int
+                                                                           3),
+                                                                         ~?(Expr.Expr_int
+                                                                           4) );
+                                                                   });
                                                              };
                                                          };
                                                        body =
-                                                         Expr.Expr_let
+                                                         ~?(Expr.Expr_let
                                                            {
                                                              binding =
                                                                {
@@ -1621,12 +1620,12 @@ let let_name_equal_expr _ =
                                                                      name =
                                                                        ~?"b";
                                                                      body =
-                                                                       Expr_int
-                                                                         3;
+                                                                       ~?(Expr_int
+                                                                         3);
                                                                    };
                                                                };
                                                              body =
-                                                               Expr.Expr_let
+                                                               ~?(Expr.Expr_let
                                                                  {
                                                                    binding =
                                                                      {
@@ -1637,8 +1636,7 @@ let let_name_equal_expr _ =
                                                                            name =
                                                                              ~?"cd";
                                                                            body =
-                                                                             Expr
-                                                                             .Expr_let
+                                                                             ~?(Expr.Expr_let
                                                                                {
                                                                                 binding =
                                                                                 {
@@ -1649,33 +1647,28 @@ let let_name_equal_expr _ =
                                                                                 name =
                                                                                 ~?"c";
                                                                                 body =
-                                                                                Expr_int
-                                                                                2;
+                                                                                ~?(Expr_int
+                                                                                2);
                                                                                 };
                                                                                 };
                                                                                 body =
-                                                                                Expr
-                                                                                .Expr_binop
+                                                                                ~?(Expr.Expr_binop
                                                                                 {
-                                                                                Expr
-                                                                                .name =
+                                                                                Expr.name =
                                                                                 "+";
                                                                                 operands =
                                                                                 ( 
-                                                                                Expr
-                                                                                .Expr_ident
-                                                                                "c",
-                                                                                Expr
-                                                                                .Expr_int
-                                                                                5
+                                                                                ~?(Expr.Expr_ident
+                                                                                "c"),
+                                                                                ~?(Expr.Expr_int
+                                                                                5)
                                                                                 );
-                                                                                };
-                                                                               };
+                                                                                });
+                                                                               });
                                                                          };
                                                                      };
                                                                    body =
-                                                                     Expr
-                                                                     .Expr_let
+                                                                     ~?(Expr.Expr_let
                                                                        {
                                                                          binding =
                                                                            {
@@ -1686,35 +1679,26 @@ let let_name_equal_expr _ =
                                                                                 name =
                                                                                 ~?"resultttttttt";
                                                                                 body =
-                                                                                Expr
-                                                                                .Expr_pattern
+                                                                                ~?(Expr.Expr_pattern
                                                                                 {
-                                                                                Expr
-                                                                                .expr =
-                                                                                Expr
-                                                                                .Expr_int
-                                                                                2222;
+                                                                                Expr.expr =
+                                                                                ~?(Expr.Expr_int
+                                                                                2222);
                                                                                 pattern_data_items =
                                                                                 [
                                                                                 {
-                                                                                Expr
-                                                                                .pattern =
-                                                                                Pattern
-                                                                                .P_int
-                                                                                3;
+                                                                                Expr.pattern =
+                                                                                ~?(Pattern.P_int
+                                                                                3);
                                                                                 expr =
-                                                                                Expr
-                                                                                .Expr_int
-                                                                                3;
+                                                                                ~?(Expr.Expr_int
+                                                                                3);
                                                                                 };
                                                                                 {
-                                                                                Expr
-                                                                                .pattern =
-                                                                                Pattern
-                                                                                .P_anything;
+                                                                                Expr.pattern =
+                                                                                ~?(Pattern.P_anything);
                                                                                 expr =
-                                                                                Expr
-                                                                                .Expr_let
+                                                                                ~?(Expr.Expr_let
                                                                                 {
                                                                                 binding =
                                                                                 {
@@ -1725,30 +1709,24 @@ let let_name_equal_expr _ =
                                                                                 name =
                                                                                 ~?"c";
                                                                                 body =
-                                                                                Expr_int
-                                                                                3;
+                                                                                ~?(Expr_int
+                                                                                3);
                                                                                 };
                                                                                 };
                                                                                 body =
-                                                                                Expr
-                                                                                .Expr_pattern
+                                                                                ~?(Expr.Expr_pattern
                                                                                 {
-                                                                                Expr
-                                                                                .expr =
-                                                                                Expr
-                                                                                .Expr_int
-                                                                                3;
+                                                                                Expr.expr =
+                                                                                ~?(Expr.Expr_int
+                                                                                3);
                                                                                 pattern_data_items =
                                                                                 [
                                                                                 {
-                                                                                Expr
-                                                                                .pattern =
-                                                                                Pattern
-                                                                                .P_int
-                                                                                2;
+                                                                                Expr.pattern =
+                                                                                ~?(Pattern.P_int
+                                                                                2);
                                                                                 expr =
-                                                                                Expr
-                                                                                .Expr_let
+                                                                                ~?(Expr.Expr_let
                                                                                 {
                                                                                 binding =
                                                                                 {
@@ -1759,86 +1737,71 @@ let let_name_equal_expr _ =
                                                                                 name =
                                                                                 ~?"fddg";
                                                                                 body =
-                                                                                Expr
-                                                                                .Expr_binop
+                                                                                ~?(Expr.Expr_binop
                                                                                 {
-                                                                                Expr
-                                                                                .name =
+                                                                                Expr.name =
                                                                                 "+";
                                                                                 operands =
                                                                                 ( 
-                                                                                Expr
-                                                                                .Expr_binop
+                                                                                ~?(Expr.Expr_binop
                                                                                 {
-                                                                                Expr
-                                                                                .name =
+                                                                                Expr.name =
                                                                                 "+";
                                                                                 operands =
                                                                                 ( 
-                                                                                Expr
-                                                                                .Expr_int
-                                                                                3,
-                                                                                Expr
-                                                                                .Expr_int
-                                                                                4
+                                                                                ~?(Expr.Expr_int
+                                                                                3),
+                                                                                ~?(Expr.Expr_int
+                                                                                4)
                                                                                 );
-                                                                                },
-                                                                                Expr
-                                                                                .Expr_int
-                                                                                4
+                                                                                }),
+                                                                                ~?(Expr.Expr_int
+                                                                                4)
                                                                                 );
-                                                                                };
+                                                                                });
                                                                                 };
                                                                                 };
                                                                                 body =
-                                                                                Expr
-                                                                                .Expr_int
-                                                                                2;
-                                                                                };
+                                                                                ~?(Expr.Expr_int
+                                                                                2);
+                                                                                });
                                                                                 };
                                                                                 {
-                                                                                Expr
-                                                                                .pattern =
-                                                                                Pattern
-                                                                                .P_anything;
+                                                                                Expr.pattern =
+                                                                                ~?(Pattern.P_anything);
                                                                                 expr =
-                                                                                Expr
-                                                                                .Expr_int
-                                                                                55555;
+                                                                                ~?(Expr.Expr_int
+                                                                                55555);
                                                                                 };
                                                                                 ];
-                                                                                };
-                                                                                };
+                                                                                });
+                                                                                });
                                                                                 };
                                                                                 ];
-                                                                                };
+                                                                                });
                                                                                };
                                                                            };
                                                                          body =
-                                                                           Expr
-                                                                           .Expr_binop
+                                                                           ~?(Expr.Expr_binop
                                                                              {
-                                                                               Expr
-                                                                               .name =
+                                                                               Expr.name =
                                                                                 "+";
                                                                                operands =
                                                                                 ( 
-                                                                                Expr
-                                                                                .Expr_ident
-                                                                                "b",
-                                                                                Expr
-                                                                                .Expr_int
-                                                                                3
+                                                                                ~?(Expr.Expr_ident
+                                                                                "b"),
+                                                                                ~?(Expr.Expr_int
+                                                                                3)
                                                                                 );
-                                                                             };
-                                                                       };
-                                                                 };
-                                                           };
-                                                     };
+                                                                             });
+                                                                       });
+                                                                 });
+                                                           });
+                                                     });
                                                };
                                              ];
-                                         } );
-                                 };
+                                         }) );
+                                 });
                            };
                          ];
                      });
@@ -1857,28 +1820,28 @@ let let_name_equal_expr _ =
                        binding =
                          {
                            bind_type = None;
-                           bind_body = { name = ~?"v"; body = Expr_int 3 };
+                           bind_body = { name = ~?"v"; body = ~?(Expr_int 3) };
                          };
                        body =
-                         Expr.Expr_let
+                         ~?(Expr.Expr_let
                            {
                              binding =
                                {
                                  bind_type = None;
-                                 bind_body = { name = ~?"c"; body = Expr_int 3 };
+                                 bind_body = { name = ~?"c"; body = ~?(Expr_int 3) };
                                };
                              body =
-                               Expr.Expr_let
+                               ~?(Expr.Expr_let
                                  {
                                    binding =
                                      {
                                        bind_type = None;
                                        bind_body =
-                                         { name = ~?"c2"; body = Expr_int 8 };
+                                         { name = ~?"c2"; body = ~?(Expr_int 8) };
                                      };
-                                   body = Expr.Expr_int 1;
-                                 };
-                           };
+                                   body = ~?(Expr.Expr_int 1);
+                                 });
+                           });
                      });
             };
         };
@@ -1895,10 +1858,10 @@ let let_name_equal_expr _ =
                        binding =
                          {
                            bind_type = None;
-                           bind_body = { name = ~?"a"; body = Expr_int 3 };
+                           bind_body = { name = ~?"a"; body = ~?(Expr_int 3) };
                          };
                        body =
-                         Expr.Expr_let
+                         ~?(Expr.Expr_let
                            {
                              binding =
                                {
@@ -1907,16 +1870,16 @@ let let_name_equal_expr _ =
                                    {
                                      name = ~?"c";
                                      body =
-                                       Expr.Expr_binop
+                                       ~?(Expr.Expr_binop
                                          {
                                            Expr.name = "+";
                                            operands =
-                                             (Expr.Expr_int 6, Expr.Expr_int 1);
-                                         };
+                                             (~?(Expr.Expr_int 6), ~?(Expr.Expr_int 1));
+                                         });
                                    };
                                };
                              body =
-                               Expr.Expr_let
+                               ~?(Expr.Expr_let
                                  {
                                    binding =
                                      {
@@ -1925,7 +1888,7 @@ let let_name_equal_expr _ =
                                          {
                                            name = ~?"o";
                                            body =
-                                             Expr.Expr_let
+                                             ~?(Expr.Expr_let
                                                {
                                                  binding =
                                                    {
@@ -1934,31 +1897,31 @@ let let_name_equal_expr _ =
                                                        {
                                                          name = ~?"x";
                                                          body =
-                                                           Expr.Expr_binop
+                                                           ~?(Expr.Expr_binop
                                                              {
                                                                Expr.name = "+";
                                                                operands =
-                                                                 ( Expr.Expr_int
-                                                                     6,
-                                                                   Expr.Expr_int
-                                                                     2 );
-                                                             };
+                                                                 ( ~?(Expr.Expr_int
+                                                                     6),
+                                                                   ~?(Expr.Expr_int
+                                                                     2) );
+                                                             });
                                                        };
                                                    };
                                                  body =
-                                                   Expr.Expr_binop
+                                                   ~?(Expr.Expr_binop
                                                      {
                                                        Expr.name = "+";
                                                        operands =
-                                                         ( Expr.Expr_ident "x",
-                                                           Expr.Expr_int 3 );
-                                                     };
-                                               };
+                                                         ( ~?(Expr.Expr_ident "x"),
+                                                           ~?(Expr.Expr_int 3) );
+                                                     });
+                                               });
                                          };
                                      };
-                                   body = Expr.Expr_int 33333;
-                                 };
-                           };
+                                   body = ~?(Expr.Expr_int 33333);
+                                 });
+                           });
                      });
             };
         };
@@ -2057,8 +2020,8 @@ xxx =
 
 |}
   in
-  let result = input |> Main.parse in
-  assert_equal expect_data (Result.get_ok result)
+  let result = input |> Main.parse ~file:"Main.elm" in
+  assert_equal expect_data (parsed result)
 
 let ifthenelse_test _ =
   let expect_data =
@@ -2074,23 +2037,23 @@ let ifthenelse_test _ =
                 ~?(Expr.Expr_if_then_else
                      {
                        if_exp =
-                         Expr.Expr_binop
+                         ~?(Expr.Expr_binop
                            {
                              Expr.name = ">";
-                             operands = (Expr.Expr_int 3, Expr.Expr_int 4);
-                           };
+                             operands = (~?(Expr.Expr_int 3), ~?(Expr.Expr_int 4));
+                           });
                        then_exp =
-                         Expr.Expr_binop
+                         ~?(Expr.Expr_binop
                            {
                              Expr.name = "-";
-                             operands = (Expr.Expr_int 6, Expr.Expr_int 2);
-                           };
+                             operands = (~?(Expr.Expr_int 6), ~?(Expr.Expr_int 2));
+                           });
                        else_exp =
-                         Expr.Expr_binop
+                         ~?(Expr.Expr_binop
                            {
                              Expr.name = "-";
-                             operands = (Expr.Expr_int 5, Expr.Expr_int 2);
-                           };
+                             operands = (~?(Expr.Expr_int 5), ~?(Expr.Expr_int 2));
+                           });
                      });
             };
         };
@@ -2116,8 +2079,8 @@ kek = if 3 > 4
   
   |}
   in
-  let result = input |> Main.parse in
-  assert_equal expect_data (Result.get_ok result)
+  let result = input |> Main.parse ~file:"Main.elm" in
+  assert_equal expect_data (parsed result)
 
 let giant_merged_test _ =
   let expected_data =
@@ -2135,10 +2098,10 @@ let giant_merged_test _ =
                        binding =
                          {
                            bind_type = None;
-                           bind_body = { name = ~?"a"; body = Expr_int 3 };
+                           bind_body = { name = ~?"a"; body = ~?(Expr_int 3) };
                          };
                        body =
-                         Expr.Expr_let
+                         ~?(Expr.Expr_let
                            {
                              binding =
                                {
@@ -2147,32 +2110,32 @@ let giant_merged_test _ =
                                    {
                                      name = ~?"b";
                                      body =
-                                       Expr.Expr_pattern
+                                       ~?(Expr.Expr_pattern
                                          {
-                                           Expr.expr = Expr.Expr_int 5;
+                                           Expr.expr = ~?(Expr.Expr_int 5);
                                            pattern_data_items =
                                              [
                                                {
-                                                 Expr.pattern = Pattern.P_int 3;
-                                                 expr = Expr.Expr_int 4;
+                                                 Expr.pattern = ~?(Pattern.P_int 3);
+                                                 expr = ~?(Expr.Expr_int 4);
                                                };
                                                {
-                                                 Expr.pattern = Pattern.P_int 5;
+                                                 Expr.pattern = ~?(Pattern.P_int 5);
                                                  expr =
-                                                   Expr.Expr_if_then_else
+                                                   ~?(Expr.Expr_if_then_else
                                                      {
                                                        if_exp =
-                                                         Expr.Expr_binop
+                                                         ~?(Expr.Expr_binop
                                                            {
                                                              Expr.name = ">";
                                                              operands =
-                                                               ( Expr.Expr_ident
-                                                                   "a",
-                                                                 Expr.Expr_int 2
+                                                               ( ~?(Expr.Expr_ident
+                                                                   "a"),
+                                                                 ~?(Expr.Expr_int 2)
                                                                );
-                                                           };
+                                                           });
                                                        then_exp =
-                                                         Expr.Expr_let
+                                                         ~?(Expr.Expr_let
                                                            {
                                                              binding =
                                                                {
@@ -2183,28 +2146,24 @@ let giant_merged_test _ =
                                                                      name =
                                                                        ~?"x";
                                                                      body =
-                                                                       Expr_int
-                                                                         6;
+                                                                       ~?(Expr_int
+                                                                         6);
                                                                    };
                                                                };
                                                              body =
-                                                               Expr.Expr_pattern
+                                                               ~?(Expr.Expr_pattern
                                                                  {
                                                                    Expr.expr =
-                                                                     Expr
-                                                                     .Expr_ident
-                                                                       "x";
+                                                                     ~?(Expr.Expr_ident
+                                                                       "x");
                                                                    pattern_data_items =
                                                                      [
                                                                        {
-                                                                         Expr
-                                                                         .pattern =
-                                                                           Pattern
-                                                                           .P_int
-                                                                             6;
+                                                                         Expr.pattern =
+                                                                           ~?(Pattern.P_int
+                                                                             6);
                                                                          expr =
-                                                                           Expr
-                                                                           .Expr_let
+                                                                           ~?(Expr.Expr_let
                                                                              {
                                                                                binding =
                                                                                 {
@@ -2215,51 +2174,44 @@ let giant_merged_test _ =
                                                                                 name =
                                                                                 ~?"y";
                                                                                 body =
-                                                                                Expr_int
-                                                                                7;
+                                                                                ~?(Expr_int
+                                                                                7);
                                                                                 };
                                                                                 };
                                                                                body =
-                                                                                Expr
-                                                                                .Expr_binop
+                                                                                ~?(Expr.Expr_binop
                                                                                 {
-                                                                                Expr
-                                                                                .name =
+                                                                                Expr.name =
                                                                                 "+";
                                                                                 operands =
                                                                                 ( 
-                                                                                Expr
-                                                                                .Expr_ident
-                                                                                "y",
-                                                                                Expr
-                                                                                .Expr_int
-                                                                                2
+                                                                                ~?(Expr.Expr_ident
+                                                                                "y"),
+                                                                                ~?(Expr.Expr_int
+                                                                                2)
                                                                                 );
-                                                                                };
-                                                                             };
+                                                                                });
+                                                                             });
                                                                        };
                                                                        {
-                                                                         Expr
-                                                                         .pattern =
-                                                                           Pattern
-                                                                           .P_anything;
+                                                                         Expr.pattern =
+                                                                           ~?(Pattern.P_anything);
                                                                          expr =
-                                                                           Expr
-                                                                           .Expr_int
-                                                                             0;
+                                                                           ~?(Expr.Expr_int
+                                                                             0);
                                                                        };
                                                                      ];
-                                                                 };
-                                                           };
+                                                                 });
+                                                           });
                                                        else_exp =
-                                                         Expr.Expr_int 5;
-                                                     };
+                                                         ~?(Expr.Expr_int 5);
+                                                     });
                                                };
                                                {
                                                  Expr.pattern =
-                                                   Pattern.P_anything;
+                                                   ~?(Pattern.P_anything);
                                                  expr =
-                                                   Expr.Expr_let
+                                                   ~?(Expr.Expr_let
                                                      {
                                                        binding =
                                                          {
@@ -2268,45 +2220,35 @@ let giant_merged_test _ =
                                                              {
                                                                name = ~?"temp";
                                                                body =
-                                                                 Expr
-                                                                 .Expr_pattern
+                                                                 ~?(Expr.Expr_pattern
                                                                    {
                                                                      Expr.expr =
-                                                                       Expr
-                                                                       .Expr_int
-                                                                         3;
+                                                                       ~?(Expr.Expr_int
+                                                                         3);
                                                                      pattern_data_items =
                                                                        [
                                                                          {
-                                                                           Expr
-                                                                           .pattern =
-                                                                             Pattern
-                                                                             .P_int
-                                                                               4;
+                                                                           Expr.pattern =
+                                                                             ~?(Pattern.P_int
+                                                                               4);
                                                                            expr =
-                                                                             Expr
-                                                                             .Expr_if_then_else
+                                                                             ~?(Expr.Expr_if_then_else
                                                                                {
                                                                                 if_exp =
-                                                                                Expr
-                                                                                .Expr_binop
+                                                                                ~?(Expr.Expr_binop
                                                                                 {
-                                                                                Expr
-                                                                                .name =
+                                                                                Expr.name =
                                                                                 ">";
                                                                                 operands =
                                                                                 ( 
-                                                                                Expr
-                                                                                .Expr_int
-                                                                                2,
-                                                                                Expr
-                                                                                .Expr_int
-                                                                                3
+                                                                                ~?(Expr.Expr_int
+                                                                                2),
+                                                                                ~?(Expr.Expr_int
+                                                                                3)
                                                                                 );
-                                                                                };
+                                                                                });
                                                                                 then_exp =
-                                                                                Expr
-                                                                                .Expr_let
+                                                                                ~?(Expr.Expr_let
                                                                                 {
                                                                                 binding =
                                                                                 {
@@ -2317,66 +2259,58 @@ let giant_merged_test _ =
                                                                                 name =
                                                                                 ~?"deep";
                                                                                 body =
-                                                                                Expr_int
-                                                                                8;
+                                                                                ~?(Expr_int
+                                                                                8);
                                                                                 };
                                                                                 };
                                                                                 body =
-                                                                                Expr
-                                                                                .Expr_binop
+                                                                                ~?(Expr.Expr_binop
                                                                                 {
-                                                                                Expr
-                                                                                .name =
+                                                                                Expr.name =
                                                                                 "+";
                                                                                 operands =
                                                                                 ( 
-                                                                                Expr
-                                                                                .Expr_ident
-                                                                                "deep",
-                                                                                Expr
-                                                                                .Expr_int
-                                                                                1
+                                                                                ~?(Expr.Expr_ident
+                                                                                "deep"),
+                                                                                ~?(Expr.Expr_int
+                                                                                1)
                                                                                 );
-                                                                                };
-                                                                                };
+                                                                                });
+                                                                                });
                                                                                 else_exp =
-                                                                                Expr
-                                                                                .Expr_int
-                                                                                0;
-                                                                               };
+                                                                                ~?(Expr.Expr_int
+                                                                                0);
+                                                                               });
                                                                          };
                                                                          {
-                                                                           Expr
-                                                                           .pattern =
-                                                                             Pattern
-                                                                             .P_anything;
+                                                                           Expr.pattern =
+                                                                             ~?(Pattern.P_anything);
                                                                            expr =
-                                                                             Expr
-                                                                             .Expr_int
-                                                                               5;
+                                                                             ~?(Expr.Expr_int
+                                                                               5);
                                                                          };
                                                                        ];
-                                                                   };
+                                                                   });
                                                              };
                                                          };
                                                        body =
-                                                         Expr.Expr_binop
+                                                         ~?(Expr.Expr_binop
                                                            {
                                                              Expr.name = "+";
                                                              operands =
-                                                               ( Expr.Expr_ident
-                                                                   "temp",
-                                                                 Expr.Expr_int 3
+                                                               ( ~?(Expr.Expr_ident
+                                                                   "temp"),
+                                                                 ~?(Expr.Expr_int 3)
                                                                );
-                                                           };
-                                                     };
+                                                           });
+                                                     });
                                                };
                                              ];
-                                         };
+                                         });
                                    };
                                };
                              body =
-                               Expr.Expr_let
+                               ~?(Expr.Expr_let
                                  {
                                    binding =
                                      {
@@ -2385,28 +2319,28 @@ let giant_merged_test _ =
                                          {
                                            name = ~?"final";
                                            body =
-                                             Expr.Expr_if_then_else
+                                             ~?(Expr.Expr_if_then_else
                                                {
                                                  if_exp =
-                                                   Expr.Expr_binop
+                                                   ~?(Expr.Expr_binop
                                                      {
                                                        Expr.name = ">";
                                                        operands =
-                                                         ( Expr.Expr_ident "b",
-                                                           Expr.Expr_int 10 );
-                                                     };
+                                                         ( ~?(Expr.Expr_ident "b"),
+                                                           ~?(Expr.Expr_int 10) );
+                                                     });
                                                  then_exp =
-                                                   Expr.Expr_pattern
+                                                   ~?(Expr.Expr_pattern
                                                      {
                                                        Expr.expr =
-                                                         Expr.Expr_ident "b";
+                                                         ~?(Expr.Expr_ident "b");
                                                        pattern_data_items =
                                                          [
                                                            {
                                                              Expr.pattern =
-                                                               Pattern.P_int 11;
+                                                               ~?(Pattern.P_int 11);
                                                              expr =
-                                                               Expr.Expr_let
+                                                               ~?(Expr.Expr_let
                                                                  {
                                                                    binding =
                                                                      {
@@ -2417,66 +2351,55 @@ let giant_merged_test _ =
                                                                            name =
                                                                              ~?"final_temp";
                                                                            body =
-                                                                             Expr_int
-                                                                               15;
+                                                                             ~?(Expr_int
+                                                                               15);
                                                                          };
                                                                      };
                                                                    body =
-                                                                     Expr
-                                                                     .Expr_if_then_else
+                                                                     ~?(Expr.Expr_if_then_else
                                                                        {
                                                                          if_exp =
-                                                                           Expr
-                                                                           .Expr_binop
+                                                                           ~?(Expr.Expr_binop
                                                                              {
-                                                                               Expr
-                                                                               .name =
+                                                                               Expr.name =
                                                                                 ">";
                                                                                operands =
                                                                                 ( 
-                                                                                Expr
-                                                                                .Expr_ident
-                                                                                "final_temp",
-                                                                                Expr
-                                                                                .Expr_int
-                                                                                10
+                                                                                ~?(Expr.Expr_ident
+                                                                                "final_temp"),
+                                                                                ~?(Expr.Expr_int
+                                                                                10)
                                                                                 );
-                                                                             };
+                                                                             });
                                                                          then_exp =
-                                                                           Expr
-                                                                           .Expr_binop
+                                                                           ~?(Expr.Expr_binop
                                                                              {
-                                                                               Expr
-                                                                               .name =
+                                                                               Expr.name =
                                                                                 "+";
                                                                                operands =
                                                                                 ( 
-                                                                                Expr
-                                                                                .Expr_ident
-                                                                                "final_temp",
-                                                                                Expr
-                                                                                .Expr_int
-                                                                                2
+                                                                                ~?(Expr.Expr_ident
+                                                                                "final_temp"),
+                                                                                ~?(Expr.Expr_int
+                                                                                2)
                                                                                 );
-                                                                             };
+                                                                             });
                                                                          else_exp =
-                                                                           Expr
-                                                                           .Expr_int
-                                                                             0;
-                                                                       };
-                                                                 };
+                                                                           ~?(Expr.Expr_int
+                                                                             0);
+                                                                       });
+                                                                 });
                                                            };
                                                            {
                                                              Expr.pattern =
-                                                               Pattern
-                                                               .P_anything;
+                                                               ~?(Pattern.P_anything);
                                                              expr =
-                                                               Expr.Expr_int 100;
+                                                               ~?(Expr.Expr_int 100);
                                                            };
                                                          ];
-                                                     };
+                                                     });
                                                  else_exp =
-                                                   Expr.Expr_let
+                                                   ~?(Expr.Expr_let
                                                      {
                                                        binding =
                                                          {
@@ -2486,33 +2409,33 @@ let giant_merged_test _ =
                                                                name =
                                                                  ~?"default";
                                                                body =
-                                                                 Expr_int 50;
+                                                                 ~?(Expr_int 50);
                                                              };
                                                          };
                                                        body =
-                                                         Expr.Expr_binop
+                                                         ~?(Expr.Expr_binop
                                                            {
                                                              Expr.name = "-";
                                                              operands =
-                                                               ( Expr.Expr_ident
-                                                                   "default",
-                                                                 Expr.Expr_int 5
+                                                               ( ~?(Expr.Expr_ident
+                                                                   "default"),
+                                                                 ~?(Expr.Expr_int 5)
                                                                );
-                                                           };
-                                                     };
-                                               };
+                                                           });
+                                                     });
+                                               });
                                          };
                                      };
                                    body =
-                                     Expr.Expr_binop
+                                     ~?(Expr.Expr_binop
                                        {
                                          Expr.name = "+";
                                          operands =
-                                           ( Expr.Expr_ident "final",
-                                             Expr.Expr_ident "a" );
-                                       };
-                                 };
-                           };
+                                           ( ~?(Expr.Expr_ident "final"),
+                                             ~?(Expr.Expr_ident "a") );
+                                       });
+                                 });
+                           });
                      });
             };
         };
@@ -2570,8 +2493,8 @@ megaTest = let a = 3 in
 
 |}
   in
-  let result = input |> Main.parse in
-  assert_equal expected_data (Result.get_ok result)
+  let result = input |> Main.parse ~file:"Main.elm" in
+  assert_equal expected_data (parsed result)
 
 let giant_merged_test2 _ =
   let expected_data =
@@ -2593,44 +2516,44 @@ let giant_merged_test2 _ =
                              {
                                name = ~?"start";
                                body =
-                                 Expr.Expr_binop
+                                 ~?(Expr.Expr_binop
                                    {
                                      Expr.name = "+";
                                      operands =
-                                       (Expr.Expr_int 3, Expr.Expr_int 2);
-                                   };
+                                       (~?(Expr.Expr_int 3), ~?(Expr.Expr_int 2));
+                                   });
                              };
                          };
                        body =
-                         Expr.Expr_pattern
+                         ~?(Expr.Expr_pattern
                            {
-                             Expr.expr = Expr.Expr_ident "start";
+                             Expr.expr = ~?(Expr.Expr_ident "start");
                              pattern_data_items =
                                [
                                  {
-                                   Expr.pattern = Pattern.P_int 5;
+                                   Expr.pattern = ~?(Pattern.P_int 5);
                                    expr =
-                                     Expr.Expr_if_then_else
+                                     ~?(Expr.Expr_if_then_else
                                        {
                                          if_exp =
-                                           Expr.Expr_binop
+                                           ~?(Expr.Expr_binop
                                              {
                                                Expr.name = ">";
                                                operands =
-                                                 ( Expr.Expr_int 3,
-                                                   Expr.Expr_int 2 );
-                                             };
+                                                 ( ~?(Expr.Expr_int 3),
+                                                   ~?(Expr.Expr_int 2) );
+                                             });
                                          then_exp =
-                                           Expr.Expr_pattern
+                                           ~?(Expr.Expr_pattern
                                              {
-                                               Expr.expr = Expr.Expr_int 10;
+                                               Expr.expr = ~?(Expr.Expr_int 10);
                                                pattern_data_items =
                                                  [
                                                    {
                                                      Expr.pattern =
-                                                       Pattern.P_int 10;
+                                                       ~?(Pattern.P_int 10);
                                                      expr =
-                                                       Expr.Expr_let
+                                                       ~?(Expr.Expr_let
                                                          {
                                                            binding =
                                                              {
@@ -2640,27 +2563,23 @@ let giant_merged_test2 _ =
                                                                    name =
                                                                      ~?"temp";
                                                                    body =
-                                                                     Expr_int 8;
+                                                                     ~?(Expr_int 8);
                                                                  };
                                                              };
                                                            body =
-                                                             Expr.Expr_pattern
+                                                             ~?(Expr.Expr_pattern
                                                                {
                                                                  Expr.expr =
-                                                                   Expr
-                                                                   .Expr_ident
-                                                                     "temp";
+                                                                   ~?(Expr.Expr_ident
+                                                                     "temp");
                                                                  pattern_data_items =
                                                                    [
                                                                      {
-                                                                       Expr
-                                                                       .pattern =
-                                                                         Pattern
-                                                                         .P_int
-                                                                           8;
+                                                                       Expr.pattern =
+                                                                         ~?(Pattern.P_int
+                                                                           8);
                                                                        expr =
-                                                                         Expr
-                                                                         .Expr_let
+                                                                         ~?(Expr.Expr_let
                                                                            {
                                                                              binding =
                                                                                {
@@ -2671,13 +2590,12 @@ let giant_merged_test2 _ =
                                                                                 name =
                                                                                 ~?"inner";
                                                                                 body =
-                                                                                Expr_int
-                                                                                6;
+                                                                                ~?(Expr_int
+                                                                                6);
                                                                                 };
                                                                                };
                                                                              body =
-                                                                               Expr
-                                                                               .Expr_let
+                                                                               ~?(Expr.Expr_let
                                                                                 {
                                                                                 binding =
                                                                                 {
@@ -2688,86 +2606,65 @@ let giant_merged_test2 _ =
                                                                                 name =
                                                                                 ~?"sum";
                                                                                 body =
-                                                                                Expr
-                                                                                .Expr_binop
+                                                                                ~?(Expr.Expr_binop
                                                                                 {
-                                                                                Expr
-                                                                                .name =
+                                                                                Expr.name =
                                                                                 "+";
                                                                                 operands =
                                                                                 ( 
-                                                                                Expr
-                                                                                .Expr_ident
-                                                                                "inner",
-                                                                                Expr
-                                                                                .Expr_int
-                                                                                4
+                                                                                ~?(Expr.Expr_ident
+                                                                                "inner"),
+                                                                                ~?(Expr.Expr_int
+                                                                                4)
                                                                                 );
-                                                                                };
+                                                                                });
                                                                                 };
                                                                                 };
                                                                                 body =
-                                                                                Expr
-                                                                                .Expr_if_then_else
+                                                                                ~?(Expr.Expr_if_then_else
                                                                                 {
                                                                                 if_exp =
-                                                                                Expr
-                                                                                .Expr_binop
+                                                                                ~?(Expr.Expr_binop
                                                                                 {
-                                                                                Expr
-                                                                                .name =
+                                                                                Expr.name =
                                                                                 ">";
                                                                                 operands =
                                                                                 ( 
-                                                                                Expr
-                                                                                .Expr_ident
-                                                                                "sum",
-                                                                                Expr
-                                                                                .Expr_int
-                                                                                7
+                                                                                ~?(Expr.Expr_ident
+                                                                                "sum"),
+                                                                                ~?(Expr.Expr_int
+                                                                                7)
                                                                                 );
-                                                                                };
+                                                                                });
                                                                                 then_exp =
-                                                                                Expr
-                                                                                .Expr_pattern
+                                                                                ~?(Expr.Expr_pattern
                                                                                 {
-                                                                                Expr
-                                                                                .expr =
-                                                                                Expr
-                                                                                .Expr_ident
-                                                                                "sum";
+                                                                                Expr.expr =
+                                                                                ~?(Expr.Expr_ident
+                                                                                "sum");
                                                                                 pattern_data_items =
                                                                                 [
                                                                                 {
-                                                                                Expr
-                                                                                .pattern =
-                                                                                Pattern
-                                                                                .P_int
-                                                                                10;
+                                                                                Expr.pattern =
+                                                                                ~?(Pattern.P_int
+                                                                                10);
                                                                                 expr =
-                                                                                Expr
-                                                                                .Expr_int
-                                                                                15;
+                                                                                ~?(Expr.Expr_int
+                                                                                15);
                                                                                 };
                                                                                 {
-                                                                                Expr
-                                                                                .pattern =
-                                                                                Pattern
-                                                                                .P_int
-                                                                                8;
+                                                                                Expr.pattern =
+                                                                                ~?(Pattern.P_int
+                                                                                8);
                                                                                 expr =
-                                                                                Expr
-                                                                                .Expr_int
-                                                                                12;
+                                                                                ~?(Expr.Expr_int
+                                                                                12);
                                                                                 };
                                                                                 {
-                                                                                Expr
-                                                                                .pattern =
-                                                                                Pattern
-                                                                                .P_anything;
+                                                                                Expr.pattern =
+                                                                                ~?(Pattern.P_anything);
                                                                                 expr =
-                                                                                Expr
-                                                                                .Expr_let
+                                                                                ~?(Expr.Expr_let
                                                                                 {
                                                                                 binding =
                                                                                 {
@@ -2778,71 +2675,63 @@ let giant_merged_test2 _ =
                                                                                 name =
                                                                                 ~?"x";
                                                                                 body =
-                                                                                Expr_int
-                                                                                3;
+                                                                                ~?(Expr_int
+                                                                                3);
                                                                                 };
                                                                                 };
                                                                                 body =
-                                                                                Expr
-                                                                                .Expr_binop
+                                                                                ~?(Expr.Expr_binop
                                                                                 {
-                                                                                Expr
-                                                                                .name =
+                                                                                Expr.name =
                                                                                 "+";
                                                                                 operands =
                                                                                 ( 
-                                                                                Expr
-                                                                                .Expr_ident
-                                                                                "x",
-                                                                                Expr
-                                                                                .Expr_int
-                                                                                5
+                                                                                ~?(Expr.Expr_ident
+                                                                                "x"),
+                                                                                ~?(Expr.Expr_int
+                                                                                5)
                                                                                 );
-                                                                                };
-                                                                                };
+                                                                                });
+                                                                                });
                                                                                 };
                                                                                 ];
-                                                                                };
+                                                                                });
                                                                                 else_exp =
-                                                                                Expr
-                                                                                .Expr_int
-                                                                                0;
-                                                                                };
-                                                                                };
-                                                                           };
+                                                                                ~?(Expr.Expr_int
+                                                                                0);
+                                                                                });
+                                                                                });
+                                                                           });
                                                                      };
                                                                      {
-                                                                       Expr
-                                                                       .pattern =
-                                                                         Pattern
-                                                                         .P_anything;
+                                                                       Expr.pattern =
+                                                                         ~?(Pattern.P_anything);
                                                                        expr =
-                                                                         Expr
-                                                                         .Expr_int
-                                                                           0;
+                                                                         ~?(Expr.Expr_int
+                                                                           0);
                                                                      };
                                                                    ];
-                                                               };
-                                                         };
+                                                               });
+                                                         });
                                                    };
                                                    {
                                                      Expr.pattern =
-                                                       Pattern.P_anything;
-                                                     expr = Expr.Expr_int 0;
+                                                       ~?(Pattern.P_anything);
+                                                     expr = ~?(Expr.Expr_int 0);
                                                    };
                                                  ];
-                                             };
+                                             });
                                          else_exp =
-                                           Expr.Expr_pattern
+                                           ~?(Expr.Expr_pattern
                                              {
-                                               Expr.expr = Expr.Expr_int 5;
+                                               Expr.expr = ~?(Expr.Expr_int 5);
                                                pattern_data_items =
                                                  [
                                                    {
                                                      Expr.pattern =
-                                                       Pattern.P_int 5;
+                                                       ~?(Pattern.P_int 5);
                                                      expr =
-                                                       Expr.Expr_let
+                                                       ~?(Expr.Expr_let
                                                          {
                                                            binding =
                                                              {
@@ -2852,11 +2741,11 @@ let giant_merged_test2 _ =
                                                                    name =
                                                                      ~?"res";
                                                                    body =
-                                                                     Expr_int 7;
+                                                                     ~?(Expr_int 7);
                                                                  };
                                                              };
                                                            body =
-                                                             Expr.Expr_let
+                                                             ~?(Expr.Expr_let
                                                                {
                                                                  binding =
                                                                    {
@@ -2867,43 +2756,34 @@ let giant_merged_test2 _ =
                                                                          name =
                                                                            ~?"check";
                                                                          body =
-                                                                           Expr
-                                                                           .Expr_binop
+                                                                           ~?(Expr.Expr_binop
                                                                              {
-                                                                               Expr
-                                                                               .name =
+                                                                               Expr.name =
                                                                                 "+";
                                                                                operands =
                                                                                 ( 
-                                                                                Expr
-                                                                                .Expr_ident
-                                                                                "res",
-                                                                                Expr
-                                                                                .Expr_int
-                                                                                8
+                                                                                ~?(Expr.Expr_ident
+                                                                                "res"),
+                                                                                ~?(Expr.Expr_int
+                                                                                8)
                                                                                 );
-                                                                             };
+                                                                             });
                                                                        };
                                                                    };
                                                                  body =
-                                                                   Expr
-                                                                   .Expr_pattern
+                                                                   ~?(Expr.Expr_pattern
                                                                      {
                                                                        Expr.expr =
-                                                                         Expr
-                                                                         .Expr_ident
-                                                                           "check";
+                                                                         ~?(Expr.Expr_ident
+                                                                           "check");
                                                                        pattern_data_items =
                                                                          [
                                                                            {
-                                                                             Expr
-                                                                             .pattern =
-                                                                               Pattern
-                                                                               .P_int
-                                                                                15;
+                                                                             Expr.pattern =
+                                                                               ~?(Pattern.P_int
+                                                                                15);
                                                                              expr =
-                                                                               Expr
-                                                                               .Expr_let
+                                                                               ~?(Expr.Expr_let
                                                                                 {
                                                                                 binding =
                                                                                 {
@@ -2914,37 +2794,30 @@ let giant_merged_test2 _ =
                                                                                 name =
                                                                                 ~?"final";
                                                                                 body =
-                                                                                Expr_int
-                                                                                20;
+                                                                                ~?(Expr_int
+                                                                                20);
                                                                                 };
                                                                                 };
                                                                                 body =
-                                                                                Expr
-                                                                                .Expr_binop
+                                                                                ~?(Expr.Expr_binop
                                                                                 {
-                                                                                Expr
-                                                                                .name =
+                                                                                Expr.name =
                                                                                 "+";
                                                                                 operands =
                                                                                 ( 
-                                                                                Expr
-                                                                                .Expr_ident
-                                                                                "final",
-                                                                                Expr
-                                                                                .Expr_int
-                                                                                1
+                                                                                ~?(Expr.Expr_ident
+                                                                                "final"),
+                                                                                ~?(Expr.Expr_int
+                                                                                1)
                                                                                 );
-                                                                                };
-                                                                                };
+                                                                                });
+                                                                                });
                                                                            };
                                                                            {
-                                                                             Expr
-                                                                             .pattern =
-                                                                               Pattern
-                                                                               .P_anything;
+                                                                             Expr.pattern =
+                                                                               ~?(Pattern.P_anything);
                                                                              expr =
-                                                                               Expr
-                                                                               .Expr_let
+                                                                               ~?(Expr.Expr_let
                                                                                 {
                                                                                 binding =
                                                                                 {
@@ -2955,55 +2828,51 @@ let giant_merged_test2 _ =
                                                                                 name =
                                                                                 ~?"alt";
                                                                                 body =
-                                                                                Expr_int
-                                                                                10;
+                                                                                ~?(Expr_int
+                                                                                10);
                                                                                 };
                                                                                 };
                                                                                 body =
-                                                                                Expr
-                                                                                .Expr_binop
+                                                                                ~?(Expr.Expr_binop
                                                                                 {
-                                                                                Expr
-                                                                                .name =
+                                                                                Expr.name =
                                                                                 "+";
                                                                                 operands =
                                                                                 ( 
-                                                                                Expr
-                                                                                .Expr_ident
-                                                                                "alt",
-                                                                                Expr
-                                                                                .Expr_int
-                                                                                2
+                                                                                ~?(Expr.Expr_ident
+                                                                                "alt"),
+                                                                                ~?(Expr.Expr_int
+                                                                                2)
                                                                                 );
-                                                                                };
-                                                                                };
+                                                                                });
+                                                                                });
                                                                            };
                                                                          ];
-                                                                     };
-                                                               };
-                                                         };
+                                                                     });
+                                                               });
+                                                         });
                                                    };
                                                    {
                                                      Expr.pattern =
-                                                       Pattern.P_anything;
-                                                     expr = Expr.Expr_int 0;
+                                                       ~?(Pattern.P_anything);
+                                                     expr = ~?(Expr.Expr_int 0);
                                                    };
                                                  ];
-                                             };
-                                       };
+                                             });
+                                       });
                                  };
                                  {
-                                   Expr.pattern = Pattern.P_int 3;
+                                   Expr.pattern = ~?(Pattern.P_int 3);
                                    expr =
-                                     Expr.Expr_pattern
+                                     ~?(Expr.Expr_pattern
                                        {
-                                         Expr.expr = Expr.Expr_int 8;
+                                         Expr.expr = ~?(Expr.Expr_int 8);
                                          pattern_data_items =
                                            [
                                              {
-                                               Expr.pattern = Pattern.P_int 8;
+                                               Expr.pattern = ~?(Pattern.P_int 8);
                                                expr =
-                                                 Expr.Expr_let
+                                                 ~?(Expr.Expr_let
                                                    {
                                                      binding =
                                                        {
@@ -3011,26 +2880,24 @@ let giant_merged_test2 _ =
                                                          bind_body =
                                                            {
                                                              name = ~?"deep";
-                                                             body = Expr_int 12;
+                                                             body = ~?(Expr_int 12);
                                                            };
                                                        };
                                                      body =
-                                                       Expr.Expr_if_then_else
+                                                       ~?(Expr.Expr_if_then_else
                                                          {
                                                            if_exp =
-                                                             Expr.Expr_binop
+                                                             ~?(Expr.Expr_binop
                                                                {
                                                                  Expr.name = ">";
                                                                  operands =
-                                                                   ( Expr
-                                                                     .Expr_ident
-                                                                       "deep",
-                                                                     Expr
-                                                                     .Expr_int
-                                                                       10 );
-                                                               };
+                                                                   ( ~?(Expr.Expr_ident
+                                                                       "deep"),
+                                                                     ~?(Expr.Expr_int
+                                                                       10) );
+                                                               });
                                                            then_exp =
-                                                             Expr.Expr_let
+                                                             ~?(Expr.Expr_let
                                                                {
                                                                  binding =
                                                                    {
@@ -3041,43 +2908,34 @@ let giant_merged_test2 _ =
                                                                          name =
                                                                            ~?"ultra";
                                                                          body =
-                                                                           Expr
-                                                                           .Expr_binop
+                                                                           ~?(Expr.Expr_binop
                                                                              {
-                                                                               Expr
-                                                                               .name =
+                                                                               Expr.name =
                                                                                 "+";
                                                                                operands =
                                                                                 ( 
-                                                                                Expr
-                                                                                .Expr_ident
-                                                                                "deep",
-                                                                                Expr
-                                                                                .Expr_int
-                                                                                3
+                                                                                ~?(Expr.Expr_ident
+                                                                                "deep"),
+                                                                                ~?(Expr.Expr_int
+                                                                                3)
                                                                                 );
-                                                                             };
+                                                                             });
                                                                        };
                                                                    };
                                                                  body =
-                                                                   Expr
-                                                                   .Expr_pattern
+                                                                   ~?(Expr.Expr_pattern
                                                                      {
                                                                        Expr.expr =
-                                                                         Expr
-                                                                         .Expr_ident
-                                                                           "ultra";
+                                                                         ~?(Expr.Expr_ident
+                                                                           "ultra");
                                                                        pattern_data_items =
                                                                          [
                                                                            {
-                                                                             Expr
-                                                                             .pattern =
-                                                                               Pattern
-                                                                               .P_int
-                                                                                15;
+                                                                             Expr.pattern =
+                                                                               ~?(Pattern.P_int
+                                                                                15);
                                                                              expr =
-                                                                               Expr
-                                                                               .Expr_let
+                                                                               ~?(Expr.Expr_let
                                                                                 {
                                                                                 binding =
                                                                                 {
@@ -3088,44 +2946,37 @@ let giant_merged_test2 _ =
                                                                                 name =
                                                                                 ~?"mega";
                                                                                 body =
-                                                                                Expr_int
-                                                                                25;
+                                                                                ~?(Expr_int
+                                                                                25);
                                                                                 };
                                                                                 };
                                                                                 body =
-                                                                                Expr
-                                                                                .Expr_binop
+                                                                                ~?(Expr.Expr_binop
                                                                                 {
-                                                                                Expr
-                                                                                .name =
+                                                                                Expr.name =
                                                                                 "+";
                                                                                 operands =
                                                                                 ( 
-                                                                                Expr
-                                                                                .Expr_ident
-                                                                                "mega",
-                                                                                Expr
-                                                                                .Expr_int
-                                                                                5
+                                                                                ~?(Expr.Expr_ident
+                                                                                "mega"),
+                                                                                ~?(Expr.Expr_int
+                                                                                5)
                                                                                 );
-                                                                                };
-                                                                                };
+                                                                                });
+                                                                                });
                                                                            };
                                                                            {
-                                                                             Expr
-                                                                             .pattern =
-                                                                               Pattern
-                                                                               .P_anything;
+                                                                             Expr.pattern =
+                                                                               ~?(Pattern.P_anything);
                                                                              expr =
-                                                                               Expr
-                                                                               .Expr_int
-                                                                                0;
+                                                                               ~?(Expr.Expr_int
+                                                                                0);
                                                                            };
                                                                          ];
-                                                                     };
-                                                               };
+                                                                     });
+                                                               });
                                                            else_exp =
-                                                             Expr.Expr_let
+                                                             ~?(Expr.Expr_let
                                                                {
                                                                  binding =
                                                                    {
@@ -3136,33 +2987,30 @@ let giant_merged_test2 _ =
                                                                          name =
                                                                            ~?"simple";
                                                                          body =
-                                                                           Expr_int
-                                                                             7;
+                                                                           ~?(Expr_int
+                                                                             7);
                                                                        };
                                                                    };
                                                                  body =
-                                                                   Expr
-                                                                   .Expr_binop
+                                                                   ~?(Expr.Expr_binop
                                                                      {
                                                                        Expr.name =
                                                                          "+";
                                                                        operands =
-                                                                         ( Expr
-                                                                           .Expr_ident
-                                                                             "simple",
-                                                                           Expr
-                                                                           .Expr_int
-                                                                             1
+                                                                         ( ~?(Expr.Expr_ident
+                                                                             "simple"),
+                                                                           ~?(Expr.Expr_int
+                                                                             1)
                                                                          );
-                                                                     };
-                                                               };
-                                                         };
-                                                   };
+                                                                     });
+                                                               });
+                                                         });
+                                                   });
                                              };
                                              {
-                                               Expr.pattern = Pattern.P_anything;
+                                               Expr.pattern = ~?(Pattern.P_anything);
                                                expr =
-                                                 Expr.Expr_let
+                                                 ~?(Expr.Expr_let
                                                    {
                                                      binding =
                                                        {
@@ -3170,39 +3018,39 @@ let giant_merged_test2 _ =
                                                          bind_body =
                                                            {
                                                              name = ~?"basic";
-                                                             body = Expr_int 5;
+                                                             body = ~?(Expr_int 5);
                                                            };
                                                        };
                                                      body =
-                                                       Expr.Expr_binop
+                                                       ~?(Expr.Expr_binop
                                                          {
                                                            Expr.name = "+";
                                                            operands =
-                                                             ( Expr.Expr_ident
-                                                                 "basic",
-                                                               Expr.Expr_int 2
+                                                             ( ~?(Expr.Expr_ident
+                                                                 "basic"),
+                                                               ~?(Expr.Expr_int 2)
                                                              );
-                                                         };
-                                                   };
+                                                         });
+                                                   });
                                              };
                                            ];
-                                       };
+                                       });
                                  };
                                  {
-                                   Expr.pattern = Pattern.P_anything;
+                                   Expr.pattern = ~?(Pattern.P_anything);
                                    expr =
-                                     Expr.Expr_if_then_else
+                                     ~?(Expr.Expr_if_then_else
                                        {
                                          if_exp =
-                                           Expr.Expr_binop
+                                           ~?(Expr.Expr_binop
                                              {
                                                Expr.name = ">";
                                                operands =
-                                                 ( Expr.Expr_int 2,
-                                                   Expr.Expr_int 1 );
-                                             };
+                                                 ( ~?(Expr.Expr_int 2),
+                                                   ~?(Expr.Expr_int 1) );
+                                             });
                                          then_exp =
-                                           Expr.Expr_let
+                                           ~?(Expr.Expr_let
                                              {
                                                binding =
                                                  {
@@ -3210,21 +3058,21 @@ let giant_merged_test2 _ =
                                                    bind_body =
                                                      {
                                                        name = ~?"wild";
-                                                       body = Expr_int 15;
+                                                       body = ~?(Expr_int 15);
                                                      };
                                                  };
                                                body =
-                                                 Expr.Expr_pattern
+                                                 ~?(Expr.Expr_pattern
                                                    {
                                                      Expr.expr =
-                                                       Expr.Expr_ident "wild";
+                                                       ~?(Expr.Expr_ident "wild");
                                                      pattern_data_items =
                                                        [
                                                          {
                                                            Expr.pattern =
-                                                             Pattern.P_int 15;
+                                                             ~?(Pattern.P_int 15);
                                                            expr =
-                                                             Expr.Expr_let
+                                                             ~?(Expr.Expr_let
                                                                {
                                                                  binding =
                                                                    {
@@ -3235,48 +3083,38 @@ let giant_merged_test2 _ =
                                                                          name =
                                                                            ~?"path1";
                                                                          body =
-                                                                           Expr
-                                                                           .Expr_binop
+                                                                           ~?(Expr.Expr_binop
                                                                              {
-                                                                               Expr
-                                                                               .name =
+                                                                               Expr.name =
                                                                                 "+";
                                                                                operands =
                                                                                 ( 
-                                                                                Expr
-                                                                                .Expr_ident
-                                                                                "wild",
-                                                                                Expr
-                                                                                .Expr_int
-                                                                                5
+                                                                                ~?(Expr.Expr_ident
+                                                                                "wild"),
+                                                                                ~?(Expr.Expr_int
+                                                                                5)
                                                                                 );
-                                                                             };
+                                                                             });
                                                                        };
                                                                    };
                                                                  body =
-                                                                   Expr
-                                                                   .Expr_if_then_else
+                                                                   ~?(Expr.Expr_if_then_else
                                                                      {
                                                                        if_exp =
-                                                                         Expr
-                                                                         .Expr_binop
+                                                                         ~?(Expr.Expr_binop
                                                                            {
-                                                                             Expr
-                                                                             .name =
+                                                                             Expr.name =
                                                                                ">";
                                                                              operands =
                                                                                ( 
-                                                                               Expr
-                                                                               .Expr_ident
-                                                                                "path1",
-                                                                               Expr
-                                                                               .Expr_int
-                                                                                10
+                                                                               ~?(Expr.Expr_ident
+                                                                                "path1"),
+                                                                               ~?(Expr.Expr_int
+                                                                                10)
                                                                                );
-                                                                           };
+                                                                           });
                                                                        then_exp =
-                                                                         Expr
-                                                                         .Expr_let
+                                                                         ~?(Expr.Expr_let
                                                                            {
                                                                              binding =
                                                                                {
@@ -3287,40 +3125,35 @@ let giant_merged_test2 _ =
                                                                                 name =
                                                                                 ~?"choice";
                                                                                 body =
-                                                                                Expr_int
-                                                                                30;
+                                                                                ~?(Expr_int
+                                                                                30);
                                                                                 };
                                                                                };
                                                                              body =
-                                                                               Expr
-                                                                               .Expr_binop
+                                                                               ~?(Expr.Expr_binop
                                                                                 {
-                                                                                Expr
-                                                                                .name =
+                                                                                Expr.name =
                                                                                 "+";
                                                                                 operands =
                                                                                 ( 
-                                                                                Expr
-                                                                                .Expr_ident
-                                                                                "choice",
-                                                                                Expr
-                                                                                .Expr_int
-                                                                                2
+                                                                                ~?(Expr.Expr_ident
+                                                                                "choice"),
+                                                                                ~?(Expr.Expr_int
+                                                                                2)
                                                                                 );
-                                                                                };
-                                                                           };
+                                                                                });
+                                                                           });
                                                                        else_exp =
-                                                                         Expr
-                                                                         .Expr_int
-                                                                           0;
-                                                                     };
-                                                               };
+                                                                         ~?(Expr.Expr_int
+                                                                           0);
+                                                                     });
+                                                               });
                                                          };
                                                          {
                                                            Expr.pattern =
-                                                             Pattern.P_anything;
+                                                             ~?(Pattern.P_anything);
                                                            expr =
-                                                             Expr.Expr_let
+                                                             ~?(Expr.Expr_let
                                                                {
                                                                  binding =
                                                                    {
@@ -3331,32 +3164,29 @@ let giant_merged_test2 _ =
                                                                          name =
                                                                            ~?"path2";
                                                                          body =
-                                                                           Expr_int
-                                                                             8;
+                                                                           ~?(Expr_int
+                                                                             8);
                                                                        };
                                                                    };
                                                                  body =
-                                                                   Expr
-                                                                   .Expr_binop
+                                                                   ~?(Expr.Expr_binop
                                                                      {
                                                                        Expr.name =
                                                                          "+";
                                                                        operands =
-                                                                         ( Expr
-                                                                           .Expr_ident
-                                                                             "path2",
-                                                                           Expr
-                                                                           .Expr_int
-                                                                             3
+                                                                         ( ~?(Expr.Expr_ident
+                                                                             "path2"),
+                                                                           ~?(Expr.Expr_int
+                                                                             3)
                                                                          );
-                                                                     };
-                                                               };
+                                                                     });
+                                                               });
                                                          };
                                                        ];
-                                                   };
-                                             };
+                                                   });
+                                             });
                                          else_exp =
-                                           Expr.Expr_let
+                                           ~?(Expr.Expr_let
                                              {
                                                binding =
                                                  {
@@ -3364,21 +3194,21 @@ let giant_merged_test2 _ =
                                                    bind_body =
                                                      {
                                                        name = ~?"default";
-                                                       body = Expr_int 100;
+                                                       body = ~?(Expr_int 100);
                                                      };
                                                  };
                                                body =
-                                                 Expr.Expr_pattern
+                                                 ~?(Expr.Expr_pattern
                                                    {
                                                      Expr.expr =
-                                                       Expr.Expr_ident "default";
+                                                       ~?(Expr.Expr_ident "default");
                                                      pattern_data_items =
                                                        [
                                                          {
                                                            Expr.pattern =
-                                                             Pattern.P_int 100;
+                                                             ~?(Pattern.P_int 100);
                                                            expr =
-                                                             Expr.Expr_let
+                                                             ~?(Expr.Expr_let
                                                                {
                                                                  binding =
                                                                    {
@@ -3389,46 +3219,39 @@ let giant_merged_test2 _ =
                                                                          name =
                                                                            ~?"final_sum";
                                                                          body =
-                                                                           Expr
-                                                                           .Expr_binop
+                                                                           ~?(Expr.Expr_binop
                                                                              {
-                                                                               Expr
-                                                                               .name =
+                                                                               Expr.name =
                                                                                 "+";
                                                                                operands =
                                                                                 ( 
-                                                                                Expr
-                                                                                .Expr_ident
-                                                                                "default",
-                                                                                Expr
-                                                                                .Expr_int
-                                                                                50
+                                                                                ~?(Expr.Expr_ident
+                                                                                "default"),
+                                                                                ~?(Expr.Expr_int
+                                                                                50)
                                                                                 );
-                                                                             };
+                                                                             });
                                                                        };
                                                                    };
                                                                  body =
-                                                                   Expr
-                                                                   .Expr_binop
+                                                                   ~?(Expr.Expr_binop
                                                                      {
                                                                        Expr.name =
                                                                          "+";
                                                                        operands =
-                                                                         ( Expr
-                                                                           .Expr_ident
-                                                                             "final_sum",
-                                                                           Expr
-                                                                           .Expr_int
-                                                                             10
+                                                                         ( ~?(Expr.Expr_ident
+                                                                             "final_sum"),
+                                                                           ~?(Expr.Expr_int
+                                                                             10)
                                                                          );
-                                                                     };
-                                                               };
+                                                                     });
+                                                               });
                                                          };
                                                          {
                                                            Expr.pattern =
-                                                             Pattern.P_anything;
+                                                             ~?(Pattern.P_anything);
                                                            expr =
-                                                             Expr.Expr_let
+                                                             ~?(Expr.Expr_let
                                                                {
                                                                  binding =
                                                                    {
@@ -3439,34 +3262,31 @@ let giant_merged_test2 _ =
                                                                          name =
                                                                            ~?"last";
                                                                          body =
-                                                                           Expr_int
-                                                                             20;
+                                                                           ~?(Expr_int
+                                                                             20);
                                                                        };
                                                                    };
                                                                  body =
-                                                                   Expr
-                                                                   .Expr_binop
+                                                                   ~?(Expr.Expr_binop
                                                                      {
                                                                        Expr.name =
                                                                          "+";
                                                                        operands =
-                                                                         ( Expr
-                                                                           .Expr_ident
-                                                                             "last",
-                                                                           Expr
-                                                                           .Expr_int
-                                                                             5
+                                                                         ( ~?(Expr.Expr_ident
+                                                                             "last"),
+                                                                           ~?(Expr.Expr_int
+                                                                             5)
                                                                          );
-                                                                     };
-                                                               };
+                                                                     });
+                                                               });
                                                          };
                                                        ];
-                                                   };
-                                             };
-                                       };
+                                                   });
+                                             });
+                                       });
                                  };
                                ];
-                           };
+                           });
                      });
             };
         };
@@ -3527,8 +3347,8 @@ mega_test3 =
   
   |}
   in
-  let result = input |> Main.parse in
-  assert_equal expected_data (Result.get_ok result)
+  let result = input |> Main.parse ~file:"Main.elm" in
+  assert_equal expected_data (parsed result)
 
 let giant_merged_test3 _ =
   let input =
@@ -3638,7 +3458,7 @@ let giant_merged_test3 _ =
     
     |}
   in
-  let result = input |> Main.parse in
+  let result = input |> Main.parse ~file:"Main.elm" in
   assert_bool "Couldn't be parsed" (Result.is_ok result)
 
 let one_more _ =
@@ -3658,17 +3478,17 @@ test2 a b c =
   
 |}
   in
-  let result = input |> Main.parse in
+  let result = input |> Main.parse ~file:"Main.elm" in
   assert_bool "Couldn't be parsed" (Result.is_ok result)
 
 let test_access2 _ =
   let input = {|record_example = x.a|} in
-  let result = input |> Main.parse in
+  let result = input |> Main.parse ~file:"Main.elm" in
   assert_bool "Couldn't be parsed" (Result.is_ok result)
 
 let test_access3 _ =
   let input = {|record_example = kek.a.b.c.d.e.f.g.h + 1|} in
-  let result = input |> Main.parse in
+  let result = input |> Main.parse ~file:"Main.elm" in
   assert_bool "Couldn't be parsed" (Result.is_ok result)
 
 (* let test_tuple_pm _ =
@@ -3742,8 +3562,8 @@ tuplePM = case (1, 2, 3) of
   (a, b, _) -> a + b
   _ -> 0|}
   in
-  let result = Main.parse input in
-  assert_equal expect_data (Result.get_ok result) *)
+  let result = Main.parse ~file:"Main.elm" input in
+  assert_equal expect_data (parsed result) *)
 
 let test_nested_ctor_pm _ =
   let expect_data =
@@ -3758,33 +3578,33 @@ let test_nested_ctor_pm _ =
               expr =
                 ~?(Expr.Expr_pattern
                      {
-                       Expr.expr = Expr.Expr_ident "value";
+                       Expr.expr = ~?(Expr.Expr_ident "value");
                        pattern_data_items =
                          [
                            {
                              Expr.pattern =
-                               Pattern.P_ctor
+                               ~?(Pattern.P_ctor
                                  ( "Just",
                                    [
-                                     Pattern.P_ctor
-                                       ("Just", [ Pattern.P_var "x" ]);
-                                   ] );
-                             expr = Expr.Expr_ident "x";
+                                     ~?(Pattern.P_ctor
+                                       ("Just", [ ~?(Pattern.P_var "x") ]));
+                                   ] ));
+                             expr = ~?(Expr.Expr_ident "x");
                            };
                            {
                              Expr.pattern =
-                               Pattern.P_ctor ("Just", [ Pattern.P_anything ]);
-                             expr = Expr.Expr_int 0;
+                               ~?(Pattern.P_ctor ("Just", [ ~?(Pattern.P_anything) ]));
+                             expr = ~?(Expr.Expr_int 0);
                            };
                            {
-                             Expr.pattern = Pattern.P_ctor ("Nothing", []);
+                             Expr.pattern = ~?(Pattern.P_ctor ("Nothing", []));
                              expr =
-                               Expr.Expr_unop
-                                 { name = ~?"-"; operand = Expr.Expr_int 1 };
+                               ~?(Expr.Expr_unop
+                                 { name = ~?"-"; operand = ~?(Expr.Expr_int 1) });
                            };
                            {
-                             Expr.pattern = Pattern.P_anything;
-                             expr = Expr.Expr_int 999;
+                             Expr.pattern = ~?(Pattern.P_anything);
+                             expr = ~?(Expr.Expr_int 999);
                            };
                          ];
                      });
@@ -3800,8 +3620,8 @@ nestedPm = case value of
   Nothing -> -1
   _ -> 999|}
   in
-  let result = Main.parse input in
-  assert_equal expect_data (Result.get_ok result)
+  let result = Main.parse ~file:"Main.elm" input in
+  assert_equal expect_data (parsed result)
 
 let test_complex_cons_pm _ =
   let expect_data =
@@ -3816,38 +3636,38 @@ let test_complex_cons_pm _ =
               expr =
                 ~?(Expr.Expr_pattern
                      {
-                       Expr.expr = Expr.Expr_ident "myList";
+                       Expr.expr = ~?(Expr.Expr_ident "myList");
                        pattern_data_items =
                          [
                            {
-                             Expr.pattern = Pattern.P_list [];
-                             expr = Expr.Expr_int 0;
+                             Expr.pattern = ~?(Pattern.P_list []);
+                             expr = ~?(Expr.Expr_int 0);
                            };
                            {
                              Expr.pattern =
-                               Pattern.P_cons
-                                 (Pattern.P_var "x", Pattern.P_list []);
-                             expr = Expr.Expr_ident "x";
+                               ~?(Pattern.P_cons
+                                 (~?(Pattern.P_var "x"), ~?(Pattern.P_list [])));
+                             expr = ~?(Expr.Expr_ident "x");
                            };
                            {
                              Expr.pattern =
-                               Pattern.P_cons
-                                 ( Pattern.P_var "x",
-                                   Pattern.P_cons
-                                     (Pattern.P_var "y", Pattern.P_anything) );
+                               ~?(Pattern.P_cons
+                                 ( ~?(Pattern.P_var "x"),
+                                   ~?(Pattern.P_cons
+                                     (~?(Pattern.P_var "y"), ~?(Pattern.P_anything))) ));
                              expr =
-                               Expr.Expr_binop
+                               ~?(Expr.Expr_binop
                                  {
                                    Expr.name = "+";
                                    operands =
-                                     (Expr.Expr_ident "x", Expr.Expr_ident "y");
-                                 };
+                                     (~?(Expr.Expr_ident "x"), ~?(Expr.Expr_ident "y"));
+                                 });
                            };
                            {
-                             Expr.pattern = Pattern.P_anything;
+                             Expr.pattern = ~?(Pattern.P_anything);
                              expr =
-                               Expr.Expr_unop
-                                 { name = ~?"-"; operand = Expr.Expr_int 1 };
+                               ~?(Expr.Expr_unop
+                                 { name = ~?"-"; operand = ~?(Expr.Expr_int 1) });
                            };
                          ];
                      });
@@ -3863,8 +3683,8 @@ listSum = case myList of
   x :: y :: _ -> x + y
   _ -> -1|}
   in
-  let result = Main.parse input in
-  assert_equal expect_data (Result.get_ok result)
+  let result = Main.parse ~file:"Main.elm" input in
+  assert_equal expect_data (parsed result)
 
 let test_pipe _ =
   let expect_data =
@@ -3879,26 +3699,26 @@ let test_pipe _ =
               expr =
                 ~?(Expr.Expr_apply
                      {
-                       Expr.fn = Expr.Expr_ident "abcd";
+                       Expr.fn = ~?(Expr.Expr_ident "abcd");
                        arg =
-                         Expr.Expr_apply
+                         ~?(Expr.Expr_apply
                            {
                              Expr.fn =
-                               Expr.Expr_apply
+                               ~?(Expr.Expr_apply
                                  {
-                                   Expr.fn = Expr.Expr_ident "plus";
-                                   arg = Expr.Expr_int 1;
-                                 };
-                             arg = Expr.Expr_int 5;
-                           };
+                                   Expr.fn = ~?(Expr.Expr_ident "plus");
+                                   arg = ~?(Expr.Expr_int 1);
+                                 });
+                             arg = ~?(Expr.Expr_int 5);
+                           });
                      });
             };
         };
     ]
   in
   let input = {| result = 5 |> plus 1 |> abcd |} in
-  let result = input |> Main.parse in
-  assert_equal expect_data (Result.get_ok result)
+  let result = input |> Main.parse ~file:"Main.elm" in
+  assert_equal expect_data (parsed result)
 
 let test_lambda_simple _ =
   let expect_data =
@@ -3915,12 +3735,12 @@ let test_lambda_simple _ =
                      {
                        Expr.params = [ ~?"n" ];
                        body =
-                         Expr.Expr_binop
+                         ~?(Expr.Expr_binop
                            {
                              Expr.name = "*";
                              operands =
-                               (Expr.Expr_ident "n", Expr.Expr_ident "n");
-                           };
+                               (~?(Expr.Expr_ident "n"), ~?(Expr.Expr_ident "n"));
+                           });
                      });
             };
         };
@@ -3929,8 +3749,8 @@ let test_lambda_simple _ =
   let input = {|
 square = 
   \n -> n * n|} in
-  let result = Main.parse input in
-  assert_equal expect_data (Result.get_ok result)
+  let result = Main.parse ~file:"Main.elm" input in
+  assert_equal expect_data (parsed result)
 
 let test_lambda_multiple_params _ =
   let expect_data =
@@ -3947,12 +3767,12 @@ let test_lambda_multiple_params _ =
                      {
                        Expr.params = [ ~?"x"; ~?"y" ];
                        body =
-                         Expr.Expr_binop
+                         ~?(Expr.Expr_binop
                            {
                              Expr.name = "+";
                              operands =
-                               (Expr.Expr_ident "x", Expr.Expr_ident "y");
-                           };
+                               (~?(Expr.Expr_ident "x"), ~?(Expr.Expr_ident "y"));
+                           });
                      });
             };
         };
@@ -3961,8 +3781,8 @@ let test_lambda_multiple_params _ =
   let input = {|
 add = 
   \x y -> x + y|} in
-  let result = Main.parse input in
-  assert_equal expect_data (Result.get_ok result)
+  let result = Main.parse ~file:"Main.elm" input in
+  assert_equal expect_data (parsed result)
 
 let test_lambda_in_apply _ =
   let expect_data =
@@ -3978,24 +3798,24 @@ let test_lambda_in_apply _ =
                 ~?(Expr.Expr_apply
                      {
                        Expr.fn =
-                         Expr.Expr_apply
+                         ~?(Expr.Expr_apply
                            {
-                             Expr.fn = Expr.Expr_ident "map";
+                             Expr.fn = ~?(Expr.Expr_ident "map");
                              arg =
-                               Expr.Expr_lambda
+                               ~?(Expr.Expr_lambda
                                  {
                                    Expr.params = [ ~?"n" ];
                                    body =
-                                     Expr.Expr_binop
+                                     ~?(Expr.Expr_binop
                                        {
                                          Expr.name = "*";
                                          operands =
-                                           ( Expr.Expr_ident "n",
-                                             Expr.Expr_ident "n" );
-                                       };
-                                 };
-                           };
-                       arg = Expr.Expr_ident "list";
+                                           ( ~?(Expr.Expr_ident "n"),
+                                             ~?(Expr.Expr_ident "n") );
+                                       });
+                                 });
+                           });
+                       arg = ~?(Expr.Expr_ident "list");
                      });
             };
         };
@@ -4004,8 +3824,8 @@ let test_lambda_in_apply _ =
   let input = {|
 squares = 
   map (\n -> n * n) list|} in
-  let result = Main.parse input in
-  assert_equal expect_data (Result.get_ok result)
+  let result = Main.parse ~file:"Main.elm" input in
+  assert_equal expect_data (parsed result)
 
 let test_lambda_complex_body _ =
   let expect_data =
@@ -4022,24 +3842,24 @@ let test_lambda_complex_body _ =
                      {
                        Expr.params = [ ~?"x" ];
                        body =
-                         Expr.Expr_if_then_else
+                         ~?(Expr.Expr_if_then_else
                            {
                              Expr.if_exp =
-                               Expr.Expr_binop
+                               ~?(Expr.Expr_binop
                                  {
                                    Expr.name = ">";
                                    operands =
-                                     (Expr.Expr_ident "x", Expr.Expr_int 0);
-                                 };
+                                     (~?(Expr.Expr_ident "x"), ~?(Expr.Expr_int 0));
+                                 });
                              then_exp =
-                               Expr.Expr_binop
+                               ~?(Expr.Expr_binop
                                  {
                                    Expr.name = "*";
                                    operands =
-                                     (Expr.Expr_ident "x", Expr.Expr_int 2);
-                                 };
-                             else_exp = Expr.Expr_int 0;
-                           };
+                                     (~?(Expr.Expr_ident "x"), ~?(Expr.Expr_int 2));
+                                 });
+                             else_exp = ~?(Expr.Expr_int 0);
+                           });
                      });
             };
         };
@@ -4048,8 +3868,8 @@ let test_lambda_complex_body _ =
   let input = {|
 process = 
   \x -> if x > 0 then x * 2 else 0|} in
-  let result = Main.parse input in
-  assert_equal expect_data (Result.get_ok result)
+  let result = Main.parse ~file:"Main.elm" input in
+  assert_equal expect_data (parsed result)
 
 (* Type annotation tests *)
 let test_type_annotation_same_line _ =
@@ -4067,21 +3887,16 @@ let test_type_annotation_same_line _ =
                     body =
                       Typedef.Kind.Tkind_function
                         {
-                          Typedef.Type_function.arguments =
-                            [
-                              {
+                          Typedef.Type_function.arguments = [ {
                                 Typedef.Impl.parameters = [];
                                 body = Typedef.Kind.Tkind_concrete ~?"Int";
-                              };
-                              {
+                              }; {
                                 Typedef.Impl.parameters = [];
                                 body = Typedef.Kind.Tkind_concrete ~?"Int";
-                              };
-                              {
+                              } ]; result = ({
                                 Typedef.Impl.parameters = [];
                                 body = Typedef.Kind.Tkind_concrete ~?"Int";
-                              };
-                            ];
+                              });
                         };
                   };
               };
@@ -4093,7 +3908,7 @@ let test_type_annotation_same_line _ =
                 ~?(Expr.Expr_binop
                      {
                        Expr.name = "+";
-                       operands = (Expr.Expr_ident "x", Expr.Expr_ident "y");
+                       operands = (~?(Expr.Expr_ident "x"), ~?(Expr.Expr_ident "y"));
                      });
             };
         };
@@ -4102,8 +3917,8 @@ let test_type_annotation_same_line _ =
   let input = {|
 add: Int -> Int -> Int
 add x y = x + y|} in
-  let result = Main.parse input in
-  assert_equal expect_data (Result.get_ok result)
+  let result = Main.parse ~file:"Main.elm" input in
+  assert_equal expect_data (parsed result)
 
 let test_type_annotation_with_indent _ =
   let expect_data =
@@ -4120,21 +3935,16 @@ let test_type_annotation_with_indent _ =
                     body =
                       Typedef.Kind.Tkind_function
                         {
-                          Typedef.Type_function.arguments =
-                            [
-                              {
+                          Typedef.Type_function.arguments = [ {
                                 Typedef.Impl.parameters = [];
                                 body = Typedef.Kind.Tkind_concrete ~?"Int";
-                              };
-                              {
+                              }; {
                                 Typedef.Impl.parameters = [];
                                 body = Typedef.Kind.Tkind_concrete ~?"Int";
-                              };
-                              {
+                              } ]; result = ({
                                 Typedef.Impl.parameters = [];
                                 body = Typedef.Kind.Tkind_concrete ~?"Int";
-                              };
-                            ];
+                              });
                         };
                   };
               };
@@ -4146,7 +3956,7 @@ let test_type_annotation_with_indent _ =
                 ~?(Expr.Expr_binop
                      {
                        Expr.name = "*";
-                       operands = (Expr.Expr_ident "a", Expr.Expr_ident "b");
+                       operands = (~?(Expr.Expr_ident "a"), ~?(Expr.Expr_ident "b"));
                      });
             };
         };
@@ -4156,15 +3966,15 @@ let test_type_annotation_with_indent _ =
 multiply: 
     Int -> Int -> Int
 multiply a b = a * b|} in
-  let result = Main.parse input in
-  assert_equal expect_data (Result.get_ok result)
+  let result = Main.parse ~file:"Main.elm" input in
+  assert_equal expect_data (parsed result)
 
 let test_type_annotation_missing_function_name _ =
   let input = {|
 someFunc: 
 Int -> String
 = "oops"|} in
-  let result = Main.parse input in
+  let result = Main.parse ~file:"Main.elm" input in
   match result with
   | Error _ -> assert_bool "Should return Error" true
   | Ok _ -> assert_failure "Should have failed to parse"
@@ -4174,7 +3984,7 @@ let test_type_annotation_bad_col _ =
 someFunc: 
 Int -> String
 someFunc = "oops"|} in
-  let result = Main.parse input in
+  let result = Main.parse ~file:"Main.elm" input in
   match result with
   | Error _ -> assert_bool "Should return Error" true
   | Ok _ -> assert_failure "Should have failed to parse"

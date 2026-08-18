@@ -1,8 +1,8 @@
 open OUnit2
 
 let canonical input =
-  match Parse.Main.parse input with
-  | Error e -> raise e
+  match Parse.Main.parse ~file:"Main.elm" input with
+  | Error error -> raise (Reporting.Error.Found error)
   | Ok impl_list ->
       Canonical.Module.of_frontend ~fallback_name:"Main"
         (Ast.Kind.Frontend.Module.of_impl impl_list)
@@ -65,7 +65,17 @@ x = 1
   in
   assert_equal
     ~printer:(fun imports ->
-      String.concat "; " (List.map Canonical.Import.show imports))
+      String.concat "; "
+        (List.map
+           (fun (import : Canonical.Import.t) ->
+             Canonical.Import.show { import with region = Data.Region.nowhere })
+           imports))
+    ~cmp:(fun expected actual ->
+      List.equal
+        (fun (one : Canonical.Import.t) (other : Canonical.Import.t) ->
+          { one with region = Data.Region.nowhere }
+          = { other with region = Data.Region.nowhere })
+        expected actual)
     [
       {
         Canonical.Import.module_name = "Data.List";
@@ -76,11 +86,13 @@ x = 1
               Canonical.Exposed.Value "map";
               Canonical.Exposed.Type { name = "Set"; ctors_exposed = true };
             ];
+        region = Data.Region.nowhere;
       };
       {
         Canonical.Import.module_name = "Plain";
         alias = None;
         exposed = Canonical.Exposed.Only [];
+        region = Data.Region.nowhere;
       };
     ]
     module_.Canonical.Module.imports
@@ -93,7 +105,7 @@ x = y
 |} in
   match expr_of module_ "x" with
   | Canonical.Expr.Expr_ident (Data.Name.Local "y") -> ()
-  | e -> assert_failure ("x: " ^ Canonical.Expr.show e)
+  | e -> assert_failure ("x: " ^ Canonical.Expr.show_expr e)
 
 let test_qualified_value_becomes_global _ =
   let module_ =
@@ -108,12 +120,12 @@ y = Data.List.map
   | Canonical.Expr.Expr_ident
       (Data.Name.Global { module_name = "A"; exported_name = "foo" }) ->
       ()
-  | e -> assert_failure ("x: " ^ Canonical.Expr.show e));
+  | e -> assert_failure ("x: " ^ Canonical.Expr.show_expr e));
   match expr_of module_ "y" with
   | Canonical.Expr.Expr_ident
       (Data.Name.Global { module_name = "Data.List"; exported_name = "map" }) ->
       ()
-  | e -> assert_failure ("y: " ^ Canonical.Expr.show e)
+  | e -> assert_failure ("y: " ^ Canonical.Expr.show_expr e)
 
 let test_qualified_constructor_becomes_global _ =
   let module_ = canonical {|
@@ -125,7 +137,7 @@ x = A.Ctor
   | Canonical.Expr.Expr_ident
       (Data.Name.Global { module_name = "A"; exported_name = "Ctor" }) ->
       ()
-  | e -> assert_failure ("x: " ^ Canonical.Expr.show e)
+  | e -> assert_failure ("x: " ^ Canonical.Expr.show_expr e)
 
 let test_qualified_type_becomes_global _ =
   let module_ =
@@ -158,15 +170,15 @@ negated = -x
   in
   (match expr_of module_ "nothing" with
   | Canonical.Expr.Expr_unit -> ()
-  | e -> assert_failure ("nothing: " ^ Canonical.Expr.show e));
+  | e -> assert_failure ("nothing: " ^ Canonical.Expr.show_expr e));
   match expr_of module_ "negated" with
   | Canonical.Expr.Expr_apply
       {
-        fn = Canonical.Expr.Expr_ident (Data.Name.Local "negate");
-        arg = Canonical.Expr.Expr_ident (Data.Name.Local "x");
+        fn = { thing = Canonical.Expr.Expr_ident (Data.Name.Local "negate"); _ };
+        arg = { thing = Canonical.Expr.Expr_ident (Data.Name.Local "x"); _ };
       } ->
       ()
-  | e -> assert_failure ("negated: " ^ Canonical.Expr.show e)
+  | e -> assert_failure ("negated: " ^ Canonical.Expr.show_expr e)
 
 let suite =
   [

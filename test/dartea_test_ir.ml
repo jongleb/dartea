@@ -143,13 +143,13 @@ module Compiler = Dartea.Compiler.Make (Ir_backend)
 module Checker = Dartea.Compiler.Make (Checked_backend)
 
 let ir_of source =
-  Compiler.compile_source source
+  Node_runner.output_of (Compiler.compile_source source)
   |> List.filter_map (fun (unit : Dartea.Compiler.compiled) ->
          if String.equal unit.module_name "Main" then Some unit.source else None)
   |> String.concat ""
 
 let well_scoped source =
-  Checker.compile_source source
+  Node_runner.output_of (Checker.compile_source source)
   |> List.concat_map (fun (unit : Dartea.Compiler.compiled) ->
          if String.equal unit.source "" then []
          else [ unit.module_name ^ " -> " ^ unit.source ])

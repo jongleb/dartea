@@ -1,0 +1,14 @@
+-- INFINITE TYPE ------------------------------------------------------ Main.elm
+
+I am inferring a weird self-referential type for `x`:
+
+1| bad x = x x
+             ^
+
+Here is my best effort at writing down the type. You will see ? for parts of the
+type that repeat something already printed out infinitely.
+
+    b -> a
+
+Hint: The problem is often in the most recently added pattern or function. Try
+commenting out that code to see if it helps.

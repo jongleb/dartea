@@ -1,0 +1,8 @@
+-- BAD IMPORT --------------------------------------------------------- Main.elm
+
+The `Paint` module does not expose the constructors of `Colour`:
+
+3| import Paint exposing (Colour(..))
+          ^^^^^
+
+It would have to say `exposing (Colour(..))` for them to be available here.

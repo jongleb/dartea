@@ -1,0 +1,9 @@
+-- BAD KERNEL ARITY --------------------------------------------------- Main.elm
+
+This annotation takes 2 arguments, but the kernel value it names takes 1
+argument:
+
+2| size = Elm.Kernel.String.length
+   ^^^^
+
+The two have to agree.
