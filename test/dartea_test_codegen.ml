@@ -1,6 +1,6 @@
 open OUnit2
 
-let compiled_of src = Dartea.Compiler.compile_source src
+let compiled_of src = Node_runner.output_of (Dartea.Compiler.compile_source src)
 
 let module_source ~name src =
   Node_runner.source_of ~module_name:name (compiled_of src)

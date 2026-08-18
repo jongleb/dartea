@@ -1,0 +1,18 @@
+-- TYPE MISMATCH ------------------------------------------------------ Main.elm
+
+The 1st pattern in this `case` causing a mismatch:
+
+4|         1 ->
+           ^
+
+The first pattern is trying to match integers:
+
+    number
+
+But the expression between `case` and `of` is:
+
+    String
+
+These can never match! Is the pattern the problem? Or is it the expression?
+
+Hint: Try using String.fromInt to convert it to a string?

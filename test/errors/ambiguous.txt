@@ -1,0 +1,10 @@
+-- AMBIGUOUS NAME ----------------------------------------------------- Main.elm
+
+This usage of `thing` is ambiguous:
+
+6| x = thing
+       ^^^^^
+
+It could refer to a value from `One` and `Two`.
+
+Whatever it is, use a qualified name to say which one you want.

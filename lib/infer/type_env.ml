@@ -11,15 +11,7 @@ type t = {
   aliases : (Typed.Type.t Variable.t list * Typed.Type.t) Name_map.t;
 }
 
-let concrete_type name args =
-  match (name, args) with
-  | Data.Name.Local "Int", [] -> TInt
-  | Data.Name.Local "Float", [] -> TFloat
-  | Data.Name.Local "Char", [] -> TChar
-  | Data.Name.Local "Bool", [] -> TBool
-  | Data.Name.Local "String", [] -> TStr
-  | Data.Name.Local "Unit", [] -> TUnit
-  | _ -> TCustom (name, args)
+let concrete_type = Primitives.concrete_type
 
 module Written = Map.Make (String)
 
@@ -41,12 +33,8 @@ let typedef_to_type ~variables (impl : Canonical.Typedef.Impl.t) =
     | Kind.Tkind_var v -> TVar (variables v.thing)
     | Kind.Tkind_concrete c -> concrete_type c.thing args
     | Kind.Tkind_tuple types -> TTup (List.map conv types)
-    | Kind.Tkind_function fn -> begin
-        match List.rev fn.arguments with
-        | [] -> Message.fail "Empty function type"
-        | return_impl :: rev_params ->
-            function_of (List.rev_map conv rev_params) ~result:(conv return_impl)
-      end
+    | Kind.Tkind_function fn ->
+        function_of (List.map conv fn.arguments) ~result:(conv fn.result)
     | Kind.Tkind_unit -> TUnit
     | Kind.Tkind_record fields ->
         let base =
@@ -134,8 +122,8 @@ let build ~(imports : Interface.t list) (module_ : Canonical.Module.t) : t =
     aliases;
   }
 
-let rec expand type_env ty =
-  let expand = expand type_env in
+let rec expand ~region type_env ty =
+  let expand = expand ~region type_env in
   match ty with
   | TCustom (name, args) -> begin
       match Name_map.find_opt name type_env.aliases with
@@ -149,8 +137,14 @@ let rec expand type_env ty =
           in
           expand (substitute bindings alias_body)
       | Some (params, _) ->
-          Message.fail "Type alias %s expects %d arguments, got %d"
-            (Data.Name.to_string name) (List.length params) (List.length args)
+          Reporting.Error.raise_type ~region
+            (Reporting.Type_error.Bad_arity
+               {
+                 thing = A_type;
+                 name;
+                 expects = List.length params;
+                 given = List.length args;
+               })
     end
   | TVar _ | TInt | TFloat | TChar | TBool | TStr | TUnit | TRowEmpty | TFun _
   | TTup _ | TRecord _ | TRowExtend _ ->

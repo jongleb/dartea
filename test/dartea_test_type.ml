@@ -4,16 +4,19 @@ open Data
 open Located
 module Main = Parse.Main
 
+let parsed result =
+  Result.get_ok result |> List.map Utils.dummify_all_locs
+
 let test_ty_type_with_params_complicated _ =
   let expect_data =
     [
       Impl.Type_dec
         {
-          Typedecl.name = "Complicated";
+          Typedecl.name = ~?"Complicated";
           ctors =
             [
               {
-                Typedecl.id = "Constr1";
+                Typedecl.id = ~?"Constr1";
                 data =
                   [
                     {
@@ -25,17 +28,13 @@ let test_ty_type_with_params_complicated _ =
                       body =
                         Typedef.Kind.Tkind_function
                           {
-                            Typedef.Type_function.arguments =
-                              [
-                                {
+                            Typedef.Type_function.arguments = [ {
                                   Typedef.Impl.parameters = [];
                                   body = Typedef.Kind.Tkind_var ~?"a";
-                                };
-                                {
+                                } ]; result = ({
                                   Typedef.Impl.parameters = [];
                                   body = Typedef.Kind.Tkind_var ~?"a";
-                                };
-                              ];
+                                });
                           };
                     };
                     {
@@ -53,9 +52,7 @@ let test_ty_type_with_params_complicated _ =
                                       body =
                                         Typedef.Kind.Tkind_function
                                           {
-                                            Typedef.Type_function.arguments =
-                                              [
-                                                {
+                                            Typedef.Type_function.arguments = [ {
                                                   Typedef.Impl.parameters =
                                                     [
                                                       {
@@ -69,14 +66,12 @@ let test_ty_type_with_params_complicated _ =
                                                   body =
                                                     Typedef.Kind.Tkind_concrete
                                                       ~?"Maybe";
-                                                };
-                                                {
+                                                } ]; result = ({
                                                   Typedef.Impl.parameters = [];
                                                   body =
                                                     Typedef.Kind.Tkind_concrete
                                                       ~?"String";
-                                                };
-                                              ];
+                                                });
                                           };
                                     };
                                 };
@@ -94,8 +89,8 @@ let test_ty_type_with_params_complicated _ =
   let input =
     "type Complicated a = Constr1 a (a -> a) {a | field: Maybe a -> String}"
   in
-  let result = Main.parse input in
-  assert_equal (Ok expect_data) result
+  let result = Main.parse ~file:"Main.elm" input in
+  assert_equal expect_data (parsed result)
 
 (** I am bothered thinking up the names of these functions. *)
 
@@ -104,11 +99,11 @@ let test_types_fn_2 _ =
     [
       Impl.Type_dec
         {
-          Typedecl.name = "Complicated";
+          Typedecl.name = ~?"Complicated";
           ctors =
             [
               {
-                Typedecl.id = "Constr1";
+                Typedecl.id = ~?"Constr1";
                 data =
                   [
                     {
@@ -120,17 +115,13 @@ let test_types_fn_2 _ =
                       body =
                         Typedef.Kind.Tkind_function
                           {
-                            Typedef.Type_function.arguments =
-                              [
-                                {
+                            Typedef.Type_function.arguments = [ {
                                   Typedef.Impl.parameters = [];
                                   body = Typedef.Kind.Tkind_var ~?"a";
-                                };
-                                {
+                                } ]; result = ({
                                   Typedef.Impl.parameters = [];
                                   body = Typedef.Kind.Tkind_var ~?"a";
-                                };
-                              ];
+                                });
                           };
                     };
                     {
@@ -148,9 +139,7 @@ let test_types_fn_2 _ =
                                       body =
                                         Typedef.Kind.Tkind_function
                                           {
-                                            Typedef.Type_function.arguments =
-                                              [
-                                                {
+                                            Typedef.Type_function.arguments = [ {
                                                   Typedef.Impl.parameters =
                                                     [
                                                       {
@@ -164,14 +153,12 @@ let test_types_fn_2 _ =
                                                   body =
                                                     Typedef.Kind.Tkind_concrete
                                                       ~?"Maybe";
-                                                };
-                                                {
+                                                } ]; result = ({
                                                   Typedef.Impl.parameters = [];
                                                   body =
                                                     Typedef.Kind.Tkind_concrete
                                                       ~?"String";
-                                                };
-                                              ];
+                                                });
                                           };
                                     };
                                 };
@@ -182,7 +169,7 @@ let test_types_fn_2 _ =
                   ];
               };
               {
-                Typedecl.id = "Constr2";
+                Typedecl.id = ~?"Constr2";
                 data =
                   [
                     {
@@ -190,21 +177,16 @@ let test_types_fn_2 _ =
                       body =
                         Typedef.Kind.Tkind_function
                           {
-                            Typedef.Type_function.arguments =
-                              [
-                                {
+                            Typedef.Type_function.arguments = [ {
                                   Typedef.Impl.parameters = [];
                                   body = Typedef.Kind.Tkind_var ~?"a";
-                                };
-                                {
+                                }; {
                                   Typedef.Impl.parameters = [];
                                   body = Typedef.Kind.Tkind_var ~?"a";
-                                };
-                                {
+                                } ]; result = ({
                                   Typedef.Impl.parameters = [];
                                   body = Typedef.Kind.Tkind_concrete ~?"String";
-                                };
-                              ];
+                                });
                           };
                     };
                     {
@@ -221,17 +203,13 @@ let test_types_fn_2 _ =
                               body =
                                 Typedef.Kind.Tkind_function
                                   {
-                                    Typedef.Type_function.arguments =
-                                      [
-                                        {
+                                    Typedef.Type_function.arguments = [ {
                                           Typedef.Impl.parameters = [];
                                           body = Typedef.Kind.Tkind_var ~?"a";
-                                        };
-                                        {
+                                        } ]; result = ({
                                           Typedef.Impl.parameters = [];
                                           body = Typedef.Kind.Tkind_var ~?"a";
-                                        };
-                                      ];
+                                        });
                                   };
                             };
                           ];
@@ -261,9 +239,7 @@ let test_types_fn_2 _ =
                                                 Typedef.Kind.Tkind_function
                                                   {
                                                     Typedef.Type_function
-                                                    .arguments =
-                                                      [
-                                                        {
+                                                    .arguments = [ {
                                                           Typedef.Impl
                                                           .parameters =
                                                             [
@@ -280,16 +256,14 @@ let test_types_fn_2 _ =
                                                             Typedef.Kind
                                                             .Tkind_concrete
                                                               ~?"Maybe";
-                                                        };
-                                                        {
+                                                        } ]; result = ({
                                                           Typedef.Impl
                                                           .parameters = [];
                                                           body =
                                                             Typedef.Kind
                                                             .Tkind_concrete
                                                               ~?"String";
-                                                        };
-                                                      ];
+                                                        });
                                                   };
                                             };
                                             {
@@ -303,25 +277,21 @@ let test_types_fn_2 _ =
                                                 Typedef.Kind.Tkind_function
                                                   {
                                                     Typedef.Type_function
-                                                    .arguments =
-                                                      [
-                                                        {
+                                                    .arguments = [ {
                                                           Typedef.Impl
                                                           .parameters = [];
                                                           body =
                                                             Typedef.Kind
                                                             .Tkind_var
                                                               ~?"a";
-                                                        };
-                                                        {
+                                                        } ]; result = ({
                                                           Typedef.Impl
                                                           .parameters = [];
                                                           body =
                                                             Typedef.Kind
                                                             .Tkind_var
                                                               ~?"a";
-                                                        };
-                                                      ];
+                                                        });
                                                   };
                                             };
                                           ];
@@ -343,8 +313,8 @@ let test_types_fn_2 _ =
      Constr2 (a -> a -> String) (String, a -> a) String {a | field: (Maybe a \
      -> String, a, a -> a)}"
   in
-  let result = Main.parse input in
-  assert_equal (Ok expect_data) result
+  let result = Main.parse ~file:"Main.elm" input in
+  assert_equal expect_data (parsed result)
 
 let suite =
   [

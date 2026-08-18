@@ -1,12 +1,22 @@
 open Typed
 open Typed.Type
+module Error = Reporting.Error
+module Problem = Reporting.Type_error
+module Expectation = Reporting.Expectation
+
+exception Cannot
+exception Loops of Typed.Type.t
+
+let list_element_of name arguments =
+  match arguments with
+  | [ element ] when Data.Name.equal name (Data.Name.local "List") ->
+      Some element
+  | _ -> None
 
 let combine left right =
   match Data.Constraint.combined left right with
   | Some together -> together
-  | None ->
-      Message.fail "%s and %s cannot be the same type variable"
-        (Data.Constraint.name left) (Data.Constraint.name right)
+  | None -> raise Cannot
 
 let narrow required variable =
   match Variable.constraint_of variable with
@@ -15,17 +25,7 @@ let narrow required variable =
       let together = combine carried required in
       if together <> carried then Variable.constrain variable together
 
-let list_element_of name arguments =
-  match arguments with
-  | [ element ] when Data.Name.equal name (Data.Name.local "List") ->
-      Some element
-  | _ -> None
-
 let rec satisfy (required : Data.Constraint.t) ty =
-  let unsatisfied () =
-    Message.fail "%s does not satisfy %s" (Message.of_type ty)
-      (Data.Constraint.name required)
-  in
   match (required, Type.head ty) with
   | _, TVar variable -> narrow required variable
   | Number, (TInt | TFloat) -> ()
@@ -35,16 +35,15 @@ let rec satisfy (required : Data.Constraint.t) ty =
   | ( (Number | Appendable | Comparable | Comp_appendable),
       TCustom (name, arguments) ) -> begin
       match (required, list_element_of name arguments) with
-      | _, None -> unsatisfied ()
+      | _, None -> raise Cannot
       | Appendable, Some _ -> ()
-      | (Comparable | Comp_appendable), Some element ->
-          satisfy Comparable element
-      | Number, Some _ -> unsatisfied ()
+      | (Comparable | Comp_appendable), Some element -> satisfy Comparable element
+      | Number, Some _ -> raise Cannot
     end
   | ( (Number | Comparable | Appendable | Comp_appendable),
       ( TInt | TFloat | TChar | TStr | TBool | TUnit | TFun _ | TTup _
       | TRecord _ | TRowExtend _ | TRowEmpty ) ) ->
-      unsatisfied ()
+      raise Cannot
 
 let constraint_of_both one other =
   match (Variable.constraint_of one, Variable.constraint_of other) with
@@ -55,20 +54,13 @@ let constraint_of_both one other =
 let admit variable ty =
   Type.iter_variables
     (fun found ->
-      if Variable.equal Typed.Type.equal variable found then begin
-        let naming = Message.naming () in
-        Message.fail "Occurs check failed for %s in %s"
-          (Message.within naming (TVar variable))
-          (Message.within naming ty)
-      end
+      if Variable.equal Typed.Type.equal variable found then raise (Loops ty)
       else Variable.lower_to ~from:variable found)
     ty
 
 let bind variable ty =
   admit variable ty;
-  Option.iter
-    (fun required -> satisfy required ty)
-    (Variable.constraint_of variable);
+  Option.iter (fun required -> satisfy required ty) (Variable.constraint_of variable);
   Variable.link variable ty
 
 let merge one other =
@@ -78,7 +70,7 @@ let merge one other =
 
 let rec rewrite_row row label =
   match Type.head row with
-  | TRowEmpty -> Message.fail "label %s cannot be inserted" label
+  | TRowEmpty -> raise Cannot
   | TRowExtend (found, ty, tail) when String.equal found label -> (ty, tail)
   | TRowExtend (found, ty, tail) -> begin
       match Type.head tail with
@@ -93,8 +85,7 @@ let rec rewrite_row row label =
     end
   | TVar _ | TInt | TFloat | TChar | TBool | TStr | TUnit | TFun _ | TTup _
   | TCustom _ | TRecord _ ->
-      Message.fail "%s is not a record and has no field %s" (Message.of_type row)
-        label
+      raise Cannot
 
 let rec tail_of row =
   match Type.head row with
@@ -107,22 +98,17 @@ let still_open tail =
   match tail with
   | TVar variable -> begin
       match Variable.state variable with
-      | Variable.Linked _ -> Message.fail "recursive row type"
+      | Variable.Linked _ -> raise Cannot
       | Variable.Unbound _ -> ()
     end
   | TInt | TFloat | TChar | TBool | TStr | TUnit | TFun _ | TTup _ | TCustom _
   | TRecord _ | TRowExtend _ | TRowEmpty ->
       ()
 
-let rec types left right =
-  let mismatch () =
-    let naming = Message.naming () in
-    Message.fail "Unification failed for %s and %s"
-      (Message.within naming left) (Message.within naming right)
-  in
+let rec fit left right =
   let in_order these those =
-    if List.length these <> List.length those then mismatch ()
-    else List.iter2 types these those
+    if List.length these <> List.length those then raise Cannot
+    else List.iter2 fit these those
   in
   match (Type.head left, Type.head right) with
   | TVar one, TVar other when Variable.equal Typed.Type.equal one other -> ()
@@ -137,24 +123,37 @@ let rec types left right =
   | TUnit, TUnit ->
       ()
   | TFun (parameter, result), TFun (other_parameter, other_result) ->
-      types parameter other_parameter;
-      types result other_result
+      fit parameter other_parameter;
+      fit result other_result
   | TTup items, TTup other_items -> in_order items other_items
   | TCustom (name, arguments), TCustom (other_name, other_arguments) ->
       if Data.Name.equal name other_name then in_order arguments other_arguments
-      else mismatch ()
-  | TRecord row, TRecord other_row -> types row other_row
-  | TRowEmpty, TRowExtend (label, _, _) ->
-      Message.fail "Extra field '%s' in record" label
-  | TRowExtend (label, _, _), TRowEmpty ->
-      Message.fail "Missing field '%s' in record" label
+      else raise Cannot
+  | TRecord row, TRecord other_row -> fit row other_row
+  | TRowEmpty, TRowExtend _ | TRowExtend _, TRowEmpty -> raise Cannot
   | TRowExtend (label, field, rest), (TRowExtend _ as other_row) ->
       let tail = tail_of rest in
       let other_field, other_rest = rewrite_row other_row label in
       still_open tail;
-      types field other_field;
-      types rest other_rest
+      fit field other_field;
+      fit rest other_rest
   | ( ( TInt | TFloat | TChar | TStr | TBool | TUnit | TFun _ | TTup _
       | TCustom _ | TRecord _ | TRowExtend _ | TRowEmpty ),
       _ ) ->
-      mismatch ()
+      raise Cannot
+
+let types ~region ~category ~expected found =
+  try fit found (Expectation.expected_type expected) with
+  | Cannot ->
+      Error.raise_type ~region (Problem.Bad_expression { category; found; expected })
+  | Loops looping ->
+      Error.raise_type ~region (Problem.Infinite_type { category; found = looping })
+
+let pattern ~region ~category ~expected found =
+  try fit found (Expectation.expected_pattern_type expected) with
+  | Cannot ->
+      Error.raise_type ~region (Problem.Bad_pattern { category; found; expected })
+  | Loops looping ->
+      Error.raise_type ~region
+        (Problem.Infinite_type
+           { category = Reporting.Category.Record; found = looping })

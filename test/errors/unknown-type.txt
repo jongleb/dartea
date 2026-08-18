@@ -1,0 +1,16 @@
+-- NAMING ERROR ------------------------------------------------------- Main.elm
+
+I cannot find a `Missing` type:
+
+1| x : Missing
+       ^^^^^^^
+
+These names seem close though:
+
+    String
+    Int
+    List
+    Unit
+
+Hint: Read <https://elm-lang.org/0.19.1/imports> to see how `import`
+declarations work in Elm.

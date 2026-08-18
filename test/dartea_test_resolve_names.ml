@@ -1,8 +1,8 @@
 open OUnit2
 
 let canonical input =
-  match Parse.Main.parse input with
-  | Error e -> raise e
+  match Parse.Main.parse ~file:"Main.elm" input with
+  | Error error -> raise (Reporting.Error.Found error)
   | Ok impl_list ->
       Canonical.Module.of_frontend ~fallback_name:"Main"
         (Ast.Kind.Frontend.Module.of_impl impl_list)
@@ -18,12 +18,32 @@ let resolved ~dependencies source =
   | Error errors ->
       assert_failure
         (String.concat "\n"
-           (List.map Canonicalization.Resolve_names.show_error errors))
+           (List.map Reporting.Error.show errors))
+
+let without_suggestions (problem : Reporting.Error.problem) =
+  match problem with
+  | Name (Unbound_value found) ->
+      Reporting.Error.Name (Unbound_value { found with near = [] })
+  | Name (Unknown_constructor found) ->
+      Name (Unknown_constructor { found with near = [] })
+  | Name (Unknown_type found) -> Name (Unknown_type { found with near = [] })
+  | Name (Unknown_module found) -> Name (Unknown_module { found with near = [] })
+  | Name (Not_exposed found) -> Name (Not_exposed { found with near = [] })
+  | Name
+      ( Ctors_not_exposed _ | Ambiguous _ | Unknown_kernel _
+      | Kernel_needs_annotation _ | Kernel_arity_mismatch _
+      | Duplicate_declaration _ | Duplicate_binder _ | Import_cycle _
+      | Recursive_value _ )
+  | Type _ | Syntax _ ->
+      problem
 
 let failing ~dependencies source =
   match resolve ~dependencies source with
   | Ok _ -> assert_failure "expected resolution to fail"
-  | Error errors -> errors
+  | Error errors ->
+      List.map
+        (fun (error : Reporting.Error.t) -> without_suggestions error.problem)
+        errors
 
 let declaration_named module_ name =
   List.find_opt
@@ -33,19 +53,21 @@ let declaration_named module_ name =
 
 let expr_of module_ name =
   match declaration_named module_ name with
-  | Some (d : Canonical.Declaration.t) -> Data.Located.unwrap d.body_part.expr
+  | Some (d : Canonical.Declaration.t) ->
+      Utils.Canonical_expr_util.dummify d.body_part.expr
   | None -> assert_failure (Printf.sprintf "declaration %s not found" name)
 
 let signature_of module_ name =
   match declaration_named module_ name with
   | Some (d : Canonical.Declaration.t) ->
       Option.map
-        (fun (tp : Canonical.Declaration.type_part) -> tp.type_alias)
+        (fun (tp : Canonical.Declaration.type_part) ->
+          Utils.Canonical_typedef_util.dummify tp.type_alias)
         d.type_part_data
   | None -> assert_failure (Printf.sprintf "declaration %s not found" name)
 
-let errors_printer errors =
-  String.concat "\n" (List.map Canonicalization.Resolve_names.show_error errors)
+let errors_printer problems =
+  String.concat "\n" (List.map Reporting.Error.show_problem problems)
 
 let list_module =
   {|
@@ -137,8 +159,8 @@ x = L.map
 |}
   in
   assert_equal ~printer:Canonical.Expr.show
-    (Canonical.Expr.Expr_ident
-       (Data.Name.global ~module_name:"Data.List" ~exported_name:"map"))
+    (Data.Located.dummy(Canonical.Expr.Expr_ident
+       (Data.Name.global ~module_name:"Data.List" ~exported_name:"map")))
     (expr_of module_ "x")
 
 let test_exposed_name_becomes_global _ =
@@ -153,8 +175,8 @@ x = map
 |}
   in
   assert_equal ~printer:Canonical.Expr.show
-    (Canonical.Expr.Expr_ident
-       (Data.Name.global ~module_name:"Data.List" ~exported_name:"map"))
+    (Data.Located.dummy(Canonical.Expr.Expr_ident
+       (Data.Name.global ~module_name:"Data.List" ~exported_name:"map")))
     (expr_of module_ "x")
 
 let test_exposing_all_uses_dependency_exports _ =
@@ -169,8 +191,8 @@ x = map
 |}
   in
   assert_equal ~printer:Canonical.Expr.show
-    (Canonical.Expr.Expr_ident
-       (Data.Name.global ~module_name:"Data.List" ~exported_name:"map"))
+    (Data.Located.dummy(Canonical.Expr.Expr_ident
+       (Data.Name.global ~module_name:"Data.List" ~exported_name:"map")))
     (expr_of module_ "x")
 
 let test_local_declaration_shadows_import _ =
@@ -187,7 +209,7 @@ x = map
 |}
   in
   assert_equal ~printer:Canonical.Expr.show
-    (Canonical.Expr.Expr_ident (Data.Name.local "map"))
+    (Data.Located.dummy(Canonical.Expr.Expr_ident (Data.Name.local "map")))
     (expr_of module_ "x")
 
 let test_parameter_shadows_import _ =
@@ -202,10 +224,10 @@ x map = map
 |}
   in
   assert_equal ~printer:Canonical.Expr.show
-    (Canonical.Expr.Expr_ident (Data.Name.local "map"))
+    (Data.Located.dummy(Canonical.Expr.Expr_ident (Data.Name.local "map")))
     (expr_of module_ "x")
 
-let test_builtins_stay_local _ =
+let test_operators_stay_local _ =
   let module_ =
     resolved ~dependencies:[ list_module ]
       {|
@@ -213,15 +235,24 @@ module Main exposing (..)
 
 import Data.List exposing (map)
 
-x = length "hello"
+x = 1 + 2
 |}
   in
   assert_equal ~printer:Canonical.Expr.show
-    (Canonical.Expr.Expr_apply
-       {
-         fn = Canonical.Expr.Expr_ident (Data.Name.local "length");
-         arg = Canonical.Expr.Expr_string "hello";
-       })
+    (Data.Located.dummy
+       (Canonical.Expr.Expr_apply
+          {
+            fn =
+              Data.Located.dummy
+                (Canonical.Expr.Expr_apply
+                   {
+                     fn =
+                       Data.Located.dummy
+                         (Canonical.Expr.Expr_ident (Data.Name.local "+"));
+                     arg = Data.Located.dummy (Canonical.Expr.Expr_int 1);
+                   });
+            arg = Data.Located.dummy (Canonical.Expr.Expr_int 2);
+          }))
     (expr_of module_ "x")
 
 let test_exposed_ctor_in_pattern _ =
@@ -242,21 +273,21 @@ x =
     Data.Name.global ~module_name:"Paint" ~exported_name:name
   in
   assert_equal ~printer:Canonical.Expr.show
-    (Canonical.Expr.Expr_pattern
+    (Data.Located.dummy(Canonical.Expr.Expr_pattern
        {
-         expr = Canonical.Expr.Expr_ident (global "Red");
+         expr = Data.Located.dummy(Canonical.Expr.Expr_ident (global "Red"));
          pattern_data_items =
            [
              {
-               pattern = Canonical.Pattern.P_ctor (global "Red", []);
-               expr = Canonical.Expr.Expr_int 1;
+               pattern = Data.Located.dummy(Canonical.Pattern.P_ctor (global "Red", []));
+               expr = Data.Located.dummy(Canonical.Expr.Expr_int 1);
              };
              {
-               pattern = Canonical.Pattern.P_ctor (global "Blue", []);
-               expr = Canonical.Expr.Expr_int 2;
+               pattern = Data.Located.dummy(Canonical.Pattern.P_ctor (global "Blue", []));
+               expr = Data.Located.dummy(Canonical.Expr.Expr_int 2);
              };
            ];
-       })
+       }))
     (expr_of module_ "x")
 
 let test_qualified_type_in_signature _ =
@@ -278,23 +309,19 @@ x thing = 1
         body =
           Canonical.Typedef.Kind.Tkind_function
             {
-              arguments =
-                [
-                  {
+              arguments = [ {
                     parameters = [];
                     body =
                       Canonical.Typedef.Kind.Tkind_concrete
                         (Data.Located.dummy
                            (Data.Name.global ~module_name:"Paint"
                               ~exported_name:"Thing"));
-                  };
-                  {
+                  } ]; result = ({
                     parameters = [];
                     body =
                       Canonical.Typedef.Kind.Tkind_concrete
                         (Data.Located.dummy (Data.Name.local "Int"));
-                  };
-                ];
+                  });
             };
       }
   in
@@ -316,11 +343,14 @@ x = Missing.foo
   in
   assert_equal ~printer:errors_printer
     [
-      {
-        Canonicalization.Resolve_names.origin =
-          Value_declaration (Data.Located.dummy "x");
-        problem = Unknown_module { qualifier = "Missing" };
-      };
+      Reporting.Error.Name
+        (Unbound_value
+           {
+             name =
+               Data.Name.global ~module_name:"Missing" ~exported_name:"foo";
+             prefix = Unknown_prefix "Missing";
+             near = [];
+           });
     ]
     errors
 
@@ -337,10 +367,7 @@ x = 1
   in
   assert_equal ~printer:errors_printer
     [
-      {
-        Canonicalization.Resolve_names.origin = Import "Missing";
-        problem = Unknown_module { qualifier = "Missing" };
-      };
+      Reporting.Error.Name (Unknown_module { qualifier = "Missing"; near = [] });
     ]
     errors
 
@@ -357,11 +384,14 @@ x = Data.List.secret
   in
   assert_equal ~printer:errors_printer
     [
-      {
-        Canonicalization.Resolve_names.origin =
-          Value_declaration (Data.Located.dummy "x");
-        problem = Not_exposed { module_name = "Data.List"; name = "secret" };
-      };
+      Reporting.Error.Name
+        (Unbound_value
+           {
+             name =
+               Data.Name.global ~module_name:"Data.List" ~exported_name:"secret";
+             prefix = Known_prefix "Data.List";
+             near = [];
+           });
     ]
     errors
 
@@ -378,10 +408,7 @@ x = 1
   in
   assert_equal ~printer:errors_printer
     [
-      {
-        Canonicalization.Resolve_names.origin = Import "Data.List";
-        problem = Not_exposed { module_name = "Data.List"; name = "filter" };
-      };
+      Reporting.Error.Name (Not_exposed { module_name = "Data.List"; name = "filter"; near = [] });
     ]
     errors
 
@@ -412,12 +439,7 @@ x = thing
   in
   assert_equal ~printer:errors_printer
     [
-      {
-        Canonicalization.Resolve_names.origin =
-          Value_declaration (Data.Located.dummy "x");
-        problem =
-          Ambiguous { name = "thing"; modules = [ "First"; "Second" ] };
-      };
+      Reporting.Error.Name (Ambiguous { name = "thing"; modules = [ "First"; "Second" ] });
     ]
     errors
 
@@ -434,10 +456,7 @@ type Beta = Shared
   in
   assert_equal ~printer:errors_printer
     [
-      {
-        Canonicalization.Resolve_names.origin = Type_declaration "Beta";
-        problem = Duplicate_declaration { name = "Shared" };
-      };
+      Reporting.Error.Name (Duplicate_declaration { name = "Shared" });
     ]
     errors
 
@@ -456,11 +475,7 @@ foo = 3
   in
   assert_equal ~printer:errors_printer
     [
-      {
-        Canonicalization.Resolve_names.origin =
-          Value_declaration (Data.Located.dummy "foo");
-        problem = Duplicate_declaration { name = "foo" };
-      };
+      Reporting.Error.Name (Duplicate_declaration { name = "foo" });
     ]
     errors
 
@@ -479,11 +494,7 @@ foo = 2
   in
   assert_equal ~printer:errors_printer
     [
-      {
-        Canonicalization.Resolve_names.origin =
-          Value_declaration (Data.Located.dummy "foo");
-        problem = Duplicate_declaration { name = "foo" };
-      };
+      Reporting.Error.Name (Duplicate_declaration { name = "foo" });
     ]
     errors
 
@@ -529,11 +540,7 @@ x = 1
   in
   assert_equal ~printer:errors_printer
     [
-      {
-        Canonicalization.Resolve_names.origin = Import "Paint";
-        problem =
-          Ctors_not_exposed { module_name = "Paint"; type_name = "Color" };
-      };
+      Reporting.Error.Name (Ctors_not_exposed { module_name = "Paint"; type_name = "Color" });
     ]
     errors
 
@@ -553,7 +560,7 @@ x =
 |}
   in
   assert_equal ~printer:Canonical.Expr.show
-    (Canonical.Expr.Expr_let
+    (Data.Located.dummy(Canonical.Expr.Expr_let
        {
          binding =
            {
@@ -561,11 +568,11 @@ x =
              bind_body =
                {
                  name = Data.Located.dummy "map";
-                 body = Canonical.Expr.Expr_int 1;
+                 body = Data.Located.dummy(Canonical.Expr.Expr_int 1);
                };
            };
-         body = Canonical.Expr.Expr_ident (Data.Name.local "map");
-       })
+         body = Data.Located.dummy(Canonical.Expr.Expr_ident (Data.Name.local "map"));
+       }))
     (expr_of module_ "x")
 
 let test_pattern_binding_shadows_import _ =
@@ -582,17 +589,17 @@ x =
 |}
   in
   assert_equal ~printer:Canonical.Expr.show
-    (Canonical.Expr.Expr_pattern
+    (Data.Located.dummy(Canonical.Expr.Expr_pattern
        {
-         expr = Canonical.Expr.Expr_int 1;
+         expr = Data.Located.dummy(Canonical.Expr.Expr_int 1);
          pattern_data_items =
            [
              {
-               pattern = Canonical.Pattern.P_var "map";
-               expr = Canonical.Expr.Expr_ident (Data.Name.local "map");
+               pattern = Data.Located.dummy(Canonical.Pattern.P_var "map");
+               expr = Data.Located.dummy(Canonical.Expr.Expr_ident (Data.Name.local "map"));
              };
            ];
-       })
+       }))
     (expr_of module_ "x")
 
 let test_alias_hides_the_full_module_name _ =
@@ -608,11 +615,14 @@ x = Data.List.map
   in
   assert_equal ~printer:errors_printer
     [
-      {
-        Canonicalization.Resolve_names.origin =
-          Value_declaration (Data.Located.dummy "x");
-        problem = Unknown_module { qualifier = "Data.List" };
-      };
+      Reporting.Error.Name
+        (Unbound_value
+           {
+             name =
+               Data.Name.global ~module_name:"Data.List" ~exported_name:"map";
+             prefix = Unknown_prefix "Data.List";
+             near = [];
+           });
     ]
     errors
 
@@ -629,27 +639,22 @@ type alias Shape = Int
   in
   assert_equal ~printer:errors_printer
     [
-      {
-        Canonicalization.Resolve_names.origin = Type_alias "Shape";
-        problem = Duplicate_declaration { name = "Shape" };
-      };
+      Reporting.Error.Name (Duplicate_declaration { name = "Shape" });
     ]
     errors
 
-let test_unqualified_use_without_exposing_stays_local _ =
-  let module_ =
-    resolved ~dependencies:[ list_module ]
-      {|
+let test_unqualified_use_without_exposing_is_unbound _ =
+  assert_equal ~printer:errors_printer
+    [ Reporting.Error.Name (Unbound_value
+           { name = Data.Name.local "map"; prefix = No_prefix; near = [] }) ]
+    (failing ~dependencies:[ list_module ]
+       {|
 module Main exposing (..)
 
 import Data.List
 
 x = map
-|}
-  in
-  assert_equal ~printer:Canonical.Expr.show
-    (Canonical.Expr.Expr_ident (Data.Name.local "map"))
-    (expr_of module_ "x")
+|})
 
 let test_diamond_dependency_order _ =
   let modules =
@@ -722,22 +727,15 @@ length : String -> Int
 length = Elm.Kernel.String.length
 |} in
   assert_equal ~printer:Canonical.Expr.show
-    (Canonical.Expr.Expr_kernel (Data.Kernel.Unary Data.Kernel.String_length))
+    (Data.Located.dummy(Canonical.Expr.Expr_kernel (Data.Kernel.Unary Data.Kernel.String_length)))
     (expr_of module_ "length")
 
-let problems_of errors =
-  List.map (fun (e : Canonicalization.Resolve_names.error) -> e.problem) errors
-
-let problems_printer problems =
-  String.concat "\n"
-    (List.map Canonicalization.Resolve_names.show_problem problems)
+let problems_of problems = problems
+let problems_printer = errors_printer
 
 let test_unknown_kernel_reference_is_reported _ =
   assert_equal ~printer:problems_printer
-    [
-      Canonicalization.Resolve_names.Unknown_kernel
-        { module_name = "Elm.Kernel.String"; exported_name = "reverse" };
-    ]
+    [ Reporting.Error.Name (Unknown_kernel { module_name = "Elm.Kernel.String"; exported_name = "reverse" }) ]
     (problems_of
        (failing ~dependencies:[] {|
 module M exposing (bogus)
@@ -748,7 +746,7 @@ bogus = Elm.Kernel.String.reverse
 
 let test_kernel_without_a_signature_is_reported _ =
   assert_equal ~printer:problems_printer
-    [ Canonicalization.Resolve_names.Kernel_needs_annotation ]
+    [ Reporting.Error.Name (Kernel_needs_annotation { name = "length" }) ]
     (problems_of
        (failing ~dependencies:[] {|
 module M exposing (length)
@@ -758,7 +756,7 @@ length = Elm.Kernel.String.length
 
 let test_kernel_arity_must_match_the_signature _ =
   assert_equal ~printer:problems_printer
-    [ Canonicalization.Resolve_names.Kernel_arity_mismatch { declared = 2; kernel = 1 } ]
+    [ Reporting.Error.Name (Kernel_arity_mismatch { declared = 2; kernel = 1 }) ]
     (problems_of
        (failing ~dependencies:[] {|
 module M exposing (length)
@@ -781,11 +779,7 @@ good =
   in
   assert_equal ~printer:errors_printer
     [
-      {
-        Canonicalization.Resolve_names.origin =
-          Value_declaration (Data.Located.dummy "good");
-        problem = Duplicate_binder { name = "a" };
-      };
+      Reporting.Error.Name (Duplicate_binder { name = "a" });
     ]
     errors
 
@@ -800,11 +794,7 @@ good a a = a
   in
   assert_equal ~printer:errors_printer
     [
-      {
-        Canonicalization.Resolve_names.origin =
-          Value_declaration (Data.Located.dummy "good");
-        problem = Duplicate_binder { name = "a" };
-      };
+      Reporting.Error.Name (Duplicate_binder { name = "a" });
     ]
     errors
 
@@ -819,11 +809,7 @@ good = \a a -> a
   in
   assert_equal ~printer:errors_printer
     [
-      {
-        Canonicalization.Resolve_names.origin =
-          Value_declaration (Data.Located.dummy "good");
-        problem = Duplicate_binder { name = "a" };
-      };
+      Reporting.Error.Name (Duplicate_binder { name = "a" });
     ]
     errors
 
@@ -861,7 +847,7 @@ let suite =
     "local declaration shadows import"
     >:: test_local_declaration_shadows_import;
     "parameter shadows import" >:: test_parameter_shadows_import;
-    "builtins stay local" >:: test_builtins_stay_local;
+    "operators stay local" >:: test_operators_stay_local;
     "exposed ctor in pattern" >:: test_exposed_ctor_in_pattern;
     "qualified type in signature" >:: test_qualified_type_in_signature;
     "unknown module" >:: test_unknown_module;
@@ -881,8 +867,8 @@ let suite =
     "alias hides the full module name"
     >:: test_alias_hides_the_full_module_name;
     "type and alias share a name" >:: test_type_and_alias_share_a_name;
-    "unqualified use without exposing stays local"
-    >:: test_unqualified_use_without_exposing_stays_local;
+    "unqualified use without exposing is unbound"
+    >:: test_unqualified_use_without_exposing_is_unbound;
     "diamond dependency order" >:: test_diamond_dependency_order;
     "unknown import is not an edge" >:: test_unknown_import_is_not_an_edge;
     "a_name_bound_twice_in_one_pattern_is_rejected"

@@ -1,0 +1,17 @@
+-- MODULE NOT FOUND --------------------------------------------------- Main.elm
+
+You are trying to import a `List` module:
+
+3| import List
+          ^^^^
+
+I looked through the modules of this project, but I cannot find it! Maybe it is
+a typo for one of these names?
+
+    Char
+    Tuple
+    String
+    Maybe
+
+Hint: Read <https://elm-lang.org/0.19.1/imports> to see how `import`
+declarations work in Elm.

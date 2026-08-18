@@ -1,0 +1,12 @@
+-- TYPE MISMATCH ------------------------------------------------------ Main.elm
+
+This is not a record, so it has no fields to access!
+
+2| reach r = r.name
+             ^
+
+This `r` value is a:
+
+    Int
+
+But I need a record with a name field!

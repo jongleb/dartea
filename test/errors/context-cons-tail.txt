@@ -1,0 +1,14 @@
+-- TYPE MISMATCH ------------------------------------------------------ Main.elm
+
+This expression is being used in an unexpected way:
+
+1| xs = 1 :: "a"
+             ^^^
+
+It is a string of type:
+
+    String
+
+But you are trying to use it as:
+
+    List number

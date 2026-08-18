@@ -2,4 +2,4 @@
  (name after_typed)
  (flags
   (-w -40 -w +26))
- (libraries infer typed optimized))
+ (libraries infer typed optimized reporting))

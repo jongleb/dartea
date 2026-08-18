@@ -21,14 +21,15 @@ let record_constructor (alias : Frontend.Typealias.t) :
         List.mapi (fun index _ -> at ("$a" ^ string_of_int index)) rows
       in
       let value =
-        Expr.Expr_record
-          (List.map2
-             (fun (row : Typedef.Type_record_row.t) param ->
-               {
-                 Expr.name = Data.Located.unwrap row.name;
-                 value = Expr.Expr_ident (Data.Located.unwrap param);
-               })
-             rows params)
+        at
+          (Expr.Expr_record
+             (List.map2
+                (fun (row : Typedef.Type_record_row.t) param ->
+                  {
+                    Expr.name = Data.Located.unwrap row.name;
+                    value = at (Expr.Expr_ident (Data.Located.unwrap param));
+                  })
+                rows params))
       in
       let aliased =
         {
@@ -55,8 +56,8 @@ let record_constructor (alias : Frontend.Typealias.t) :
                     Typedef.Type_function.arguments =
                       List.map
                         (fun (row : Typedef.Type_record_row.t) -> row.body)
-                        rows
-                      @ [ aliased ];
+                        rows;
+                    result = aliased;
                   };
             }
       in
@@ -65,7 +66,7 @@ let record_constructor (alias : Frontend.Typealias.t) :
           Declaration.type_part_data =
             Some { Declaration.name = alias.name; type_alias = signature };
           body_part =
-            { Declaration.name = alias.name; expr = at value; params };
+            { Declaration.name = alias.name; expr = value; params };
         }
   | _ -> None
 

@@ -1,0 +1,8 @@
+-- BAD IMPORT --------------------------------------------------------- Main.elm
+
+The `Paint` module does not expose `secret`:
+
+3| import Paint exposing (secret)
+          ^^^^^
+
+Maybe you want `shown` instead?

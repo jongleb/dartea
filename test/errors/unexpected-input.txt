@@ -1,0 +1,8 @@
+-- PARSE ERROR -------------------------------------------------------- Main.elm
+
+I got stuck here:
+
+1| x = )
+       ^
+
+I was not expecting `)` at this point.

@@ -1,0 +1,8 @@
+-- TOO MANY ARGS ------------------------------------------------------ Main.elm
+
+The `Pair` type needs 1 argument, but I see 2 instead:
+
+3| both : Pair Int Int
+   ^^^^
+
+Which is the extra one? Maybe some parentheses are missing?

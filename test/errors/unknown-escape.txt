@@ -1,0 +1,8 @@
+-- UNKNOWN ESCAPE ----------------------------------------------------- Main.elm
+
+I do not know the escape `\q`:
+
+1| x = "a\q"
+          ^
+
+The escapes I know are \n, \t, \r, \b, \", \', \\ and \u{...}.

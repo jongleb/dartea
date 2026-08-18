@@ -1,8 +1,5 @@
 open OUnit2
 
-(* FIXME: SUPER DIRTY HACK . REMOVE ME SOMEWHEN*)
-let () = Data.Located._is_loc_empty_mode := true
-
 let suite =
   "Dartea_test"
   >::: [
@@ -13,6 +10,8 @@ let suite =
          "test_type_system" >::: Dartea_test_type_system.suite;
          "test_indent" >::: Dartea_test_indent.suite;
          "test_layout_laws" >::: Dartea_test_layout_laws.suite;
+         "test_region_laws" >::: Dartea_test_region_laws.suite;
+         "test_reports" >::: Dartea_test_reports.suite;
          "test_codegen" >::: Dartea_test_codegen.suite;
          "test_exhaustive" >::: Dartea_test_exhaustive.suite;
          "test_frontend_module" >::: Dartea_test_frontend_module.suite;

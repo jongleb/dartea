@@ -54,7 +54,7 @@ let saturated (decl : O.Declaration.t) : O.Declaration.t =
     in
     let added = Seq.zip (unused_names ~taken) missing |> List.of_seq in
     let parameter (name, typ) =
-      { O.Declaration.name = Data.Located.mk name decl.name.loc; typ }
+      { O.Declaration.name = Data.Located.at decl.name.region name; typ }
     in
     let applied_to (fn : O.Expr.t) (name, typ) =
       let argument =

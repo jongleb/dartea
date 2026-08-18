@@ -51,7 +51,7 @@ end = struct
 end
 
 and Type_function : sig
-  type t = { arguments : Impl.t list } [@@deriving show, fields]
+  type t = { arguments : Impl.t list; result : Impl.t } [@@deriving show, fields]
 end = struct
-  type t = { arguments : Impl.t list } [@@deriving show, fields]
+  type t = { arguments : Impl.t list; result : Impl.t } [@@deriving show, fields]
 end

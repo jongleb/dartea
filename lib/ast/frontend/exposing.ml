@@ -1,4 +1,4 @@
-type privacy = Public of Data.Located.loc | Private [@@deriving show]
+type privacy = Public of Data.Region.t | Private [@@deriving show]
 
 type upper = { name : string Data.Located.t; privacy : privacy }
 [@@deriving show]

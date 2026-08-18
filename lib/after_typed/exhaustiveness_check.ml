@@ -5,25 +5,27 @@ let warnings
   let rec in_expression (expr : Typed.Expr.t) =
     match expr.expr with
     | Expr_pattern pattern_match ->
-        let patterns =
+        let branches = pattern_match.pattern_data_items in
+        let patterns = List.map (fun (case : expr_pattern_case) -> case.pattern) branches in
+        let missing =
+          match Exhaustive.counterexample siblings_env patterns with
+          | None -> []
+          | Some unhandled ->
+              [ Reporting.Warning.missing_patterns ~region:expr.region [ unhandled ] ]
+        in
+        let redundant =
           List.map
-            (fun (case : expr_pattern_case) -> case.pattern)
-            pattern_match.pattern_data_items
+            (fun index ->
+              let branch = List.nth branches index in
+              Reporting.Warning.redundant_pattern ~region:branch.pattern_region
+                (index + 1))
+            (Exhaustive.redundant_clauses siblings_env patterns)
         in
-        let here =
-          match Exhaustive.is_exhaustive siblings_env patterns with
-          | true -> []
-          | false ->
-              [
-                Printf.sprintf "Warning: non-exhaustive pattern match in %s"
-                  decl.name.thing;
-              ]
-        in
-        here
+        missing @ redundant
         @ in_expression pattern_match.expr
         @ List.concat_map
             (fun (case : expr_pattern_case) -> in_expression case.expr)
-            pattern_match.pattern_data_items
+            branches
     | Expr_let let_expr ->
         in_expression let_expr.binding.bind_body.body
         @ in_expression let_expr.body
@@ -50,9 +52,8 @@ let warnings
           (fun (row : expr_record_row) -> in_expression row.value)
           rows
     | Expr_ident _ | Expr_accessor _ | Expr_record_extend _
-    | Expr_record_select _ | Expr_record_empty | Expr_unit
-    | Expr_kernel _ | Expr_char _ | Expr_string _ | Expr_int _
-    | Expr_float _ ->
+    | Expr_record_select _ | Expr_record_empty | Expr_unit | Expr_kernel _
+    | Expr_char _ | Expr_string _ | Expr_int _ | Expr_float _ ->
         []
   in
   in_expression decl.body

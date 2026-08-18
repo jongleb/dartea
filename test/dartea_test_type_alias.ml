@@ -2,6 +2,9 @@ open OUnit2
 open Ast.Kind.Frontend
 module Main = Parse.Main
 
+let parsed result =
+  Result.get_ok result |> List.map Utils.dummify_all_locs
+
 let test_ty_alias_record _ =
   let typedef =
     Typedef.(
@@ -35,8 +38,8 @@ let test_ty_alias_record _ =
 
   let expect_data = [ top ] in
   let input = "type alias User = { name: String, age: Int }" in
-  let result = Main.parse input in
-  assert_equal (Ok expect_data) result
+  let result = Main.parse ~file:"Main.elm" input in
+  assert_equal expect_data (parsed result)
 
 let test_ty_alias_type_with_params _ =
   let expect_data =
@@ -91,7 +94,7 @@ let test_ty_alias_type_with_params _ =
     "type alias Complicated = With Param1 (Param2 Param3 (Param4 Param5))"
   in
   let result =
-    input |> Main.parse |> Result.get_ok |> List.map Utils.dummify_all_locs
+    parsed (Main.parse ~file:"Main.elm" input)
   in
   assert_equal expect_data result
 
@@ -147,8 +150,8 @@ let test_ty_alias_type_with_params_and_record_param _ =
     ]
   in
   let input = "type alias Complicated = With Param1 (Param2 {a: String})" in
-  let result = Main.parse input in
-  assert_equal (Ok expect_data) result
+  let result = Main.parse ~file:"Main.elm" input in
+  assert_equal expect_data (parsed result)
 
 let test_ty_alias_type_with_params_and_record_param_with_a_lot_of_parens _ =
   let expect_data =
@@ -204,8 +207,8 @@ let test_ty_alias_type_with_params_and_record_param_with_a_lot_of_parens _ =
   let input =
     "type alias Complicated = With ((Param1)) (Param2 {a: ((((((String))))))})"
   in
-  let result = Main.parse input in
-  assert_equal (Ok expect_data) result
+  let result = Main.parse ~file:"Main.elm" input in
+  assert_equal expect_data (parsed result)
 
 let test_ty_alias_tuples _ =
   let expect_data =
@@ -237,8 +240,8 @@ let test_ty_alias_tuples _ =
     ]
   in
   let input = "type alias User = (String, Int)" in
-  let result = Main.parse input in
-  assert_equal (Ok expect_data) result
+  let result = Main.parse ~file:"Main.elm" input in
+  assert_equal expect_data (parsed result)
 
 let test_ty_alias_and_record_and_plain _ =
   let expect_data =
@@ -341,8 +344,8 @@ let test_ty_alias_and_record_and_plain _ =
     "type alias MaybeUser = Maybe (String, { age: Int, dog: Maybe {dogName: \
      String} })"
   in
-  let result = Main.parse input in
-  assert_equal (Ok expect_data) result
+  let result = Main.parse ~file:"Main.elm" input in
+  assert_equal expect_data (parsed result)
 
 let test_ty_alias_and_record_and_plain_and_one_more_tuple _ =
   let expect_data =
@@ -485,8 +488,8 @@ let test_ty_alias_and_record_and_plain_and_one_more_tuple _ =
     "type alias MaybeUser = Maybe (String, { age: Int, dog: Maybe {dogName: \
      (String, Int, Int)} })"
   in
-  let result = Main.parse input in
-  assert_equal (Ok expect_data) result
+  let result = Main.parse ~file:"Main.elm" input in
+  assert_equal expect_data (parsed result)
 
 let test_ty_alias_record_with_params_row_type _ =
   let expect_data =
@@ -522,9 +525,9 @@ let test_ty_alias_record_with_params_row_type _ =
     ]
   in
   let input = "type alias User a = { a | fieldN: String }" in
-  prerr_endline @@ Impl.show @@ List.hd @@ Result.get_ok @@ Main.parse input;
-  let result = Main.parse input in
-  assert_equal (Ok expect_data) result
+  prerr_endline @@ Impl.show @@ List.hd @@ Result.get_ok @@ Main.parse ~file:"Main.elm" input;
+  let result = Main.parse ~file:"Main.elm" input in
+  assert_equal expect_data (parsed result)
 
 let test_function_types _ =
   let expect_data =
@@ -537,17 +540,13 @@ let test_function_types _ =
               body =
                 Typedef.Kind.Tkind_function
                   {
-                    Typedef.Type_function.arguments =
-                      [
-                        {
+                    Typedef.Type_function.arguments = [ {
                           Typedef.Impl.parameters = [];
                           body = Typedef.Kind.Tkind_var (Data.Located.dummy "a");
-                        };
-                        {
+                        } ]; result = ({
                           Typedef.Impl.parameters = [];
                           body = Typedef.Kind.Tkind_var (Data.Located.dummy "a");
-                        };
-                      ];
+                        });
                   };
             };
           params = [ Data.Located.dummy "a" ];
@@ -556,8 +555,8 @@ let test_function_types _ =
     ]
   in
   let input = "type alias Id a = a -> a" in
-  let result = Main.parse input in
-  assert_equal (Ok expect_data) result
+  let result = Main.parse ~file:"Main.elm" input in
+  assert_equal expect_data (parsed result)
 
 let test_function_with_function_param_types _ =
   let expect_data =
@@ -570,21 +569,17 @@ let test_function_with_function_param_types _ =
               body =
                 Typedef.Kind.Tkind_function
                   {
-                    Typedef.Type_function.arguments =
-                      [
-                        {
+                    Typedef.Type_function.arguments = [ {
                           Typedef.Impl.parameters = [];
                           body =
                             Typedef.Kind.Tkind_concrete
                               (Data.Located.dummy "String");
-                        };
-                        {
+                        }; {
                           Typedef.Impl.parameters = [];
                           body =
                             Typedef.Kind.Tkind_concrete
                               (Data.Located.dummy "Int");
-                        };
-                        {
+                        }; {
                           Typedef.Impl.parameters = [];
                           body =
                             Typedef.Kind.Tkind_tuple
@@ -602,27 +597,22 @@ let test_function_with_function_param_types _ =
                                       (Data.Located.dummy "b");
                                 };
                               ];
-                        };
-                        {
+                        } ]; result = ({
                           Typedef.Impl.parameters = [];
                           body =
                             Typedef.Kind.Tkind_function
                               {
-                                Typedef.Type_function.arguments =
-                                  [
-                                    {
+                                Typedef.Type_function.arguments = [ {
                                       Typedef.Impl.parameters = [];
                                       body =
                                         Typedef.Kind.Tkind_concrete
                                           (Data.Located.dummy "String");
-                                    };
-                                    {
+                                    }; {
                                       Typedef.Impl.parameters = [];
                                       body =
                                         Typedef.Kind.Tkind_var
                                           (Data.Located.dummy "a");
-                                    };
-                                    {
+                                    } ]; result = ({
                                       Typedef.Impl.parameters = [];
                                       body =
                                         Typedef.Kind.Tkind_tuple
@@ -646,11 +636,9 @@ let test_function_with_function_param_types _ =
                                                   (Data.Located.dummy "c");
                                             };
                                           ];
-                                    };
-                                  ];
+                                    });
                               };
-                        };
-                      ];
+                        });
                   };
             };
           params =
@@ -667,22 +655,22 @@ let test_function_with_function_param_types _ =
     "type alias FunName a b c = String -> Int -> (a, b) -> (String -> a -> (b, \
      b, c))"
   in
-  let result = Main.parse input in
-  assert_equal (Ok expect_data) result
+  let result = Main.parse ~file:"Main.elm" input in
+  assert_equal expect_data (parsed result)
 
 let test_any_fail_if_type_parametr_is_uppecase _ =
   let input = "type alias Id A = A -> A" in
-  let res = Main.parse input in
+  let res = Main.parse ~file:"Main.elm" input in
   assert_equal false (Result.is_ok res)
 
 let test_any_fail_if_ty_alias_name_is_lowercase _ =
   let input = "type alias anyName a = a -> a" in
-  let res = Main.parse input in
+  let res = Main.parse ~file:"Main.elm" input in
   assert_equal false (Result.is_ok res)
 
 let test_any_fail_if_any_char_in_middle_of_valid_code _ =
   let input = "type alias ValidName - a = a -> a" in
-  let res = Main.parse input in
+  let res = Main.parse ~file:"Main.elm" input in
   assert_equal false (Result.is_ok res)
 
 let test_fun_no_lrbraces _ =
@@ -702,21 +690,17 @@ let test_fun_no_lrbraces _ =
                       body =
                         Typedef.Kind.Tkind_function
                           {
-                            Typedef.Type_function.arguments =
-                              [
-                                {
+                            Typedef.Type_function.arguments = [ {
                                   Typedef.Impl.parameters = [];
                                   body =
                                     Typedef.Kind.Tkind_var
                                       (Data.Located.dummy "a");
-                                };
-                                {
+                                } ]; result = ({
                                   Typedef.Impl.parameters = [];
                                   body =
                                     Typedef.Kind.Tkind_var
                                       (Data.Located.dummy "a");
-                                };
-                              ];
+                                });
                           };
                     };
                     {
@@ -735,21 +719,17 @@ let test_fun_no_lrbraces _ =
                                       body =
                                         Typedef.Kind.Tkind_function
                                           {
-                                            Typedef.Type_function.arguments =
-                                              [
-                                                {
+                                            Typedef.Type_function.arguments = [ {
                                                   Typedef.Impl.parameters = [];
                                                   body =
                                                     Typedef.Kind.Tkind_var
                                                       (Data.Located.dummy "a");
-                                                };
-                                                {
+                                                } ]; result = ({
                                                   Typedef.Impl.parameters = [];
                                                   body =
                                                     Typedef.Kind.Tkind_var
                                                       (Data.Located.dummy "a");
-                                                };
-                                              ];
+                                                });
                                           };
                                     };
                                 };
@@ -764,8 +744,8 @@ let test_fun_no_lrbraces _ =
         };
     ]
   in
-  let result = Main.parse input in
-  assert_equal expect (Result.get_ok result)
+  let result = Main.parse ~file:"Main.elm" input in
+  assert_equal expect (parsed result)
 
 let suite =
   [

@@ -8,7 +8,7 @@
 
 (library
  (name parse)
- (libraries menhirLib ast data non_empty_list)
+ (libraries menhirLib ast data non_empty_list reporting)
  (flags
   (-warn-error -A))
  ; (-w -40 -w +26))

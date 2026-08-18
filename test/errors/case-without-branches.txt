@@ -1,0 +1,9 @@
+-- EMPTY CASE --------------------------------------------------------- Main.elm
+
+This `case` does not have any branches:
+
+2|     case m of
+       ^^^^^^^^^
+
+A `case` needs at least one branch, so I know what to do with the value it is
+given.

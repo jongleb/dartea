@@ -2,8 +2,8 @@ open OUnit2
 module Scope = Canonicalization.Scope
 
 let canonical input =
-  match Parse.Main.parse input with
-  | Error e -> raise e
+  match Parse.Main.parse ~file:"Main.elm" input with
+  | Error error -> raise (Reporting.Error.Found error)
   | Ok impl_list ->
       Canonical.Module.of_frontend ~fallback_name:"Main"
         (Ast.Kind.Frontend.Module.of_impl impl_list)
@@ -44,7 +44,7 @@ using = value
 |} ~name:"using"
     ~expected:[ "value" ]
 
-let test_a_let_binder_does_not_scope_over_its_own_right_hand_side _ =
+let test_a_let_binder_scopes_over_its_own_right_hand_side _ =
   assert_free
     ~src:{|
 counting =
@@ -53,7 +53,7 @@ counting =
     in
     x
 |}
-    ~name:"counting" ~expected:[ "+"; "x" ]
+    ~name:"counting" ~expected:[ "+" ]
 
 let test_a_let_binder_scopes_over_the_body _ =
   assert_free
@@ -134,8 +134,8 @@ let suite =
   [
     "a_parameter_shadows_the_top_level" >:: test_a_parameter_shadows_the_top_level;
     "an_unbound_reference_is_free" >:: test_an_unbound_reference_is_free;
-    "a_let_binder_does_not_scope_over_its_own_right_hand_side"
-    >:: test_a_let_binder_does_not_scope_over_its_own_right_hand_side;
+    "a_let_binder_scopes_over_its_own_right_hand_side"
+    >:: test_a_let_binder_scopes_over_its_own_right_hand_side;
     "a_let_binder_scopes_over_the_body"
     >:: test_a_let_binder_scopes_over_the_body;
     "a_pattern_binder_shadows_the_top_level"

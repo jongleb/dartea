@@ -3,7 +3,7 @@ module I = Infer.Expressions
 module Declarations = Infer.Declarations
 module T = Typed.Type
 module V = Typed.Variable
-module Message = Infer.Message
+module Message = Reporting.Message
 module Unify = Infer.Unify
 module Types = Dartea_test_type_system
 module Names = Set.Make (String)
@@ -107,11 +107,14 @@ and same_binding agree left right =
       _ ) ->
       false
 
+let anywhere_region = Data.Region.nowhere
+
 let unifies left right =
   try
-    Unify.types left right;
+    Unify.types ~region:anywhere_region ~category:Reporting.Category.Record
+      ~expected:(Reporting.Expectation.No_expectation right) left;
     true
-  with Failure _ -> false
+  with Reporting.Error.Found _ -> false
 
 let written = Message.of_type
 let written_pair (left, right) = written left ^ "  ~  " ^ written right
@@ -537,6 +540,8 @@ let law_binding_only_lowers_levels =
 
 module P = Canonical.Pattern
 
+let anywhere kind : P.t = Data.Located.dummy kind
+
 let pattern_env =
   Infer.Type_env.build ~imports:[]
     (Types.resolved
@@ -573,16 +578,16 @@ let constructors =
 let constructor_gen = Gen.oneof_list constructors
 
 let unnamed_gen =
-  Gen.oneof [ Gen.return P.P_anything; Gen.return (P.P_var "unnamed") ]
+  Gen.oneof [ Gen.return (anywhere P.P_anything); Gen.return (anywhere (P.P_var "unnamed")) ]
 
-let number_gen = Gen.map (fun value -> P.P_int value) (Gen.int_range 0 5)
-let text_gen = Gen.map (fun text -> P.P_str text) (Gen.oneof_list [ "a"; "b" ])
-let letter_gen = Gen.map (fun letter -> P.P_chr letter) (Gen.oneof_list [ "x"; "y" ])
+let number_gen = Gen.map (fun value -> anywhere (P.P_int value)) (Gen.int_range 0 5)
+let text_gen = Gen.map (fun text -> anywhere (P.P_str text)) (Gen.oneof_list [ "a"; "b" ])
+let letter_gen = Gen.map (fun letter -> anywhere (P.P_chr letter)) (Gen.oneof_list [ "x"; "y" ])
 
 let rec pattern_gen depth =
   let leaf =
     Gen.oneof
-      [ unnamed_gen; Gen.return P.P_unit; number_gen; text_gen; letter_gen ]
+      [ unnamed_gen; Gen.return (anywhere P.P_unit); number_gen; text_gen; letter_gen ]
   in
   if depth <= 0 then leaf
   else
@@ -592,14 +597,14 @@ let rec pattern_gen depth =
         (5, leaf);
         ( 2,
           Gen.map
-            (fun items -> P.P_tuple items)
+            (fun items -> anywhere (P.P_tuple items))
             (Gen.list_size (Gen.int_range 2 3) smaller) );
         (2, list_gen (depth - 1));
         (2, cons_gen (depth - 1));
-        (2, Gen.map (fun inner -> P.P_alias (inner, "aliased")) smaller);
+        (2, Gen.map (fun inner -> anywhere (P.P_alias (inner, "aliased"))) smaller);
         ( 2,
           Gen.map
-            (fun fields -> P.P_record fields)
+            (fun fields -> anywhere (P.P_record fields))
             (Gen.list_size (Gen.int_range 1 3) (Gen.return "field")) );
         (3, constructor_gen_of depth);
       ]
@@ -612,7 +617,7 @@ and of_flavour depth = function
 and constructor_gen_of depth =
   Gen.bind constructor_gen (fun constructor ->
       Gen.map
-        (fun arguments -> P.P_ctor (Data.Name.local constructor.written, arguments))
+        (fun arguments -> anywhere (P.P_ctor (Data.Name.local constructor.written, arguments)))
         (Gen.flatten_list (List.map (of_flavour (depth - 1)) constructor.payloads)))
 
 and element_gen depth =
@@ -626,7 +631,7 @@ and element_gen depth =
         (fun constructor ->
           Gen.map
             (fun arguments ->
-              P.P_ctor (Data.Name.local constructor.written, arguments))
+              anywhere (P.P_ctor (Data.Name.local constructor.written, arguments)))
             (Gen.flatten_list (List.map (of_flavour (depth - 1)) constructor.payloads)))
         constructor_gen;
     ]
@@ -634,19 +639,19 @@ and element_gen depth =
 and list_gen depth =
   Gen.bind (element_gen depth) (fun element ->
       Gen.map
-        (fun items -> P.P_list items)
+        (fun items -> anywhere (P.P_list items))
         (Gen.list_size (Gen.int_range 0 3) element))
 
 and cons_gen depth =
   Gen.bind (element_gen depth) (fun element ->
       Gen.map2
-        (fun head tail -> P.P_cons (head, tail))
+        (fun head tail -> anywhere (P.P_cons (head, tail)))
         element
         (Gen.oneof
            [
              unnamed_gen;
              Gen.map
-               (fun items -> P.P_list items)
+               (fun items -> anywhere (P.P_list items))
                (Gen.list_size (Gen.int_range 0 2) element);
            ]))
 
@@ -657,21 +662,23 @@ let with_distinct_binders pattern =
     incr taken;
     name
   in
-  let rec go pattern =
-    match pattern with
-    | P.P_var _ -> P.P_var (fresh "v")
-    | P.P_alias (inner, _) ->
-        let inner = go inner in
-        P.P_alias (inner, fresh "v")
-    | P.P_record fields -> P.P_record (List.map (fun _ -> fresh "f") fields)
-    | P.P_tuple items -> P.P_tuple (List.map go items)
-    | P.P_list items -> P.P_list (List.map go items)
-    | P.P_cons (head, tail) ->
-        let head = go head in
-        let tail = go tail in
-        P.P_cons (head, tail)
-    | P.P_ctor (name, arguments) -> P.P_ctor (name, List.map go arguments)
-    | (P.P_anything | P.P_unit | P.P_chr _ | P.P_str _ | P.P_int _) as leaf -> leaf
+  let rec go (pattern : P.t) : P.t =
+    anywhere
+      (match pattern.thing with
+      | P.P_var _ -> P.P_var (fresh "v")
+      | P.P_alias (inner, _) ->
+          let inner = go inner in
+          P.P_alias (inner, fresh "v")
+      | P.P_record fields -> P.P_record (List.map (fun _ -> fresh "f") fields)
+      | P.P_tuple items -> P.P_tuple (List.map go items)
+      | P.P_list items -> P.P_list (List.map go items)
+      | P.P_cons (head, tail) ->
+          let head = go head in
+          let tail = go tail in
+          P.P_cons (head, tail)
+      | P.P_ctor (name, arguments) -> P.P_ctor (name, List.map go arguments)
+      | (P.P_anything | P.P_unit | P.P_chr _ | P.P_str _ | P.P_int _) as leaf ->
+          leaf)
   in
   go pattern
 
@@ -682,7 +689,7 @@ let rec binders pattern =
     List.fold_left (fun known item -> Names.union known (binders item)) Names.empty
       items
   in
-  match pattern with
+  match pattern.Data.Located.thing with
   | P.P_var name -> Names.singleton name
   | P.P_alias (inner, name) -> Names.add name (binders inner)
   | P.P_record fields -> Names.of_list fields
@@ -724,12 +731,12 @@ let inferred_pattern pattern = I.infer_pattern pattern_env pattern
 let typeable pattern =
   match inferred_pattern pattern with
   | _ -> true
-  | exception Failure _ -> false
+  | exception Reporting.Error.Found _ -> false
 
 let about pattern holds =
   match inferred_pattern pattern with
   | typed, bound -> holds typed bound
-  | exception Failure _ -> true
+  | exception Reporting.Error.Found _ -> true
 
 let drawn = Format.asprintf "%a" P.pp
 
@@ -787,7 +794,7 @@ let saturated_gen =
         (fun arguments ->
           ( constructor,
             with_distinct_binders
-              (P.P_ctor (Data.Name.local constructor.written, arguments)) ))
+              (anywhere (P.P_ctor (Data.Name.local constructor.written, arguments))) ))
         (Gen.flatten_list (List.map (of_flavour 2) constructor.payloads)))
 
 let law_a_constructor_pattern_takes_its_declared_type =
@@ -815,13 +822,16 @@ let law_a_constructor_pattern_checks_its_arity =
     (fun (constructor, given) ->
       let arity = List.length constructor.payloads in
       let pattern =
-        P.P_ctor
-          (Data.Name.local constructor.written, List.init given (fun _ -> P.P_anything))
+        anywhere
+          (P.P_ctor
+             ( Data.Name.local constructor.written,
+               List.init given (fun _ -> anywhere P.P_anything) ))
       in
       match inferred_pattern pattern with
       | _ -> given = arity
-      | exception Failure message ->
-          given <> arity && Node_runner.contains ~needle:"takes" message)
+      | exception
+          Reporting.Error.Found { problem = Type (Bad_arity _); _ } ->
+          given <> arity)
 
 let law_the_patterns_generated_are_mostly_typeable =
   Test.make ~count:1 ~name:"the pattern generator keeps the laws off vacuum"
@@ -1024,6 +1034,7 @@ let program_of ~style ~name ~written body =
 
 let outcome source =
   match Types.inferred source with
+  | result when result.Declarations.errors <> [] -> None
   | result ->
       Some
         (List.sort compare

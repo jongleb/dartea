@@ -24,5 +24,6 @@ let default_imports : Canonical.Import.t list =
         module_name = name module_;
         alias = None;
         exposed = exposed_by_default module_;
+        region = Data.Region.nowhere;
       })
     all

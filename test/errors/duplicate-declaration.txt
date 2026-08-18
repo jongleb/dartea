@@ -1,0 +1,8 @@
+-- NAME CLASH --------------------------------------------------------- Main.elm
+
+This file has multiple `x` declarations.
+
+3| x = 2
+   ^
+
+How can I know which one you want? Rename one of them!

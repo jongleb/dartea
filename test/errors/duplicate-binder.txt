@@ -1,0 +1,9 @@
+-- DUPLICATE PATTERN VARIABLE ----------------------------------------- Main.elm
+
+This pattern uses `a` more than once:
+
+3|         ( a, a ) ->
+                ^
+
+Hint: Rename one of them to make it clear which one you want. Elm does not allow
+a name to be defined twice.

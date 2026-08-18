@@ -1,0 +1,9 @@
+-- MISSING ANNOTATION ------------------------------------------------- Main.elm
+
+The `size` definition has a kernel body, so it needs a type annotation:
+
+1| size = Elm.Kernel.String.length
+   ^^^^
+
+A kernel value takes its type from the annotation alone, so I cannot work it out
+without one.

@@ -242,7 +242,7 @@ let test_expr exp_str ctx expected ?on_success ?(negate = false) ?withfail () =
 toplevel: Int                           
 toplevel =|} ^ exp_str
   in
-  let result = input |> Main.parse in
+  let result = input |> Main.parse ~file:"Main.elm" in
   match result with
   | Ok [ Frontend.Impl.Top_declaration d ] -> (
       let expr = Canonical.Expr.of_frontend () () d.body_part.expr.thing in

@@ -1,0 +1,11 @@
+-- CYCLIC DEFINITION -------------------------------------------------- Main.elm
+
+This definition is causing an infinite loop:
+
+2| a = b + 1
+   ^
+
+    a -> b -> a
+
+The definition depends on itself, so I cannot compute its value. Functions may
+call each other, but values may not.

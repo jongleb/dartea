@@ -21,10 +21,12 @@ let bind_one name ty env =
 let shadow ~by env = By_name.union (fun _ _ inner -> Some inner) env by
 let zonk env = By_name.map Type.zonk_scheme env
 
-let binders_of_both here there =
+let binders_of_both ~region here there =
   By_name.union
     (fun name _ _ ->
-      Message.fail "%s is bound twice in one pattern" (Data.Name.to_string name))
+      Reporting.Error.raise_name ~region
+        (Reporting.Name_error.Duplicate_binder
+           { name = Data.Name.to_string name }))
     here there
 
 let names env = By_name.fold (fun name _ collected -> name :: collected) env []

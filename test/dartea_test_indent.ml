@@ -49,24 +49,24 @@ let assert_blank_lines_ignored input =
     stream the grammar accepts. *)
 let ok name input =
   name >:: fun _ ->
-  (match Main.parse input with
+  (match Main.parse ~file:"Main.elm" input with
   | Ok _ -> assert_bool "parsed" true
-  | Error e -> assert_failure (Printexc.to_string e));
+  | Error error -> assert_failure (Reporting.Error.show error));
   assert_balanced input;
   assert_blank_lines_ignored input
 
 let parses_but_owns_its_blank_lines name input =
   name >:: fun _ ->
-  (match Main.parse input with
+  (match Main.parse ~file:"Main.elm" input with
   | Ok _ -> assert_bool "parsed" true
-  | Error e -> assert_failure (Printexc.to_string e));
+  | Error error -> assert_failure (Reporting.Error.show error));
   assert_balanced input
 
 (** Intentionally ill-laid-out input that must be rejected. Documents the
     error behaviour we want to keep. *)
 let rejects name input =
   name >:: fun _ ->
-  match Main.parse input with
+  match Main.parse ~file:"Main.elm" input with
   | Error _ -> assert_bool "rejected" true
   | Ok _ -> assert_failure "expected a layout/parse error, but it parsed"
 
@@ -75,7 +75,7 @@ let rejects name input =
     day it starts working (or regresses further) we notice. *)
 let known_limitation name input =
   name >:: fun _ ->
-  match Main.parse input with
+  match Main.parse ~file:"Main.elm" input with
   | Error _ -> assert_bool "still unsupported" true
   | Ok _ ->
       assert_failure "now parses — promote this to `ok` in dartea_test_indent"

@@ -9,6 +9,7 @@ type infer_result = {
   siblings_env : (Data.Name.t * int) list Name_map.t;
   constructors : Type_env.ctor_info list;
   typedecls : Canonical.Typedecl.t list;
+  errors : Reporting.Error.t list;
 }
 
 type group_member = {
@@ -43,16 +44,52 @@ let infer_toplevel ~(imports : Interface.t list) (module_ : Canonical.Module.t) 
 
   let infer_declaration { Canonical.Declaration.body_part; type_part_data } ctx =
     let assumed, visible_in_the_body = assume_parameters ctx body_part.params in
+    let name = Data.Located.unwrap body_part.name in
+    let written =
+      Option.map
+        (fun (type_part : Canonical.Declaration.type_part) ->
+          Type_env.expand ~region:type_part.name.region type_env
+            (Type_env.written_type type_part.type_alias))
+        type_part_data
+    in
+    let rec after_parameters expected params assumed =
+      match (params, assumed) with
+      | [], _ | _, [] -> Some expected
+      | (param : string Data.Located.t) :: rest, argument :: others -> begin
+          match Type.head expected with
+          | TFun (declared, result) ->
+              Unify.types ~region:param.region
+                ~category:(Reporting.Category.Local (Data.Name.local param.thing))
+                ~expected:(No_expectation declared) argument;
+              after_parameters result rest others
+          | TVar _ | TInt | TFloat | TChar | TBool | TStr | TUnit | TTup _
+          | TCustom _ | TRecord _ | TRowExtend _ | TRowEmpty ->
+              None
+        end
+    in
+    let result_of_the_annotation =
+      Option.map
+        (fun expected -> (expected, after_parameters expected body_part.params assumed))
+        written
+    in
     let typed_body =
-      infer_with_env body_part.expr.Data.Located.thing visible_in_the_body
+      infer_with_env body_part.expr visible_in_the_body
         type_env
     in
     let inferred_type = function_of assumed ~result:typed_body.typ in
-    matching_the_annotation type_env inferred_type
-      (Option.map
-         (fun (type_part : Canonical.Declaration.type_part) ->
-           type_part.type_alias)
-         type_part_data);
+    Option.iter
+      (fun (whole, result) ->
+        let found, expected =
+          match result with
+          | Some result -> (typed_body.typ, result)
+          | None -> (inferred_type, whole)
+        in
+        Unify.types ~region:body_part.expr.region
+          ~category:(category_of body_part.expr)
+          ~expected:
+            (From_annotation { name; sub = Typed_body; expected })
+          found)
+      result_of_the_annotation;
     ( {
         Typed.Declaration.name = body_part.name;
         params =
@@ -82,7 +119,12 @@ let infer_toplevel ~(imports : Interface.t list) (module_ : Canonical.Module.t) 
     in
     let infer_member inside inferred member =
       let typed, checked = infer_declaration member.declaration inside in
-      Option.iter (Unify.types checked) member.assumed;
+      Option.iter
+        (fun assumed ->
+          Unify.types ~region:member.declaration.body_part.expr.region
+            ~category:(category_of member.declaration.body_part.expr)
+            ~expected:(No_expectation assumed) checked)
+        member.assumed;
       { member; typed; checked } :: inferred
     in
     let inferred =
@@ -123,22 +165,25 @@ let infer_toplevel ~(imports : Interface.t list) (module_ : Canonical.Module.t) 
               (Data.Name.local (Data.Located.unwrap declaration.body_part.name))
               (generalize
                  (infer_deeper (fun () ->
-                      Type_env.expand type_env
+                      Type_env.expand
+                        ~region:annotation.name.region type_env
                         (Type_env.written_type annotation.type_alias))))
               collected)
       visible module_.top_declarations
   in
 
-  let final_values, typed_decls =
+  let final_values, typed_decls, found =
     List.mapi
       (fun position declaration -> (position, declaration))
       module_.top_declarations
     |> Canonicalization.Declaration_graph.in_dependency_order ~declaration:snd
     |> List.fold_left
-         (fun (ctx, collected) group ->
-           let ctx, typed = infer_group ctx group in
-           (ctx, List.rev_append typed collected))
-         (announced, [])
+         (fun (ctx, collected, found) group ->
+           match infer_group ctx group with
+           | ctx, typed -> (ctx, List.rev_append typed collected, found)
+           | exception Reporting.Error.Found error ->
+               (ctx, collected, error :: found))
+         (announced, [], [])
   in
 
   let as_declared =
@@ -153,6 +198,7 @@ let infer_toplevel ~(imports : Interface.t list) (module_ : Canonical.Module.t) 
       siblings_env = Type_env.siblings type_env;
       constructors = Type_env.constructor_infos type_env;
       typedecls = Type_env.typedecls type_env;
+      errors = List.rev found;
     }
 
 let interface_of (module_ : Canonical.Module.t) (result : infer_result) :

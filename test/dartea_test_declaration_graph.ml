@@ -1,8 +1,8 @@
 open OUnit2
 
 let canonical input =
-  match Parse.Main.parse input with
-  | Error e -> raise e
+  match Parse.Main.parse ~file:"Main.elm" input with
+  | Error error -> raise (Reporting.Error.Found error)
   | Ok impl_list ->
       Canonical.Module.of_frontend ~fallback_name:"Main"
         (Ast.Kind.Frontend.Module.of_impl impl_list)

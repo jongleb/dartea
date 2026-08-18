@@ -1,0 +1,8 @@
+-- ENDLESS LITERAL ---------------------------------------------------- Main.elm
+
+I got to the end of the file without seeing the end of this string:
+
+1|>x = "unfinished
+2|>
+
+Add the closing mark, or delete it and start again.

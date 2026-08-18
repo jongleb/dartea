@@ -86,15 +86,16 @@ end = struct
 end
 
 and Type_function : sig
-  type t = { arguments : Impl.t list } [@@deriving show, fields]
+  type t = { arguments : Impl.t list; result : Impl.t } [@@deriving show, fields]
 
   val of_frontend : Frontend.Typedef.Type_function.t -> t
 end = struct
-  type t = { arguments : Impl.t list } [@@deriving show, fields]
+  type t = { arguments : Impl.t list; result : Impl.t } [@@deriving show, fields]
 
   let of_frontend (func : Frontend.Typedef.Type_function.t) =
     {
       arguments =
         List.map Impl.of_frontend func.Frontend.Typedef.Type_function.arguments;
+      result = Impl.of_frontend func.Frontend.Typedef.Type_function.result;
     }
 end
