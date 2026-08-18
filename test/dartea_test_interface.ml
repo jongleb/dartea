@@ -16,13 +16,12 @@ let resolved ~dependencies module_ =
            (List.map Canonicalization.Resolve_names.show_error errors))
 
 let inferred ~imports module_ =
-  Infer.Infer_proc.Fresh.reset ();
-  Infer.Infer_proc.infer_toplevel ~imports module_ Dartea.Compiler.initial_ctx
+  Infer.Declarations.infer_toplevel ~imports module_
 
 let published source =
   let module_ = resolved ~dependencies:[] (canonical source) in
   ( module_,
-    Infer.Infer_proc.interface_of module_ (inferred ~imports:[] module_) )
+    Infer.Declarations.interface_of module_ (inferred ~imports:[] module_) )
 
 let importing_all ~dependencies source =
   let published = List.map published dependencies in
@@ -36,8 +35,8 @@ let importing ~dependency source =
 
 let type_of result name =
   match
-    Infer.Infer_proc.Name_map.find_opt (Data.Name.local name)
-      result.Infer.Infer_proc.ctx
+    Infer.Value_env.find (Data.Name.local name)
+      result.Infer.Declarations.values
   with
   | Some (Typed.Type.Scheme (_, ty)) -> ty
   | None -> assert_failure (Printf.sprintf "no type inferred for %s" name)
@@ -255,8 +254,8 @@ x = Red
 |}
   in
   let siblings =
-    Infer.Infer_proc.Name_map.find_opt (global "Paint" "Red")
-      result.Infer.Infer_proc.siblings_env
+    Data.Name.Map.find_opt (global "Paint" "Red")
+      result.Infer.Declarations.siblings_env
   in
   assert_equal
     ~printer:(function
@@ -329,9 +328,9 @@ x = Box Blue
   in
   let arity_of name =
     List.find_opt
-      (fun (c : Infer.Infer_proc.ctor_info) -> Data.Name.equal c.name name)
-      result.Infer.Infer_proc.constructors
-    |> Option.map (fun (c : Infer.Infer_proc.ctor_info) -> c.arity)
+      (fun (c : Infer.Type_env.ctor_info) -> Data.Name.equal c.name name)
+      result.Infer.Declarations.constructors
+    |> Option.map (fun (c : Infer.Type_env.ctor_info) -> c.arity)
   in
   assert_equal
     ~printer:(function None -> "<absent>" | Some n -> string_of_int n)
@@ -398,8 +397,74 @@ y = red
     (Typed.Type.TCustom (global "Paint" "Color", []))
     (type_of result "y")
 
+let rec carries_a_live_reference (ty : Typed.Type.t) =
+  let inside types = List.exists carries_a_live_reference types in
+  match ty with
+  | TVar variable -> begin
+      match Typed.Variable.state variable with
+      | Typed.Variable.Linked _ -> true
+      | Typed.Variable.Unbound _ -> false
+    end
+  | TFun (parameter, result) -> inside [ parameter; result ]
+  | TTup items | TCustom (_, items) -> inside items
+  | TRecord row -> carries_a_live_reference row
+  | TRowExtend (_, field, rest) -> inside [ field; rest ]
+  | TInt | TFloat | TChar | TBool | TStr | TUnit | TRowEmpty -> false
+
+let test_an_interface_carries_no_live_reference _ =
+  let _, interface =
+    published
+      {|
+module Shapes exposing (apply, paired, counted)
+
+apply f x =
+    f x
+
+paired a b =
+    ( a, b )
+
+counted list =
+    case list of
+        [] ->
+            0
+
+        first :: rest ->
+            first + 1
+|}
+  in
+  assert_bool "the interface publishes at least one scheme"
+    (List.length interface.Interface.values > 0);
+  List.iter
+    (fun (value : Interface.value) ->
+      match value.scheme with
+      | Typed.Type.Scheme (_, ty) ->
+          assert_bool
+            (Printf.sprintf "%s left a live reference in the interface"
+               (Data.Name.to_string value.name))
+            (not (carries_a_live_reference ty)))
+    interface.Interface.values
+
+let test_a_module_does_not_inherit_the_level_of_the_one_before _ =
+  let before = Typed.Variable.current_level () in
+  let _ = published "module One exposing (one)\n\none = 1\n" in
+  assert_equal ~printer:string_of_int before (Typed.Variable.current_level ());
+  let refused =
+    try
+      let _ =
+        published "module Two exposing (two)\n\ntwo : String\ntwo = 1\n"
+      in
+      false
+    with Failure _ -> true
+  in
+  assert_bool "the second module is refused" refused;
+  assert_equal ~printer:string_of_int before (Typed.Variable.current_level ())
+
 let suite =
   [
+    "an interface carries no live reference"
+    >:: test_an_interface_carries_no_live_reference;
+    "a module does not inherit the level of the one before"
+    >:: test_a_module_does_not_inherit_the_level_of_the_one_before;
     "exported values only" >:: test_exported_values_only;
     "value scheme is globalized" >:: test_value_scheme_is_globalized;
     "type and ctors are globalized" >:: test_type_and_ctors_are_globalized;

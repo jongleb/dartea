@@ -301,7 +301,7 @@ let every_key keys =
     keys (Some [])
 
 let is_numeric_variable variable =
-  match Data.Constraint.of_variable variable with
+  match Typed.Variable.constraint_of variable with
   | Some Data.Constraint.Number -> true
   | Some
       ( Data.Constraint.Comparable | Data.Constraint.Appendable

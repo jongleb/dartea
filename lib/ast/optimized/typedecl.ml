@@ -1,6 +1,10 @@
 type ctor = { id : Data.Name.t; payload : Type.t list } [@@deriving show]
 
-type t = { name : Data.Name.t; params : string list; ctors : ctor list }
+type t = {
+  name : Data.Name.t;
+  params : Type.t Typed.Variable.t list;
+  ctors : ctor list;
+}
 [@@deriving show]
 
 let constructors (decl : t) ~arguments =

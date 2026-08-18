@@ -1,6 +1,9 @@
 (test
  (name dartea_test)
- (deps dartea_runtime_test.c ../lib/codegen/c/dartea_runtime.h)
+ (deps
+  dartea_runtime_test.c
+  ../lib/codegen/c/dartea_runtime.h
+  (source_tree ../lib))
  (libraries
   dartea
   typed

@@ -1,7 +1,7 @@
 open OUnit2
 module E = After_typed.Exhaustive
 module P = Optimized.Pattern
-module M = Infer.Infer_proc.Name_map
+module M = Data.Name.Map
 
 let mk k : P.t = { P.typ = Optimized.Type.TUnit; pattern = k }
 let anything = mk P.P_T_anything

@@ -1,20 +1,22 @@
 open Typed.Type
 
-let constrained written result =
-  let variable = TVar written in
-  Scheme ([ written ], TFun (variable, TFun (variable, result variable)))
+let over carried result =
+  let quantified = Typed.Variable.fresh carried in
+  let variable = TVar quantified in
+  Scheme ([ quantified ], TFun (variable, TFun (variable, result variable)))
 
 let scheme_of : Data.Operator.t -> scheme =
-  let number = Data.Constraint.(name Number) in
-  let comparable = Data.Constraint.(name Comparable) in
-  let appendable = Data.Constraint.(name Appendable) in
-  let arithmetic = constrained number (fun variable -> variable) in
-  let ordering = constrained comparable (fun _ -> TBool) in
-  let concatenation = constrained appendable (fun variable -> variable) in
+  let arithmetic =
+    over (Some Data.Constraint.Number) (fun variable -> variable)
+  in
+  let ordering = over (Some Data.Constraint.Comparable) (fun _ -> TBool) in
+  let concatenation =
+    over (Some Data.Constraint.Appendable) (fun variable -> variable)
+  in
   let float_division = Scheme ([], TFun (TFloat, TFun (TFloat, TFloat))) in
   let integer_division = Scheme ([], TFun (TInt, TFun (TInt, TInt))) in
   let logical = Scheme ([], TFun (TBool, TFun (TBool, TBool))) in
-  let equality = Scheme ([ "'a" ], TFun (TVar "'a", TFun (TVar "'a", TBool))) in
+  let equality = over None (fun _ -> TBool) in
   function
   | Add | Subtract | Multiply | Power -> arithmetic
   | Divide -> float_division

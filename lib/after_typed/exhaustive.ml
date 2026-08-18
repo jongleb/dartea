@@ -223,14 +223,14 @@ and useful_tuple rows ~siblings ~qrest ~fields =
          tuple_pattern field_witnesses :: rest)
 
 let counterexample siblings_env patterns =
-  let siblings name = Infer.Infer_proc.Name_map.find_opt name siblings_env in
+  let siblings name = Data.Name.Map.find_opt name siblings_env in
   useful siblings (List.map (fun p -> [ p ]) patterns) [ wildcard ]
   |> Option.map (function w :: _ -> w | [] -> wildcard)
 
 let is_exhaustive siblings_env patterns = counterexample siblings_env patterns = None
 
 let redundant_clauses siblings_env patterns =
-  let siblings name = Infer.Infer_proc.Name_map.find_opt name siblings_env in
+  let siblings name = Data.Name.Map.find_opt name siblings_env in
   let rec go index above = function
     | [] -> []
     | p :: rest ->

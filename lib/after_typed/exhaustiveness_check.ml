@@ -1,5 +1,5 @@
 let warnings
-    (siblings_env : (Data.Name.t * int) list Infer.Infer_proc.Name_map.t)
+    (siblings_env : (Data.Name.t * int) list Data.Name.Map.t)
     (decl : Typed.Declaration.t) =
   let open Typed.Expr in
   let rec in_expression (expr : Typed.Expr.t) =
