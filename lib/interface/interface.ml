@@ -26,12 +26,9 @@ let rec inferred_type ~qualify (ty : Typed.Type.t) : Typed.Type.t =
   let go = inferred_type ~qualify in
   match ty with
   | TCustom (name, arguments) -> TCustom (qualify name, List.map go arguments)
-  | TFun (parameter, result) -> TFun (go parameter, go result)
-  | TTup items -> TTup (List.map go items)
-  | TRecord row -> TRecord (go row)
-  | TRowExtend (label, field, rest) -> TRowExtend (label, go field, go rest)
-  | (TVar _ | TInt | TFloat | TChar | TBool | TStr | TUnit | TRowEmpty) as leaf ->
-      leaf
+  | TVar _ | TInt | TFloat | TChar | TBool | TStr | TUnit | TRowEmpty | TFun _
+  | TTup _ | TRecord _ | TRowExtend _ ->
+      Typed.Type.map_children go ty
 
 let rec written_type ~qualify (t : Canonical.Typedef.Impl.t) :
     Canonical.Typedef.Impl.t =

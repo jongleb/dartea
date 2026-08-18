@@ -74,3 +74,68 @@ and expr_access = { expr : t; field : string Data.Located.t } [@@deriving show]
 module Str_set = Set.Make (String)
 
 type canonicalize_env = { constrs : Str_set.t }
+
+let rec zonk (e : t) =
+  let inner = zonk in
+  let settled =
+    match e.expr with
+    | Expr_constr constr ->
+        Expr_constr { constr with arguments = List.map inner constr.arguments }
+    | Expr_binop binop ->
+        let left, right = binop.operands in
+        Expr_binop { binop with operands = (inner left, inner right) }
+    | Expr_let { binding = { bind_body = { name; body } }; body = rest } ->
+        Expr_let
+          {
+            binding = { bind_body = { name; body = inner body } };
+            body = inner rest;
+          }
+    | Expr_if_then_else { if_exp; then_exp; else_exp } ->
+        Expr_if_then_else
+          {
+            if_exp = inner if_exp;
+            then_exp = inner then_exp;
+            else_exp = inner else_exp;
+          }
+    | Expr_record rows ->
+        Expr_record (List.map (fun row -> { row with value = inner row.value }) rows)
+    | Expr_apply { fn; arg } -> Expr_apply { fn = inner fn; arg = inner arg }
+    | Expr_pattern { expr; pattern_data_items } ->
+        Expr_pattern
+          {
+            expr = inner expr;
+            pattern_data_items =
+              List.map
+                (fun (case : expr_pattern_case) ->
+                  { pattern = Pattern.zonk case.pattern; expr = inner case.expr })
+                pattern_data_items;
+          }
+    | Expr_access { expr; field } -> Expr_access { expr = inner expr; field }
+    | Expr_lambda { params; body } ->
+        Expr_lambda
+          {
+            params =
+              List.map
+                (fun (param : expr_lambda_param) -> { param with typ = Type.zonk param.typ })
+                params;
+            body = inner body;
+          }
+    | Expr_list items -> Expr_list (List.map inner items)
+    | Expr_cons { head; tail } -> Expr_cons { head = inner head; tail = inner tail }
+    | Expr_tuple items -> Expr_tuple (List.map inner items)
+    | Expr_record_update { record; fields } ->
+        Expr_record_update
+          {
+            record = inner record;
+            fields =
+              List.map
+                (fun (row : expr_record_row) -> { row with value = inner row.value })
+                fields;
+          }
+    | ( Expr_ident _ | Expr_accessor _ | Expr_record_extend _
+      | Expr_record_select _ | Expr_record_empty | Expr_unit | Expr_kernel _
+      | Expr_char _ | Expr_string _ | Expr_int _ | Expr_float _ ) as leaf ->
+        leaf
+  in
+  { typ = Type.zonk e.typ; expr = settled }
+

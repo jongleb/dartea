@@ -1,22 +1,27 @@
 open QCheck2
-module I = Infer.Infer_proc
+module I = Infer.Expressions
+module Declarations = Infer.Declarations
 module T = Typed.Type
+module V = Typed.Variable
+module Message = Infer.Message
+module Unify = Infer.Unify
 module Types = Dartea_test_type_system
 module Names = Set.Make (String)
 
 let rec normalised ty =
-  match ty with
+  match T.head ty with
   | T.TFun (parameter, result) -> T.TFun (normalised parameter, normalised result)
   | T.TTup items -> T.TTup (List.map normalised items)
   | T.TCustom (name, arguments) -> T.TCustom (name, List.map normalised arguments)
   | T.TRecord row -> T.TRecord (normalised_row row)
-  | T.TRowExtend _ -> normalised_row ty
+  | T.TRowExtend _ as row -> normalised_row row
   | (T.TVar _ | T.TInt | T.TFloat | T.TChar | T.TStr | T.TBool | T.TUnit
     | T.TRowEmpty) as settled ->
       settled
 
 and normalised_row row =
-  let rec split = function
+  let rec split row =
+    match T.head row with
     | T.TRowExtend (label, typ, rest) ->
         let fields, tail = split rest in
         ((label, normalised typ) :: fields, tail)
@@ -28,47 +33,137 @@ and normalised_row row =
     (List.stable_sort (fun (left, _) (right, _) -> String.compare left right) fields)
     tail
 
-let alpha ty =
-  let seen = Hashtbl.create 16 in
-  let renamed variable =
-    match Hashtbl.find_opt seen variable with
-    | Some already -> already
-    | None ->
-        let carried =
-          match Data.Constraint.of_variable variable with
-          | Some constraint_ -> Data.Constraint.name constraint_
-          | None -> "any"
-        in
-        let fresh = Printf.sprintf "%s$%d" carried (Hashtbl.length seen) in
-        Hashtbl.add seen variable fresh;
-        fresh
-  in
-  let rec go ty =
-    match ty with
-    | T.TVar variable -> T.TVar (renamed variable)
-    | T.TFun (parameter, result) -> T.TFun (go parameter, go result)
-    | T.TTup items -> T.TTup (List.map go items)
-    | T.TCustom (name, arguments) -> T.TCustom (name, List.map go arguments)
-    | T.TRecord row -> T.TRecord (go row)
-    | T.TRowExtend (label, field, rest) -> T.TRowExtend (label, go field, go rest)
-    | (T.TInt | T.TFloat | T.TChar | T.TStr | T.TBool | T.TUnit | T.TRowEmpty) as
-      settled ->
-        settled
-  in
-  go ty
-
 let same left right = T.equal (normalised left) (normalised right)
 
-let alpha_same left right =
-  T.equal (alpha (normalised left)) (alpha (normalised right))
-let unified left right = try Some (I.unify left right) with Failure _ -> None
-let written = I.string_of_typ
+let renaming () =
+  let pairing = Hashtbl.create 16 in
+  let matched = Hashtbl.create 16 in
+  let paired one other =
+    let here = V.identity one and there = V.identity other in
+    match (Hashtbl.find_opt pairing here, Hashtbl.find_opt matched there) with
+    | None, None ->
+        Hashtbl.add pairing here there;
+        Hashtbl.add matched there here;
+        true
+    | Some expected, Some expecting -> expected = there && expecting = here
+    | Some _, None | None, Some _ -> false
+  in
+  let rec agree left right =
+    match (left, right) with
+    | T.TVar one, T.TVar other -> paired one other
+    | T.TFun (parameter, result), T.TFun (other_parameter, other_result) ->
+        agree parameter other_parameter && agree result other_result
+    | T.TTup items, T.TTup other_items -> across items other_items
+    | T.TCustom (name, arguments), T.TCustom (other_name, other_arguments) ->
+        Data.Name.equal name other_name && across arguments other_arguments
+    | T.TRecord row, T.TRecord other_row -> agree row other_row
+    | T.TRowExtend (label, field, rest), T.TRowExtend (other_label, other_field, other_rest)
+      ->
+        String.equal label other_label
+        && agree field other_field
+        && agree rest other_rest
+    | T.TInt, T.TInt | T.TFloat, T.TFloat | T.TChar, T.TChar | T.TStr, T.TStr
+    | T.TBool, T.TBool | T.TUnit, T.TUnit | T.TRowEmpty, T.TRowEmpty ->
+        true
+    | ( ( T.TVar _ | T.TInt | T.TFloat | T.TChar | T.TStr | T.TBool | T.TUnit
+        | T.TFun _ | T.TTup _ | T.TCustom _ | T.TRecord _ | T.TRowExtend _
+        | T.TRowEmpty ),
+        _ ) ->
+        false
+  and across items other_items =
+    List.length items = List.length other_items
+    && List.for_all2 agree items other_items
+  in
+  fun left right -> agree (normalised left) (normalised right)
+
+let alpha_same left right = renaming () left right
+
+let rec same_pattern agree (left : Typed.Pattern.t) (right : Typed.Pattern.t) =
+  agree left.typ right.typ && same_binding agree left.pattern right.pattern
+
+and same_binding agree left right =
+  let open Typed.Pattern in
+  let all one other =
+    List.length one = List.length other
+    && List.for_all2 (same_pattern agree) one other
+  in
+  match (left, right) with
+  | P_T_anything, P_T_anything | P_T_unit, P_T_unit -> true
+  | P_T_var one, P_T_var other -> String.equal one other
+  | P_T_record one, P_T_record other -> List.equal String.equal one other
+  | P_T_alias (one, name), P_T_alias (other, other_name) ->
+      String.equal name other_name && same_pattern agree one other
+  | P_T_tuple one, P_T_tuple other | P_T_list one, P_T_list other -> all one other
+  | P_T_cons (head, tail), P_T_cons (other_head, other_tail) ->
+      same_pattern agree head other_head && same_pattern agree tail other_tail
+  | P_T_chr one, P_T_chr other | P_T_str one, P_T_str other ->
+      String.equal one other
+  | P_T_int one, P_T_int other -> Int.equal one other
+  | P_T_ctor (name, arguments), P_T_ctor (other_name, other_arguments) ->
+      Data.Name.equal name other_name && all arguments other_arguments
+  | ( ( P_T_anything | P_T_var _ | P_T_record _ | P_T_alias _ | P_T_unit
+      | P_T_tuple _ | P_T_list _ | P_T_cons _ | P_T_chr _ | P_T_str _
+      | P_T_int _ | P_T_ctor _ ),
+      _ ) ->
+      false
+
+let unifies left right =
+  try
+    Unify.types left right;
+    true
+  with Failure _ -> false
+
+let written = Message.of_type
 let written_pair (left, right) = written left ^ "  ~  " ^ written right
 
-let variable_gen =
-  Gen.oneof_list [ "a0"; "a1"; "b0"; "number0"; "comparable0"; "appendable0" ]
+type sketch =
+  | Sk_var of int
+  | Sk_ground of T.t
+  | Sk_fun of sketch * sketch
+  | Sk_tup of sketch list
+  | Sk_custom of string * sketch list
+  | Sk_record of (string * sketch) list * sketch
 
-let row_variable_gen = Gen.oneof_list [ "r0"; "r1" ]
+let carried_by =
+  [| None; None; None; Some Data.Constraint.Number;
+     Some Data.Constraint.Comparable; Some Data.Constraint.Appendable |]
+
+let builder () =
+  let pool = Hashtbl.create 8 in
+  let variable index =
+    match Hashtbl.find_opt pool index with
+    | Some variable -> variable
+    | None ->
+        let variable = V.fresh carried_by.(index mod Array.length carried_by) in
+        Hashtbl.add pool index variable;
+        variable
+  in
+  let rec build sketch =
+    match sketch with
+    | Sk_var index -> T.TVar (variable index)
+    | Sk_ground settled -> settled
+    | Sk_fun (parameter, result) -> T.TFun (build parameter, build result)
+    | Sk_tup items -> T.TTup (List.map build items)
+    | Sk_custom (name, arguments) ->
+        T.TCustom (Data.Name.local name, List.map build arguments)
+    | Sk_record (fields, tail) ->
+        T.TRecord
+          (List.fold_right
+             (fun (label, field) rest -> T.TRowExtend (label, build field, rest))
+             fields (build tail))
+  in
+  build
+
+let materialise sketch = builder () sketch
+
+let materialise_pair (left, right) =
+  let build = builder () in
+  (build left, build right)
+
+let ground_gen =
+  Gen.oneof_list
+    [ T.TInt; T.TFloat; T.TChar; T.TStr; T.TBool; T.TUnit ]
+
 let label_gen = Gen.oneof_list [ "one"; "two"; "three" ]
 let custom_gen = Gen.oneof_list [ ("List", 1); ("Box", 0); ("Maybe", 1); ("Result", 2) ]
 
@@ -80,92 +175,306 @@ let keeping_first_label fields =
          else (label, typ) :: kept)
        [] fields)
 
-let rec type_gen depth =
+let rec sketch_gen depth =
   let leaf =
     Gen.oneof
       [
-        Gen.return T.TInt; Gen.return T.TFloat; Gen.return T.TChar;
-        Gen.return T.TStr; Gen.return T.TBool; Gen.return T.TUnit;
-        Gen.map (fun variable -> T.TVar variable) variable_gen;
+        Gen.map (fun settled -> Sk_ground settled) ground_gen;
+        Gen.map (fun index -> Sk_var index) (Gen.int_bound 5);
       ]
   in
   if depth <= 0 then leaf
   else
-    let smaller = type_gen (depth - 1) in
+    let smaller = sketch_gen (depth - 1) in
     Gen.oneof_weighted
       [
         (5, leaf);
-        (2, Gen.map2 (fun parameter result -> T.TFun (parameter, result)) smaller smaller);
+        (2, Gen.map2 (fun parameter result -> Sk_fun (parameter, result)) smaller smaller);
         ( 2,
-          Gen.map
-            (fun items -> T.TTup items)
+          Gen.map (fun items -> Sk_tup items)
             (Gen.list_size (Gen.int_range 2 3) smaller) );
         ( 2,
           Gen.bind custom_gen (fun (name, arity) ->
               Gen.map
-                (fun arguments -> T.TCustom (Data.Name.local name, arguments))
+                (fun arguments -> Sk_custom (name, arguments))
                 (Gen.list_size (Gen.return arity) smaller)) );
-        (1, Gen.map (fun row -> T.TRecord row) (row_gen smaller));
+        (1, row_sketch_gen smaller);
       ]
 
-and row_gen field =
+and row_sketch_gen field =
   Gen.map2
-    (fun fields tail ->
-      List.fold_right
-        (fun (label, typ) rest -> T.TRowExtend (label, typ, rest))
-        (keeping_first_label fields) tail)
+    (fun fields tail -> Sk_record (keeping_first_label fields, tail))
     (Gen.list_size (Gen.int_range 0 3) (Gen.pair label_gen field))
     (Gen.oneof
-       [ Gen.return T.TRowEmpty; Gen.map (fun name -> T.TVar name) row_variable_gen ])
+       [ Gen.return (Sk_ground T.TRowEmpty);
+         Gen.map (fun index -> Sk_var (6 + index)) (Gen.int_bound 1) ])
 
-let pair_gen = Gen.pair (type_gen 3) (type_gen 3)
+let sketch_pair_gen = Gen.pair (sketch_gen 3) (sketch_gen 3)
+let type_gen depth = Gen.map materialise (sketch_gen depth)
+let pair_gen = Gen.map materialise_pair sketch_pair_gen
+
+let linked_gen depth =
+  Gen.map2
+    (fun sketch targets ->
+      let ty = materialise sketch in
+      let build = builder () in
+      List.iteri
+        (fun index target ->
+          let variable = V.fresh None in
+          V.link variable (build target);
+          ignore (index, variable))
+        targets;
+      List.fold_left
+        (fun ty target ->
+          let variable = V.fresh None in
+          V.link variable (build target);
+          T.TTup [ ty; T.TVar variable ])
+        ty targets)
+    (sketch_gen depth)
+    (Gen.list_size (Gen.int_range 1 3) (sketch_gen (depth - 1)))
+
+let rec has_linked_variable ty =
+  match ty with
+  | T.TVar variable -> begin
+      match V.state variable with
+      | V.Linked _ -> true
+      | V.Unbound _ -> false
+    end
+  | T.TFun (parameter, result) ->
+      has_linked_variable parameter || has_linked_variable result
+  | T.TTup items | T.TCustom (_, items) -> List.exists has_linked_variable items
+  | T.TRecord row -> has_linked_variable row
+  | T.TRowExtend (_, field, rest) ->
+      has_linked_variable field || has_linked_variable rest
+  | T.TInt | T.TFloat | T.TChar | T.TStr | T.TBool | T.TUnit | T.TRowEmpty ->
+      false
+
+let law_zonk_is_idempotent =
+  Test.make ~count:5000 ~name:"zonking a zonked type changes nothing"
+    ~print:written (linked_gen 3)
+    (fun ty -> T.equal (T.zonk (T.zonk ty)) (T.zonk ty))
+
+let law_a_zonked_type_holds_no_link =
+  Test.make ~count:5000 ~name:"a zonked type carries no linked variable"
+    ~print:written (linked_gen 3)
+    (fun ty -> not (has_linked_variable (T.zonk ty)))
+
+let law_zonk_keeps_what_a_link_points_at =
+  Test.make ~count:5000 ~name:"a linked variable zonks to what it was linked to"
+    ~print:written (type_gen 3)
+    (fun ty ->
+      let variable = V.fresh None in
+      V.link variable ty;
+      T.equal (T.zonk (T.TVar variable)) (T.zonk ty))
 
 let law_unification_makes_both_sides_equal =
   Test.make ~count:5000 ~name:"a successful unification makes both types equal"
     ~print:written_pair pair_gen
-    (fun (left, right) ->
-      match unified left right with
-      | None -> true
-      | Some settling -> same (I.Subst.apply left settling) (I.Subst.apply right settling))
+    (fun (left, right) -> (not (unifies left right)) || same left right)
 
 let law_unification_is_reflexive =
   Test.make ~count:5000 ~name:"a type unifies with itself and learns nothing"
-    ~print:written (type_gen 3)
-    (fun ty ->
-      match unified ty ty with
-      | None -> false
-      | Some settling -> same (I.Subst.apply ty settling) ty)
+    ~print:(fun sketch -> written (materialise sketch)) (sketch_gen 3)
+    (fun sketch ->
+      let ty = materialise sketch in
+      unifies ty ty && alpha_same ty (materialise sketch))
 
 let law_unification_is_symmetric =
   Test.make ~count:5000 ~name:"unification succeeds in either order"
+    ~print:(fun pair -> written_pair (materialise_pair pair)) sketch_pair_gen
+    (fun (left, right) ->
+      let one, other = materialise_pair (left, right) in
+      let flipped_one, flipped_other = materialise_pair (left, right) in
+      unifies one other = unifies flipped_other flipped_one)
+
+let law_unification_resolves_what_it_learns =
+  Test.make ~count:5000
+    ~name:"what a unification learns is resolved, not pending"
     ~print:written_pair pair_gen
     (fun (left, right) ->
-      Option.is_some (unified left right) = Option.is_some (unified right left))
+      (not (unifies left right))
+      || not (has_linked_variable (T.zonk (T.TTup [ left; right ]))))
 
-let law_unification_settles_in_one_pass =
-  Test.make ~count:5000 ~name:"the substitution a unification returns is idempotent"
+let deeper build =
+  V.enter_level ();
+  let made = build () in
+  V.leave_level ();
+  made
+
+let law_unification_is_idempotent_as_an_effect =
+  Test.make ~count:5000 ~name:"unifying twice learns nothing the first pass missed"
     ~print:written_pair pair_gen
     (fun (left, right) ->
-      match unified left right with
-      | None -> true
-      | Some settling ->
-          let once = I.Subst.apply left settling in
-          same (I.Subst.apply once settling) once)
+      (not (unifies left right))
+      ||
+      let settled = T.zonk left in
+      unifies left right && T.equal (T.zonk left) settled)
 
-let quantifying ty = T.Scheme (I.Str_set.elements (I.ftv_typ ty), ty)
+let law_unification_is_transitive =
+  Test.make ~count:5000
+    ~name:"what unifies with a middle type unifies with the far side"
+    ~print:(fun (one, other) -> written_pair (materialise_pair (one, other)))
+    sketch_pair_gen
+    (fun (one, other) ->
+      let left, right = materialise_pair (one, other) in
+      let middle = T.TVar (V.fresh None) in
+      (not (unifies left middle))
+      || (not (unifies middle right))
+      || same left right)
+
+let law_a_variable_never_takes_a_type_that_holds_it =
+  Test.make ~count:5000 ~name:"a variable never unifies with a type that holds it"
+    ~print:written (type_gen 3)
+    (fun ty ->
+      let variable = V.fresh None in
+      let holding = T.TTup [ T.TVar variable; ty ] in
+      not (unifies (T.TVar variable) holding))
+
+let record_sketch_gen =
+  Gen.map2
+    (fun fields tail -> (keeping_first_label fields, tail))
+    (Gen.list_size (Gen.int_range 2 4) (Gen.pair label_gen (sketch_gen 1)))
+    (Gen.oneof
+       [ Gen.return (Sk_ground T.TRowEmpty);
+         Gen.map (fun index -> Sk_var (6 + index)) (Gen.int_bound 1) ])
+
+let law_a_record_does_not_care_in_which_order_it_was_written =
+  Test.make ~count:5000
+    ~name:"two records unify however their fields were ordered"
+    ~print:(fun (fields, tail) ->
+      written (materialise (Sk_record (fields, tail))))
+    record_sketch_gen
+    (fun (fields, tail) ->
+      unifies
+        (materialise (Sk_record (fields, tail)))
+        (materialise (Sk_record (List.rev fields, tail))))
+
+let law_a_row_never_takes_a_row_that_holds_it =
+  Test.make ~count:2000 ~name:"a row variable never takes a row that holds it"
+    ~print:(fun label -> label) label_gen
+    (fun label ->
+      let row = V.fresh None in
+      not (unifies (T.TVar row) (T.TRowExtend (label, T.TInt, T.TVar row))))
+
+let law_a_ground_type_unifies_only_with_itself =
+  Test.make ~count:2000 ~name:"a ground type unifies only with itself"
+    ~print:(fun (one, other) -> Message.of_type one ^ "  ~  " ^ Message.of_type other)
+    (Gen.pair ground_gen ground_gen)
+    (fun (one, other) -> unifies one other = T.equal one other)
+
+let law_a_bound_constraint_is_satisfied =
+  Test.make ~count:5000
+    ~name:"what a constrained variable takes satisfies the constraint"
+    ~print:written (type_gen 3)
+    (fun ty ->
+      let numeric = T.TVar (V.fresh (Some Data.Constraint.Number)) in
+      (not (unifies numeric ty))
+      ||
+      match T.zonk numeric with
+      | T.TInt | T.TFloat -> true
+      | T.TVar variable -> V.constraint_of variable = Some Data.Constraint.Number
+      | T.TChar | T.TStr | T.TBool | T.TUnit | T.TFun _ | T.TTup _
+      | T.TCustom _ | T.TRecord _ | T.TRowExtend _ | T.TRowEmpty ->
+          false)
+
+let constraint_gen = Gen.oneof_list Data.Constraint.all
+
+let law_a_constraint_meets_another_the_same_way_round =
+  Test.make ~count:2000 ~name:"two constraints meet the same way in either order"
+    ~print:(fun (one, other) ->
+      Data.Constraint.name one ^ " & " ^ Data.Constraint.name other)
+    (Gen.pair constraint_gen constraint_gen)
+    (fun (one, other) ->
+      Data.Constraint.combined one other = Data.Constraint.combined other one)
+
+let law_a_constraint_meets_itself =
+  Test.make ~count:100 ~name:"a constraint met with itself is unchanged"
+    ~print:Data.Constraint.name constraint_gen
+    (fun carried -> Data.Constraint.combined carried carried = Some carried)
+
+let law_two_constrained_variables_keep_both_constraints =
+  Test.make ~count:2000
+    ~name:"unifying two constrained variables keeps what both asked for"
+    ~print:(fun (one, other) ->
+      Data.Constraint.name one ^ " & " ^ Data.Constraint.name other)
+    (Gen.pair constraint_gen constraint_gen)
+    (fun (one, other) ->
+      let left = V.fresh (Some one) and right = V.fresh (Some other) in
+      match
+        (unifies (T.TVar left) (T.TVar right), Data.Constraint.combined one other)
+      with
+      | false, None -> true
+      | false, Some _ | true, None -> false
+      | true, Some together -> begin
+          match T.zonk (T.TVar left) with
+          | T.TVar settled -> V.constraint_of settled = Some together
+          | T.TInt | T.TFloat | T.TChar | T.TStr | T.TBool | T.TUnit | T.TFun _
+          | T.TTup _ | T.TCustom _ | T.TRecord _ | T.TRowExtend _ | T.TRowEmpty
+            ->
+              false
+        end)
+
+let law_using_a_scheme_does_not_spend_it =
+  Test.make ~count:5000 ~name:"using a scheme once leaves it whole for the next use"
+    ~print:(fun sketch -> written (materialise sketch)) (sketch_gen 3)
+    (fun sketch ->
+      let scheme = I.generalize (deeper (fun () -> materialise sketch)) in
+      let spent = I.instantiate scheme in
+      let ground = T.TTup [ T.TInt; T.TStr ] in
+      ignore (unifies spent ground);
+      alpha_same (I.instantiate scheme) (I.instantiate scheme))
+
+let quantifying ty = T.Scheme (T.Variables.elements (I.ftv_typ ty), ty)
+
+let printed_items ty =
+  let written = Message.of_type ty in
+  let inner =
+    String.sub written 2 (max 0 (String.length written - 4))
+  in
+  String.split_on_char ',' inner |> List.map String.trim
+
+let law_printing_names_each_variable_apart =
+  Test.make ~count:5000
+    ~name:"one variable prints as one name, two variables print apart"
+    ~print:(fun indices ->
+      Message.of_type
+        (materialise (Sk_tup (List.map (fun index -> Sk_var index) indices))))
+    (Gen.list_size (Gen.int_range 2 6) (Gen.int_bound 5))
+    (fun indices ->
+      let printed =
+        printed_items
+          (materialise (Sk_tup (List.map (fun index -> Sk_var index) indices)))
+      in
+      List.length printed = List.length indices
+      && List.for_all2
+           (fun index name ->
+             List.for_all2
+               (fun other other_name ->
+                 String.equal name other_name = (index = other))
+               indices printed)
+           indices printed)
+
+let law_printing_does_not_depend_on_identity =
+  Test.make ~count:5000
+    ~name:"a type and a fresh copy of it print the same"
+    ~print:written (type_gen 3)
+    (fun ty ->
+      String.equal
+        (Message.of_type ty)
+        (Message.of_type (I.instantiate (quantifying ty))))
 
 let law_instantiation_only_renames =
   Test.make ~count:5000 ~name:"instantiation renames variables without reshaping"
     ~print:written (type_gen 3)
-    (fun ty -> alpha_same (snd (I.instantiate (quantifying ty))) ty)
+    (fun ty -> alpha_same (I.instantiate (quantifying ty)) ty)
 
 let law_instantiation_is_fresh =
   Test.make ~count:5000 ~name:"instantiation shares no variable with its scheme"
     ~print:written (type_gen 3)
     (fun ty ->
-      I.Str_set.is_empty
-        (I.Str_set.inter
-           (I.ftv_typ (snd (I.instantiate (quantifying ty))))
+      T.Variables.is_empty
+        (T.Variables.inter
+           (I.ftv_typ (I.instantiate (quantifying ty)))
            (I.ftv_typ ty)))
 
 let law_instantiation_keeps_the_constraints =
@@ -173,38 +482,63 @@ let law_instantiation_keeps_the_constraints =
     ~print:written (type_gen 3)
     (fun ty ->
       let carried settled =
-        List.filter_map Data.Constraint.of_variable
-          (I.Str_set.elements (I.ftv_typ settled))
+        List.filter_map V.constraint_of (T.Variables.elements (I.ftv_typ settled))
         |> List.map Data.Constraint.name |> List.sort String.compare
       in
-      carried (snd (I.instantiate (quantifying ty))) = carried ty)
+      carried (I.instantiate (quantifying ty)) = carried ty)
 
-let law_generalization_keeps_what_the_context_holds =
+let levels_of ty =
+  T.fold_variables
+    (fun collected variable ->
+      match V.state variable with
+      | V.Linked _ -> collected
+      | V.Unbound { level; _ } -> level :: collected)
+    [] ty
+
+let law_generalization_keeps_what_the_binding_holds =
   Test.make ~count:5000
-    ~name:"a type the context still holds is not generalized" ~print:written
+    ~name:"a variable the binding still holds is not generalized" ~print:written
     (type_gen 3)
     (fun ty ->
-      let held =
-        I.Name_map.singleton (Data.Name.local "held") (T.Scheme ([], ty))
-      in
-      T.equal (snd (I.instantiate (I.generalize ty held))) ty)
+      match I.generalize ty with
+      | T.Scheme (quantified, _) -> quantified = [])
 
-let law_generalization_takes_everything_the_context_lacks =
+let law_generalization_takes_what_is_deeper =
   Test.make ~count:5000
-    ~name:"a free variable outside the context is generalized" ~print:written
-    (type_gen 3)
-    (fun ty ->
-      match I.generalize ty I.Name_map.empty with
+    ~name:"a variable born deeper than the binding is generalized"
+    ~print:(fun sketch -> written (materialise sketch)) (sketch_gen 3)
+    (fun sketch ->
+      let ty = deeper (fun () -> materialise sketch) in
+      match I.generalize ty with
       | T.Scheme (quantified, _) ->
-          I.Str_set.equal
-            (I.Str_set.of_list quantified)
-            (I.ftv_typ ty))
+          T.Variables.equal (T.Variables.of_list quantified) (I.ftv_typ ty))
+
+let law_instantiation_lands_on_the_current_level =
+  Test.make ~count:5000
+    ~name:"instantiation gives variables at the level that asks for them"
+    ~print:(fun sketch -> written (materialise sketch)) (sketch_gen 3)
+    (fun sketch ->
+      let scheme = I.generalize (deeper (fun () -> materialise sketch)) in
+      List.for_all
+        (fun level -> level = V.current_level ())
+        (levels_of (I.instantiate scheme)))
+
+let law_binding_only_lowers_levels =
+  Test.make ~count:5000
+    ~name:"binding a variable never raises the level of what it holds"
+    ~print:(fun sketch -> written (materialise sketch)) (sketch_gen 3)
+    (fun sketch ->
+      let variable = V.fresh None in
+      let held = deeper (fun () -> materialise sketch) in
+      let shallow = V.current_level () in
+      (not (unifies (T.TVar variable) held))
+      || List.for_all (fun level -> level <= shallow) (levels_of held))
 
 
 module P = Canonical.Pattern
 
 let pattern_env =
-  I.build_type_env ~imports:[]
+  Infer.Type_env.build ~imports:[]
     (Types.resolved
        (Types.canonical
           {|
@@ -385,9 +719,7 @@ let positions typed =
   in
   go [] typed
 
-let inferred_pattern pattern =
-  I.Fresh.reset ();
-  I.infer_pattern pattern_env pattern
+let inferred_pattern pattern = I.infer_pattern pattern_env pattern
 
 let typeable pattern =
   match inferred_pattern pattern with
@@ -396,7 +728,7 @@ let typeable pattern =
 
 let about pattern holds =
   match inferred_pattern pattern with
-  | settling, typed, bound -> holds settling typed bound
+  | typed, bound -> holds typed bound
   | exception Failure _ -> true
 
 let drawn = Format.asprintf "%a" P.pp
@@ -406,12 +738,12 @@ let law_a_bound_name_is_the_position_it_binds =
     ~name:"a name bound by a pattern has the type of the position it binds"
     ~print:drawn (named_pattern_gen 3)
     (fun pattern ->
-      about pattern @@ fun settling typed bound ->
+      about pattern @@ fun typed bound ->
       List.for_all
         (fun (name, at_position) ->
-          match (at_position, I.Name_map.find_opt (Data.Name.local name) bound) with
+          match (at_position, Infer.Value_env.find (Data.Name.local name) bound) with
           | Some at_position, Some (T.Scheme ([], declared)) ->
-              same (I.Subst.apply at_position settling) (I.Subst.apply declared settling)
+              same at_position declared
           | Some _, Some (T.Scheme (_ :: _, _)) | Some _, None | None, _ -> false)
         (positions typed))
 
@@ -420,29 +752,34 @@ let law_a_pattern_invents_no_type_of_its_own =
     ~name:"every variable a bound name carries is one the pattern type carries"
     ~print:drawn (named_pattern_gen 3)
     (fun pattern ->
-      about pattern @@ fun settling typed bound ->
-      I.Str_set.subset
-        (I.ftv_ctx (I.Subst.to_ctx bound settling))
-        (I.ftv_typ (I.Subst.apply typed.Typed.Pattern.typ settling)))
+      about pattern @@ fun typed bound ->
+      T.Variables.subset
+        (List.fold_left
+           (fun collected (T.Scheme (_, carried)) ->
+             T.Variables.union collected (I.ftv_typ carried))
+           T.Variables.empty
+           (Infer.Value_env.schemes bound))
+        (I.ftv_typ typed.Typed.Pattern.typ))
 
 let law_a_pattern_binds_exactly_its_names =
   Test.make ~count:5000 ~name:"a pattern binds exactly the names it writes"
     ~print:drawn (named_pattern_gen 3)
     (fun pattern ->
-      about pattern @@ fun _ _ bound ->
+      about pattern @@ fun _ bound ->
       Names.equal (binders pattern)
-        (I.Name_map.fold
-           (fun name _ known -> Names.add (Data.Name.base name) known)
-           bound Names.empty))
+        (Names.of_list (List.map Data.Name.base (Infer.Value_env.names bound))))
 
 let law_a_pattern_is_inferred_the_same_way_twice =
   Test.make ~count:5000 ~name:"inferring a pattern twice gives the same answer"
     ~print:drawn (named_pattern_gen 3)
     (fun pattern ->
-      about pattern @@ fun _ left left_bound ->
-      let _, right, right_bound = inferred_pattern pattern in
-      Typed.Pattern.equal left right
-      && I.Name_map.equal T.equal_scheme left_bound right_bound)
+      about pattern @@ fun left left_bound ->
+      let right, right_bound = inferred_pattern pattern in
+      let agree = renaming () in
+      same_pattern agree left right
+      && Infer.Value_env.equal
+           (fun (T.Scheme (_, one)) (T.Scheme (_, other)) -> agree one other)
+           left_bound right_bound)
 
 let saturated_gen =
   Gen.bind constructor_gen (fun constructor ->
@@ -459,8 +796,8 @@ let law_a_constructor_pattern_takes_its_declared_type =
     ~print:(fun (constructor, pattern) -> constructor.written ^ ": " ^ drawn pattern)
     saturated_gen
     (fun (constructor, pattern) ->
-      about pattern @@ fun settling typed _ ->
-      match I.Subst.apply typed.Typed.Pattern.typ settling with
+      about pattern @@ fun typed _ ->
+      match T.zonk typed.Typed.Pattern.typ with
       | T.TCustom (found, arguments) ->
           Data.Name.equal found (Data.Name.local constructor.owner)
           && List.length arguments = constructor.owner_arity
@@ -694,7 +1031,7 @@ let outcome source =
               (fun (declaration : Typed.Declaration.t) ->
                 ( Data.Located.unwrap declaration.name,
                   Types.shape declaration.typ ))
-              result.I.declarations))
+              result.Declarations.declarations))
   | exception _ -> None
 
 let body_gen ground = value_gen ~scope:[] ~blocks:true ~depth:3 ground
@@ -741,18 +1078,71 @@ let law_layout_does_not_change_the_inferred_type =
       outcome (answered ~style ~written:ground body)
       = outcome (answered ~style:other ~written:ground body))
 
+let spelling_gen =
+  Gen.oneof_list
+    [ "a"; "b"; "t"; "u"; "a0"; "a1"; "a2"; "a3"; "b0"; "b1"; "x"; "y"; "elem";
+      "value" ]
+
+let spelled_with one other =
+  Printf.sprintf
+    {|
+first : ( %s, %s ) -> %s
+first t =
+    case t of
+        ( x, y ) ->
+            x
+
+used : String
+used = first ( "s", 1 )
+|}
+    one other one
+
+let law_a_spelling_does_not_change_the_verdict =
+  Test.make ~count:2000
+    ~name:"how a type variable is spelled does not change the verdict"
+    ~print:(fun (one, other) -> spelled_with one other)
+    (Gen.pair spelling_gen spelling_gen)
+    (fun (one, other) ->
+      String.equal one other
+      ||
+      match outcome (spelled_with one other) with
+      | None -> false
+      | Some inferred ->
+          List.exists
+            (fun (name, shape) ->
+              String.equal name "used" && String.equal shape "String")
+            inferred)
+
 let suite =
   QCheck_ounit.to_ounit2_test_list
     [
+      law_zonk_is_idempotent;
+      law_a_zonked_type_holds_no_link;
+      law_zonk_keeps_what_a_link_points_at;
       law_unification_makes_both_sides_equal;
       law_unification_is_reflexive;
       law_unification_is_symmetric;
-      law_unification_settles_in_one_pass;
+      law_unification_resolves_what_it_learns;
+      law_unification_is_idempotent_as_an_effect;
+      law_unification_is_transitive;
+      law_a_variable_never_takes_a_type_that_holds_it;
+      law_a_ground_type_unifies_only_with_itself;
+      law_a_record_does_not_care_in_which_order_it_was_written;
+      law_a_row_never_takes_a_row_that_holds_it;
+      law_a_bound_constraint_is_satisfied;
+      law_a_constraint_meets_another_the_same_way_round;
+      law_a_constraint_meets_itself;
+      law_two_constrained_variables_keep_both_constraints;
+      law_using_a_scheme_does_not_spend_it;
+      law_printing_names_each_variable_apart;
+      law_printing_does_not_depend_on_identity;
       law_instantiation_only_renames;
       law_instantiation_is_fresh;
       law_instantiation_keeps_the_constraints;
-      law_generalization_keeps_what_the_context_holds;
-      law_generalization_takes_everything_the_context_lacks;
+      law_generalization_keeps_what_the_binding_holds;
+      law_generalization_takes_what_is_deeper;
+      law_instantiation_lands_on_the_current_level;
+      law_binding_only_lowers_levels;
       law_a_bound_name_is_the_position_it_binds;
       law_a_pattern_invents_no_type_of_its_own;
       law_a_pattern_binds_exactly_its_names;
@@ -763,4 +1153,5 @@ let suite =
       law_a_well_typed_program_is_accepted;
       law_a_clashing_annotation_is_rejected;
       law_layout_does_not_change_the_inferred_type;
+      law_a_spelling_does_not_change_the_verdict;
     ]

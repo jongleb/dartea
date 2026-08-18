@@ -16,23 +16,20 @@ let resolved module_ =
            (List.map Canonicalization.Resolve_names.show_error errors))
 
 let inferred source =
-  Infer.Infer_proc.Fresh.reset ();
-  Infer.Infer_proc.infer_toplevel ~imports:[]
-    (resolved (canonical source))
-    Dartea.Compiler.initial_ctx
+  Infer.Declarations.infer_toplevel ~imports:[] (resolved (canonical source))
 
 let scheme_of source name =
   let result = inferred source in
   match
-    Infer.Infer_proc.Name_map.find_opt (Data.Name.local name)
-      result.Infer.Infer_proc.ctx
+    Infer.Value_env.find (Data.Name.local name)
+      result.Infer.Declarations.values
   with
   | Some scheme -> scheme
   | None -> assert_failure (Printf.sprintf "no type inferred for %s" name)
 
 let printed source name =
   match scheme_of source name with
-  | Typed.Type.Scheme (_, ty) -> Infer.Infer_proc.string_of_typ ty
+  | Typed.Type.Scheme (_, ty) -> Infer.Message.of_type ty
 
 let rec shape (ty : Typed.Type.t) =
   let parenthesised inner =
@@ -42,7 +39,7 @@ let rec shape (ty : Typed.Type.t) =
   in
   match ty with
   | TVar variable -> begin
-      match Data.Constraint.of_variable variable with
+      match Typed.Variable.constraint_of variable with
       | Some carried -> Data.Constraint.name carried
       | None -> "*"
     end
@@ -54,7 +51,7 @@ let rec shape (ty : Typed.Type.t) =
       ^ String.concat " " (List.map parenthesised arguments)
   | TInt | TFloat | TChar | TStr | TBool | TUnit | TRecord _ | TRowExtend _
   | TRowEmpty ->
-      Infer.Infer_proc.string_of_typ ty
+      Infer.Message.of_type ty
 
 let assert_shape ~src ~name ~expected =
   match scheme_of src name with
@@ -469,6 +466,26 @@ identity x = x
 |}
     ~name:"usedTwice" ~expected:"( number, String )"
 
+let spelled_with one other =
+  Printf.sprintf
+    {|
+first : ( %s, %s ) -> %s
+first t =
+    case t of
+        ( x, y ) ->
+            x
+
+used : String
+used = first ( "s", 1 )
+|}
+    one other one
+
+let test_a_written_type_variable_never_meets_a_generated_one _ =
+  List.iter
+    (fun (one, other) ->
+      assert_type ~src:(spelled_with one other) ~name:"used" ~expected:"String")
+    [ ("a0", "a1"); ("a1", "a2"); ("b0", "b1"); ("a", "b"); ("t", "u") ]
+
 let test_a_polymorphic_declaration_stays_polymorphic _ =
   assert_shape ~src:{|
 identity x = x
@@ -810,6 +827,8 @@ let suite =
     >:: test_a_backward_call_settles_the_callee_type;
     "a_group_is_generalized_against_the_context_before_it"
     >:: test_a_group_is_generalized_against_the_context_before_it;
+    "a_written_type_variable_never_meets_a_generated_one"
+    >:: test_a_written_type_variable_never_meets_a_generated_one;
     "a_polymorphic_declaration_stays_polymorphic"
     >:: test_a_polymorphic_declaration_stays_polymorphic;
     "a_constructor_payload_has_its_declared_type"

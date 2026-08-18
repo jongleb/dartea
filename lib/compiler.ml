@@ -1,9 +1,3 @@
-let initial_ctx =
-  List.fold_left
-    (fun ctx (operator, scheme) ->
-      Infer.Infer_proc.Name_map.add (Data.Name.local operator) scheme ctx)
-    Infer.Infer_proc.Name_map.empty Primitives.values
-
 module type BACKEND = sig
   val extension : string
   val runtime_module : unit -> (string * string) option
@@ -64,7 +58,7 @@ module Make (B : BACKEND) = struct
            | Data.Name.Local _ -> None)
     |> List.sort_uniq String.compare
 
-  let prepared (typed : Infer.Infer_proc.infer_result) =
+  let prepared (typed : Infer.Declarations.infer_result) =
     let declarations =
       match
         After_typed.Optimize.optimize typed.declarations
@@ -76,29 +70,25 @@ module Make (B : BACKEND) = struct
     in
     let constructors =
       List.map
-        (fun (c : Infer.Infer_proc.ctor_info) -> (c.name, c.arity))
+        (fun (c : Infer.Type_env.ctor_info) -> (c.name, c.arity))
         typed.constructors
     in
     ( declarations,
       constructors,
-      Infer.Infer_proc.Name_map.bindings typed.siblings_env )
+      Data.Name.Map.bindings typed.siblings_env )
 
-  let shaped_types (typed : Infer.Infer_proc.infer_result) :
+  let shaped_types (typed : Infer.Declarations.infer_result) :
       Optimized.Typedecl.t list =
     List.map
       (fun (declared : Canonical.Typedecl.t) ->
+        let params, ctors = Infer.Type_env.typedecl_payloads declared in
         {
           Optimized.Typedecl.name = declared.name;
-          params = declared.params;
+          params;
           ctors =
             List.map
-              (fun (ctor : Canonical.Typedecl.type_ctor) ->
-                {
-                  Optimized.Typedecl.id = ctor.id;
-                  payload =
-                    List.map Infer.Infer_proc.typedef_to_type ctor.data;
-                })
-              declared.ctors;
+              (fun (id, payload) -> { Optimized.Typedecl.id; payload })
+              ctors;
         })
       typed.typedecls
 
@@ -128,7 +118,7 @@ module Make (B : BACKEND) = struct
         |> String.concat "\n" |> failwith
 
   let exported_names (module_ : Canonical.Module.t)
-      (typed : Infer.Infer_proc.infer_result) =
+      (typed : Infer.Declarations.infer_result) =
     let open Canonical.Exports in
     let exports = of_module module_ in
     let declared =
@@ -139,7 +129,7 @@ module Make (B : BACKEND) = struct
     in
     let own_constructors =
       List.fold_left
-        (fun acc (c : Infer.Infer_proc.ctor_info) ->
+        (fun acc (c : Infer.Type_env.ctor_info) ->
           match c.name with
           | Data.Name.Local ctor -> Names.add ctor acc
           | Data.Name.Global _ -> acc)
@@ -170,9 +160,8 @@ module Make (B : BACKEND) = struct
     let compile_module progress module_ =
       let resolved = resolved_against progress.dependencies module_ in
       let imports = imported_interfaces resolved progress.interfaces in
-      Infer.Infer_proc.Fresh.reset ();
       let typed =
-        Infer.Infer_proc.infer_toplevel ~imports resolved initial_ctx
+        Infer.Declarations.infer_toplevel ~imports resolved
       in
       let declarations, constructors, siblings = prepared typed in
       let compiled =
@@ -193,7 +182,7 @@ module Make (B : BACKEND) = struct
       {
         dependencies = resolved :: progress.dependencies;
         interfaces =
-          Infer.Infer_proc.interface_of resolved typed :: progress.interfaces;
+          Infer.Declarations.interface_of resolved typed :: progress.interfaces;
         output = compiled :: progress.output;
       }
     in

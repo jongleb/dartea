@@ -7,3 +7,14 @@ type t = {
   typ : Type.t;
 }
 [@@deriving show]
+
+let zonk (decl : t) =
+  {
+    decl with
+    params =
+      List.map
+        (fun (param : param) -> { param with typ = Type.zonk param.typ })
+        decl.params;
+    body = Expr.zonk decl.body;
+    typ = Type.zonk decl.typ;
+  }
