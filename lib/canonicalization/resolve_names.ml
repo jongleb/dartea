@@ -299,16 +299,18 @@ let refers_to env namespace (name : Data.Name.t) :
             |> List.filteri (fun index _ -> index < 4)
           in
           Error
-            (match namespace with
-            | Types ->
-                Problem.Unknown_type
-                  { name; prefix = Known_prefix module_name; near }
-            | Terms when starts_with_an_upper_case exported_name ->
-                Problem.Unknown_constructor
-                  { name; prefix = Known_prefix module_name; near }
-            | Terms ->
-                Problem.Unbound_value
-                  { name; prefix = Known_prefix module_name; near })
+            begin
+              match namespace with
+              | Types ->
+                  Problem.Unknown_type
+                    { name; prefix = Known_prefix module_name; near }
+              | Terms when starts_with_an_upper_case exported_name ->
+                  Problem.Unknown_constructor
+                    { name; prefix = Known_prefix module_name; near }
+              | Terms ->
+                  Problem.Unbound_value
+                    { name; prefix = Known_prefix module_name; near }
+            end
     end
 
 let resolved env namespace (name : Data.Name.t Data.Located.t) =

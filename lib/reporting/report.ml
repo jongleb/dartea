@@ -256,7 +256,6 @@ let with_pattern_category trying_to_match (category : Category.pattern) =
   | P_int -> " integers:"
   | P_str -> " strings:"
   | P_chr -> " characters:"
-  | P_bool -> " booleans:"
 
 let comparison naming ~found ~expected ~i_am_seeing ~instead_of ~details =
   let found_doc, expected_doc, problems =
@@ -285,6 +284,207 @@ let arrow_count ty =
         found
   in
   count 0 ty
+
+let is_string ty =
+  match Typed.Type.head ty with TStr -> true | _ -> false
+
+let is_int ty = match Typed.Type.head ty with TInt -> true | _ -> false
+let is_float ty = match Typed.Type.head ty with TFloat -> true | _ -> false
+
+let number_named ty =
+  match Typed.Type.head ty with
+  | TInt -> Some ("Int", "String.fromInt")
+  | TFloat -> Some ("Float", "String.fromFloat")
+  | TVar variable -> begin
+      match Typed.Variable.constraint_of variable with
+      | Some Number -> Some ("number", "String.fromInt")
+      | Some (Comparable | Appendable | Comp_appendable) | None -> None
+    end
+  | TChar | TBool | TStr | TUnit | TFun _ | TTup _ | TCustom _ | TRecord _
+  | TRowExtend _ | TRowEmpty ->
+      None
+
+let of_operator naming ~snippet ~category ~found ~expected ~side ~operator =
+  let written = Data.Name.base operator in
+  let problem_and_body problem body = Doc.stack [ Doc.words problem; snippet; body ] in
+  let lone_with ~i_am_seeing ~details =
+    lone naming ~found ~expected ~i_am_seeing ~details
+  in
+  let bad_math operation =
+    problem_and_body
+      (operation ^ " does not work with this value:")
+      (lone_with
+         ~i_am_seeing:
+           (with_category
+              (Printf.sprintf "The %s side of (%s) is" side written)
+              category)
+         ~details:
+           [
+             Doc.words
+               (Printf.sprintf
+                  "But (%s) only works with Int and Float values." written);
+           ])
+  in
+  let bad_comparison () =
+    problem_and_body "I cannot do a comparison with this value:"
+      (lone_with
+         ~i_am_seeing:
+           (with_category
+              (Printf.sprintf "The %s side of (%s) is" side written)
+              category)
+         ~details:
+           [
+             Doc.words
+               (Printf.sprintf
+                  "But (%s) only works on Int, Float, Char, and String values. \
+                   It can work on lists and tuples of comparable values as \
+                   well, but it is usually better to find a different path."
+                  written);
+           ])
+  in
+  let bad_bool () =
+    problem_and_body "I am struggling with this boolean operation:"
+      (lone_with
+         ~i_am_seeing:
+           (Printf.sprintf
+              "Both sides of (%s) must be Bool values, but the %s side is:"
+              written side)
+         ~details:[])
+  in
+  let bad_float_division () =
+    problem_and_body "The (/) operator is specifically for floating-point division:"
+      (if is_int found then
+         Doc.stack
+           [
+             Doc.words
+               (Printf.sprintf
+                  "The %s side of (/) must be a Float, but I am seeing an Int. \
+                   I recommend:"
+                  side);
+             Doc.above
+               [
+                 indented (Doc.text "toFloat for explicit conversions     (toFloat 5 / 2) == 2.5");
+                 indented (Doc.text "(//)    for integer division         (5 // 2)        == 2");
+               ];
+             note
+               "Read <https://elm-lang.org/0.19.1/implicit-casts> to learn why Elm does not implicitly convert Ints to Floats.";
+           ]
+       else
+         lone_with
+           ~i_am_seeing:
+             (Printf.sprintf
+                "The %s side of (/) must be a Float, but instead I am seeing:"
+                side)
+           ~details:[])
+  in
+  let bad_integer_division () =
+    problem_and_body "The (//) operator is specifically for integer division:"
+      (if is_float found then
+         Doc.stack
+           [
+             Doc.words
+               (Printf.sprintf
+                  "The %s side of (//) must be an Int, but I am seeing a \
+                   Float. I recommend doing the conversion explicitly with one \
+                   of these functions:"
+                  side);
+             Doc.above
+               [
+                 indented (Doc.text "round 3.5     == 4");
+                 indented (Doc.text "floor 3.5     == 3");
+                 indented (Doc.text "ceiling 3.5   == 4");
+                 indented (Doc.text "truncate 3.5  == 3");
+               ];
+             note
+               "Read <https://elm-lang.org/0.19.1/implicit-casts> to learn why Elm does not implicitly convert Ints to Floats.";
+           ]
+       else
+         lone_with
+           ~i_am_seeing:
+             (Printf.sprintf
+                "The %s side of (//) must be an Int, but instead I am seeing:"
+                side)
+           ~details:[])
+  in
+  let bad_append () =
+    match number_named found with
+    | Some (thing, conversion) ->
+        problem_and_body
+          (Printf.sprintf
+             "The (++) operator can append List and String values, but not %s \
+              values like this:"
+             thing)
+          (Doc.words
+             (Printf.sprintf
+                "Try using %s to turn it into a string? Or put it in [] to \
+                 make it a list? Or switch to the (::) operator?"
+                conversion))
+    | None ->
+        problem_and_body "The (++) operator cannot append this type of value:"
+          (lone_with
+             ~i_am_seeing:(with_category "I am seeing" category)
+             ~details:
+               [
+                 Doc.words
+                   "But the (++) operator is only for appending List and \
+                    String values. Maybe put this value in [] to make it a \
+                    list?";
+               ])
+  in
+  let both_sides ~note_about =
+    problem_and_body
+      (Printf.sprintf "I need both sides of (%s) to be the same type:" written)
+      (comparison naming ~found:expected ~expected:found
+         ~i_am_seeing:(Printf.sprintf "The left side of (%s) is:" written)
+         ~instead_of:"But the right side is:" ~details:[ Doc.words note_about ])
+  in
+  match (written, side) with
+  | "+", _ when is_string found ->
+      problem_and_body
+        "I cannot do addition with String values like this one:"
+        (Doc.stack
+           [
+             Doc.words "The (+) operator only works with Int and Float values.";
+             simple_hint "Switch to the (++) operator to append strings!";
+           ])
+  | "+", _ -> bad_math "Addition"
+  | "-", _ -> bad_math "Subtraction"
+  | "*", _ -> bad_math "Multiplication"
+  | "^", _ -> bad_math "Exponentiation"
+  | "/", _ -> bad_float_division ()
+  | "//", _ -> bad_integer_division ()
+  | ("&&" | "||"), _ -> bad_bool ()
+  | ("<" | ">" | "<=" | ">="), "left" -> bad_comparison ()
+  | ("<" | ">" | "<=" | ">="), _ ->
+      both_sides
+        ~note_about:
+          (Printf.sprintf
+             "I cannot compare different types though! Which side of (%s) is \
+              the problem?"
+             written)
+  | ("==" | "/="), _ ->
+      if is_float found || is_float expected then
+        both_sides
+          ~note_about:
+            "Note: Equality on floats is not 100% reliable due to the design \
+             of IEEE 754. I recommend a check like (abs (x - y) < 0.0001) \
+             instead."
+      else
+        both_sides
+          ~note_about:
+            "Different types can never be equal though! Which side is messed up?"
+  | "++", _ -> bad_append ()
+  | _, _ ->
+      problem_and_body
+        (Printf.sprintf "The %s argument of (%s) is causing problems:" side
+           written)
+        (comparison naming ~found ~expected
+           ~i_am_seeing:
+             (with_category (Printf.sprintf "The %s argument is" side) category)
+           ~instead_of:
+             (Printf.sprintf "But (%s) needs the %s argument to be:" written
+                side)
+           ~details:[])
 
 let of_expression source region category found (expected : Expectation.t) =
   let naming = Message.naming () in
@@ -318,18 +518,9 @@ let of_expression source region category found (expected : Expectation.t) =
   | From_annotation { name; sub; expected } ->
       let thing =
         match sub with
-        | Typed_if_branch index ->
-            ordinal index ^ " branch of this `if` expression:"
-        | Typed_case_branch index ->
-            ordinal index ^ " branch of this `case` expression:"
         | Typed_body -> Printf.sprintf "body of the %s definition:" (quoted name)
       in
-      let this_is =
-        match sub with
-        | Typed_if_branch index | Typed_case_branch index ->
-            "The " ^ ordinal index ^ " branch is"
-        | Typed_body -> "The body is"
-      in
+      let this_is = match sub with Typed_body -> "The body is" in
       mismatch expected
         ~problem:("Something is off with the " ^ thing)
         ~this_is
@@ -359,25 +550,11 @@ let of_expression source region category found (expected : Expectation.t) =
             ~details:
               [ Doc.words "But I only now how to negate Int and Float values." ]
       | Op_left operator ->
-          mismatch expected
-            ~problem:
-              (Printf.sprintf "The left argument of (%s) is causing problems:"
-                 (Data.Name.base operator))
-            ~this_is:"The left argument is"
-            ~instead_of:
-              (Printf.sprintf "But (%s) needs the left argument to be:"
-                 (Data.Name.base operator))
-            ~details:[]
+          of_operator naming ~snippet ~category ~found ~expected ~side:"left"
+            ~operator
       | Op_right operator ->
-          mismatch expected
-            ~problem:
-              (Printf.sprintf "The right argument of (%s) is causing problems:"
-                 (Data.Name.base operator))
-            ~this_is:"The right argument is"
-            ~instead_of:
-              (Printf.sprintf "But (%s) needs the right argument to be:"
-                 (Data.Name.base operator))
-            ~details:[]
+          of_operator naming ~snippet ~category ~found ~expected ~side:"right"
+            ~operator
       | If_condition ->
           bad_type expected
             ~problem:
@@ -458,10 +635,6 @@ let of_expression source region category found (expected : Expectation.t) =
                  (quoted field))
             ~this_is:"You are trying to update it to be"
             ~instead_of:"But it should be:" ~details:[]
-      | Destructure ->
-          mismatch expected ~problem:"This definition is causing issues:"
-            ~this_is:"You are defining"
-            ~instead_of:"But then trying to destructure it as:" ~details:[]
     end
 
 let of_pattern source region category found (expected : Expectation.pattern) =
@@ -484,18 +657,6 @@ let of_pattern source region category found (expected : Expectation.pattern) =
         ~this_is:"It is" ~instead_of:"But it needs to match:" ~details:[]
   | Pattern_from_context { context; expected } -> begin
       match context with
-      | P_typed_arg { name; index } ->
-          let ith = ordinal index in
-          mismatch expected
-            ~problem:
-              (Printf.sprintf "The %s argument to %s is weird." ith
-                 (quoted name))
-            ~this_is:"The argument is a pattern that matches"
-            ~instead_of:
-              (Printf.sprintf
-                 "But the type annotation on %s says the %s argument should be:"
-                 (quoted name) ith)
-            ~details:[]
       | P_case_match index ->
           if index = 1 then
             mismatch expected
@@ -565,15 +726,17 @@ let of_type_problem source region (problem : Type_error.t) =
       Doc.stack
         [
           Doc.words
-            (match category with
-            | Category.Local name | Category.Foreign name ->
-                Printf.sprintf
-                  "I am inferring a weird self-referential type for %s:"
-                  (quoted (Data.Name.base name))
-            | List | Number | Float | String | Char | If | Case
-            | Call_result _ | Lambda | Accessor _ | Access _ | Record | Tuple
-            | Unit ->
-                "I am inferring a weird self-referential type here:");
+            begin
+              match category with
+              | Category.Local name | Category.Foreign name ->
+                  Printf.sprintf
+                    "I am inferring a weird self-referential type for %s:"
+                    (quoted (Data.Name.base name))
+              | List | Number | Float | String | Char | If | Case
+              | Call_result _ | Lambda | Accessor _ | Access _ | Record | Tuple
+              | Unit ->
+                  "I am inferring a weird self-referential type here:"
+            end;
           snippet;
           Doc.words
             "Here is my best effort at writing down the type. You will see ? for parts of the type that repeat something already printed out infinitely.";
@@ -636,9 +799,11 @@ let cannot_find ~snippet ~what ~name ~bare ~prefix ~near =
        Doc.words (Printf.sprintf "I cannot find a %s %s:" (quoted name) what);
        snippet;
      ]
-    @ (match near with
-      | [] -> [ Doc.words without ]
-      | _ -> [ Doc.above [ Doc.words with_names; Doc.blank; close_names near ] ])
+    @ begin
+        match near with
+        | [] -> [ Doc.words without ]
+        | _ -> [ Doc.above [ Doc.words with_names; Doc.blank; close_names near ] ]
+      end
     @ [ imports_link ])
 
 let of_name_problem source region (problem : Name_error.t) =
@@ -656,18 +821,22 @@ let of_name_problem source region (problem : Name_error.t) =
                 (quoted qualifier));
            snippet;
          ]
-        @ (match near with
-          | [] -> [ Doc.words "I cannot find it anywhere in this project!" ]
-          | _ ->
-              [
-                Doc.above
-                  [
-                    Doc.words
-                      "I looked through the modules of this project, but I                        cannot find it! Maybe it is a typo for one of these                        names?";
-                    Doc.blank;
-                    close_names near;
-                  ];
-              ])
+        @ begin
+            match near with
+            | [] -> [ Doc.words "I cannot find it anywhere in this project!" ]
+            | _ ->
+                [
+                  Doc.above
+                    [
+                      Doc.words
+                        "I looked through the modules of this project, but I \
+                         cannot find it! Maybe it is a typo for one of these \
+                         names?";
+                      Doc.blank;
+                      close_names near;
+                    ];
+                ]
+          end
         @ [ imports_link ])
   | Not_exposed { module_name; name; near } ->
       Doc.stack
