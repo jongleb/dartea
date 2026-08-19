@@ -1,0 +1,13 @@
+-- MISSING PATTERNS --------------------------------------------------- Main.elm
+
+This `case` does not have branches for all possibilities:
+
+2|>    case m of
+3|>        Just x ->
+4|>            x
+
+Missing possibilities include:
+
+    Nothing
+
+I would have to crash if I saw one of those. Add branches for them!

@@ -33,5 +33,4 @@ type pattern =
   | P_int
   | P_str
   | P_chr
-  | P_bool
 [@@deriving show]

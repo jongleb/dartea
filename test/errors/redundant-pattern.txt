@@ -1,0 +1,9 @@
+-- REDUNDANT PATTERN -------------------------------------------------- Main.elm
+
+The 2nd pattern is redundant:
+
+6|         Just y ->
+           ^^^^^^
+
+Any value with this shape will be handled by a previous pattern, so it should be
+removed.

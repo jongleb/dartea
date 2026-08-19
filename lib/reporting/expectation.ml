@@ -1,8 +1,4 @@
-type sub =
-  | Typed_if_branch of int
-  | Typed_case_branch of int
-  | Typed_body
-[@@deriving show]
+type sub = Typed_body [@@deriving show]
 
 type t =
   | No_expectation of Typed.Type.t

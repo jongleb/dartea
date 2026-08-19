@@ -75,6 +75,11 @@ let constrained ty =
   | TRecord _ | TRowExtend _ | TRowEmpty ->
       None
 
+let could_fit one other =
+  match (one, other) with
+  | TVar _, _ | _, TVar _ -> true
+  | _, _ -> same_shape one other
+
 let told_apart left right =
   match (Type.head left, Type.head right) with
   | TInt, TFloat | TFloat, TInt -> [ Hint.Int_float ]
@@ -83,6 +88,10 @@ let told_apart left right =
   | TStr, TInt -> [ Hint.String_to_int ]
   | TStr, TFloat -> [ Hint.String_to_float ]
   | _, TBool -> [ Hint.Anything_to_bool ]
+  | TCustom (name, [ inside ]), other
+    when String.equal (Data.Name.base name) "Maybe"
+         && could_fit (Type.head inside) other ->
+      [ Hint.Anything_from_maybe ]
   | TFun _, TFun _ ->
       [
         Hint.Arity_mismatch

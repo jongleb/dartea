@@ -25,5 +25,6 @@
 .deps
 .locked
 
-# Generated JS output next to playground sources
+# Generated JS output next to the sources it was compiled from
 playgrounds/**/*.mjs
+/*.mjs

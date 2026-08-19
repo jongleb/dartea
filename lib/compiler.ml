@@ -197,7 +197,7 @@ module Make (B : BACKEND) = struct
             (Prelude.name module_ ^ ".elm", Prelude.source module_))
           Prelude.all
     in
-    let compile_module progress module_ =
+    let compiling progress module_ =
       match resolved_against progress.dependencies module_ with
       | Error found ->
           { progress with errors = List.rev_append found progress.errors }
@@ -245,6 +245,12 @@ module Make (B : BACKEND) = struct
                 output = compiled :: progress.output;
                 errors = progress.errors;
               })
+    in
+    let compile_module progress module_ =
+      match compiling progress module_ with
+      | outcome -> outcome
+      | exception Reporting.Error.Found error ->
+          { progress with errors = error :: progress.errors }
     in
     match
       Canonicalization.Module_graph.in_dependency_order

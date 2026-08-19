@@ -282,10 +282,19 @@ let rec infer_with_env (exp : Canonical.Expr.t) ctx (type_env : Type_env.t) :
                expected = TFun (parameter, result);
              })
         typed_callee.typ;
+      let blamed =
+        match (callee, index) with
+        | Reporting.Category.Op_name operator, 1 ->
+            Reporting.Context.Op_left operator
+        | Op_name operator, 2 -> Op_right operator
+        | Func_name name, 1 when Data.Name.equal name (Data.Name.local "negate")
+          ->
+            Negate
+        | (Op_name _ | Func_name _ | Ctor_name _ | No_name), _ ->
+            Call_arg { callee; index }
+      in
       Unify.types ~region:arg.region ~category:(category_of arg)
-        ~expected:
-          (From_context
-             { context = Call_arg { callee; index }; expected = parameter })
+        ~expected:(From_context { context = blamed; expected = parameter })
         typed_argument.typ;
       node (Expr_apply { fn = typed_callee; arg = typed_argument }) result
   | Expr_if_then_else { if_exp; then_exp; else_exp } ->

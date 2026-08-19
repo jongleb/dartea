@@ -332,6 +332,70 @@ let test_report (name, problem) =
   assert_bool (Printf.sprintf "%s is missing" path) (Sys.file_exists path);
   assert_equal ~printer:Fun.id (read path) produced
 
+let sample_of_warning (problem : Reporting.Warning.problem) =
+  match problem with
+  | Missing_patterns _ ->
+      [
+        ( "Main.elm",
+          "answer m =\n    case m of\n        Just x ->\n            x\n" );
+      ]
+  | Redundant_pattern _ ->
+      [
+        ( "Main.elm",
+          "answer m =\n    case m of\n        Just x ->\n            x\n\n        Just y ->\n            y\n\n        Nothing ->\n            0\n"
+        );
+      ]
+
+let warning_kinds : (string * Reporting.Warning.problem) list =
+  [
+    ("missing-patterns", Missing_patterns { unhandled = [] });
+    ("redundant-pattern", Redundant_pattern { index = 2 });
+  ]
+
+let warned files =
+  match
+    Dartea.Compiler.compile_modules
+      (List.map
+         (fun (path, content) -> File_loader.Files.Elm_file.{ path; content })
+         files)
+  with
+  | outcome ->
+      List.concat_map
+        (fun (compiled : Dartea.Compiler.compiled) -> compiled.warnings)
+        outcome.output
+  | exception Error.Found error ->
+      assert_failure
+        (Printf.sprintf "the sample was rejected: %s"
+           (Error.show_problem error.problem))
+
+let same_warning (one : Reporting.Warning.problem)
+    (other : Reporting.Warning.problem) =
+  match (one, other) with
+  | Missing_patterns _, Missing_patterns _
+  | Redundant_pattern _, Redundant_pattern _ ->
+      true
+  | (Missing_patterns _ | Redundant_pattern _), _ -> false
+
+let test_warning (name, problem) =
+  name >:: fun _ ->
+  let files = sample_of_warning problem in
+  match List.find_opt (fun (found : Reporting.Warning.t) -> same_warning found.problem problem) (warned files) with
+  | None -> assert_failure "the sample produced no such warning"
+  | Some found ->
+      let produced =
+        Reporting.Report.to_string ~colours:false
+          (Reporting.Sources.warning (Reporting.Sources.of_list files) found)
+      in
+      let path = golden name in
+      Option.iter
+        (fun directory ->
+          Out_channel.with_open_bin
+            (Filename.concat directory (name ^ ".txt"))
+            (fun out -> Out_channel.output_string out produced))
+        promoting_into;
+      assert_bool (Printf.sprintf "%s is missing" path) (Sys.file_exists path);
+      assert_equal ~printer:Fun.id (read path) produced
+
 let test_context (name, files) =
   name >:: fun _ ->
   match reported files with
@@ -351,4 +415,31 @@ let test_context (name, files) =
       assert_bool (Printf.sprintf "%s is missing" path) (Sys.file_exists path);
       assert_equal ~printer:Fun.id (read path) produced
 
-let suite = List.map test_report kinds @ List.map test_context contexts
+let test_colours_are_a_layer _ =
+  let files = [ ("Main.elm", "x = missing\n") ] in
+  match reported files with
+  | None -> assert_failure "the sample compiled without an error"
+  | Some error ->
+      let report =
+        Reporting.Sources.report (Reporting.Sources.of_list files) error
+      in
+      let coloured = Reporting.Report.to_string ~colours:true report in
+      let plain = Reporting.Report.to_string ~colours:false report in
+      assert_bool "colours add ansi escapes"
+        (String.length coloured > String.length plain);
+      assert_bool "plain output carries no escapes"
+        (not (String.exists (fun letter -> Char.code letter = 27) plain));
+      assert_equal ~printer:Fun.id plain
+        (String.concat ""
+           (String.split_on_char '\027' coloured
+           |> List.map (fun part ->
+                  match String.index_opt part 'm' with
+                  | Some stop ->
+                      String.sub part (stop + 1) (String.length part - stop - 1)
+                  | None -> part)))
+
+let suite =
+  ("colours are a separate layer" >:: test_colours_are_a_layer)
+  :: List.map test_report kinds
+  @ List.map test_context contexts
+  @ List.map test_warning warning_kinds
