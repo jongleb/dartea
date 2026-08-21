@@ -203,48 +203,45 @@ module Make (B : BACKEND) = struct
           { progress with errors = List.rev_append found progress.errors }
       | Ok resolved -> (
           let imports = imported_interfaces resolved progress.interfaces in
+          let depended =
+            { progress with dependencies = resolved :: progress.dependencies }
+          in
           match Infer.Declarations.infer_toplevel ~imports resolved with
           | exception Reporting.Error.Found error ->
-              {
-                progress with
-                dependencies = resolved :: progress.dependencies;
-                errors = error :: progress.errors;
-              }
-          | typed when typed.errors <> [] ->
-              {
-                progress with
-                dependencies = resolved :: progress.dependencies;
-                interfaces =
-                  Infer.Declarations.interface_of resolved typed
-                  :: progress.interfaces;
-                errors = List.rev_append typed.errors progress.errors;
-              }
+              { depended with errors = error :: depended.errors }
           | typed ->
-              let declarations, constructors, siblings = prepared typed in
-              let compiled =
+              let known =
                 {
-                  module_name = resolved.name;
-                  source =
-                    B.emit_module ~arities:(imported_arities imports)
-                      ~constructors ~siblings ~typedecls:(shaped_types typed)
-                      ~imports:(providing_modules declarations)
-                      ~exports:(exported_names resolved typed)
-                      declarations;
-                  warnings =
-                    List.concat_map
-                      (After_typed.Exhaustiveness_check.warnings
-                         typed.siblings_env)
-                      typed.declarations;
+                  depended with
+                  interfaces =
+                    Infer.Declarations.interface_of resolved typed
+                    :: depended.interfaces;
                 }
               in
-              {
-                dependencies = resolved :: progress.dependencies;
-                interfaces =
-                  Infer.Declarations.interface_of resolved typed
-                  :: progress.interfaces;
-                output = compiled :: progress.output;
-                errors = progress.errors;
-              })
+              if typed.errors <> [] then
+                {
+                  known with
+                  errors = List.rev_append typed.errors known.errors;
+                }
+              else
+                let declarations, constructors, siblings = prepared typed in
+                let compiled =
+                  {
+                    module_name = resolved.name;
+                    source =
+                      B.emit_module ~arities:(imported_arities imports)
+                        ~constructors ~siblings ~typedecls:(shaped_types typed)
+                        ~imports:(providing_modules declarations)
+                        ~exports:(exported_names resolved typed)
+                        declarations;
+                    warnings =
+                      List.concat_map
+                        (After_typed.Exhaustiveness_check.warnings
+                           typed.siblings_env)
+                        typed.declarations;
+                  }
+                in
+                { known with output = compiled :: known.output })
     in
     let compile_module progress module_ =
       match compiling progress module_ with

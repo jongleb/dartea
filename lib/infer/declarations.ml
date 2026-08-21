@@ -48,8 +48,8 @@ let infer_toplevel ~(imports : Interface.t list) (module_ : Canonical.Module.t) 
     let written =
       Option.map
         (fun (type_part : Canonical.Declaration.type_part) ->
-          Type_env.expand ~region:type_part.name.region type_env
-            (Type_env.written_type type_part.type_alias))
+          Type_env.expand_written ~region:type_part.name.region type_env
+            type_part.type_alias)
         type_part_data
     in
     let rec after_parameters expected params assumed =
@@ -84,11 +84,8 @@ let infer_toplevel ~(imports : Interface.t list) (module_ : Canonical.Module.t) 
           | Some result -> (typed_body.typ, result)
           | None -> (inferred_type, whole)
         in
-        Unify.types ~region:body_part.expr.region
-          ~category:(category_of body_part.expr)
-          ~expected:
-            (From_annotation { name; sub = Typed_body; expected })
-          found)
+        against_the_annotation ~region:body_part.expr.region ~name
+          ~category:(category_of body_part.expr) ~expected found)
       result_of_the_annotation;
     ( {
         Typed.Declaration.name = body_part.name;
@@ -121,9 +118,7 @@ let infer_toplevel ~(imports : Interface.t list) (module_ : Canonical.Module.t) 
       let typed, checked = infer_declaration member.declaration inside in
       Option.iter
         (fun assumed ->
-          Unify.types ~region:member.declaration.body_part.expr.region
-            ~category:(category_of member.declaration.body_part.expr)
-            ~expected:(No_expectation assumed) checked)
+          matching ~expected:assumed member.declaration.body_part.expr checked)
         member.assumed;
       { member; typed; checked } :: inferred
     in
@@ -165,9 +160,8 @@ let infer_toplevel ~(imports : Interface.t list) (module_ : Canonical.Module.t) 
               (Data.Name.local (Data.Located.unwrap declaration.body_part.name))
               (generalize
                  (infer_deeper (fun () ->
-                      Type_env.expand
-                        ~region:annotation.name.region type_env
-                        (Type_env.written_type annotation.type_alias))))
+                      Type_env.expand_written ~region:annotation.name.region
+                        type_env annotation.type_alias)))
               collected)
       visible module_.top_declarations
   in

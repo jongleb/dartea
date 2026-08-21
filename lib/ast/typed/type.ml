@@ -71,7 +71,12 @@ let rec fold_variables f collected ty =
 
 let iter_variables f ty = fold_variables (fun () variable -> f variable) () ty
 
-let rec arrows = function TFun (_, result) -> 1 + arrows result | _ -> 0
+let rec arrows ty =
+  match head ty with
+  | TFun (_, result) -> 1 + arrows result
+  | TVar _ | TInt | TFloat | TChar | TBool | TStr | TUnit | TTup _ | TCustom _
+  | TRecord _ | TRowExtend _ | TRowEmpty ->
+      0
 
 let rec result_after ~applied t =
   if applied <= 0 then t
