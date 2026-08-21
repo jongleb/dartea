@@ -338,6 +338,19 @@ let rec instance_key (ty : O.Type.t) : string option =
       else None
   | O.Type.TFun _ | O.Type.TRowExtend _ | O.Type.TRowEmpty -> None
 
+let js_eq left lit = J.Binary { left; op = J.StrictEqual; right = J.Literal lit }
+
+let js_ne_zero occ =
+  J.Binary { left = occ; op = J.StrictNotEqual; right = J.Literal (J.Int 0) }
+
+let js_is_object occ =
+  J.Binary
+    {
+      left = J.Unary { op = J.Typeof; arg = occ };
+      op = J.StrictEqual;
+      right = J.Literal (J.String "object");
+    }
+
 let expansion_budget = 8
 
 let compared_in_place (operand : O.Type.t) =
@@ -377,6 +390,9 @@ let conjunction = function
   | first :: rest -> List.fold_left (binary J.And) first rest
 
 let call callee arguments = J.Call { callee; args = arguments }
+
+let returning_when test result =
+  J.If { test; consequent = [ J.Return (Some result) ]; alternate = None }
 
 let rec equality_of ~budget (operand : O.Type.t) left right =
   if compared_in_place operand then binary J.StrictEqual left right
@@ -442,22 +458,19 @@ and ordering_of ~budget ~operator (operand : O.Type.t) left right =
              [ left; right ])
           (J.Literal (J.Int 0))
 
+and instance_named tag ~keyed_by body =
+  Option.map (fun key -> defined (tag ^ key) body) (instance_key keyed_by)
+
 and equality_instance (operand : O.Type.t) =
   match operand with
   | O.Type.TCustom (name, [ element ]) when is_list_type name ->
-      Option.map
-        (fun key -> defined ("$eq$List$" ^ key) (list_equality element))
-        (instance_key element)
+      instance_named "$eq$List$" ~keyed_by:element (list_equality element)
   | O.Type.TCustom (name, arguments) ->
       Option.bind (variant_of name arguments) (fun ctors ->
-          Option.map
-            (fun key -> defined ("$eq$" ^ key) (variant_equality ctors))
-            (instance_key operand))
+          instance_named "$eq$" ~keyed_by:operand (variant_equality ctors))
   | O.Type.TTup _ | O.Type.TRecord _ ->
       Option.bind (product_parts operand) (fun parts ->
-          Option.map
-            (fun key -> defined ("$eq$" ^ key) (product_equality parts))
-            (instance_key operand))
+          instance_named "$eq$" ~keyed_by:operand (product_equality parts))
   | O.Type.TVar _ | O.Type.TInt | O.Type.TFloat | O.Type.TChar | O.Type.TStr
   | O.Type.TBool | O.Type.TUnit | O.Type.TFun _ | O.Type.TRowExtend _
   | O.Type.TRowEmpty ->
@@ -480,13 +493,9 @@ and list_append () =
   let assign target value = J.ExprStmt (J.Assignment { left = target; right = value }) in
   ( [ "xs"; "ys" ],
     [
-      J.If
-        {
-          test =
-            binary J.StrictEqual (J.Identifier "xs") (J.Literal (J.Int 0));
-          consequent = [ J.Return (Some (J.Identifier "ys")) ];
-          alternate = None;
-        };
+      returning_when
+        (binary J.StrictEqual (J.Identifier "xs") (J.Literal (J.Int 0)))
+        (J.Identifier "ys");
       J.ConstDecl
         { name = "root"; init = cell (head_of "xs") (J.Identifier "ys") };
       J.VarDecl { name = "last"; init = Some (J.Identifier "root") };
@@ -516,14 +525,10 @@ and list_append () =
 and ordering_instance (operand : O.Type.t) =
   match operand with
   | O.Type.TCustom (name, [ element ]) when is_list_type name ->
-      Option.map
-        (fun key -> defined ("$cmp$List$" ^ key) (list_ordering element))
-        (instance_key element)
+      instance_named "$cmp$List$" ~keyed_by:element (list_ordering element)
   | O.Type.TTup _ ->
       Option.bind (product_parts operand) (fun parts ->
-          Option.map
-            (fun key -> defined ("$cmp$" ^ key) (product_ordering parts))
-            (instance_key operand))
+          instance_named "$cmp$" ~keyed_by:operand (product_ordering parts))
   | O.Type.TVar _ | O.Type.TInt | O.Type.TFloat | O.Type.TChar | O.Type.TStr
   | O.Type.TBool | O.Type.TUnit | O.Type.TFun _ | O.Type.TCustom _
   | O.Type.TRecord _ | O.Type.TRowExtend _ | O.Type.TRowEmpty ->
@@ -560,19 +565,15 @@ and list_equality element () =
   ( [ "xs"; "ys" ],
     walking_both_lists
       [
-        J.If
-          {
-            test =
-              J.Unary
-                {
-                  op = J.Not;
-                  arg =
-                    equality_of ~budget:expansion_budget element
-                      (head_of "left") (head_of "right");
-                };
-            consequent = [ J.Return (Some (J.Literal (J.Bool false))) ];
-            alternate = None;
-          };
+        returning_when
+          (J.Unary
+             {
+               op = J.Not;
+               arg =
+                 equality_of ~budget:expansion_budget element (head_of "left")
+                   (head_of "right");
+             })
+          (J.Literal (J.Bool false));
       ]
     @ [
         J.Return
@@ -583,13 +584,9 @@ and list_equality element () =
 and returning_first_difference name ordering =
   [
     J.ConstDecl { name; init = ordering };
-    J.If
-      {
-        test =
-          binary J.StrictNotEqual (J.Identifier name) (J.Literal (J.Int 0));
-        consequent = [ J.Return (Some (J.Identifier name)) ];
-        alternate = None;
-      };
+    returning_when
+      (binary J.StrictNotEqual (J.Identifier name) (J.Literal (J.Int 0)))
+      (J.Identifier name);
   ]
 
 and list_ordering element () =
@@ -643,26 +640,18 @@ and payload_equality (ctor : O.Typedecl.ctor) =
   conjunction (List.mapi compared ctor.payload)
 
 and variant_equality ctors () =
-  let is_object subject =
-    binary J.StrictEqual
-      (J.Unary { op = J.Typeof; arg = J.Identifier subject })
-      (J.Literal (J.String "object"))
-  in
   let identical =
     binary J.StrictEqual (J.Identifier "a") (J.Identifier "b")
   in
   let returning_unless test result =
-    J.If
-      {
-        test = J.Unary { op = J.Not; arg = test };
-        consequent = [ J.Return (Some result) ];
-        alternate = None;
-      }
+    returning_when (J.Unary { op = J.Not; arg = test }) result
   in
   let guards =
     [
-      returning_unless (is_object "a") identical;
-      returning_unless (is_object "b") (J.Literal (J.Bool false));
+      returning_unless (js_is_object (J.Identifier "a")) identical;
+      returning_unless
+        (js_is_object (J.Identifier "b"))
+        (J.Literal (J.Bool false));
     ]
   in
   let tag subject = member (J.Identifier subject) "TAG" in
@@ -684,12 +673,9 @@ and variant_equality ctors () =
     | carrying ->
         guards
         @ [
-            J.If
-              {
-                test = binary J.StrictNotEqual (tag "a") (tag "b");
-                consequent = [ J.Return (Some (J.Literal (J.Bool false))) ];
-                alternate = None;
-              };
+            returning_when
+              (binary J.StrictNotEqual (tag "a") (tag "b"))
+              (J.Literal (J.Bool false));
             J.Switch { discriminant = tag "a"; cases = cases carrying };
           ]
   in
@@ -804,19 +790,6 @@ let saturated_lowering env name ~operand =
           (fun method_ -> method_lowering method_ ~operand)
           (Data.Method.referred_to_by name)
 
-let js_eq left lit = J.Binary { left; op = J.StrictEqual; right = J.Literal lit }
-
-let js_ne_zero occ =
-  J.Binary { left = occ; op = J.StrictNotEqual; right = J.Literal (J.Int 0) }
-
-let js_is_object occ =
-  J.Binary
-    {
-      left = J.Unary { op = J.Typeof; arg = occ };
-      op = J.StrictEqual;
-      right = J.Literal (J.String "object");
-    }
-
 let occ_expr root (o : Occ.t) : J.expr =
   List.fold_left
     (fun e step ->
@@ -902,58 +875,6 @@ let split_at n lst =
     | [] -> (List.rev acc, [])
   in
   go n [] lst
-
-let method_lowering (method_ : Data.Method.t) ~operand left right =
-  let left_bindings, left = shared_operand left in
-  let right_bindings, right = shared_operand right in
-  let bindings = left_bindings @ right_bindings in
-  match method_ with
-  | Minimum ->
-      ( bindings,
-        J.Conditional
-          {
-            test = ordering_of ~budget:expansion_budget ~operator:J.LessThan
-                     operand left right;
-            consequent = left;
-            alternate = right;
-          } )
-  | Maximum ->
-      ( bindings,
-        J.Conditional
-          {
-            test = ordering_of ~budget:expansion_budget ~operator:J.GreaterThan
-                     operand left right;
-            consequent = left;
-            alternate = right;
-          } )
-  | Compare ->
-      let name = fresh_temp () in
-      let ordering = J.Identifier name in
-      let result = Data.Method.ordering_result in
-      ( bindings
-        @ [ J.ConstDecl { name; init = three_way_of operand left right } ],
-        J.Conditional
-          {
-            test = binary J.LessThan ordering (J.Literal (J.Int 0));
-            consequent = constructor_to_object result.less [];
-            alternate =
-              J.Conditional
-                {
-                  test = binary J.StrictEqual ordering (J.Literal (J.Int 0));
-                  consequent = constructor_to_object result.equal [];
-                  alternate = constructor_to_object result.greater [];
-                };
-          } )
-
-let saturated_lowering env name ~operand =
-  if SMap.mem name env then None
-  else
-    match Data.Operator.referred_to_by name with
-    | Some operator -> Some (binary_lowering ~operand operator)
-    | None ->
-        Option.map
-          (fun method_ -> method_lowering method_ ~operand)
-          (Data.Method.referred_to_by name)
 
 let declared_arity env name =
   if SMap.mem name env then None else Hashtbl.find_opt js_arity name
@@ -1215,13 +1136,7 @@ and emit_uncoerced env (e : O.Expr.t) : J.stmt list * J.expr =
       let ss, es = emit_values env arguments in
       (ss, constructor_to_object name es)
   | O.Expr.Expr_record rows ->
-      let ss, members =
-        fold_emit
-          (fun { O.Expr.name; value } ->
-            let s, v = emit_value env value in
-            (s, J.Field (name, v)))
-          rows
-      in
+      let ss, members = emit_fields env rows in
       (ss, J.Object members)
   | O.Expr.Expr_list es ->
       let ss, vs = emit_values env es in
@@ -1235,13 +1150,7 @@ and emit_uncoerced env (e : O.Expr.t) : J.stmt list * J.expr =
       (ss, J.Array vs)
   | O.Expr.Expr_record_update { record; fields } ->
       let sr, er = emit_value env record in
-      let ss, members =
-        fold_emit
-          (fun { O.Expr.name; value } ->
-            let s, v = emit_value env value in
-            (s, J.Field (name, v)))
-          fields
-      in
+      let ss, members = emit_fields env fields in
       (sr @ ss, J.Object (J.Spread er :: members))
   | O.Expr.Expr_apply { fn; arg } -> emit_apply env fn arg
   | O.Expr.Expr_lambda { params; body } -> ([], emit_lambda env params body)
@@ -1265,14 +1174,9 @@ and emit_uncoerced env (e : O.Expr.t) : J.stmt list * J.expr =
             ],
           J.Identifier r )
   | O.Expr.Expr_let { binding; body } ->
-
-      let env', name =
-        bind_one env
-          (Data.Name.local (Data.Located.unwrap binding.bind_body.name))
-      in
-      let sv, ev = emit_value env' binding.bind_body.body in
+      let env', bound = emit_binding env binding in
       let sb, eb = emit_value env' body in
-      (sv @ [ J.ConstDecl { name; init = ev } ] @ sb, eb)
+      (bound @ sb, eb)
   | O.Expr.Expr_pattern { expr; pattern_data_items } ->
       let ss, occ, sbind = emit_scrutinee env expr in
       let r = fresh_temp () in
@@ -1282,6 +1186,21 @@ and emit_uncoerced env (e : O.Expr.t) : J.stmt list * J.expr =
 
 and emit_values env (es : O.Expr.t list) : J.stmt list * J.expr list =
   fold_emit (emit_value env) es
+
+and emit_fields env (rows : O.Expr.expr_record_row list) :
+    J.stmt list * J.object_member list =
+  fold_emit
+    (fun { O.Expr.name; value } ->
+      let s, v = emit_value env value in
+      (s, J.Field (name, v)))
+    rows
+
+and emit_binding env (binding : O.Expr.expr_let_binding) =
+  let env', name =
+    bind_one env (Data.Name.local (Data.Located.unwrap binding.bind_body.name))
+  in
+  let sv, ev = emit_value env' binding.bind_body.body in
+  (env', sv @ [ J.ConstDecl { name; init = ev } ])
 
 and emit_scrutinee env (expr : O.Expr.t) : J.stmt list * J.expr * J.stmt list =
   let s, e = emit_value env expr in
@@ -1434,12 +1353,8 @@ and emit_return env tc (e : O.Expr.t) : J.stmt list =
   | None -> (
       match e.expr with
       | O.Expr.Expr_let { binding; body } ->
-          let env', name =
-            bind_one env
-              (Data.Name.local (Data.Located.unwrap binding.bind_body.name))
-          in
-          let sv, ev = emit_value env' binding.bind_body.body in
-          sv @ [ J.ConstDecl { name; init = ev } ] @ emit_return env' tc body
+          let env', bound = emit_binding env binding in
+          bound @ emit_return env' tc body
       | O.Expr.Expr_if_then_else { if_exp; then_exp; else_exp } ->
           let sc, ec = emit_value env if_exp in
           sc
@@ -1478,38 +1393,32 @@ and shareable (clause_arr : O.Expr.expr_pattern_case array) (tree : DT.t) =
   | DT.Leaf { action; _ } -> not (trivial_action clause_arr.(action).expr)
   | DT.Fail -> false
 
-and emit_match_return env tc (occ : J.expr)
-    (clauses : O.Expr.expr_pattern_case list) : J.stmt list =
+and emit_match env (occ : J.expr) (clauses : O.Expr.expr_pattern_case list)
+    ~terminating ~taken ~sink : J.stmt list =
   let tree, clause_arr = match_tree clauses in
   let plan = DS.analyze ~shareable:(shareable clause_arr) tree in
   let clause_expr env action =
     emit_value env clause_arr.(action).O.Expr.expr
   in
-  let leaf env action = emit_return env tc clause_arr.(action).O.Expr.expr in
-  let sink e = [ J.Return (Some e) ] in
+  let leaf env action = taken env clause_arr.(action).O.Expr.expr in
   let tnames = thunk_names plan in
   shared_thunks env occ ~plan ~tnames clause_expr
-  @ lower env occ ~terminating:true ~leaf
-      ~fail:match_failure
-      ~sink ~plan ~tnames tree
+  @ lower env occ ~terminating ~leaf ~fail:match_failure ~sink ~plan ~tnames
+      tree
+
+and emit_match_return env tc (occ : J.expr)
+    (clauses : O.Expr.expr_pattern_case list) : J.stmt list =
+  emit_match env occ clauses ~terminating:true
+    ~taken:(fun env chosen -> emit_return env tc chosen)
+    ~sink:(fun e -> [ J.Return (Some e) ])
 
 and emit_match_assign env (r : string) (occ : J.expr)
     (clauses : O.Expr.expr_pattern_case list) : J.stmt list =
-  let tree, clause_arr = match_tree clauses in
-  let plan = DS.analyze ~shareable:(shareable clause_arr) tree in
-  let clause_expr env action =
-    emit_value env clause_arr.(action).O.Expr.expr
-  in
-  let leaf env action =
-    let sa, ea = emit_value env clause_arr.(action).O.Expr.expr in
-    sa @ [ assign_stmt r ea ]
-  in
-  let sink e = [ assign_stmt r e ] in
-  let tnames = thunk_names plan in
-  shared_thunks env occ ~plan ~tnames clause_expr
-  @ lower env occ ~terminating:false ~leaf
-      ~fail:match_failure
-      ~sink ~plan ~tnames tree
+  emit_match env occ clauses ~terminating:false
+    ~taken:(fun env chosen ->
+      let sa, ea = emit_value env chosen in
+      sa @ [ assign_stmt r ea ])
+    ~sink:(fun e -> [ assign_stmt r e ])
 
 let decl_stmts (decl : O.Declaration.t) : J.stmt list =
   let name = sname decl.name in

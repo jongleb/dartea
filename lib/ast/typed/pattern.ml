@@ -19,8 +19,8 @@ and kind =
   | P_T_ctor of (Data.Name.t * t list)
 [@@deriving show, compare, equal, hash]
 
-let rec substitute bindings p =
-  let inner = substitute bindings in
+let rec map_types on_type p =
+  let inner = map_types on_type in
   let pattern =
     match p.pattern with
     | P_T_tuple items -> P_T_tuple (List.map inner items)
@@ -32,19 +32,7 @@ let rec substitute bindings p =
       | P_T_str _ | P_T_int _ ) as leaf ->
         leaf
   in
-  { typ = Type.substitute bindings p.typ; pattern }
+  { typ = on_type p.typ; pattern }
 
-let rec zonk p =
-  let inner = zonk in
-  let kind =
-    match p.pattern with
-    | P_T_tuple items -> P_T_tuple (List.map inner items)
-    | P_T_list items -> P_T_list (List.map inner items)
-    | P_T_cons (head, tail) -> P_T_cons (inner head, inner tail)
-    | P_T_ctor (name, arguments) -> P_T_ctor (name, List.map inner arguments)
-    | P_T_alias (aliased, name) -> P_T_alias (inner aliased, name)
-    | ( P_T_anything | P_T_var _ | P_T_record _ | P_T_unit | P_T_chr _
-      | P_T_str _ | P_T_int _ ) as leaf ->
-        leaf
-  in
-  { typ = Type.zonk p.typ; pattern = kind }
+let substitute bindings = map_types (Type.substitute bindings)
+let zonk = map_types Type.zonk

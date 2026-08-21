@@ -150,6 +150,9 @@ let rec expand ~region type_env ty =
   | TTup _ | TRecord _ | TRowExtend _ ->
       map_children expand ty
 
+let expand_written ~region type_env impl =
+  expand ~region type_env (written_type impl)
+
 let constructor_of name type_env = Name_map.find_opt name type_env.constructors
 let typedecls type_env = List.map snd (Name_map.bindings type_env.types)
 let payload_arity (ctor : Canonical.Typedecl.type_ctor) = List.length ctor.data

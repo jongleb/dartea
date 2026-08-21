@@ -2,8 +2,9 @@ type t
 type ctor_info = { name : Data.Name.t; arity : int; index : int; total : int }
 
 val build : imports:Interface.t list -> Canonical.Module.t -> t
-val written_type : Canonical.Typedef.Impl.t -> Typed.Type.t
-val expand : region:Data.Region.t -> t -> Typed.Type.t -> Typed.Type.t
+
+val expand_written :
+  region:Data.Region.t -> t -> Canonical.Typedef.Impl.t -> Typed.Type.t
 
 val constructor_of :
   Data.Name.t ->

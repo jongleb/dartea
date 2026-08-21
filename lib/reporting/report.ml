@@ -67,19 +67,32 @@ let ordinal index =
   string_of_int index ^ ending
 
 let listed written =
-  match written with
+  match List.rev written with
   | [] -> ""
   | [ only ] -> quoted only
-  | _ ->
-      let rest =
-        List.filteri (fun index _ -> index < List.length written - 1) written
-      in
-      String.concat ", " (List.map quoted rest)
-      ^ " and "
-      ^ quoted (List.nth written (List.length written - 1))
+  | last :: rest ->
+      String.concat ", " (List.rev_map quoted rest) ^ " and " ^ quoted last
 
 let simple_hint written = Doc.words ("Hint: " ^ written)
 let note written = Doc.words ("Note: " ^ written)
+
+let showing ~snippet headline body =
+  Doc.stack [ Doc.words headline; snippet; body ]
+
+let explaining ~snippet headline explanation =
+  showing ~snippet headline (Doc.words explanation)
+
+let mixing_hint =
+  simple_hint
+    "Everything in a list must be the same type of value. This way, we never run into unexpected values partway through a List.map, List.foldl, etc. Read <https://elm-lang.org/0.19.1/custom-types> to learn how to \"mix\" types."
+
+let imports_link =
+  simple_hint
+    "Read <https://elm-lang.org/0.19.1/imports> to see how `import` declarations work in Elm."
+
+let no_implicit_casts =
+  note
+    "Read <https://elm-lang.org/0.19.1/implicit-casts> to learn why Elm does not implicitly convert Ints to Floats."
 
 let hint_of (problem : Hint.t) =
   match problem with
@@ -275,15 +288,11 @@ let lone naming ~found ~expected ~i_am_seeing ~details =
   Doc.stack
     ([ Doc.words i_am_seeing; indented found_doc ] @ details @ hints problems)
 
-let arrow_count ty =
-  let rec count found ty =
-    match Typed.Type.head ty with
-    | TFun (_, result) -> count (found + 1) result
-    | TVar _ | TInt | TFloat | TChar | TBool | TStr | TUnit | TTup _
-    | TCustom _ | TRecord _ | TRowExtend _ | TRowEmpty ->
-        found
-  in
-  count 0 ty
+let mismatching naming ~snippet ~found ~seeing ~problem ~this_is ~instead_of
+    ~details expected =
+  showing ~snippet problem
+    (comparison naming ~found ~expected ~i_am_seeing:(seeing this_is)
+       ~instead_of ~details)
 
 let is_string ty =
   match Typed.Type.head ty with TStr -> true | _ -> false
@@ -306,18 +315,19 @@ let number_named ty =
 
 let of_operator naming ~snippet ~category ~found ~expected ~side ~operator =
   let written = Data.Name.base operator in
-  let problem_and_body problem body = Doc.stack [ Doc.words problem; snippet; body ] in
+  let problem_and_body = showing ~snippet in
   let lone_with ~i_am_seeing ~details =
     lone naming ~found ~expected ~i_am_seeing ~details
+  in
+  let this_side =
+    with_category
+      (Printf.sprintf "The %s side of (%s) is" side written)
+      category
   in
   let bad_math operation =
     problem_and_body
       (operation ^ " does not work with this value:")
-      (lone_with
-         ~i_am_seeing:
-           (with_category
-              (Printf.sprintf "The %s side of (%s) is" side written)
-              category)
+      (lone_with ~i_am_seeing:this_side
          ~details:
            [
              Doc.words
@@ -327,11 +337,7 @@ let of_operator naming ~snippet ~category ~found ~expected ~side ~operator =
   in
   let bad_comparison () =
     problem_and_body "I cannot do a comparison with this value:"
-      (lone_with
-         ~i_am_seeing:
-           (with_category
-              (Printf.sprintf "The %s side of (%s) is" side written)
-              category)
+      (lone_with ~i_am_seeing:this_side
          ~details:
            [
              Doc.words
@@ -351,60 +357,52 @@ let of_operator naming ~snippet ~category ~found ~expected ~side ~operator =
               written side)
          ~details:[])
   in
-  let bad_float_division () =
-    problem_and_body "The (/) operator is specifically for floating-point division:"
-      (if is_int found then
+  let bad_division ~kind ~needs ~mistaken ~advice ~examples =
+    problem_and_body
+      (Printf.sprintf "The (%s) operator is specifically for %s division:"
+         written kind)
+      (if mistaken then
          Doc.stack
            [
-             Doc.words
-               (Printf.sprintf
-                  "The %s side of (/) must be a Float, but I am seeing an Int. \
-                   I recommend:"
-                  side);
+             Doc.words advice;
              Doc.above
-               [
-                 indented (Doc.text "toFloat for explicit conversions     (toFloat 5 / 2) == 2.5");
-                 indented (Doc.text "(//)    for integer division         (5 // 2)        == 2");
-               ];
-             note
-               "Read <https://elm-lang.org/0.19.1/implicit-casts> to learn why Elm does not implicitly convert Ints to Floats.";
+               (List.map (fun line -> indented (Doc.text line)) examples);
+             no_implicit_casts;
            ]
        else
          lone_with
            ~i_am_seeing:
              (Printf.sprintf
-                "The %s side of (/) must be a Float, but instead I am seeing:"
-                side)
+                "The %s side of (%s) must be %s, but instead I am seeing:" side
+                written needs)
            ~details:[])
   in
+  let bad_float_division () =
+    bad_division ~kind:"floating-point" ~needs:"a Float"
+      ~mistaken:(is_int found)
+      ~advice:
+        (Printf.sprintf
+           "The %s side of (/) must be a Float, but I am seeing an Int. I recommend:"
+           side)
+      ~examples:
+        [
+          "toFloat for explicit conversions     (toFloat 5 / 2) == 2.5";
+          "(//)    for integer division         (5 // 2)        == 2";
+        ]
+  in
   let bad_integer_division () =
-    problem_and_body "The (//) operator is specifically for integer division:"
-      (if is_float found then
-         Doc.stack
-           [
-             Doc.words
-               (Printf.sprintf
-                  "The %s side of (//) must be an Int, but I am seeing a \
-                   Float. I recommend doing the conversion explicitly with one \
-                   of these functions:"
-                  side);
-             Doc.above
-               [
-                 indented (Doc.text "round 3.5     == 4");
-                 indented (Doc.text "floor 3.5     == 3");
-                 indented (Doc.text "ceiling 3.5   == 4");
-                 indented (Doc.text "truncate 3.5  == 3");
-               ];
-             note
-               "Read <https://elm-lang.org/0.19.1/implicit-casts> to learn why Elm does not implicitly convert Ints to Floats.";
-           ]
-       else
-         lone_with
-           ~i_am_seeing:
-             (Printf.sprintf
-                "The %s side of (//) must be an Int, but instead I am seeing:"
-                side)
-           ~details:[])
+    bad_division ~kind:"integer" ~needs:"an Int" ~mistaken:(is_float found)
+      ~advice:
+        (Printf.sprintf
+           "The %s side of (//) must be an Int, but I am seeing a Float. I recommend doing the conversion explicitly with one of these functions:"
+           side)
+      ~examples:
+        [
+          "round 3.5     == 4";
+          "floor 3.5     == 3";
+          "ceiling 3.5   == 4";
+          "truncate 3.5  == 3";
+        ]
   in
   let bad_append () =
     match number_named found with
@@ -489,25 +487,11 @@ let of_operator naming ~snippet ~category ~found ~expected ~side ~operator =
 let of_expression source region category found (expected : Expectation.t) =
   let naming = Message.naming () in
   let snippet = Snippet.of_region source region in
-  let mismatch ~problem ~this_is ~instead_of ~details expected =
-    Doc.stack
-      [
-        Doc.words problem;
-        snippet;
-        comparison naming ~found ~expected
-          ~i_am_seeing:(with_category this_is category)
-          ~instead_of ~details;
-      ]
-  in
+  let seeing this_is = with_category this_is category in
+  let mismatch = mismatching naming ~snippet ~found ~seeing in
   let bad_type ~problem ~this_is ~details expected =
-    Doc.stack
-      [
-        Doc.words problem;
-        snippet;
-        lone naming ~found ~expected
-          ~i_am_seeing:(with_category this_is category)
-          ~details;
-      ]
+    showing ~snippet problem
+      (lone naming ~found ~expected ~i_am_seeing:(seeing this_is) ~details)
   in
   match expected with
   | No_expectation expected ->
@@ -538,11 +522,7 @@ let of_expression source region category found (expected : Expectation.t) =
              ^ " element of this list does not match all the previous elements:")
             ~this_is:("The " ^ ith ^ " element is")
             ~instead_of:"But all the previous elements in the list are:"
-            ~details:
-              [
-                simple_hint
-                  "Everything in a list must be the same type of value. This way, we never run into unexpected values partway through a List.map, List.foldl, etc. Read <https://elm-lang.org/0.19.1/custom-types> to learn how to \"mix\" types.";
-              ]
+            ~details:[ mixing_hint ]
       | Negate ->
           bad_type expected
             ~problem:"I do not know how to negate this type of value:"
@@ -589,7 +569,7 @@ let of_expression source region category found (expected : Expectation.t) =
                   "All branches in a `case` must produce the same type of values. This way, no matter which branch we take, the result is always a consistent shape. Read <https://elm-lang.org/0.19.1/custom-types> to learn how to \"mix\" types.";
               ]
       | Call_arity { callee; given } ->
-          let takes = arrow_count found in
+          let takes = Typed.Type.arrows found in
           Doc.stack
             [
               Doc.words
@@ -640,16 +620,8 @@ let of_expression source region category found (expected : Expectation.t) =
 let of_pattern source region category found (expected : Expectation.pattern) =
   let naming = Message.naming () in
   let snippet = Snippet.of_region source region in
-  let mismatch ~problem ~this_is ~instead_of ~details expected =
-    Doc.stack
-      [
-        Doc.words problem;
-        snippet;
-        comparison naming ~found ~expected
-          ~i_am_seeing:(with_pattern_category this_is category)
-          ~instead_of ~details;
-      ]
-  in
+  let seeing this_is = with_pattern_category this_is category in
+  let mismatch = mismatching naming ~snippet ~found ~seeing in
   match expected with
   | Pattern_no_expectation expected ->
       mismatch expected
@@ -703,11 +675,7 @@ let of_pattern source region category found (expected : Expectation.pattern) =
                  ith)
             ~this_is:("The " ^ ith ^ " pattern is trying to match")
             ~instead_of:"But all the previous patterns in the list are:"
-            ~details:
-              [
-                simple_hint
-                  "Everything in a list must be the same type of value. This way, we never run into unexpected values partway through a List.map, List.foldl, etc. Read <https://elm-lang.org/0.19.1/custom-types> to learn how to \"mix\" types.";
-              ]
+            ~details:[ mixing_hint ]
       | P_tail ->
           mismatch expected ~problem:"The pattern after (::) is causing issues."
             ~this_is:"The pattern after (::) is trying to match"
@@ -716,6 +684,7 @@ let of_pattern source region category found (expected : Expectation.pattern) =
 
 let of_type_problem source region (problem : Type_error.t) =
   let snippet = Snippet.of_region source region in
+  let explaining = explaining ~snippet in
   match problem with
   | Bad_expression { category; found; expected } ->
       of_expression source region category found expected
@@ -746,36 +715,30 @@ let of_type_problem source region (problem : Type_error.t) =
         ]
   | Bad_arity { thing; name; expects; given } ->
       let what = match thing with A_type -> "type" | A_variant -> "variant" in
-      Doc.stack
-        [
-          Doc.words
-            (Printf.sprintf "The %s %s needs %s, but I see %d instead:"
-               (quoted (Data.Name.base name))
-               what (args expects) given);
-          snippet;
-          Doc.words
-            (if given < expects then "What is missing? Are some parentheses misplaced?"
-             else if given - expects = 1 then
-               "Which is the extra one? Maybe some parentheses are missing?"
-             else "Which are the extra ones? Maybe some parentheses are missing?");
-        ]
+      explaining
+        (Printf.sprintf "The %s %s needs %s, but I see %d instead:"
+           (quoted (Data.Name.base name))
+           what (args expects) given)
+        (if given < expects then
+           "What is missing? Are some parentheses misplaced?"
+         else if given - expects = 1 then
+           "Which is the extra one? Maybe some parentheses are missing?"
+         else "Which are the extra ones? Maybe some parentheses are missing?")
   | Case_without_branches ->
-      Doc.stack
-        [
-          Doc.words "This `case` does not have any branches:";
-          snippet;
-          Doc.words
-            "A `case` needs at least one branch, so I know what to do with the value it is given.";
-        ]
+      explaining "This `case` does not have any branches:"
+        "A `case` needs at least one branch, so I know what to do with the value it is given."
 
-let close_names near =
-  Doc.above (List.map (fun name -> indented (Doc.yellow (Doc.text name))) near)
+let highlighted written =
+  Doc.above
+    (List.map (fun text -> indented (Doc.yellow (Doc.text text))) written)
+
+let closest heading written =
+  Doc.above [ Doc.words heading; Doc.blank; highlighted written ]
+
+let cycle written =
+  indented (Doc.text (String.concat " -> " (written @ [ List.hd written ])))
 
 let cannot_find ~snippet ~what ~name ~bare ~prefix ~near =
-  let imports_link =
-    simple_hint
-      "Read <https://elm-lang.org/0.19.1/imports> to see how `import` declarations work in Elm."
-  in
   let without, with_names =
     match (prefix : Name_error.prefix) with
     | No_prefix ->
@@ -802,77 +765,53 @@ let cannot_find ~snippet ~what ~name ~bare ~prefix ~near =
     @ begin
         match near with
         | [] -> [ Doc.words without ]
-        | _ -> [ Doc.above [ Doc.words with_names; Doc.blank; close_names near ] ]
+        | _ -> [ closest with_names near ]
       end
     @ [ imports_link ])
 
 let of_name_problem source region (problem : Name_error.t) =
   let snippet = Snippet.of_region source region in
-  let imports_link =
-    simple_hint
-      "Read <https://elm-lang.org/0.19.1/imports> to see how `import` declarations work in Elm."
-  in
+  let explaining = explaining ~snippet in
+  let showing = showing ~snippet in
   match problem with
   | Unknown_module { qualifier; near } ->
       Doc.stack
-        ([
-           Doc.words
-             (Printf.sprintf "You are trying to import a %s module:"
-                (quoted qualifier));
-           snippet;
-         ]
-        @ begin
-            match near with
-            | [] -> [ Doc.words "I cannot find it anywhere in this project!" ]
-            | _ ->
-                [
-                  Doc.above
-                    [
-                      Doc.words
-                        "I looked through the modules of this project, but I \
-                         cannot find it! Maybe it is a typo for one of these \
-                         names?";
-                      Doc.blank;
-                      close_names near;
-                    ];
-                ]
-          end
-        @ [ imports_link ])
-  | Not_exposed { module_name; name; near } ->
-      Doc.stack
-        ([
-           Doc.words
-             (Printf.sprintf "The %s module does not expose %s:"
-                (quoted module_name) (quoted name));
-           snippet;
-         ]
-        @
-        match near with
-        | [] ->
-            [
-              Doc.words
-                "I cannot find any super similar exposed names. Maybe it is private?";
-            ]
-        | [ only ] ->
-            [ Doc.words (Printf.sprintf "Maybe you want %s instead?" (quoted only)) ]
-        | _ ->
-            [
-              Doc.above
-                [ Doc.words "These names seem close though:"; Doc.blank; close_names near ];
-            ])
-  | Ctors_not_exposed { module_name; type_name } ->
-      Doc.stack
         [
           Doc.words
-            (Printf.sprintf
-               "The %s module does not expose the constructors of %s:"
-               (quoted module_name) (quoted type_name));
+            (Printf.sprintf "You are trying to import a %s module:"
+               (quoted qualifier));
           snippet;
-          Doc.words
-            (Printf.sprintf
-               "It would have to say `exposing (%s(..))` for them to be available here."
-               type_name);
+          begin
+            match near with
+            | [] -> Doc.words "I cannot find it anywhere in this project!"
+            | _ ->
+                closest
+                  "I looked through the modules of this project, but I cannot find it! Maybe it is a typo for one of these names?"
+                  near
+          end;
+          imports_link;
         ]
+  | Not_exposed { module_name; name; near } ->
+      showing
+        (Printf.sprintf "The %s module does not expose %s:"
+           (quoted module_name) (quoted name))
+        begin
+          match near with
+          | [] ->
+              Doc.words
+                "I cannot find any super similar exposed names. Maybe it is private?"
+          | [ only ] ->
+              Doc.words
+                (Printf.sprintf "Maybe you want %s instead?" (quoted only))
+          | _ -> closest "These names seem close though:" near
+        end
+  | Ctors_not_exposed { module_name; type_name } ->
+      explaining
+        (Printf.sprintf "The %s module does not expose the constructors of %s:"
+           (quoted module_name) (quoted type_name))
+        (Printf.sprintf
+           "It would have to say `exposing (%s(..))` for them to be available here."
+           type_name)
   | Ambiguous { name; modules } ->
       Doc.stack
         [
@@ -886,54 +825,31 @@ let of_name_problem source region (problem : Name_error.t) =
             "Whatever it is, use a qualified name to say which one you want.";
         ]
   | Unknown_kernel { module_name; exported_name } ->
-      Doc.stack
-        [
-          Doc.words
-            (Printf.sprintf "There is no %s kernel value:"
-               (quoted (module_name ^ "." ^ exported_name)));
-          snippet;
-          Doc.words
-            "Kernel values are the primitives the compiler knows about, and this is not one of them.";
-        ]
+      explaining
+        (Printf.sprintf "There is no %s kernel value:"
+           (quoted (module_name ^ "." ^ exported_name)))
+        "Kernel values are the primitives the compiler knows about, and this is not one of them."
   | Kernel_needs_annotation { name } ->
-      Doc.stack
-        [
-          Doc.words
-            (Printf.sprintf
-               "The %s definition has a kernel body, so it needs a type annotation:"
-               (quoted name));
-          snippet;
-          Doc.words
-            "A kernel value takes its type from the annotation alone, so I cannot work it out without one.";
-        ]
+      explaining
+        (Printf.sprintf
+           "The %s definition has a kernel body, so it needs a type annotation:"
+           (quoted name))
+        "A kernel value takes its type from the annotation alone, so I cannot work it out without one."
   | Kernel_arity_mismatch { declared; kernel } ->
-      Doc.stack
-        [
-          Doc.words
-            (Printf.sprintf
-               "This annotation takes %s, but the kernel value it names takes %s:"
-               (args declared) (args kernel));
-          snippet;
-          Doc.words "The two have to agree.";
-        ]
+      explaining
+        (Printf.sprintf
+           "This annotation takes %s, but the kernel value it names takes %s:"
+           (args declared) (args kernel))
+        "The two have to agree."
   | Duplicate_declaration { name } ->
-      Doc.stack
-        [
-          Doc.words
-            (Printf.sprintf "This file has multiple %s declarations."
-               (quoted name));
-          snippet;
-          Doc.words "How can I know which one you want? Rename one of them!";
-        ]
+      explaining
+        (Printf.sprintf "This file has multiple %s declarations." (quoted name))
+        "How can I know which one you want? Rename one of them!"
   | Duplicate_binder { name } ->
-      Doc.stack
-        [
-          Doc.words
-            (Printf.sprintf "This pattern uses %s more than once:" (quoted name));
-          snippet;
-          simple_hint
-            "Rename one of them to make it clear which one you want. Elm does not allow a name to be defined twice.";
-        ]
+      showing
+        (Printf.sprintf "This pattern uses %s more than once:" (quoted name))
+        (simple_hint
+           "Rename one of them to make it clear which one you want. Elm does not allow a name to be defined twice.")
   | Unbound_value { name; prefix; near } ->
       cannot_find ~snippet ~what:"variable" ~name:(Data.Name.to_string name)
         ~bare:(Data.Name.base name) ~prefix ~near
@@ -948,8 +864,7 @@ let of_name_problem source region (problem : Name_error.t) =
         [
           Doc.words "Your module imports form a cycle:";
           snippet;
-          indented
-            (Doc.text (String.concat " -> " (modules @ [ List.nth modules 0 ])));
+          cycle modules;
           Doc.words
             "Learn more about why this is not allowed at <https://elm-lang.org/0.19.1/import-cycles>.";
         ]
@@ -958,80 +873,44 @@ let of_name_problem source region (problem : Name_error.t) =
         [
           Doc.words "This definition is causing an infinite loop:";
           snippet;
-          indented
-            (Doc.text (String.concat " -> " (names @ [ List.nth names 0 ])));
+          cycle names;
           Doc.words
             "The definition depends on itself, so I cannot compute its value. Functions may call each other, but values may not.";
         ]
 
 let of_syntax_problem source region (problem : Syntax_error.t) =
   let snippet = Snippet.of_region source region in
+  let explaining = explaining ~snippet in
   match problem with
   | Unexpected_input { found } ->
-      Doc.stack
-        [
-          Doc.words "I got stuck here:";
-          snippet;
-          Doc.words
-            (Printf.sprintf "I was not expecting %s at this point."
-               (quoted found));
-        ]
+      explaining "I got stuck here:"
+        (Printf.sprintf "I was not expecting %s at this point." (quoted found))
   | Unknown_character { found } ->
-      Doc.stack
-        [
-          Doc.words
-            (Printf.sprintf "I do not know what %s means here:" (quoted found));
-          snippet;
-          Doc.words "This character cannot start anything I know of.";
-        ]
+      explaining
+        (Printf.sprintf "I do not know what %s means here:" (quoted found))
+        "This character cannot start anything I know of."
   | Unterminated { what } ->
-      Doc.stack
-        [
-          Doc.words
-            (Printf.sprintf
-               "I got to the end of the file without seeing the end of this %s:"
-               (Syntax_error.what_is_unterminated what));
-          snippet;
-          Doc.words "Add the closing mark, or delete it and start again.";
-        ]
+      explaining
+        (Printf.sprintf
+           "I got to the end of the file without seeing the end of this %s:"
+           (Syntax_error.what_is_unterminated what))
+        "Add the closing mark, or delete it and start again."
   | Empty_character ->
-      Doc.stack
-        [
-          Doc.words
-            "I thought I was parsing a character, but I got stuck here:";
-          snippet;
-          Doc.words
-            "Characters look like 'c' and hold exactly one character. For text, use double quotes instead.";
-        ]
+      explaining "I thought I was parsing a character, but I got stuck here:"
+        "Characters look like 'c' and hold exactly one character. For text, use double quotes instead."
   | Crowded_character ->
-      Doc.stack
-        [
-          Doc.words "This character literal holds more than one character:";
-          snippet;
-          Doc.words
-            "Characters hold exactly one character. Use double quotes for text of any length.";
-        ]
+      explaining "This character literal holds more than one character:"
+        "Characters hold exactly one character. Use double quotes for text of any length."
   | Unknown_escape { found } ->
-      Doc.stack
-        [
-          Doc.words
-            (Printf.sprintf "I do not know the escape %s:"
-               (quoted ("\\" ^ found)));
-          snippet;
-          Doc.words
-            "The escapes I know are \\n, \\t, \\r, \\b, \\\", \\', \\\\ and \\u{...}.";
-        ]
+      explaining
+        (Printf.sprintf "I do not know the escape %s:" (quoted ("\\" ^ found)))
+        "The escapes I know are \\n, \\t, \\r, \\b, \\\", \\', \\\\ and \\u{...}."
   | Too_many_tuple_parts { given } ->
-      Doc.stack
-        [
-          Doc.words
-            (Printf.sprintf
-               "I only accept tuples of two or three parts, but this one has %d:"
-               given);
-          snippet;
-          Doc.words
-            "Switch to a record. Records can hold as many values as you need, and each one has a name.";
-        ]
+      explaining
+        (Printf.sprintf
+           "I only accept tuples of two or three parts, but this one has %d:"
+           given)
+        "Switch to a record. Records can hold as many values as you need, and each one has a name."
 
 let suggestions_of (problem : Error.problem) =
   match problem with
@@ -1077,47 +956,27 @@ let rec drawn ~inside (pattern : Typed.Pattern.t) =
 
 let of_warning source (warning : Warning.t) =
   let snippet = Snippet.of_region source warning.region in
+  let reported title message =
+    { title; region = warning.region; suggestions = []; message }
+  in
   match warning.problem with
   | Missing_patterns { unhandled } ->
-      {
-        title = "MISSING PATTERNS";
-        region = warning.region;
-        suggestions = [];
-        message =
-          Doc.stack
-            [
-              Doc.words
-                "This `case` does not have branches for all possibilities:";
-              snippet;
-              Doc.above
-                [
-                  Doc.words "Missing possibilities include:";
-                  Doc.blank;
-                  Doc.above
-                    (List.map
-                       (fun pattern ->
-                         indented (Doc.yellow (Doc.text (drawn ~inside:false pattern))))
-                       unhandled);
-                ];
-              Doc.words
-                "I would have to crash if I saw one of those. Add branches for them!";
-            ];
-      }
+      reported "MISSING PATTERNS"
+        (Doc.stack
+           [
+             Doc.words
+               "This `case` does not have branches for all possibilities:";
+             snippet;
+             closest "Missing possibilities include:"
+               (List.map (drawn ~inside:false) unhandled);
+             Doc.words
+               "I would have to crash if I saw one of those. Add branches for them!";
+           ])
   | Redundant_pattern { index } ->
-      {
-        title = "REDUNDANT PATTERN";
-        region = warning.region;
-        suggestions = [];
-        message =
-          Doc.stack
-            [
-              Doc.words
-                (Printf.sprintf "The %s pattern is redundant:" (ordinal index));
-              snippet;
-              Doc.words
-                "Any value with this shape will be handled by a previous pattern, so it should be removed.";
-            ];
-      }
+      reported "REDUNDANT PATTERN"
+        (explaining ~snippet
+           (Printf.sprintf "The %s pattern is redundant:" (ordinal index))
+           "Any value with this shape will be handled by a previous pattern, so it should be removed.")
 
 let of_error source (error : Error.t) =
   let message =
