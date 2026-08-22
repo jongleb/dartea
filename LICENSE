@@ -52,6 +52,14 @@ Copyright 2014-present Evan Czaplicki
         Rewritten in modern JavaScript from Elm/Kernel/Utils.js, Basics.js and
         Char.js, keeping the original algorithms and their constants.
 
+    lib/data/kernel.ml
+        The set of Elm.Kernel.* primitives a prelude module may refer to, and
+        their arities -- the kernel surface of elm/core, as a closed sum.
+
+    lib/prelude/prelude.ml
+        The list of prelude modules and the default imports every module
+        receives, following Elm/Compiler/Imports.hs of elm/compiler.
+
 These files are embedded into the compiler binary and are compiled into
 Basics.mjs, Char.mjs, Maybe.mjs, String.mjs, Tuple.mjs and Dartea_runtime.mjs
 alongside every program this compiler builds. Redistributing that output
@@ -60,14 +68,95 @@ redistributes material derived from elm/core.
 elm/compiler -- https://github.com/elm/compiler
 Copyright 2012-present Evan Czaplicki
 
+Text reproduced verbatim:
+
     lib/reporting/report.ml
-    lib/reporting/hint.ml
-    lib/reporting/snippet.ml
-        Diagnostic wording reproduced verbatim from Reporting/Error/*.hs, and
-        the report layout from Reporting/Render/Code.hs and Reporting/Doc.hs.
+        Diagnostic wording taken word for word from Reporting/Error/Type.hs,
+        Canonicalize.hs, Syntax.hs, Import.hs and Pattern.hs, including the
+        hint texts and the elm-lang.org documentation links.
 
     test/errors/*.txt
         Golden files containing that wording.
 
+Structure mirrored rather than text copied:
+
+    lib/reporting/category.ml
+    lib/reporting/context.ml
+    lib/reporting/expectation.ml
+    lib/reporting/hint.ml
+    lib/reporting/type_error.ml
+    lib/reporting/name_error.ml
+    lib/reporting/syntax_error.ml
+    lib/reporting/warning.ml
+        The taxonomy of errors -- the Category, Context, Expected and hint
+        sums of Reporting/Error/Type.hs and the per-phase error sums --
+        translated into OCaml. These files contain no English text.
+
+    lib/reporting/doc.ml
+    lib/reporting/snippet.ml
+        Report layout: the document combinators of Reporting/Doc.hs and the
+        numbered source excerpt with the ^^^ underline of
+        Reporting/Render/Code.hs.
+
+The Elm language itself -- its syntax, its operator precedences and the names
+and signatures of its standard library -- is followed deliberately, because
+compatibility is the point of this project. That is a specification, not
+copied expression, and it is named here for honesty rather than as a licence
+obligation.
+
 This software is an independent implementation. It is not affiliated with or
 endorsed by the Elm project or by Evan Czaplicki.
+
+
+-------------------------------------------------------------------------------
+Studied, not copied
+
+
+No code from these is present here. They are named because they shaped design
+decisions and because the reader deserves to know where the ideas came from.
+
+    ReScript and Melange
+        Runtime data representation (string tags, TAG and _0 fields, cons
+        cells), the uncurried calling convention, module-qualified access,
+        and the rule that a backend builds AST nodes instead of splicing
+        JavaScript text.
+
+    Luc Maranget, Compiling Pattern Matching to Good Decision Trees (ACM
+    ML'08) and Warnings for Pattern Matching (JFP 2007)
+        The decision-tree compilation and usefulness algorithms in
+        lib/after_typed/exhaustive.ml.
+
+    Alex Reinking, Ningning Xie, Leonardo de Moura and Daan Leijen, Perceus:
+    Garbage Free Reference Counting with Reuse (PLDI 2021)
+        The reference-counting scheme of lib/codegen/c/dartea_runtime.h. The
+        dup / drop / reuse vocabulary is the paper's. The object layout was
+        chosen here. This file was not compared line by line against the Koka
+        runtime; no evidence of copied code was found, but that is an
+        inspection, not a proof.
+
+
+-------------------------------------------------------------------------------
+Linked dependencies
+
+
+The compiled binary links the following libraries. Their own licenses apply to
+them and their notices are preserved by their respective distributions.
+
+    menhirLib        LGPL-2.0-only WITH OCaml-LGPL-linking-exception
+    OCaml runtime    LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
+    base             MIT
+    non_empty_list   MIT
+    ppx_hash         MIT
+    eio, eio_main    ISC
+    containers-data  BSD-2-Clause
+
+menhirLib and the OCaml runtime are LGPL. The OCaml linking exception permits
+linking them into a binary under these terms without that binary becoming
+subject to the LGPL.
+
+The menhir parser generator itself is GPL-2.0-only. It is a build-time tool and
+is not linked into the binary, in the same way a compiler is not.
+
+Used only to build and test, never linked into the shipped binary:
+ppx_jane (MIT), ppx_deriving (MIT), ounit2 (MIT), qcheck-core and qcheck-ounit
+(BSD-2-Clause).
