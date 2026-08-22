@@ -242,6 +242,15 @@ module Make (B : BACKEND) = struct
               else
                 let declarations, constructors, siblings = prepared typed in
                 let exports = exported_names resolved typed in
+                let roots =
+                  match entry with
+                  | Some wanted when String.equal wanted resolved.name ->
+                      Data.Name.local Entry.declaration :: exports
+                  | Some _ | None -> exports
+                in
+                let declarations =
+                  After_typed.Dead_code.alive ~roots declarations
+                in
                 let compiled =
                   {
                     module_name = resolved.name;

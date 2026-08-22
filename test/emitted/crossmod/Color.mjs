@@ -21,5 +21,4 @@ const name = color$1 => {
       return "blue";
   }
 };
-const internalNote = "Color keeps this to itself";
 export { Blue, Green, Red, name, toCode };

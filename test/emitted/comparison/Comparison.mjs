@@ -1,4 +1,3 @@
-import * as Dartea_runtime from "./Dartea_runtime.mjs";
 import * as Basics from "./Basics.mjs";
 import * as Char from "./Char.mjs";
 import * as Maybe from "./Maybe.mjs";
@@ -154,7 +153,6 @@ const $eq$List$Int = (xs, ys) => {
   }
   return left === right;
 };
-const numbers = true;
 const floats = 1.5 < 2.5;
 const chars = "a" < "b";
 const strings = "apple" < "pear";
@@ -211,27 +209,17 @@ const comparedLists = ($s19 < 0) ? "LT" : ($s19 === 0) ? "EQ" : "GT";
 const $s20 = [2, "a"];
 const $s21 = [1, "z"];
 const smallestTuple = (($s20[0] === $s21[0]) ? $s20[1] < $s21[1] : $s20[0] < $s21[0]) ? $s20 : $s21;
-const appendedStrings = "hello world";
 const appendedLists = $append$List({ hd: 1, tl: { hd: 2, tl: 0 } }, { hd: 3, tl: 0 });
-const appendedGenerically = (one, other) => Dartea_runtime.$$append(one, other);
-const sameAnything = (one$1, other$1) => Dartea_runtime.$$eq(one$1, other$1);
-const smallestComparable = (one$2, other$2) => {
-  if (Dartea_runtime.$$cmp(one$2, other$2) < 0) {
-    return one$2;
-  } else {
-    return other$2;
-  }
-};
 const grinning = Char.toCode("😀");
 const tree = Char.toCode("木");
 const $s22 = [1, "z"];
-const one$3 = { hd: 1, tl: 0 };
-const other$3 = { hd: 2, tl: 0 };
-const one$4 = { hd: 1, tl: { hd: 2, tl: 0 } };
-const other$4 = { hd: 1, tl: { hd: 2, tl: 0 } };
-const one$5 = { x: 1, y: "a" };
-const other$5 = { x: 2, y: "a" };
-const checks = { hd: true, tl: { hd: floats, tl: { hd: chars, tl: { hd: strings, tl: { hd: booleans, tl: { hd: units, tl: { hd: enums, tl: { hd: Basics.not(enumsDiffer), tl: { hd: records, tl: { hd: Basics.not(recordsDiffer), tl: { hd: tuples, tl: { hd: tuplesOrdered, tl: { hd: tuplesLexicographic, tl: { hd: nestedTuples, tl: { hd: listsOfNumbers, tl: { hd: listsOfNumbersOrdered, tl: { hd: listsOfNumbersPrefix, tl: { hd: emptyIsSmallest, tl: { hd: listsOfStrings, tl: { hd: listsOfRecords, tl: { hd: variants, tl: { hd: Basics.not(variantsDiffer), tl: { hd: Basics.not(variantsAcrossTags), tl: { hd: variantsNullary, tl: { hd: taggedOmitted, tl: { hd: recursive, tl: { hd: Basics.not(recursiveDiffer), tl: { hd: maybes, tl: { hd: Basics.not(maybesAgainstNothing), tl: { hd: listsOfVariants, tl: { hd: smallestNumber === 2, tl: { hd: largestWord === "pear", tl: { hd: comparedNumbers === Basics.LT, tl: { hd: comparedTuples === Basics.GT, tl: { hd: comparedLists === Basics.LT, tl: { hd: (smallestTuple[0] === $s22[0]) && (smallestTuple[1] === $s22[1]), tl: { hd: true, tl: { hd: $eq$List$Int(appendedLists, { hd: 1, tl: { hd: 2, tl: { hd: 3, tl: 0 } } }), tl: { hd: true, tl: { hd: $eq$List$number($append$List(one$3, other$3), { hd: 1, tl: { hd: 2, tl: 0 } }), tl: { hd: $eq$List$number(one$4, other$4), tl: { hd: Basics.not((one$5.x === other$5.x) && (one$5.y === other$5.y)), tl: { hd: true, tl: { hd: (("b" < "a") ? "b" : "a") === "a", tl: { hd: grinning === 128512, tl: { hd: tree === 26408, tl: 0 } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } };
+const one = { hd: 1, tl: 0 };
+const other = { hd: 2, tl: 0 };
+const one$1 = { hd: 1, tl: { hd: 2, tl: 0 } };
+const other$1 = { hd: 1, tl: { hd: 2, tl: 0 } };
+const one$2 = { x: 1, y: "a" };
+const other$2 = { x: 2, y: "a" };
+const checks = { hd: true, tl: { hd: floats, tl: { hd: chars, tl: { hd: strings, tl: { hd: booleans, tl: { hd: units, tl: { hd: enums, tl: { hd: Basics.not(enumsDiffer), tl: { hd: records, tl: { hd: Basics.not(recordsDiffer), tl: { hd: tuples, tl: { hd: tuplesOrdered, tl: { hd: tuplesLexicographic, tl: { hd: nestedTuples, tl: { hd: listsOfNumbers, tl: { hd: listsOfNumbersOrdered, tl: { hd: listsOfNumbersPrefix, tl: { hd: emptyIsSmallest, tl: { hd: listsOfStrings, tl: { hd: listsOfRecords, tl: { hd: variants, tl: { hd: Basics.not(variantsDiffer), tl: { hd: Basics.not(variantsAcrossTags), tl: { hd: variantsNullary, tl: { hd: taggedOmitted, tl: { hd: recursive, tl: { hd: Basics.not(recursiveDiffer), tl: { hd: maybes, tl: { hd: Basics.not(maybesAgainstNothing), tl: { hd: listsOfVariants, tl: { hd: smallestNumber === 2, tl: { hd: largestWord === "pear", tl: { hd: comparedNumbers === Basics.LT, tl: { hd: comparedTuples === Basics.GT, tl: { hd: comparedLists === Basics.LT, tl: { hd: (smallestTuple[0] === $s22[0]) && (smallestTuple[1] === $s22[1]), tl: { hd: true, tl: { hd: $eq$List$Int(appendedLists, { hd: 1, tl: { hd: 2, tl: { hd: 3, tl: 0 } } }), tl: { hd: true, tl: { hd: $eq$List$number($append$List(one, other), { hd: 1, tl: { hd: 2, tl: 0 } }), tl: { hd: $eq$List$number(one$1, other$1), tl: { hd: Basics.not((one$2.x === other$2.x) && (one$2.y === other$2.y)), tl: { hd: true, tl: { hd: (("b" < "a") ? "b" : "a") === "a", tl: { hd: grinning === 128512, tl: { hd: tree === 26408, tl: 0 } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } };
 const allTrue = flags => {
   if (flags === 0) {
     return true;
@@ -242,5 +230,4 @@ const allTrue = flags => {
   }
 };
 const report = allTrue(checks) ? "all instances agree" : "SOMETHING DISAGREES";
-const Point = ($a0, $a1) => ({ x: $a0, y: $a1 });
 export { checks, report };

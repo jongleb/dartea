@@ -18,6 +18,7 @@
   qcheck-core
   qcheck-ounit
   unix
+  str
   after_typed
   optimized
   infer

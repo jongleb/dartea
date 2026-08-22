@@ -984,7 +984,6 @@ return { first, pair, second };
 })();
 
 const Main = (() => {
-const greeting = "compiled by dartea";
 const main = $$String.fromInt(5) + " — compiled by dartea";
 return { main };
 })();
