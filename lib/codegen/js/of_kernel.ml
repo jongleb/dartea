@@ -38,6 +38,8 @@ let unary_operation (kernel : Data.Kernel.unary) (subject : J.expr) : J.expr =
         (binary subject J.StrictNotEqual (J.Literal (J.String "")))
         J.And
         (J.Unary { op = J.Not; arg = call "isNaN" [ call "Number" [ subject ] ] })
+  | String_to_list -> runtime Runtime.string_to_list [ subject ]
+  | String_from_list -> runtime Runtime.string_from_list [ subject ]
   | Basics_to_float -> subject
   | Basics_round -> math "round" [ subject ]
   | Basics_floor -> math "floor" [ subject ]
@@ -68,6 +70,10 @@ let binary_operation (kernel : Data.Kernel.binary) (left : J.expr)
     (right : J.expr) : J.expr =
   match kernel with
   | String_append -> binary left J.Plus right
+  | String_split -> runtime Runtime.string_split [ left; right ]
+  | String_take_left ->
+      method_call right "slice" [ J.Literal (J.Int 0); left ]
+  | String_drop_left -> method_call right "slice" [ left ]
   | Utils_compare -> runtime Runtime.compare [ left; right ]
   | Basics_mod_by -> runtime Runtime.mod_by [ left; right ]
   | Basics_remainder_by -> binary right J.Modulo left

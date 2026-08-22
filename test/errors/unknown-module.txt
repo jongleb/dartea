@@ -11,7 +11,7 @@ a typo for one of these names?
     Tuple
     Maybe
     String
-    List
+    Result
 
 Hint: Read <https://elm-lang.org/0.19.1/imports> to see how `import`
 declarations work in Elm.

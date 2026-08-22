@@ -1006,13 +1006,14 @@ let test_prelude_is_emitted_as_modules _ =
 let test_runtime_module_ships_every_declared_helper _ =
   let runtime = module_source ~name:"Dartea_runtime" "x : Int\nx = 1" in
   let exported =
-    match
-      List.find_opt
-        (fun line -> contains ~needle:"export {" line)
-        (String.split_on_char '\n' runtime)
-    with
-    | Some line -> line
-    | None -> assert_failure "the runtime module exports nothing"
+    let opening =
+      match Node_runner.index_of ~needle:"export {" runtime with
+      | Some at -> at
+      | None -> assert_failure "the runtime module exports nothing"
+    in
+    match String.index_from_opt runtime opening '}' with
+    | Some closing -> String.sub runtime opening (closing - opening)
+    | None -> assert_failure "the export list is never closed"
   in
   List.iter
     (fun helper ->
@@ -1030,7 +1031,7 @@ let test_runtime_module_ships_every_declared_helper _ =
 let test_saturated_primitive_lowers_to_an_operation _ =
   let string_module = module_source ~name:"String" "x : Int\nx = 1" in
   assert_bool "a saturated primitive becomes the JS operation itself"
-    (contains ~needle:"Number.isInteger(Number(string" string_module);
+    (contains ~needle:"Number.isInteger(Number(" string_module);
   assert_bool "an unapplied primitive becomes an arrow"
     (contains ~needle:"const length = " string_module)
 
@@ -3374,8 +3375,82 @@ result =
   in
   assert_js ~src ~expr:"Main.result" ~expected:"32"
 
+let test_result_carries_the_error_through _ =
+  let src =
+    {|
+result : String
+result =
+    case Result.map2 (\a b -> a + b) (Ok 1) (Err "boom") of
+        Ok n ->
+            String.fromInt n
+
+        Err e ->
+            e
+|}
+  in
+  assert_js ~src ~expr:"Main.result" ~expected:{|"boom"|}
+
+let test_result_maps_and_chains _ =
+  let src =
+    {|
+result : Int
+result =
+    Result.withDefault 0
+        (Result.andThen (\n -> Ok (n * 2)) (Result.map negate (Ok 4)))
+|}
+  in
+  assert_js ~src ~expr:"Main.result" ~expected:"-8"
+
+let test_string_splits_and_joins _ =
+  let src =
+    {|
+result : String
+result =
+    String.join "-" (String.split "," "a,b,c")
+|}
+  in
+  assert_js ~src ~expr:"Main.result" ~expected:{|"a-b-c"|}
+
+let test_string_round_trips_through_a_char_list _ =
+  let src =
+    {|
+result : String
+result =
+    String.fromList (List.reverse (String.toList "abc"))
+|}
+  in
+  assert_js ~src ~expr:"Main.result" ~expected:{|"cba"|}
+
+let test_string_slices_from_the_end _ =
+  let src =
+    {|
+result : String
+result =
+    String.right 2 "abcdef" ++ String.slice 1 3 "abcdef"
+|}
+  in
+  assert_js ~src ~expr:"Main.result" ~expected:{|"efbc"|}
+
+let test_string_words_ignores_runs_of_space _ =
+  let src =
+    {|
+result : Int
+result =
+    List.length (String.words "  one   two  three ")
+|}
+  in
+  assert_js ~src ~expr:"Main.result" ~expected:"3"
+
 let suite =
   [
+    "result_carries_the_error_through" >:: test_result_carries_the_error_through;
+    "result_maps_and_chains" >:: test_result_maps_and_chains;
+    "string_splits_and_joins" >:: test_string_splits_and_joins;
+    "string_round_trips_through_a_char_list"
+    >:: test_string_round_trips_through_a_char_list;
+    "string_slices_from_the_end" >:: test_string_slices_from_the_end;
+    "string_words_ignores_runs_of_space"
+    >:: test_string_words_ignores_runs_of_space;
     "list_folds_and_maps" >:: test_list_folds_and_maps;
     "list_sort_is_stable_by_key" >:: test_list_sort_is_stable_by_key;
     "list_head_of_empty_is_nothing" >:: test_list_head_of_empty_is_nothing;

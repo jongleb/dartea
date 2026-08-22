@@ -7,6 +7,8 @@ type unary =
   | String_to_int_unsafe
   | String_is_float
   | String_to_float_unsafe
+  | String_to_list
+  | String_from_list
   | Basics_to_float
   | Basics_round
   | Basics_floor
@@ -31,6 +33,9 @@ type unary =
 
 type binary =
   | String_append
+  | String_split
+  | String_take_left
+  | String_drop_left
   | Utils_compare
   | Basics_mod_by
   | Basics_remainder_by
@@ -59,6 +64,8 @@ let origin = function
   | Unary String_to_int_unsafe -> string "toIntUnsafe"
   | Unary String_is_float -> string "isFloat"
   | Unary String_to_float_unsafe -> string "toFloatUnsafe"
+  | Unary String_to_list -> string "toList"
+  | Unary String_from_list -> string "fromList"
   | Unary Basics_to_float -> basics "toFloat"
   | Unary Basics_round -> basics "round"
   | Unary Basics_floor -> basics "floor"
@@ -80,6 +87,9 @@ let origin = function
   | Unary Char_to_upper -> char "toUpper"
   | Unary Char_to_lower -> char "toLower"
   | Binary String_append -> string "append"
+  | Binary String_split -> string "split"
+  | Binary String_take_left -> string "takeLeft"
+  | Binary String_drop_left -> string "dropLeft"
   | Binary Utils_compare -> written_as "Utils" "compare"
   | Binary Basics_mod_by -> basics "modBy"
   | Binary Basics_remainder_by -> basics "remainderBy"

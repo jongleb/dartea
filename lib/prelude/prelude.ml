@@ -1,4 +1,4 @@
-type t = Basics | Char | List | Maybe | String | Tuple
+type t = Basics | Char | List | Maybe | Result | String | Tuple
 [@@deriving enumerate, variants]
 
 let name = Variants.to_name
@@ -15,6 +15,7 @@ let source = function
   | Char -> Prelude_source.char
   | List -> Prelude_source.list
   | Maybe -> Prelude_source.maybe
+  | Result -> Prelude_source.result
   | String -> Prelude_source.string
   | Tuple -> Prelude_source.tuple
 
@@ -23,6 +24,9 @@ let exposed_by_default = function
   | Maybe ->
       Canonical.Exposed.Only
         [ Canonical.Exposed.Type { name = name Maybe; ctors_exposed = true } ]
+  | Result ->
+      Canonical.Exposed.Only
+        [ Canonical.Exposed.Type { name = name Result; ctors_exposed = true } ]
   | Char | List | String | Tuple -> Canonical.Exposed.Only []
 
 let default_imports : Canonical.Import.t list =
