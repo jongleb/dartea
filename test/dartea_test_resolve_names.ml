@@ -1,16 +1,9 @@
 open OUnit2
 
-let canonical input =
-  match Parse.Main.parse ~file:"Main.elm" input with
-  | Error error -> raise (Reporting.Error.Found error)
-  | Ok impl_list ->
-      Canonical.Module.of_frontend ~fallback_name:"Main"
-        (Ast.Kind.Frontend.Module.of_impl impl_list)
-
 let resolve ~dependencies source =
   Canonicalization.Resolve_names.in_module
-    ~dependencies:(List.map canonical dependencies)
-    (canonical source)
+    ~dependencies:(List.map Utils.canonical dependencies)
+    (Utils.canonical source)
 
 let resolved ~dependencies source =
   match resolve ~dependencies source with
@@ -87,7 +80,7 @@ type Thing = Thing
 
 let test_dependency_order _ =
   let modules =
-    List.map canonical
+    List.map Utils.canonical
       [
         {|
 module Main exposing (..)
@@ -121,7 +114,7 @@ z = 3
 
 let test_import_cycle _ =
   let modules =
-    List.map canonical
+    List.map Utils.canonical
       [
         {|
 module Main exposing (..)
@@ -658,7 +651,7 @@ x = map
 
 let test_diamond_dependency_order _ =
   let modules =
-    List.map canonical
+    List.map Utils.canonical
       [
         {|
 module Main exposing (..)
@@ -699,7 +692,7 @@ w = 4
 
 let test_unknown_import_is_not_an_edge _ =
   let modules =
-    List.map canonical
+    List.map Utils.canonical
       [
         {|
 module Main exposing (..)

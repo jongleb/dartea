@@ -1,19 +1,12 @@
 open OUnit2
 module Scope = Canonicalization.Scope
 
-let canonical input =
-  match Parse.Main.parse ~file:"Main.elm" input with
-  | Error error -> raise (Reporting.Error.Found error)
-  | Ok impl_list ->
-      Canonical.Module.of_frontend ~fallback_name:"Main"
-        (Ast.Kind.Frontend.Module.of_impl impl_list)
-
 let declaration source name =
   match
     List.find_opt
       (fun (d : Canonical.Declaration.t) ->
         String.equal (Data.Located.unwrap d.body_part.name) name)
-      (canonical source).Canonical.Module.top_declarations
+      (Utils.canonical source).Canonical.Module.top_declarations
   with
   | Some declaration -> declaration
   | None -> assert_failure (Printf.sprintf "no declaration named %s" name)

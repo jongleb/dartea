@@ -32,14 +32,6 @@ type context = {
   operator_of : Data.Name.t -> Data.Operator.t option;
 }
 
-let spine expression =
-  let rec collect arguments (e : O.Expr.t) =
-    match e.expr with
-    | O.Expr.Expr_apply { fn; arg } -> collect (arg :: arguments) fn
-    | _ -> (e, arguments)
-  in
-  collect [] expression
-
 let record_spine expression =
   let rec walk fields (e : O.Expr.t) =
     let stop () =
@@ -48,13 +40,21 @@ let record_spine expression =
     match e.expr with
     | O.Expr.Expr_record_empty -> Some (List.rev fields, None)
     | O.Expr.Expr_apply _ -> begin
-        match spine e with
-        | { O.Expr.expr = O.Expr.Expr_record_extend field; _ }, [ value; rest ]
-          ->
-            walk ((field, value) :: fields) rest
-        | _ -> stop ()
+        let head, arguments = O.Expr.spine e in
+        match (O.Expr.record_extend_of head, arguments) with
+        | Some field, [ value; rest ] -> walk ((field, value) :: fields) rest
+        | Some _, _ | None, _ -> stop ()
       end
-    | _ -> stop ()
+    | O.Expr.Expr_constr _ | O.Expr.Expr_binop _ | O.Expr.Expr_let _
+    | O.Expr.Expr_if_then_else _ | O.Expr.Expr_record _
+    | O.Expr.Expr_record_update _ | O.Expr.Expr_ident _ | O.Expr.Expr_pattern _
+    | O.Expr.Expr_accessor _ | O.Expr.Expr_access _
+    | O.Expr.Expr_record_extend _ | O.Expr.Expr_record_select _
+    | O.Expr.Expr_unit | O.Expr.Expr_kernel _ | O.Expr.Expr_lambda _
+    | O.Expr.Expr_char _ | O.Expr.Expr_string _ | O.Expr.Expr_int _
+    | O.Expr.Expr_float _ | O.Expr.Expr_list _ | O.Expr.Expr_cons _
+    | O.Expr.Expr_tuple _ ->
+        stop ()
   in
   walk [] expression
 
@@ -116,7 +116,14 @@ let immediate context ~locals (e : O.Expr.t) =
   | O.Expr.Expr_constr { name; arguments = [] }
     when wanted_by_constructor context name = 0 ->
       Some (A_constant name)
-  | _ -> None
+  | O.Expr.Expr_list (_ :: _) | O.Expr.Expr_constr _ | O.Expr.Expr_binop _
+  | O.Expr.Expr_let _ | O.Expr.Expr_if_then_else _ | O.Expr.Expr_record _
+  | O.Expr.Expr_record_update _ | O.Expr.Expr_apply _ | O.Expr.Expr_pattern _
+  | O.Expr.Expr_accessor _ | O.Expr.Expr_access _ | O.Expr.Expr_record_extend _
+  | O.Expr.Expr_record_select _ | O.Expr.Expr_record_empty
+  | O.Expr.Expr_kernel _ | O.Expr.Expr_lambda _ | O.Expr.Expr_cons _
+  | O.Expr.Expr_tuple _ ->
+      None
 
 let of_declaration context (source : O.Declaration.t) : declaration =
   let counter = ref 0 in
@@ -377,11 +384,9 @@ let of_declaration context (source : O.Declaration.t) : declaration =
              [])
 
   and lower_apply ~locals ~k expression =
-    let head, arguments = spine expression in
+    let head, arguments = O.Expr.spine expression in
     let operator =
-      match head.O.Expr.expr with
-      | O.Expr.Expr_ident name -> primitive_operator context ~locals name
-      | _ -> None
+      Option.bind (O.Expr.ident_of head) (primitive_operator context ~locals)
     in
     match (operator, head.O.Expr.expr) with
     | Some operator, _ -> lower_operator ~locals ~k ~operator arguments

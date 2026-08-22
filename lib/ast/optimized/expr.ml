@@ -68,3 +68,50 @@ and expr_pattern = { expr : t; pattern_data_items : expr_pattern_case list }
 [@@deriving show]
 
 and expr_access = { expr : t; field : string Data.Located.t } [@@deriving show]
+
+let ident_of e =
+  match e.expr with
+  | Expr_ident name -> Some name
+  | Expr_constr _ | Expr_binop _ | Expr_let _ | Expr_if_then_else _
+  | Expr_record _ | Expr_record_update _ | Expr_apply _ | Expr_pattern _
+  | Expr_accessor _ | Expr_access _ | Expr_record_extend _
+  | Expr_record_select _ | Expr_record_empty | Expr_unit | Expr_kernel _
+  | Expr_lambda _ | Expr_char _ | Expr_string _ | Expr_int _ | Expr_float _
+  | Expr_list _ | Expr_cons _ | Expr_tuple _ ->
+      None
+
+let record_extend_of e =
+  match e.expr with
+  | Expr_record_extend field -> Some field
+  | Expr_constr _ | Expr_binop _ | Expr_let _ | Expr_if_then_else _
+  | Expr_record _ | Expr_record_update _ | Expr_apply _ | Expr_ident _
+  | Expr_pattern _ | Expr_accessor _ | Expr_access _ | Expr_record_select _
+  | Expr_record_empty | Expr_unit | Expr_kernel _ | Expr_lambda _ | Expr_char _
+  | Expr_string _ | Expr_int _ | Expr_float _ | Expr_list _ | Expr_cons _
+  | Expr_tuple _ ->
+      None
+
+let lambda_of e =
+  match e.expr with
+  | Expr_lambda lambda -> Some lambda
+  | Expr_constr _ | Expr_binop _ | Expr_let _ | Expr_if_then_else _
+  | Expr_record _ | Expr_record_update _ | Expr_apply _ | Expr_ident _
+  | Expr_pattern _ | Expr_accessor _ | Expr_access _ | Expr_record_extend _
+  | Expr_record_select _ | Expr_record_empty | Expr_unit | Expr_kernel _
+  | Expr_char _ | Expr_string _ | Expr_int _ | Expr_float _ | Expr_list _
+  | Expr_cons _ | Expr_tuple _ ->
+      None
+
+let spine expression =
+  let rec collect arguments e =
+    match e.expr with
+    | Expr_apply { fn; arg } -> collect (arg :: arguments) fn
+    | Expr_constr _ | Expr_binop _ | Expr_let _ | Expr_if_then_else _
+    | Expr_record _ | Expr_record_update _ | Expr_ident _ | Expr_pattern _
+    | Expr_accessor _ | Expr_access _ | Expr_record_extend _
+    | Expr_record_select _ | Expr_record_empty | Expr_unit | Expr_kernel _
+    | Expr_lambda _ | Expr_char _ | Expr_string _ | Expr_int _ | Expr_float _
+    | Expr_list _ | Expr_cons _ | Expr_tuple _ ->
+        (e, arguments)
+  in
+  collect [] expression

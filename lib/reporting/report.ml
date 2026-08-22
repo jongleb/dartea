@@ -177,7 +177,10 @@ let hint_of (problem : Hint.t) =
               [ simple_hint "Try using String.fromInt to convert it to a string?" ]
           | TStr, Need ->
               [ simple_hint "Try using String.toInt to convert it to an integer?" ]
-          | _, _ -> [ simple_hint "Only Int and Float values work as numbers." ]
+          | ( ( TVar _ | TInt | TFloat | TChar | TBool | TUnit | TFun _
+              | TTup _ | TCustom _ | TRecord _ | TRowExtend _ | TRowEmpty ),
+              (Have | Need) ) ->
+              [ simple_hint "Only Int and Float values work as numbers." ]
         end
     end
   | Fields_missing fields -> begin

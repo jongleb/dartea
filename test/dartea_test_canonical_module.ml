@@ -1,12 +1,5 @@
 open OUnit2
 
-let canonical input =
-  match Parse.Main.parse ~file:"Main.elm" input with
-  | Error error -> raise (Reporting.Error.Found error)
-  | Ok impl_list ->
-      Canonical.Module.of_frontend ~fallback_name:"Main"
-        (Ast.Kind.Frontend.Module.of_impl impl_list)
-
 let declaration_named module_ name =
   List.find_opt
     (fun (d : Canonical.Declaration.t) ->
@@ -25,7 +18,7 @@ let expr_of module_ name =
 
 let test_module_name_and_exports _ =
   let module_ =
-    canonical {|
+    Utils.canonical {|
 module Main exposing (x, User, Color(..))
 
 x = 1
@@ -43,7 +36,7 @@ x = 1
     module_.Canonical.Module.exports
 
 let test_open_exports _ =
-  let module_ = canonical {|
+  let module_ = Utils.canonical {|
 module Main exposing (..)
 
 x = 1
@@ -53,7 +46,7 @@ x = 1
 
 let test_imports_are_carried _ =
   let module_ =
-    canonical
+    Utils.canonical
       {|
 module Main exposing (..)
 
@@ -98,7 +91,7 @@ x = 1
     module_.Canonical.Module.imports
 
 let test_local_names_stay_local _ =
-  let module_ = canonical {|
+  let module_ = Utils.canonical {|
 module Main exposing (..)
 
 x = y
@@ -109,7 +102,7 @@ x = y
 
 let test_qualified_value_becomes_global _ =
   let module_ =
-    canonical {|
+    Utils.canonical {|
 module Main exposing (..)
 
 x = A.foo
@@ -128,7 +121,7 @@ y = Data.List.map
   | e -> assert_failure ("y: " ^ Canonical.Expr.show_expr e)
 
 let test_qualified_constructor_becomes_global _ =
-  let module_ = canonical {|
+  let module_ = Utils.canonical {|
 module Main exposing (..)
 
 x = A.Ctor
@@ -141,7 +134,7 @@ x = A.Ctor
 
 let test_qualified_type_becomes_global _ =
   let module_ =
-    canonical {|
+    Utils.canonical {|
 module Main exposing (..)
 
 x : A.Thing
@@ -161,7 +154,7 @@ x = 1
 
 let test_unit_and_negation _ =
   let module_ =
-    canonical {|
+    Utils.canonical {|
 module Main exposing (..)
 
 nothing = ()
