@@ -177,6 +177,12 @@ let test_witness_missing_ctor_named _ =
 let test_witness_int_gap _ =
   assert_equal (Some (E.H_int 1)) (witness_head M.empty [ int 0; int 2 ])
 
+let test_witness_string_gap _ =
+  assert_equal (Some (E.H_str "aa")) (witness_head M.empty [ str "a"; str "" ])
+
+let test_witness_char_gap _ =
+  assert_equal (Some (E.H_chr "c")) (witness_head M.empty [ chr "a"; chr "b" ])
+
 let test_empty_match _ = assert_not_exhaustive []
 let test_unit_exhaustive _ = assert_exhaustive [ unit ]
 
@@ -249,6 +255,8 @@ let suite =
     "witness_nested" >:: test_witness_nested;
     "witness_missing_ctor_named" >:: test_witness_missing_ctor_named;
     "witness_int_gap" >:: test_witness_int_gap;
+    "witness_string_gap" >:: test_witness_string_gap;
+    "witness_char_gap" >:: test_witness_char_gap;
     "witness_tuple" >:: test_witness_tuple;
     "empty_match" >:: test_empty_match;
     "unit_exhaustive" >:: test_unit_exhaustive;

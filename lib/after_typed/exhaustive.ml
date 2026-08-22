@@ -185,8 +185,30 @@ let default_pats rows =
     (function front :: rest when head_of front = None -> Some rest | _ -> None)
     rows
 
+let integer_heads = Seq.map (fun value -> H_int value) (Seq.ints 0)
+
+let string_heads =
+  Seq.map (fun size -> H_str (String.make size 'a')) (Seq.ints 0)
+
+let character_heads =
+  let utf_8 code =
+    let letter = Buffer.create 4 in
+    Buffer.add_utf_8_uchar letter (Uchar.of_int code);
+    Buffer.contents letter
+  in
+  Seq.ints (Char.code 'a')
+  |> Seq.take_while (fun code -> code <= 0x10FFFF)
+  |> Seq.filter Uchar.is_valid
+  |> Seq.map (fun code -> H_chr (utf_8 code))
+
 let missing_witness siblings sigs =
   let has h = List.exists (fun (x, _) -> x = h) sigs in
+  let unused_head among =
+    among
+    |> Seq.filter (fun candidate -> not (has candidate))
+    |> Seq.uncons
+    |> Option.map (fun (fresh, _) -> head_pattern fresh [])
+  in
   match sigs with
   | [] -> None
   | (H_nil, _) :: _ | (H_cons, _) :: _ ->
@@ -201,18 +223,9 @@ let missing_witness siblings sigs =
           |> Option.map (fun (name, arity) ->
                  head_pattern (H_ctor name) (wildcards arity))
     end
-  | (H_int _, _) :: _ ->
-      let taken =
-        let taken_int (x, _) =
-          match x with
-          | H_int i -> Some i
-          | H_ctor _ | H_str _ | H_chr _ | H_nil | H_cons -> None
-        in
-        List.filter_map taken_int sigs
-      in
-      let rec pick n = if List.mem n taken then pick (n + 1) else n in
-      Some (head_pattern (H_int (pick 0)) [])
-  | (H_str _, _) :: _ | (H_chr _, _) :: _ -> None
+  | (H_int _, _) :: _ -> unused_head integer_heads
+  | (H_str _, _) :: _ -> unused_head string_heads
+  | (H_chr _, _) :: _ -> unused_head character_heads
 
 let rec useful siblings rows q =
   match q with
