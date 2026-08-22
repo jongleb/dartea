@@ -9,6 +9,7 @@ type t =
   | Crowded_character
   | Unknown_escape of { found : string }
   | Too_many_tuple_parts of { given : int }
+  | Module_name_mismatch of { expected : string }
 [@@deriving show]
 
 let what_is_unterminated = function

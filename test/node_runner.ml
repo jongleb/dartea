@@ -7,7 +7,7 @@ let read_all ic =
    with End_of_file -> ());
   Buffer.contents buffer
 
-let source path content = File_loader.Files.Elm_file.{ path; content }
+let source path content = File_loader.Files.Elm_file.of_path ~path content
 
 let output_of (outcome : Dartea.Compiler.outcome) =
   match outcome.errors with

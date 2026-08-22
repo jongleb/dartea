@@ -27,7 +27,7 @@ let without_suggestions (problem : Reporting.Error.problem) =
       | Kernel_needs_annotation _ | Kernel_arity_mismatch _
       | Duplicate_declaration _ | Duplicate_binder _ | Import_cycle _
       | Recursive_value _ )
-  | Type _ | Syntax _ ->
+  | Type _ | Syntax _ | Project _ ->
       problem
 
 let failing ~dependencies source =

@@ -65,7 +65,7 @@ let sides (problem : Reporting.Error.problem) =
         ( written found,
           written (Reporting.Expectation.expected_pattern_type expected) )
   | Type (Infinite_type _ | Bad_arity _ | Case_without_branches)
-  | Name _ | Syntax _ ->
+  | Name _ | Syntax _ | Project _ ->
       None
 
 let constraint_names = [ "number"; "comparable"; "appendable"; "compappend" ]

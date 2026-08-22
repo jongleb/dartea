@@ -40,12 +40,20 @@ type outcome = {
   sources : (string * string) list;
 }
 
-let parsed_module ~file ~fallback_name content =
+let frontend_module ~file content =
   match Parse.Main.parse ~file content with
   | Error error -> raise (Reporting.Error.Found error)
-  | Ok impl_list ->
-      Canonical.Module.of_frontend ~fallback_name
-        (Frontend.Module.of_impl impl_list)
+  | Ok impl_list -> Frontend.Module.of_impl impl_list
+
+let parsed_module ~file ~fallback_name content =
+  Canonical.Module.of_frontend ~fallback_name (frontend_module ~file content)
+
+let matching_path ~expected (declared : string Data.Located.t option) =
+  match declared with
+  | Some name when not (String.equal (Data.Located.unwrap name) expected) ->
+      Reporting.Error.raise_syntax ~region:name.region
+        (Reporting.Syntax_error.Module_name_mismatch { expected })
+  | Some _ | None -> ()
 
 module Make (B : BACKEND) = struct
   let extension = B.extension
@@ -122,12 +130,10 @@ module Make (B : BACKEND) = struct
          Prelude.all)
 
   let module_of (source : File_loader.Files.Elm_file.t) =
-    let module_ =
-      parsed_module ~file:source.path
-        ~fallback_name:
-          (Filename.remove_extension (Filename.basename source.path))
-        source.content
-    in
+    let expected = source.File_loader.Files.Elm_file.name in
+    let frontend = frontend_module ~file:source.path source.content in
+    matching_path ~expected frontend.name;
+    let module_ = Canonical.Module.of_frontend ~fallback_name:expected frontend in
     { module_ with imports = Prelude.default_imports @ module_.imports }
 
   let resolved_against dependencies (module_ : Canonical.Module.t) =
@@ -291,7 +297,7 @@ module Make (B : BACKEND) = struct
 
   let compile_source (content : string) : outcome =
     compile_modules
-      [ File_loader.Files.Elm_file.{ path = "Main.elm"; content } ]
+      [ File_loader.Files.Elm_file.of_path ~path:"Main.elm" content ]
 end
 
 include Make (Js_backend)

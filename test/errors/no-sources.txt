@@ -1,0 +1,6 @@
+-- NO SOURCE FILES --------------------------------------------------------- src
+
+I looked for `.elm` files in `src` and every folder inside it, but I found none.
+
+Point me at the folder that holds your source files, and I will start from
+there.

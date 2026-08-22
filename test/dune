@@ -3,6 +3,9 @@
  (deps
   dartea_runtime_test.c
   (source_tree errors)
+  (source_tree emitted)
+  (source_tree ../playgrounds)
+  ../bin/main.exe
   ../lib/codegen/c/dartea_runtime.h
   (source_tree ../lib))
  (libraries
@@ -22,4 +25,5 @@
   interface
   ir
   file_loader
-  codegen_js))
+  codegen_js
+  eio_main))

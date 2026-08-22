@@ -138,12 +138,27 @@ let sample_of_syntax (problem : Reporting.Syntax_error.t) =
 |}
   | Too_many_tuple_parts _ -> main {|x = ( 1, 2, 3, 4 )
 |}
+  | Module_name_mismatch _ -> main {|module Deep.Thing exposing (..)
+
+x = 1
+|}
+
+let sample_of_project (problem : Reporting.Project_error.t) =
+  match problem with
+  | No_sources { folder } ->
+      Rendered
+        {
+          file = folder;
+          content = "";
+          region = { Data.Region.nowhere with file = folder };
+        }
 
 let sample (problem : Error.problem) =
   match problem with
   | Error.Type problem -> sample_of_type problem
   | Error.Name problem -> sample_of_name problem
   | Error.Syntax problem -> sample_of_syntax problem
+  | Error.Project problem -> sample_of_project problem
 
 let a_type = Typed.Type.TInt
 
@@ -207,12 +222,17 @@ let syntax_kinds : (string * Reporting.Syntax_error.t) list =
     ("crowded-character", Crowded_character);
     ("unknown-escape", Unknown_escape { found = "q" });
     ("too-many-tuple-parts", Too_many_tuple_parts { given = 4 });
+    ("module-name-mismatch", Module_name_mismatch { expected = "Main" });
   ]
+
+let project_kinds : (string * Reporting.Project_error.t) list =
+  [ ("no-sources", No_sources { folder = "src" }) ]
 
 let kinds =
   List.map (fun (name, problem) -> (name, Error.Type problem)) type_kinds
   @ List.map (fun (name, problem) -> (name, Error.Name problem)) name_kinds
   @ List.map (fun (name, problem) -> (name, Error.Syntax problem)) syntax_kinds
+  @ List.map (fun (name, problem) -> (name, Error.Project problem)) project_kinds
 
 let constructor_of (problem : Error.problem) =
   let written = Error.show_problem problem in
@@ -242,7 +262,7 @@ let reported files =
   match
     Dartea.Compiler.compile_modules
       (List.map
-         (fun (path, content) -> File_loader.Files.Elm_file.{ path; content })
+         (fun (path, content) -> File_loader.Files.Elm_file.of_path ~path content)
          files)
   with
   | outcome -> (
@@ -359,7 +379,7 @@ let warned files =
   match
     Dartea.Compiler.compile_modules
       (List.map
-         (fun (path, content) -> File_loader.Files.Elm_file.{ path; content })
+         (fun (path, content) -> File_loader.Files.Elm_file.of_path ~path content)
          files)
   with
   | outcome ->

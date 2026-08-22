@@ -1,0 +1,10 @@
+-- NAME MISMATCH ------------------------------------------------------ Main.elm
+
+It looks like this module name is out of sync:
+
+1| module Deep.Thing exposing (..)
+          ^^^^^^^^^^
+
+I need it to match the file path, so I was expecting to see `Main` here. Usually
+a mismatch like this means the file was moved or renamed. Change the name to
+match the path, or move the file to match the name.

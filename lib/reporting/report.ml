@@ -14,6 +14,7 @@ let title_of_syntax (problem : Syntax_error.t) =
   | Crowded_character -> "CHAR TOO BIG"
   | Unknown_escape _ -> "UNKNOWN ESCAPE"
   | Too_many_tuple_parts _ -> "BAD TUPLE"
+  | Module_name_mismatch _ -> "NAME MISMATCH"
 
 let title_of_name (problem : Name_error.t) =
   match problem with
@@ -32,6 +33,9 @@ let title_of_name (problem : Name_error.t) =
   | Import_cycle _ -> "IMPORT CYCLE"
   | Recursive_value _ -> "CYCLIC DEFINITION"
 
+let title_of_project (problem : Project_error.t) =
+  match problem with No_sources _ -> "NO SOURCE FILES"
+
 let title_of_type (problem : Type_error.t) =
   match problem with
   | Bad_expression { expected = From_context { context = Call_arity _; _ }; _ } ->
@@ -48,6 +52,7 @@ let title (problem : Error.problem) =
   | Error.Syntax problem -> title_of_syntax problem
   | Error.Name problem -> title_of_name problem
   | Error.Type problem -> title_of_type problem
+  | Error.Project problem -> title_of_project problem
 
 let quoted written = "`" ^ written ^ "`"
 let indented inner = Doc.indent 4 inner
@@ -914,6 +919,11 @@ let of_syntax_problem source region (problem : Syntax_error.t) =
            "I only accept tuples of two or three parts, but this one has %d:"
            given)
         "Switch to a record. Records can hold as many values as you need, and each one has a name."
+  | Module_name_mismatch { expected } ->
+      explaining "It looks like this module name is out of sync:"
+        (Printf.sprintf
+           "I need it to match the file path, so I was expecting to see %s here. Usually a mismatch like this means the file was moved or renamed. Change the name to match the path, or move the file to match the name."
+           (quoted expected))
 
 let suggestions_of (problem : Error.problem) =
   match problem with
@@ -928,7 +938,7 @@ let suggestions_of (problem : Error.problem) =
       | Kernel_needs_annotation _ | Kernel_arity_mismatch _
       | Duplicate_declaration _ | Duplicate_binder _ | Import_cycle _
       | Recursive_value _ )
-  | Error.Type _ | Error.Syntax _ ->
+  | Error.Type _ | Error.Syntax _ | Error.Project _ ->
       []
 
 let rec drawn ~inside (pattern : Typed.Pattern.t) =
@@ -981,12 +991,28 @@ let of_warning source (warning : Warning.t) =
            (Printf.sprintf "The %s pattern is redundant:" (ordinal index))
            "Any value with this shape will be handled by a previous pattern, so it should be removed.")
 
+let extension = ".elm"
+
+let of_project_problem (problem : Project_error.t) =
+  match problem with
+  | No_sources { folder } ->
+      Doc.stack
+        [
+          Doc.words
+            (Printf.sprintf
+               "I looked for %s files in %s and every folder inside it, but I found none."
+               (quoted extension) (quoted folder));
+          Doc.words
+            "Point me at the folder that holds your source files, and I will start from there.";
+        ]
+
 let of_error source (error : Error.t) =
   let message =
     match error.problem with
     | Error.Syntax problem -> of_syntax_problem source error.region problem
     | Error.Name problem -> of_name_problem source error.region problem
     | Error.Type problem -> of_type_problem source error.region problem
+    | Error.Project problem -> of_project_problem problem
   in
   {
     title = title error.problem;

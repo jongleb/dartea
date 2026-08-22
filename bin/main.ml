@@ -10,26 +10,30 @@ let printed reports =
       prerr_endline (Reporting.Report.to_string ~colours report))
     reports
 
+let saved ~path ~seen (module_ : Dartea.Compiler.compiled) =
+  printed (List.map (Reporting.Sources.warning seen) module_.warnings);
+  let file_name = module_.module_name ^ "." ^ Dartea.Compiler.extension in
+  Eio.Path.save
+    ~create:(`Or_truncate 0o644)
+    Eio.Path.(path / file_name)
+    module_.source
+
+let compiled ~path sources =
+  let outcome = Dartea.Compiler.compile_modules sources in
+  let seen = Reporting.Sources.of_list outcome.sources in
+  printed (List.map (Reporting.Sources.report seen) outcome.errors);
+  List.iter (saved ~path ~seen) outcome.output;
+  if outcome.errors <> [] then exit 1
+
 let () =
   Eio_main.run @@ fun env ->
-  let path =
-    if Array.length Sys.argv > 1 then Eio.Path.(Eio.Stdenv.fs env / Sys.argv.(1))
-    else Eio.Path.(Eio.Stdenv.fs env / ".")
-  in
-  let outcome =
-    File_loader.Files.current_folder path |> Dartea.Compiler.compile_modules
-  in
-  let sources = Reporting.Sources.of_list outcome.sources in
-  printed
-    (List.map (Reporting.Sources.report sources) outcome.errors);
-  List.iter
-    (fun (module_ : Dartea.Compiler.compiled) ->
+  let folder = if Array.length Sys.argv > 1 then Sys.argv.(1) else "." in
+  let path = Eio.Path.(Eio.Stdenv.fs env / folder) in
+  match File_loader.Files.current_folder path with
+  | [] ->
       printed
-        (List.map (Reporting.Sources.warning sources) module_.warnings);
-      let file_name = module_.module_name ^ "." ^ Dartea.Compiler.extension in
-      Eio.Path.save
-        ~create:(`Or_truncate 0o644)
-        Eio.Path.(path / file_name)
-        module_.source)
-    outcome.output;
-  if outcome.errors <> [] then exit 1
+        [
+          Reporting.Sources.report Reporting.Sources.empty
+            (Reporting.Error.project (No_sources { folder }));
+        ]; exit 1
+  | sources -> compiled ~path sources
