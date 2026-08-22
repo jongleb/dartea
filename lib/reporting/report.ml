@@ -52,6 +52,8 @@ let title_of_project (problem : Project_error.t) =
   | Bad_field _ -> "BAD FIELD"
   | Missing_source_directory _ -> "MISSING DIRECTORY"
   | Duplicate_module _ -> "DUPLICATE MODULE"
+  | Unknown_entry _ -> "UNKNOWN ENTRY"
+  | No_entry _ -> "NO ENTRY POINT"
 
 let title (problem : Error.problem) =
   match problem with
@@ -1043,6 +1045,27 @@ let of_project_problem (problem : Project_error.t) =
                (quoted folder));
           Doc.words
             "Create it, or take it out of the `source-directories` field.";
+        ]
+  | Unknown_entry { path } ->
+      Doc.stack
+        [
+          Doc.words
+            (Printf.sprintf
+               "I was told to start from %s, but there is no such file in this project."
+               (quoted path));
+          Doc.words
+            "Check the spelling, or put the file in one of the source directories.";
+        ]
+  | No_entry { module_name; declaration } ->
+      Doc.stack
+        [
+          Doc.words
+            (Printf.sprintf
+               "I was told to start from %s, but it has no %s declaration."
+               (quoted module_name) (quoted declaration));
+          Doc.words
+            (Printf.sprintf "A program starts from %s. Add it, and I will know what to run."
+               (quoted declaration));
         ]
   | Duplicate_module { name; one; other } ->
       Doc.stack

@@ -38,6 +38,7 @@ type outcome = {
   output : compiled list;
   errors : Reporting.Error.t list;
   sources : (string * string) list;
+  entry : Entry.t option;
 }
 
 let frontend_module ~file content =
@@ -63,6 +64,7 @@ module Make (B : BACKEND) = struct
     interfaces : Interface.t list;
     output : compiled list;
     errors : Reporting.Error.t list;
+    entry : Entry.t option;
   }
 
   let providing_modules declarations =
@@ -192,7 +194,8 @@ module Make (B : BACKEND) = struct
       sources
     |> Option.value ~default:Data.Region.nowhere
 
-  let compile_modules (sources : File_loader.Files.Elm_file.t list) : outcome =
+  let compile_modules ?entry (sources : File_loader.Files.Elm_file.t list) :
+      outcome =
     let written =
       List.map
         (fun (source : File_loader.Files.Elm_file.t) ->
@@ -252,7 +255,14 @@ module Make (B : BACKEND) = struct
                         typed.declarations;
                   }
                 in
-                { known with output = compiled :: known.output })
+                let started =
+                  match entry with
+                  | Some wanted when String.equal wanted resolved.name ->
+                      Entry.of_declarations ~module_name:resolved.name
+                        typed.declarations
+                  | Some _ | None -> known.entry
+                in
+                { known with output = compiled :: known.output; entry = started })
     in
     let compile_module progress module_ =
       match compiling progress module_ with
@@ -265,11 +275,12 @@ module Make (B : BACKEND) = struct
         (Lazy.force prelude_modules @ List.map module_of sources)
     with
     | exception Reporting.Error.Found error ->
-        { output = []; errors = [ error ]; sources = written }
+        { output = []; errors = [ error ]; sources = written; entry = None }
     | Error (Canonicalization.Module_graph.Import_cycle modules) ->
         {
           output = [];
           sources = written;
+          entry = None;
           errors =
             [
               Reporting.Error.name ~region:(cycle_region ~modules sources)
@@ -285,13 +296,29 @@ module Make (B : BACKEND) = struct
         in
         let finished =
           List.fold_left compile_module
-            { dependencies = []; interfaces = []; output = []; errors = [] }
+            {
+              dependencies = [];
+              interfaces = [];
+              output = [];
+              errors = [];
+              entry = None;
+            }
             ordered
         in
+        let errors =
+          match (entry, finished.entry, finished.errors) with
+          | Some module_name, None, [] ->
+              [
+                Reporting.Error.project
+                  (No_entry { module_name; declaration = Entry.declaration });
+              ]
+          | _, _, errors -> List.rev errors
+        in
         {
-          output = (if finished.errors = [] then runtime @ List.rev finished.output else []);
-          errors = List.rev finished.errors;
+          output = (if errors = [] then runtime @ List.rev finished.output else []);
+          errors;
           sources = written;
+          entry = finished.entry;
         }
 
   let compile_source (content : string) : outcome =

@@ -1,0 +1,6 @@
+-- UNKNOWN ENTRY -------------------------------------------------- src/Nope.elm
+
+I was told to start from `src/Nope.elm`, but there is no such file in this
+project.
+
+Check the spelling, or put the file in one of the source directories.

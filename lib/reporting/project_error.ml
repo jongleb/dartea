@@ -5,6 +5,8 @@ type t =
   | Bad_field of { file : string; field : string; expected : string }
   | Missing_source_directory of { file : string; folder : string }
   | Duplicate_module of { name : string; one : string; other : string }
+  | Unknown_entry of { path : string }
+  | No_entry of { module_name : string; declaration : string }
 [@@deriving show]
 
 let file_of = function
@@ -15,3 +17,5 @@ let file_of = function
   | Missing_source_directory { file; _ } ->
       file
   | Duplicate_module { one; _ } -> one
+  | Unknown_entry { path } -> path
+  | No_entry { module_name; _ } -> module_name

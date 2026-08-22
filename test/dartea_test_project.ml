@@ -66,6 +66,14 @@ main =
     Deep.Thing.answer + 1
 |}
 
+let starter = {|module Main exposing (main)
+
+
+main : String
+main =
+    "hi"
+|}
+
 let compiled sources =
   let outcome = Dartea.Compiler.compile_modules sources in
   match outcome.errors with
@@ -194,23 +202,89 @@ let test_one_module_per_name _ =
         [ one; other ]
   | problem -> unexpected (Project problem)
 
+let entry_of ~entry sources =
+  let outcome = Dartea.Compiler.compile_modules ~entry sources in
+  match outcome.errors with
+  | [] -> outcome.entry
+  | error :: _ ->
+      assert_failure (rendered (Reporting.Sources.of_list outcome.sources) error)
+
+let test_entry_is_the_main_declaration _ =
+  let folder = Filename.temp_dir "dartea" "" in
+  written ~folder ~path:"src/Main.elm" starter;
+  match entry_of ~entry:"Main" (sources_of folder) with
+  | None -> assert_failure "the entry point was not found"
+  | Some (entry : Dartea.Entry.t) ->
+      assert_equal ~printer:Fun.id "Main" entry.module_name;
+      assert_equal ~printer:Fun.id "main" entry.declaration;
+      assert_equal ~printer:Typed.Type.show Typed.Type.TStr entry.typ
+
+let test_entry_need_not_be_exposed _ =
+  let folder = Filename.temp_dir "dartea" "" in
+  written ~folder ~path:"src/Main.elm"
+    {|module Main exposing (answer)
+
+
+answer : Int
+answer =
+    1
+
+
+main : String
+main =
+    "hi"
+|};
+  assert_bool "the entry point was not found"
+    (Option.is_some (entry_of ~entry:"Main" (sources_of folder)))
+
+let test_module_without_main _ =
+  let folder = Filename.temp_dir "dartea" "" in
+  written ~folder ~path:"src/Main.elm" "answer : Int\nanswer =\n    1\n";
+  let outcome =
+    Dartea.Compiler.compile_modules ~entry:"Main" (sources_of folder)
+  in
+  match outcome.errors with
+  | [ { problem = Project (No_entry { module_name; declaration }); _ } ] ->
+      assert_equal ~printer:Fun.id "Main" module_name;
+      assert_equal ~printer:Fun.id "main" declaration
+  | [] -> assert_failure "the module compiled without an entry point"
+  | error :: _ -> unexpected error.problem
+
 let driver = Filename.concat ".." (Filename.concat "bin" "main.exe")
 
 let exit_code = function
   | Unix.WEXITED code -> code
   | Unix.WSIGNALED code | Unix.WSTOPPED code -> -code
 
-let test_empty_folder_stops_the_driver _ =
-  let folder = Filename.temp_dir "dartea" "" in
+let ran ~inside argument =
   let command =
-    Printf.sprintf "NO_COLOR=1 %s %s 2>&1" (Filename.quote driver)
-      (Filename.quote folder)
+    Printf.sprintf "cd %s && NO_COLOR=1 %s %s 2>&1" (Filename.quote inside)
+      (Filename.quote (Filename.concat (Sys.getcwd ()) driver))
+      (Filename.quote argument)
   in
   let channel = Unix.open_process_in command in
   let printed = Node_runner.read_all channel in
-  let status = Unix.close_process_in channel in
-  assert_equal ~printer:string_of_int 1 (exit_code status);
+  (exit_code (Unix.close_process_in channel), printed)
+
+let test_empty_folder_stops_the_driver _ =
+  let folder = Filename.temp_dir "dartea" "" in
+  let code, printed = ran ~inside:folder Filename.current_dir_name in
+  assert_equal ~printer:string_of_int 1 code;
   assert_bool printed (Node_runner.contains ~needle:"NO SOURCE FILES" printed)
+
+let test_driver_takes_the_entry_file _ =
+  let folder = Filename.temp_dir "dartea" "" in
+  written ~folder ~path:"src/Main.elm" starter;
+  let code, printed = ran ~inside:folder "src/Main.elm" in
+  assert_equal ~printer:Fun.id "" printed;
+  assert_equal ~printer:string_of_int 0 code
+
+let test_driver_refuses_an_unknown_entry_file _ =
+  let folder = Filename.temp_dir "dartea" "" in
+  written ~folder ~path:"src/Main.elm" starter;
+  let code, printed = ran ~inside:folder "src/Nope.elm" in
+  assert_equal ~printer:string_of_int 1 code;
+  assert_bool printed (Node_runner.contains ~needle:"UNKNOWN ENTRY" printed)
 
 let suite =
   [
@@ -226,5 +300,10 @@ let suite =
     "source_directories_must_be_strings" >:: test_source_directories_must_be_strings;
     "source_directory_must_exist" >:: test_source_directory_must_exist;
     "one_module_per_name" >:: test_one_module_per_name;
+    "entry_is_the_main_declaration" >:: test_entry_is_the_main_declaration;
+    "entry_need_not_be_exposed" >:: test_entry_need_not_be_exposed;
+    "module_without_main" >:: test_module_without_main;
     "empty_folder_stops_the_driver" >:: test_empty_folder_stops_the_driver;
+    "driver_takes_the_entry_file" >:: test_driver_takes_the_entry_file;
+    "driver_refuses_an_unknown_entry_file" >:: test_driver_refuses_an_unknown_entry_file;
   ]

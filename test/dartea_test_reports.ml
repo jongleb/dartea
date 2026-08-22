@@ -238,6 +238,8 @@ let project_kinds : (string * Reporting.Project_error.t) list =
         } );
     ( "missing-source-directory",
       Missing_source_directory { file = "elm.json"; folder = "vendor" } );
+    ("unknown-entry", Unknown_entry { path = "src/Nope.elm" });
+    ("no-entry", No_entry { module_name = "Main"; declaration = "main" });
     ( "duplicate-module",
       Duplicate_module
         {

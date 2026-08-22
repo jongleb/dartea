@@ -1,0 +1,5 @@
+-- NO ENTRY POINT --------------------------------------------------------- Main
+
+I was told to start from `Main`, but it has no `main` declaration.
+
+A program starts from `main`. Add it, and I will know what to run.
