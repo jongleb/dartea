@@ -7,6 +7,20 @@ let make_tkind ~name = Typedef.Kind.Tkind_concrete (make_name_no_loc ~name)
 let make_typedef ?(parameters = []) ~body () =
   Typedef.Impl.Fields.create ~parameters ~body
 
+let concrete_type ?parameters name =
+  make_typedef ?parameters ~body:(make_tkind ~name) ()
+
+let var_type name =
+  make_typedef ~body:(Typedef.Kind.Tkind_var (Located.dummy name)) ()
+
+let fn_type ~arguments ~result =
+  let signature = Typedef.Type_function.Fields.create ~arguments ~result in
+  make_typedef ~body:(Typedef.Kind.Tkind_function signature) ()
+
+let record_type ?row_type values =
+  let rows = Typedef.Type_record.Fields.create ~values ~row_type in
+  make_typedef ~body:(Typedef.Kind.Tkind_record rows) ()
+
 let named ~f (thing : 'a Data.Located.t) =
   Data.Located.at (f thing.region) thing.thing
 
@@ -368,3 +382,12 @@ module Canonical_typedef_util = struct
             row_type = Option.map anywhere row_type;
           }
 end
+
+let parsed source =
+  match Parse.Main.parse ~file:"Main.elm" source with
+  | Ok impl_list -> impl_list
+  | Error error -> raise (Reporting.Error.Found error)
+
+let canonical source =
+  Canonical.Module.of_frontend ~fallback_name:"Main"
+    (Ast.Kind.Frontend.Module.of_impl (parsed source))

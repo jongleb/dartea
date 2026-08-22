@@ -1,11 +1,6 @@
 module T = Typed
 module O = Optimized
 
-let rec spine arguments (e : Typed.Expr.t) =
-  match e.expr with
-  | Typed.Expr.Expr_apply { fn; arg } -> spine (arg :: arguments) fn
-  | _ -> (e, arguments)
-
 let rec expr_of_typed (e : T.Expr.t) : O.Expr.t =
   let typ = e.typ in
   let expr =
@@ -39,7 +34,7 @@ let rec expr_of_typed (e : T.Expr.t) : O.Expr.t =
                { O.Expr.name; value = expr_of_typed value })
              rows)
     | T.Expr.Expr_apply { fn; arg } -> begin
-        let head, arguments = spine [ arg ] fn in
+        let head, arguments = T.Expr.spine e in
         match (head.T.Expr.expr, arguments) with
         | T.Expr.Expr_kernel (Unary kernel), [ argument ] ->
             O.Expr.Expr_kernel
@@ -52,7 +47,18 @@ let rec expr_of_typed (e : T.Expr.t) : O.Expr.t =
                    left = expr_of_typed left;
                    right = expr_of_typed right;
                  })
-        | _ ->
+        | T.Expr.Expr_kernel (Nullary _ | Unary _ | Binary _), _
+        | ( (T.Expr.Expr_constr _ | T.Expr.Expr_binop _ | T.Expr.Expr_let _
+            | T.Expr.Expr_if_then_else _ | T.Expr.Expr_record _
+            | T.Expr.Expr_record_update _ | T.Expr.Expr_apply _
+            | T.Expr.Expr_ident _ | T.Expr.Expr_pattern _
+            | T.Expr.Expr_accessor _ | T.Expr.Expr_access _
+            | T.Expr.Expr_record_extend _ | T.Expr.Expr_record_select _
+            | T.Expr.Expr_record_empty | T.Expr.Expr_unit | T.Expr.Expr_lambda _
+            | T.Expr.Expr_char _ | T.Expr.Expr_string _ | T.Expr.Expr_int _
+            | T.Expr.Expr_float _ | T.Expr.Expr_list _ | T.Expr.Expr_cons _
+            | T.Expr.Expr_tuple _),
+            _ ) ->
             O.Expr.Expr_apply
               { fn = expr_of_typed fn; arg = expr_of_typed arg }
       end

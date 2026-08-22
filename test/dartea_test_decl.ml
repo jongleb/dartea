@@ -17,11 +17,7 @@ let test_decl_string _ =
             Some
               {
                 Declaration.name = Data.Located.dummy "thisIsTheString";
-                type_alias =
-                  {
-                    Typedef.Impl.parameters = [];
-                    body = Typedef.Kind.Tkind_concrete ~?"String";
-                  };
+                type_alias = Utils.concrete_type "String";
               };
           body_part =
             {
@@ -47,11 +43,7 @@ let test_decl_string _ =
                Some
                  {
                    Declaration.name = ~?"lol";
-                   type_alias =
-                     {
-                       Typedef.Impl.parameters = [];
-                       body = Typedef.Kind.Tkind_concrete ~?"Kek";
-                     };
+                   type_alias = Utils.concrete_type "Kek";
                  };
              body_part =
                {
@@ -88,11 +80,7 @@ let test_decl_string _ =
                Some
                  {
                    Declaration.name = ~?"lol";
-                   type_alias =
-                     {
-                       Typedef.Impl.parameters = [];
-                       body = Typedef.Kind.Tkind_concrete ~?"Kek";
-                     };
+                   type_alias = Utils.concrete_type "Kek";
                  };
              body_part =
                {
@@ -136,11 +124,7 @@ let test_decl_string _ =
                Some
                  {
                    Declaration.name = ~?"kek";
-                   type_alias =
-                     {
-                       Typedef.Impl.parameters = [];
-                       body = Typedef.Kind.Tkind_concrete ~?"Lol";
-                     };
+                   type_alias = Utils.concrete_type "Lol";
                  };
              body_part =
                {
@@ -216,11 +200,7 @@ let test_decl_string _ =
                Some
                  {
                    Declaration.name = ~?"kek";
-                   type_alias =
-                     {
-                       Typedef.Impl.parameters = [];
-                       body = Typedef.Kind.Tkind_concrete ~?"Int";
-                     };
+                   type_alias = Utils.concrete_type "Int";
                  };
              body_part =
                {
@@ -283,11 +263,7 @@ let test_decl_string _ =
                Some
                  {
                    Declaration.name = ~?"kek";
-                   type_alias =
-                     {
-                       Typedef.Impl.parameters = [];
-                       body = Typedef.Kind.Tkind_concrete ~?"Lol";
-                     };
+                   type_alias = Utils.concrete_type "Lol";
                  };
              body_part =
                {
@@ -338,11 +314,7 @@ let test_decl_string _ =
                Some
                  {
                    Declaration.name = ~?"kek";
-                   type_alias =
-                     {
-                       Typedef.Impl.parameters = [];
-                       body = Typedef.Kind.Tkind_concrete ~?"Lol";
-                     };
+                   type_alias = Utils.concrete_type "Lol";
                  };
              body_part =
                {
@@ -362,12 +334,7 @@ let test_decl_string _ =
                                   Some
                                     {
                                       Expr.name = "b";
-                                      content =
-                                        {
-                                          Typedef.Impl.parameters = [];
-                                          body =
-                                            Typedef.Kind.Tkind_concrete ~?"Int";
-                                        };
+                                      content = Utils.concrete_type "Int";
                                     };
                                 bind_body =
                                   { Expr.name = ~?"b"; body = Expr.Expr_int 3 };
@@ -377,12 +344,7 @@ let test_decl_string _ =
                                   Some
                                     {
                                       Expr.name = "c";
-                                      content =
-                                        {
-                                          Typedef.Impl.parameters = [];
-                                          body =
-                                            Typedef.Kind.Tkind_concrete ~?"Int";
-                                        };
+                                      content = Utils.concrete_type "Int";
                                     };
                                 bind_body =
                                   { Expr.name = ~?"c"; body = Expr.Expr_int 4 };
@@ -417,11 +379,7 @@ let test_decl_string _ =
                Some
                  {
                    Declaration.name = ~?"lol";
-                   type_alias =
-                     {
-                       Typedef.Impl.parameters = [];
-                       body = Typedef.Kind.Tkind_concrete ~?"Kek";
-                     };
+                   type_alias = Utils.concrete_type "Kek";
                  };
              body_part =
                {
@@ -466,11 +424,7 @@ let test_decl_string _ =
                Some
                  {
                    Declaration.name = ~?"lol";
-                   type_alias =
-                     {
-                       Typedef.Impl.parameters = [];
-                       body = Typedef.Kind.Tkind_concrete ~?"Kek";
-                     };
+                   type_alias = Utils.concrete_type "Kek";
                  };
              body_part =
                {
@@ -530,11 +484,7 @@ let test_decl_string _ =
                Some
                  {
                    Declaration.name = ~?"lel";
-                   type_alias =
-                     {
-                       Typedef.Impl.parameters = [];
-                       body = Typedef.Kind.Tkind_concrete ~?"Kek";
-                     };
+                   type_alias = Utils.concrete_type "Kek";
                  };
              body_part =
                {
@@ -566,11 +516,7 @@ let test_decl_string _ =
                Some
                  {
                    Declaration.name = ~?"lel";
-                   type_alias =
-                     {
-                       Typedef.Impl.parameters = [];
-                       body = Typedef.Kind.Tkind_concrete ~?"Lol";
-                     };
+                   type_alias = Utils.concrete_type "Lol";
                  };
              body_part =
                {
@@ -608,11 +554,7 @@ let test_decl_string _ =
                Some
                  {
                    Declaration.name = ~?"kek";
-                   type_alias =
-                     {
-                       Typedef.Impl.parameters = [];
-                       body = Typedef.Kind.Tkind_concrete ~?"Any";
-                     };
+                   type_alias = Utils.concrete_type "Any";
                  };
              body_part =
                {
@@ -660,11 +602,7 @@ let test_list_pm _ =
             Some
               {
                 Declaration.name = ~?"listTestPM";
-                type_alias =
-                  {
-                    Typedef.Impl.parameters = [];
-                    body = Typedef.Kind.Tkind_concrete ~?"Int";
-                  };
+                type_alias = Utils.concrete_type "Int";
               };
           body_part =
             {
@@ -747,11 +685,7 @@ let test_record_pm _ =
             Some
               {
                 Declaration.name = ~?"lol";
-                type_alias =
-                  {
-                    Typedef.Impl.parameters = [];
-                    body = Typedef.Kind.Tkind_var ~?"kek";
-                  };
+                type_alias = Utils.var_type "kek";
               };
           body_part =
             {
@@ -796,11 +730,7 @@ let test_constr_pm _ =
             Some
               {
                 Declaration.name = ~?"abcd";
-                type_alias =
-                  {
-                    Typedef.Impl.parameters = [];
-                    body = Typedef.Kind.Tkind_concrete ~?"Int";
-                  };
+                type_alias = Utils.concrete_type "Int";
               };
           body_part =
             {
@@ -865,11 +795,7 @@ let test_cons_pm _ =
             Some
               {
                 Declaration.name = ~?"dsf";
-                type_alias =
-                  {
-                    Typedef.Impl.parameters = [];
-                    body = Typedef.Kind.Tkind_concrete ~?"Int";
-                  };
+                type_alias = Utils.concrete_type "Int";
               };
           body_part =
             {
@@ -3500,11 +3426,7 @@ let test_access3 _ =
             Some
               {
                 Declaration.name = ~?"tuplePM";
-                type_alias =
-                  {
-                    Typedef.Impl.parameters = [];
-                    body = Typedef.Kind.Tkind_concrete ~?"Int";
-                  };
+                type_alias = Utils.concrete_type "Int";
               };
           body_part =
             {
@@ -3882,23 +3804,10 @@ let test_type_annotation_same_line _ =
               {
                 Declaration.name = ~?"add";
                 type_alias =
-                  {
-                    Typedef.Impl.parameters = [];
-                    body =
-                      Typedef.Kind.Tkind_function
-                        {
-                          Typedef.Type_function.arguments = [ {
-                                Typedef.Impl.parameters = [];
-                                body = Typedef.Kind.Tkind_concrete ~?"Int";
-                              }; {
-                                Typedef.Impl.parameters = [];
-                                body = Typedef.Kind.Tkind_concrete ~?"Int";
-                              } ]; result = ({
-                                Typedef.Impl.parameters = [];
-                                body = Typedef.Kind.Tkind_concrete ~?"Int";
-                              });
-                        };
-                  };
+                  Utils.fn_type
+                    ~arguments:
+                      [ Utils.concrete_type "Int"; Utils.concrete_type "Int" ]
+                    ~result:(Utils.concrete_type "Int");
               };
           body_part =
             {
@@ -3930,23 +3839,10 @@ let test_type_annotation_with_indent _ =
               {
                 Declaration.name = ~?"multiply";
                 type_alias =
-                  {
-                    Typedef.Impl.parameters = [];
-                    body =
-                      Typedef.Kind.Tkind_function
-                        {
-                          Typedef.Type_function.arguments = [ {
-                                Typedef.Impl.parameters = [];
-                                body = Typedef.Kind.Tkind_concrete ~?"Int";
-                              }; {
-                                Typedef.Impl.parameters = [];
-                                body = Typedef.Kind.Tkind_concrete ~?"Int";
-                              } ]; result = ({
-                                Typedef.Impl.parameters = [];
-                                body = Typedef.Kind.Tkind_concrete ~?"Int";
-                              });
-                        };
-                  };
+                  Utils.fn_type
+                    ~arguments:
+                      [ Utils.concrete_type "Int"; Utils.concrete_type "Int" ]
+                    ~result:(Utils.concrete_type "Int");
               };
           body_part =
             {

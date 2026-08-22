@@ -60,7 +60,12 @@ let rec free_variables ~(bound : Names.t) (e : O.Expr.t) : Names.t =
       let operator = Data.Name.local (Data.Operator.lexeme name) in
       if Names.mem operator bound then operands
       else Names.add operator operands
-  | _ -> union_map (free_variables ~bound) (Subexpressions.list e)
+  | Expr_constr _ | Expr_if_then_else _ | Expr_record _ | Expr_record_update _
+  | Expr_apply _ | Expr_accessor _ | Expr_access _ | Expr_record_extend _
+  | Expr_record_select _ | Expr_record_empty | Expr_unit | Expr_kernel _
+  | Expr_char _ | Expr_string _ | Expr_int _ | Expr_float _ | Expr_list _
+  | Expr_cons _ | Expr_tuple _ ->
+      union_map (free_variables ~bound) (Subexpressions.list e)
 
 let free_in_declaration (d : O.Declaration.t) : Names.t =
   free_variables ~bound:(bound_by_declaration d) d.body
@@ -89,7 +94,12 @@ let rec referenced_in_expression (e : O.Expr.t) : Names.t =
         (fun acc (case : O.Expr.expr_pattern_case) ->
           Names.union acc (referenced_in_pattern case.pattern))
         children pattern_data_items
-  | _ -> children
+  | Expr_let _ | Expr_if_then_else _ | Expr_record _ | Expr_record_update _
+  | Expr_apply _ | Expr_accessor _ | Expr_access _ | Expr_record_extend _
+  | Expr_record_select _ | Expr_record_empty | Expr_unit | Expr_kernel _
+  | Expr_lambda _ | Expr_char _ | Expr_string _ | Expr_int _ | Expr_float _
+  | Expr_list _ | Expr_cons _ | Expr_tuple _ ->
+      children
 
 let referenced_in_declarations (decls : O.Declaration.t list) : Names.t =
   union_map (fun (d : O.Declaration.t) -> referenced_in_expression d.body) decls

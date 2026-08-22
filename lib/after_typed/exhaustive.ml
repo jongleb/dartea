@@ -47,12 +47,20 @@ type shape =
   | Head of head * P.t list
 
 let rec peeled p =
-  match p.P.pattern with P.P_T_alias (inner, _) -> peeled inner | _ -> p
+  match p.P.pattern with
+  | P.P_T_alias (inner, _) -> peeled inner
+  | P.P_T_anything | P.P_T_var _ | P.P_T_record _ | P.P_T_unit
+  | P.P_T_tuple _ | P.P_T_list _ | P.P_T_cons _ | P.P_T_chr _ | P.P_T_str _
+  | P.P_T_int _ | P.P_T_ctor _ ->
+      p
 
 let rec alias_names p =
   match p.P.pattern with
   | P.P_T_alias (inner, name) -> name :: alias_names inner
-  | _ -> []
+  | P.P_T_anything | P.P_T_var _ | P.P_T_record _ | P.P_T_unit
+  | P.P_T_tuple _ | P.P_T_list _ | P.P_T_cons _ | P.P_T_chr _ | P.P_T_str _
+  | P.P_T_int _ | P.P_T_ctor _ ->
+      []
 
 let shape_of p =
   match (peeled p).P.pattern with
@@ -70,9 +78,20 @@ let shape_of p =
       Head (H_cons, [ x; { p with P.pattern = P.P_T_list xs } ])
   | P.P_T_alias _ -> Wild
 
-let head_of p = match shape_of p with Head (h, _) -> Some h | _ -> None
-let subpats p = match shape_of p with Head (_, subs) -> subs | _ -> []
-let is_wild p = match shape_of p with Wild | Var _ -> true | _ -> false
+let head_of p =
+  match shape_of p with
+  | Head (h, _) -> Some h
+  | Wild | Var _ | Tuple _ | Record _ -> None
+
+let subpats p =
+  match shape_of p with
+  | Head (_, subs) -> subs
+  | Wild | Var _ | Tuple _ | Record _ -> []
+
+let is_wild p =
+  match shape_of p with
+  | Wild | Var _ -> true
+  | Tuple _ | Record _ | Head _ -> false
 
 let wildcard = { P.typ = Optimized.Type.TUnit; pattern = P.P_T_anything }
 let wildcards n = List.init n (fun _ -> wildcard)
@@ -105,14 +124,20 @@ let signatures column =
     | [] -> List.rev acc
     | p :: rest -> begin
         match shape_of p with
-        | Head (h, subs) when not (List.mem h seen) -> go (h :: seen) ((h, subs) :: acc) rest
-        | _ -> go seen acc rest
+        | Head (h, subs) when not (List.mem h seen) ->
+            go (h :: seen) ((h, subs) :: acc) rest
+        | Head _ | Wild | Var _ | Tuple _ | Record _ -> go seen acc rest
       end
   in
   go [] [] column
 
 let tuple_arity column =
-  List.find_map (fun p -> match shape_of p with Tuple ps -> Some (List.length ps) | _ -> None) column
+  let arity_of p =
+    match shape_of p with
+    | Tuple ps -> Some (List.length ps)
+    | Wild | Var _ | Record _ | Head _ -> None
+  in
+  List.find_map arity_of column
 
 let complete siblings sigs =
   match sigs with
@@ -150,7 +175,8 @@ let specialize_tuple ~arity rows =
       | front :: rest -> begin
           match shape_of front with
           | Tuple ps -> Some (ps @ rest)
-          | _ -> Some (wildcards arity @ rest)
+          | Wild | Var _ | Record _ | Head _ ->
+              Some (wildcards arity @ rest)
         end)
     rows
 
@@ -177,11 +203,16 @@ let missing_witness siblings sigs =
     end
   | (H_int _, _) :: _ ->
       let taken =
-        List.filter_map (fun (x, _) -> match x with H_int i -> Some i | _ -> None) sigs
+        let taken_int (x, _) =
+          match x with
+          | H_int i -> Some i
+          | H_ctor _ | H_str _ | H_chr _ | H_nil | H_cons -> None
+        in
+        List.filter_map taken_int sigs
       in
       let rec pick n = if List.mem n taken then pick (n + 1) else n in
       Some (head_pattern (H_int (pick 0)) [])
-  | _ -> None
+  | (H_str _, _) :: _ | (H_chr _, _) :: _ -> None
 
 let rec useful siblings rows q =
   match q with
@@ -267,7 +298,7 @@ let bind_front front occ0 binds =
   | Var x -> (x, occ0) :: binds
   | Record fields ->
       List.fold_left (fun b f -> (f, child occ0 (Field f)) :: b) binds fields
-  | _ -> binds
+  | Wild | Tuple _ | Head _ -> binds
 
 let swap_list l i =
   match l with
@@ -290,7 +321,7 @@ let find_product m =
           match shape_of (List.nth row.pats i) with
           | Tuple ps -> Some (i, Some (List.length ps))
           | Record _ -> Some (i, None)
-          | _ -> None)
+          | Wild | Var _ | Head _ -> None)
         m.rows)
     (List.init (List.length m.occs) Fun.id)
 
@@ -305,7 +336,8 @@ let expand_tuple m n =
             let subs, binds =
               match shape_of front with
               | Tuple ps -> (ps, bind_aliases front occ0 row.binds)
-              | _ -> (wildcards n, bind_front front occ0 row.binds)
+              | Wild | Var _ | Record _ | Head _ ->
+                  (wildcards n, bind_front front occ0 row.binds)
             in
             { row with pats = subs @ rest; binds }
         | [] -> row)
@@ -416,12 +448,14 @@ let rec compile siblings m =
              (fun (p : P.t) occ ->
                List.map (fun name -> (name, occ)) (alias_names p)
                @ begin
-                   match shape_of p with Var x -> [ (x, occ) ] | _ -> []
+                   match shape_of p with
+                   | Var x -> [ (x, occ) ]
+                   | Wild | Tuple _ | Record _ | Head _ -> []
                  end)
              r0.pats m.occs)
       in
       Leaf { action = r0.action; bindings = r0.binds @ extra }
-  | _ -> begin
+  | _ :: _ -> begin
       match find_product m with
       | Some (i, tuple_arity) ->
           let m = if i <> 0 then swap m i else m in

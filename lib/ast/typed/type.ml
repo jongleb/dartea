@@ -81,13 +81,18 @@ let rec arrows ty =
 let rec result_after ~applied t =
   if applied <= 0 then t
   else
-    match t with
+    match head t with
     | TFun (_, result) -> result_after ~applied:(applied - 1) result
-    | _ -> t
+    | TVar _ | TInt | TFloat | TChar | TBool | TStr | TUnit | TTup _
+    | TCustom _ | TRecord _ | TRowExtend _ | TRowEmpty ->
+        t
 
-let rec parameters = function
+let rec parameters ty =
+  match head ty with
   | TFun (parameter, result) -> parameter :: parameters result
-  | _ -> []
+  | TVar _ | TInt | TFloat | TChar | TBool | TStr | TUnit | TTup _ | TCustom _
+  | TRecord _ | TRowExtend _ | TRowEmpty ->
+      []
 
 let function_of parameters ~result =
   List.fold_right (fun parameter tail -> TFun (parameter, tail)) parameters

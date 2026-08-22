@@ -2,12 +2,7 @@ open OUnit2
 open QCheck2
 module R = Data.Region
 
-let parsed source =
-  match Parse.Main.parse ~file:"Main.elm" source with
-  | Ok impl_list -> impl_list
-  | Error error -> raise (Reporting.Error.Found error)
-
-let regions source = Utils.regions_of (parsed source)
+let regions source = Utils.regions_of (Utils.parsed source)
 
 let recounted source offset =
   let rec walk position line bol =
@@ -41,7 +36,7 @@ let law_line_and_column_follow_the_offset =
         (regions source))
 
 let law_every_region_names_its_file =
-  Test.make ~count:1000 ~name:"a region names the file it was parsed from"
+  Test.make ~count:1000 ~name:"a region names the file it was Utils.parsed from"
     ~print:Fun.id Dartea_test_layout_laws.source_gen
     (fun source ->
       List.for_all
@@ -66,7 +61,7 @@ let expression source name =
         when String.equal (Data.Located.unwrap d.body_part.name) name ->
           Some d.body_part.expr
       | _ -> None)
-    (parsed source)
+    (Utils.parsed source)
   |> Option.get
 
 let assert_slice ~expected source (expr : Ast.Kind.Frontend.Expr.t) =

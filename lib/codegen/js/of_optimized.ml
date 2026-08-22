@@ -170,32 +170,21 @@ let constructor_to_object name js_arguments =
       (J.Field ("TAG", J.Literal (J.String (Data.Name.base name)))
       :: payload_fields js_arguments)
 
-let rec is_record_construction (expr_node : O.Expr.t) =
-  match expr_node.expr with
-  | O.Expr.Expr_record_extend _ -> true
-  | O.Expr.Expr_apply { fn; _ } -> is_record_construction fn
-  | _ -> false
+let is_record_construction (expr_node : O.Expr.t) =
+  let head, _ = O.Expr.spine expr_node in
+  Option.is_some (O.Expr.record_extend_of head)
 
 let rec extract_record_fields (expr_node : O.Expr.t) : (string * O.Expr.t) list
     =
-  match expr_node.expr with
-  | O.Expr.Expr_apply { fn; arg } -> (
-      match fn.expr with
-      | O.Expr.Expr_record_extend field -> [ (field, arg) ]
-      | O.Expr.Expr_apply { fn = inner_fn; arg = inner_arg } -> (
-          match inner_fn.expr with
-          | O.Expr.Expr_record_extend field ->
-              (field, inner_arg) :: extract_record_fields arg
-          | _ -> [])
-      | _ -> [])
-  | O.Expr.Expr_record_empty -> []
-  | _ -> []
+  let head, arguments = O.Expr.spine expr_node in
+  match (O.Expr.record_extend_of head, arguments) with
+  | Some field, [ value ] -> [ (field, value) ]
+  | Some field, [ value; rest ] -> (field, value) :: extract_record_fields rest
+  | Some _, _ | None, _ -> []
 
-let rec collect_args acc (fn : O.Expr.t) =
-  match fn.expr with
-  | O.Expr.Expr_apply { fn = inner_fn; arg = inner_arg } ->
-      collect_args (inner_arg :: acc) inner_fn
-  | _ -> (fn, acc)
+let applied_spine ~fn ~arg =
+  let callee, arguments = O.Expr.spine fn in
+  (callee, arguments @ [ arg ])
 
 let rec list_to_cons_cells = function
   | [] -> J.Literal (J.Int 0)
@@ -394,20 +383,25 @@ let call callee arguments = J.Call { callee; args = arguments }
 let returning_when test result =
   J.If { test; consequent = [ J.Return (Some result) ]; alternate = None }
 
-let rec equality_of ~budget (operand : O.Type.t) left right =
-  if compared_in_place operand then binary J.StrictEqual left right
+let structurally ~budget operand ~in_place ~combining ~otherwise =
+  if compared_in_place operand then in_place ()
   else
     match parts_within_budget ~budget operand with
-    | Some parts ->
-        let budget = budget - List.length parts in
-        let compared (read, part) =
-          equality_of ~budget part (read left) (read right)
-        in
-        conjunction (List.map compared parts)
-    | None ->
-        call
-          (Option.value (equality_instance operand) ~default:equal_reference)
-          [ left; right ]
+    | Some parts -> combining ~budget:(budget - List.length parts) parts
+    | None -> otherwise ()
+
+let rec equality_of ~budget (operand : O.Type.t) left right =
+  structurally ~budget operand
+    ~in_place:(fun () -> binary J.StrictEqual left right)
+    ~combining:(fun ~budget parts ->
+      let compared (read, part) =
+        equality_of ~budget part (read left) (read right)
+      in
+      conjunction (List.map compared parts))
+    ~otherwise:(fun () ->
+      call
+        (Option.value (equality_instance operand) ~default:equal_reference)
+        [ left; right ])
 
 and three_way_of (operand : O.Type.t) left right =
   if compared_in_place operand then
@@ -430,33 +424,31 @@ and three_way_of (operand : O.Type.t) left right =
       [ left; right ]
 
 and ordering_of ~budget ~operator (operand : O.Type.t) left right =
-  if compared_in_place operand then binary operator left right
-  else
-    match parts_within_budget ~budget operand with
-    | Some parts ->
-        let budget = budget - List.length parts in
-        let rec lexicographic = function
-          | [] -> J.Literal (J.Bool (operator_admits_equality operator))
-          | [ (read, last) ] ->
-              ordering_of ~budget ~operator last (read left) (read right)
-          | (read, part) :: rest ->
-              J.Conditional
-                {
-                  test = equality_of ~budget part (read left) (read right);
-                  consequent = lexicographic rest;
-                  alternate =
-                    ordering_of ~budget ~operator:(strictly operator) part
-                      (read left) (read right);
-                }
-        in
-        lexicographic parts
-    | None ->
-        binary operator
-          (call
-             (Option.value (ordering_instance operand)
-                ~default:compare_reference)
-             [ left; right ])
-          (J.Literal (J.Int 0))
+  structurally ~budget operand
+    ~in_place:(fun () -> binary operator left right)
+    ~combining:(fun ~budget parts ->
+      let rec lexicographic = function
+        | [] -> J.Literal (J.Bool (operator_admits_equality operator))
+        | [ (read, last) ] ->
+            ordering_of ~budget ~operator last (read left) (read right)
+        | (read, part) :: rest ->
+            J.Conditional
+              {
+                test = equality_of ~budget part (read left) (read right);
+                consequent = lexicographic rest;
+                alternate =
+                  ordering_of ~budget ~operator:(strictly operator) part
+                    (read left) (read right);
+              }
+      in
+      lexicographic parts)
+    ~otherwise:(fun () ->
+      binary operator
+        (call
+           (Option.value (ordering_instance operand)
+              ~default:compare_reference)
+           [ left; right ])
+        (J.Literal (J.Int 0)))
 
 and instance_named tag ~keyed_by body =
   Option.map (fun key -> defined (tag ^ key) body) (instance_key keyed_by)
@@ -976,12 +968,18 @@ and lower_node env root ~terminating ~leaf ~fail ~sink ~plan ~tnames
       let go tr =
         lower env root ~terminating ~leaf ~fail ~sink ~plan ~tnames tr
       in
-      match (if terminating then switch_plan occ_e branches else None) with
-      | Some (disc, cases) when List.length cases >= 2 ->
+      let many_cases (disc, cases) =
+        if List.length cases >= 2 then Some (disc, cases) else None
+      in
+      let planned =
+        if terminating then switch_plan occ_e branches else None
+      in
+      match Option.bind planned many_cases with
+      | Some (disc, cases) ->
           let default_case =
-            match default with
-            | Some t -> [ { J.test = None; consequent = go t } ]
-            | None -> []
+            default
+            |> Option.map (fun t -> { J.test = None; consequent = go t })
+            |> Option.to_list
           in
           let js_cases =
             List.map
@@ -990,11 +988,9 @@ and lower_node env root ~terminating ~leaf ~fail ~sink ~plan ~tnames
               cases
           in
           [ J.Switch { discriminant = disc; cases = js_cases @ default_case } ]
-      | _ ->
+      | None ->
           let rec build = function
-            | [] -> begin
-                match default with Some t -> go t | None -> fail
-              end
+            | [] -> Option.fold ~none:fail ~some:go default
             | [ (_, tr) ] when default = None -> go tr
             | (test, tr) :: rest ->
                 [
@@ -1065,7 +1061,7 @@ and emitted_arity env (e : O.Expr.t) : arity =
   | O.Expr.Expr_ident _ -> callee_arity env e
   | O.Expr.Expr_apply { fn; _ } when is_record_construction fn -> Exactly 0
   | O.Expr.Expr_apply { fn; arg } ->
-      let callee, args = collect_args [ arg ] fn in
+      let callee, args = applied_spine ~fn ~arg in
       let supplied = List.length args in
       begin
         match callee_arity env callee with
@@ -1084,13 +1080,8 @@ and emitted_arity env (e : O.Expr.t) : arity =
       arity_of_type e.typ
 
 and callee_arity env (callee : O.Expr.t) : arity =
-  match callee.expr with
-  | O.Expr.Expr_ident name -> begin
-      match declared_arity env name with
-      | Some n -> Exactly n
-      | None -> arity_of_type callee.typ
-    end
-  | _ -> arity_of_type callee.typ
+  Option.bind (O.Expr.ident_of callee) (declared_arity env)
+  |> Option.fold ~none:(arity_of_type callee.typ) ~some:(fun n -> Exactly n)
 
 and emit_uncoerced env (e : O.Expr.t) : J.stmt list * J.expr =
   match e.expr with
@@ -1212,13 +1203,15 @@ and emit_scrutinee env (expr : O.Expr.t) : J.stmt list * J.expr * J.stmt list =
 and emit_apply env fn arg =
   if is_record_construction fn then emit_record_apply env fn arg
   else
-    let callee, args = collect_args [ arg ] fn in
+    let callee, args = applied_spine ~fn ~arg in
     let saturated_operator =
-      match (callee.expr, args) with
-      | O.Expr.Expr_ident op, [ left; right ] ->
-          Option.map
-            (fun lower -> (lower, left, right))
-            (saturated_lowering env op ~operand:left.O.Expr.typ)
+      match args with
+      | [ left; right ] ->
+          let lowering op =
+            saturated_lowering env op ~operand:left.O.Expr.typ
+          in
+          Option.bind (O.Expr.ident_of callee) lowering
+          |> Option.map (fun lower -> (lower, left, right))
       | _ -> None
     in
     match saturated_operator with
@@ -1244,7 +1237,19 @@ and emit_apply env fn arg =
                   args
             | Some _ | None -> emit_generic env callee args
           end
-        | _ -> emit_generic env callee args
+        | ( ( O.Expr.Expr_constr _ | O.Expr.Expr_binop _ | O.Expr.Expr_let _
+            | O.Expr.Expr_if_then_else _ | O.Expr.Expr_record _
+            | O.Expr.Expr_record_update _ | O.Expr.Expr_apply _
+            | O.Expr.Expr_pattern _ | O.Expr.Expr_accessor _
+            | O.Expr.Expr_access _ | O.Expr.Expr_record_extend _
+            | O.Expr.Expr_record_select _ | O.Expr.Expr_record_empty
+            | O.Expr.Expr_unit
+            | O.Expr.Expr_kernel (Kernel_unary _ | Kernel_binary _)
+            | O.Expr.Expr_lambda _ | O.Expr.Expr_char _ | O.Expr.Expr_string _
+            | O.Expr.Expr_int _ | O.Expr.Expr_float _ | O.Expr.Expr_list _
+            | O.Expr.Expr_cons _ | O.Expr.Expr_tuple _),
+            _ ) ->
+            emit_generic env callee args
       end
 
 and emit_known_call env callee ~arity ~result_type args =
@@ -1316,17 +1321,18 @@ and emit_lambda env params body =
   arrow_of_body param_names (emit_return env None body)
 
 and self_tail_args env tc (e : O.Expr.t) : O.Expr.t list option =
-  match e.expr with
-  | O.Expr.Expr_apply { fn; arg } -> (
-      let callee, args = collect_args [ arg ] fn in
-      match callee.expr with
-      | O.Expr.Expr_ident name
-        when Data.Name.equal name tc.fn
-             && (not (SMap.mem name env))
-             && List.length args = List.length tc.params ->
-          Some args
-      | _ -> None)
-  | _ -> None
+  let callee, args = O.Expr.spine e in
+  let self_call name =
+    if
+      Data.Name.equal name tc.fn
+      && (not (SMap.mem name env))
+      && List.length args = List.length tc.params
+    then Some args
+    else None
+  in
+  match args with
+  | [] -> None
+  | _ :: _ -> Option.bind (O.Expr.ident_of callee) self_call
 
 and loop_step env tc args =
   let ss, es = emit_values env args in
@@ -1369,7 +1375,14 @@ and emit_return env tc (e : O.Expr.t) : J.stmt list =
       | O.Expr.Expr_pattern { expr; pattern_data_items } ->
           let ss, occ, sbind = emit_scrutinee env expr in
           ss @ sbind @ emit_match_return env tc occ pattern_data_items
-      | _ ->
+      | O.Expr.Expr_constr _ | O.Expr.Expr_binop _ | O.Expr.Expr_record _
+      | O.Expr.Expr_record_update _ | O.Expr.Expr_apply _ | O.Expr.Expr_ident _
+      | O.Expr.Expr_accessor _ | O.Expr.Expr_access _
+      | O.Expr.Expr_record_extend _ | O.Expr.Expr_record_select _
+      | O.Expr.Expr_record_empty | O.Expr.Expr_unit | O.Expr.Expr_kernel _
+      | O.Expr.Expr_lambda _ | O.Expr.Expr_char _ | O.Expr.Expr_string _
+      | O.Expr.Expr_int _ | O.Expr.Expr_float _ | O.Expr.Expr_list _
+      | O.Expr.Expr_cons _ | O.Expr.Expr_tuple _ ->
           let s, ev = emit_value env e in
           s @ [ J.Return (Some ev) ])
 
@@ -1385,7 +1398,14 @@ and trivial_action (e : O.Expr.t) =
   | O.Expr.Expr_char _ | O.Expr.Expr_ident _ ->
       true
   | O.Expr.Expr_constr { arguments = []; _ } -> true
-  | _ -> false
+  | O.Expr.Expr_constr _ | O.Expr.Expr_binop _ | O.Expr.Expr_let _
+  | O.Expr.Expr_if_then_else _ | O.Expr.Expr_record _
+  | O.Expr.Expr_record_update _ | O.Expr.Expr_apply _ | O.Expr.Expr_pattern _
+  | O.Expr.Expr_accessor _ | O.Expr.Expr_access _ | O.Expr.Expr_record_extend _
+  | O.Expr.Expr_record_select _ | O.Expr.Expr_record_empty | O.Expr.Expr_unit
+  | O.Expr.Expr_kernel _ | O.Expr.Expr_lambda _ | O.Expr.Expr_list _
+  | O.Expr.Expr_cons _ | O.Expr.Expr_tuple _ ->
+      false
 
 and shareable (clause_arr : O.Expr.expr_pattern_case array) (tree : DT.t) =
   match tree with

@@ -18,23 +18,38 @@ let rec lambdas_merged (e : O.Expr.t) : O.Expr.t =
           { params = params @ inner.params; body = inner.body }
       in
       { e with expr = merged }
-  | _ -> e
+  | Expr_constr _ | Expr_binop _ | Expr_let _ | Expr_if_then_else _
+  | Expr_record _ | Expr_record_update _ | Expr_apply _ | Expr_ident _
+  | Expr_pattern _ | Expr_accessor _ | Expr_access _ | Expr_record_extend _
+  | Expr_record_select _ | Expr_record_empty | Expr_unit | Expr_kernel _
+  | Expr_lambda _ | Expr_char _ | Expr_string _ | Expr_int _ | Expr_float _
+  | Expr_list _ | Expr_cons _ | Expr_tuple _ ->
+      e
 
 let body_lambda_merged (decl : O.Declaration.t) : O.Declaration.t =
-  match decl.body.expr with
-  | O.Expr.Expr_lambda { params; body } ->
-      let parameter (p : O.Expr.expr_lambda_param) =
-        { O.Declaration.name = p.name; typ = p.typ }
-      in
-      { decl with params = decl.params @ List.map parameter params; body }
-  | _ -> decl
+  let merged ({ params; body } : O.Expr.expr_lambda) =
+    let parameter (p : O.Expr.expr_lambda_param) =
+      { O.Declaration.name = p.name; typ = p.typ }
+    in
+    { decl with params = decl.params @ List.map parameter params; body }
+  in
+  O.Expr.lambda_of decl.body |> Option.map merged |> Option.value ~default:decl
 
 let declaration_arity (decl : O.Declaration.t) =
   let decl = body_lambda_merged decl in
   let from_kernel =
     match (decl.params, decl.body.expr) with
     | [], O.Expr.Expr_kernel (Kernel_value kernel) -> Data.Kernel.arity kernel
-    | _, _ -> 0
+    | ( [],
+        ( Expr_constr _ | Expr_binop _ | Expr_let _ | Expr_if_then_else _
+        | Expr_record _ | Expr_record_update _ | Expr_apply _ | Expr_ident _
+        | Expr_pattern _ | Expr_accessor _ | Expr_access _
+        | Expr_record_extend _ | Expr_record_select _ | Expr_record_empty
+        | Expr_unit | Expr_kernel (Kernel_unary _ | Kernel_binary _)
+        | Expr_lambda _ | Expr_char _ | Expr_string _ | Expr_int _
+        | Expr_float _ | Expr_list _ | Expr_cons _ | Expr_tuple _ ) )
+    | _ :: _, _ ->
+        0
   in
   List.length decl.params + from_kernel
 

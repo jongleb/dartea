@@ -19,66 +19,26 @@ let test_ty_type_with_params_complicated _ =
                 Typedecl.id = ~?"Constr1";
                 data =
                   [
-                    {
-                      Typedef.Impl.parameters = [];
-                      body = Typedef.Kind.Tkind_var ~?"a";
-                    };
-                    {
-                      Typedef.Impl.parameters = [];
-                      body =
-                        Typedef.Kind.Tkind_function
-                          {
-                            Typedef.Type_function.arguments = [ {
-                                  Typedef.Impl.parameters = [];
-                                  body = Typedef.Kind.Tkind_var ~?"a";
-                                } ]; result = ({
-                                  Typedef.Impl.parameters = [];
-                                  body = Typedef.Kind.Tkind_var ~?"a";
-                                });
-                          };
-                    };
-                    {
-                      Typedef.Impl.parameters = [];
-                      body =
-                        Typedef.Kind.Tkind_record
-                          {
-                            Typedef.Type_record.values =
-                              [
-                                {
-                                  Typedef.Type_record_row.name = ~?"field";
-                                  body =
-                                    {
-                                      Typedef.Impl.parameters = [];
-                                      body =
-                                        Typedef.Kind.Tkind_function
-                                          {
-                                            Typedef.Type_function.arguments = [ {
-                                                  Typedef.Impl.parameters =
-                                                    [
-                                                      {
-                                                        Typedef.Impl.parameters =
-                                                          [];
-                                                        body =
-                                                          Typedef.Kind.Tkind_var
-                                                            ~?"a";
-                                                      };
-                                                    ];
-                                                  body =
-                                                    Typedef.Kind.Tkind_concrete
-                                                      ~?"Maybe";
-                                                } ]; result = ({
-                                                  Typedef.Impl.parameters = [];
-                                                  body =
-                                                    Typedef.Kind.Tkind_concrete
-                                                      ~?"String";
-                                                });
-                                          };
-                                    };
-                                };
-                              ];
-                            row_type = Some ~?"a";
-                          };
-                    };
+                    Utils.var_type "a";
+                    Utils.fn_type
+                      ~arguments:[ Utils.var_type "a" ]
+                      ~result:(Utils.var_type "a");
+                    Utils.record_type
+                      ~row_type:(~?"a")
+                      [
+                        {
+                          Typedef.Type_record_row.name = ~?"field";
+                          body =
+                            Utils.fn_type
+                              ~arguments:
+                                [
+                                  Utils.concrete_type
+                                    ~parameters:[ Utils.var_type "a" ]
+                                    "Maybe";
+                                ]
+                              ~result:(Utils.concrete_type "String");
+                        };
+                      ];
                   ];
               };
             ];
@@ -106,201 +66,72 @@ let test_types_fn_2 _ =
                 Typedecl.id = ~?"Constr1";
                 data =
                   [
-                    {
-                      Typedef.Impl.parameters = [];
-                      body = Typedef.Kind.Tkind_var ~?"a";
-                    };
-                    {
-                      Typedef.Impl.parameters = [];
-                      body =
-                        Typedef.Kind.Tkind_function
-                          {
-                            Typedef.Type_function.arguments = [ {
-                                  Typedef.Impl.parameters = [];
-                                  body = Typedef.Kind.Tkind_var ~?"a";
-                                } ]; result = ({
-                                  Typedef.Impl.parameters = [];
-                                  body = Typedef.Kind.Tkind_var ~?"a";
-                                });
-                          };
-                    };
-                    {
-                      Typedef.Impl.parameters = [];
-                      body =
-                        Typedef.Kind.Tkind_record
-                          {
-                            Typedef.Type_record.values =
-                              [
-                                {
-                                  Typedef.Type_record_row.name = ~?"field";
-                                  body =
-                                    {
-                                      Typedef.Impl.parameters = [];
-                                      body =
-                                        Typedef.Kind.Tkind_function
-                                          {
-                                            Typedef.Type_function.arguments = [ {
-                                                  Typedef.Impl.parameters =
-                                                    [
-                                                      {
-                                                        Typedef.Impl.parameters =
-                                                          [];
-                                                        body =
-                                                          Typedef.Kind.Tkind_var
-                                                            ~?"a";
-                                                      };
-                                                    ];
-                                                  body =
-                                                    Typedef.Kind.Tkind_concrete
-                                                      ~?"Maybe";
-                                                } ]; result = ({
-                                                  Typedef.Impl.parameters = [];
-                                                  body =
-                                                    Typedef.Kind.Tkind_concrete
-                                                      ~?"String";
-                                                });
-                                          };
-                                    };
-                                };
-                              ];
-                            row_type = Some ~?"a";
-                          };
-                    };
+                    Utils.var_type "a";
+                    Utils.fn_type
+                      ~arguments:[ Utils.var_type "a" ]
+                      ~result:(Utils.var_type "a");
+                    Utils.record_type
+                      ~row_type:(~?"a")
+                      [
+                        {
+                          Typedef.Type_record_row.name = ~?"field";
+                          body =
+                            Utils.fn_type
+                              ~arguments:
+                                [
+                                  Utils.concrete_type
+                                    ~parameters:[ Utils.var_type "a" ]
+                                    "Maybe";
+                                ]
+                              ~result:(Utils.concrete_type "String");
+                        };
+                      ];
                   ];
               };
               {
                 Typedecl.id = ~?"Constr2";
                 data =
                   [
-                    {
-                      Typedef.Impl.parameters = [];
-                      body =
-                        Typedef.Kind.Tkind_function
-                          {
-                            Typedef.Type_function.arguments = [ {
-                                  Typedef.Impl.parameters = [];
-                                  body = Typedef.Kind.Tkind_var ~?"a";
-                                }; {
-                                  Typedef.Impl.parameters = [];
-                                  body = Typedef.Kind.Tkind_var ~?"a";
-                                } ]; result = ({
-                                  Typedef.Impl.parameters = [];
-                                  body = Typedef.Kind.Tkind_concrete ~?"String";
-                                });
-                          };
-                    };
-                    {
-                      Typedef.Impl.parameters = [];
-                      body =
-                        Typedef.Kind.Tkind_tuple
-                          [
-                            {
-                              Typedef.Impl.parameters = [];
-                              body = Typedef.Kind.Tkind_concrete ~?"String";
-                            };
-                            {
-                              Typedef.Impl.parameters = [];
-                              body =
-                                Typedef.Kind.Tkind_function
-                                  {
-                                    Typedef.Type_function.arguments = [ {
-                                          Typedef.Impl.parameters = [];
-                                          body = Typedef.Kind.Tkind_var ~?"a";
-                                        } ]; result = ({
-                                          Typedef.Impl.parameters = [];
-                                          body = Typedef.Kind.Tkind_var ~?"a";
-                                        });
-                                  };
-                            };
-                          ];
-                    };
-                    {
-                      Typedef.Impl.parameters = [];
-                      body = Typedef.Kind.Tkind_concrete ~?"String";
-                    };
-                    {
-                      Typedef.Impl.parameters = [];
-                      body =
-                        Typedef.Kind.Tkind_record
-                          {
-                            Typedef.Type_record.values =
-                              [
-                                {
-                                  Typedef.Type_record_row.name = ~?"field";
-                                  body =
-                                    {
-                                      Typedef.Impl.parameters = [];
-                                      body =
-                                        Typedef.Kind.Tkind_tuple
-                                          [
-                                            {
-                                              Typedef.Impl.parameters = [];
-                                              body =
-                                                Typedef.Kind.Tkind_function
-                                                  {
-                                                    Typedef.Type_function
-                                                    .arguments = [ {
-                                                          Typedef.Impl
-                                                          .parameters =
-                                                            [
-                                                              {
-                                                                Typedef.Impl
-                                                                .parameters = [];
-                                                                body =
-                                                                  Typedef.Kind
-                                                                  .Tkind_var
-                                                                    ~?"a";
-                                                              };
-                                                            ];
-                                                          body =
-                                                            Typedef.Kind
-                                                            .Tkind_concrete
-                                                              ~?"Maybe";
-                                                        } ]; result = ({
-                                                          Typedef.Impl
-                                                          .parameters = [];
-                                                          body =
-                                                            Typedef.Kind
-                                                            .Tkind_concrete
-                                                              ~?"String";
-                                                        });
-                                                  };
-                                            };
-                                            {
-                                              Typedef.Impl.parameters = [];
-                                              body =
-                                                Typedef.Kind.Tkind_var ~?"a";
-                                            };
-                                            {
-                                              Typedef.Impl.parameters = [];
-                                              body =
-                                                Typedef.Kind.Tkind_function
-                                                  {
-                                                    Typedef.Type_function
-                                                    .arguments = [ {
-                                                          Typedef.Impl
-                                                          .parameters = [];
-                                                          body =
-                                                            Typedef.Kind
-                                                            .Tkind_var
-                                                              ~?"a";
-                                                        } ]; result = ({
-                                                          Typedef.Impl
-                                                          .parameters = [];
-                                                          body =
-                                                            Typedef.Kind
-                                                            .Tkind_var
-                                                              ~?"a";
-                                                        });
-                                                  };
-                                            };
-                                          ];
-                                    };
-                                };
-                              ];
-                            row_type = Some ~?"a";
-                          };
-                    };
+                    Utils.fn_type
+                      ~arguments:[ Utils.var_type "a"; Utils.var_type "a" ]
+                      ~result:(Utils.concrete_type "String");
+                    Utils.make_typedef
+                      ~body:
+                        (Typedef.Kind.Tkind_tuple
+                           [
+                             Utils.concrete_type "String";
+                             Utils.fn_type
+                               ~arguments:[ Utils.var_type "a" ]
+                               ~result:(Utils.var_type "a");
+                           ])
+                      ();
+                    Utils.concrete_type "String";
+                    Utils.record_type
+                      ~row_type:(~?"a")
+                      [
+                        {
+                          Typedef.Type_record_row.name = ~?"field";
+                          body =
+                            Utils.make_typedef
+                              ~body:
+                                (Typedef.Kind.Tkind_tuple
+                                   [
+                                     Utils.fn_type
+                                       ~arguments:
+                                         [
+                                           Utils.concrete_type
+                                             ~parameters:[ Utils.var_type "a" ]
+                                             "Maybe";
+                                         ]
+                                       ~result:(Utils.concrete_type "String");
+                                     Utils.var_type "a";
+                                     Utils.fn_type
+                                       ~arguments:[ Utils.var_type "a" ]
+                                       ~result:(Utils.var_type "a");
+                                   ])
+                              ();
+                        };
+                      ];
                   ];
               };
             ];

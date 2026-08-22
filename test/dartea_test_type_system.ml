@@ -1,12 +1,5 @@
 open OUnit2
 
-let canonical input =
-  match Parse.Main.parse ~file:"Main.elm" input with
-  | Error error -> raise (Reporting.Error.Found error)
-  | Ok impl_list ->
-      Canonical.Module.of_frontend ~fallback_name:"Main"
-        (Ast.Kind.Frontend.Module.of_impl impl_list)
-
 let resolved module_ =
   match Canonicalization.Resolve_names.in_module ~dependencies:[] module_ with
   | Ok resolved -> resolved
@@ -16,7 +9,7 @@ let resolved module_ =
            (List.map Reporting.Error.show errors))
 
 let inferred source =
-  Infer.Declarations.infer_toplevel ~imports:[] (resolved (canonical source))
+  Infer.Declarations.infer_toplevel ~imports:[] (resolved (Utils.canonical source))
 
 let scheme_of source name =
   let result = inferred source in
@@ -807,8 +800,34 @@ bad = twice "a"
 |}
     ~because:(unsatisfied_by ~found:"String" ~required:"number")
 
+let linked_to target =
+  let variable = Typed.Variable.fresh None in
+  Typed.Variable.link variable target;
+  Typed.Type.TVar variable
+
+let int_to_int_to_int = Typed.Type.(TFun (TInt, TFun (TInt, TInt)))
+
+let test_parameters_see_through_a_linked_variable _ =
+  assert_equal ~printer:string_of_int 2
+    (List.length (Typed.Type.parameters (linked_to int_to_int_to_int)))
+
+let test_result_after_sees_through_a_linked_variable _ =
+  assert_equal ~printer:Typed.Type.show Typed.Type.TInt
+    (Typed.Type.result_after ~applied:2 (linked_to int_to_int_to_int))
+
+let test_result_after_stops_at_a_linked_non_function _ =
+  assert_equal ~printer:Typed.Type.show Typed.Type.TInt
+    (Typed.Type.result_after ~applied:1 (linked_to int_to_int_to_int)
+    |> Typed.Type.result_after ~applied:1)
+
 let suite =
   [
+    "parameters_see_through_a_linked_variable"
+    >:: test_parameters_see_through_a_linked_variable;
+    "result_after_sees_through_a_linked_variable"
+    >:: test_result_after_sees_through_a_linked_variable;
+    "result_after_stops_at_a_linked_non_function"
+    >:: test_result_after_stops_at_a_linked_non_function;
     "float_literal_is_a_float" >:: test_float_literal_is_a_float;
     "char_literal_is_a_char" >:: test_char_literal_is_a_char;
     "float_annotation_unifies_with_a_float_literal"

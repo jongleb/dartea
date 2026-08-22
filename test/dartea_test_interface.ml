@@ -1,12 +1,5 @@
 open OUnit2
 
-let canonical input =
-  match Parse.Main.parse ~file:"Main.elm" input with
-  | Error error -> raise (Reporting.Error.Found error)
-  | Ok impl_list ->
-      Canonical.Module.of_frontend ~fallback_name:"Main"
-        (Ast.Kind.Frontend.Module.of_impl impl_list)
-
 let resolved ~dependencies module_ =
   match Canonicalization.Resolve_names.in_module ~dependencies module_ with
   | Ok resolved -> resolved
@@ -19,14 +12,14 @@ let inferred ~imports module_ =
   Infer.Declarations.infer_toplevel ~imports module_
 
 let published source =
-  let module_ = resolved ~dependencies:[] (canonical source) in
+  let module_ = resolved ~dependencies:[] (Utils.canonical source) in
   ( module_,
     Infer.Declarations.interface_of module_ (inferred ~imports:[] module_) )
 
 let importing_all ~dependencies source =
   let published = List.map published dependencies in
   let module_ =
-    resolved ~dependencies:(List.map fst published) (canonical source)
+    resolved ~dependencies:(List.map fst published) (Utils.canonical source)
   in
   inferred ~imports:(List.map snd published) module_
 
@@ -457,7 +450,7 @@ let test_a_module_does_not_inherit_the_level_of_the_one_before _ =
         ignore module_;
         (Infer.Declarations.infer_toplevel ~imports:[]
            (resolved ~dependencies:[]
-              (canonical "module Two exposing (two)\n\ntwo : String\ntwo = 1\n")))
+              (Utils.canonical "module Two exposing (two)\n\ntwo : String\ntwo = 1\n")))
           .errors
         <> []
     | exception Reporting.Error.Found _ -> true

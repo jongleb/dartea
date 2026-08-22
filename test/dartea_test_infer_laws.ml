@@ -545,7 +545,7 @@ let anywhere kind : P.t = Data.Located.dummy kind
 let pattern_env =
   Infer.Type_env.build ~imports:[]
     (Types.resolved
-       (Types.canonical
+       (Utils.canonical
           {|
 type Box = Box Int
 

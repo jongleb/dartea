@@ -7,25 +7,11 @@ let inline_size_limit = 10
 let pattern_branch_cost = 2
 let optimization_rounds = 3
 
-let spine_of (e : O.Expr.t) : O.Expr.t * O.Expr.t list =
-  let rec collect (e : O.Expr.t) arguments =
-    match e.expr with
-    | Expr_apply { fn; arg } -> collect fn (arg :: arguments)
-    | _ -> (e, arguments)
-  in
-  collect e []
-
-let rec result_type (typ : O.Type.t) ~(applied : int) : O.Type.t =
-  match typ with
-  | O.Type.TFun (_, result) when applied > 0 ->
-      result_type result ~applied:(applied - 1)
-  | _ -> typ
-
 let apply_to (fn : O.Expr.t) (arguments : O.Expr.t list) : O.Expr.t =
   List.fold_left
     (fun (fn : O.Expr.t) arg ->
       {
-        O.Expr.typ = result_type fn.typ ~applied:1;
+        O.Expr.typ = O.Type.result_after ~applied:1 fn.typ;
         expr = O.Expr.Expr_apply { fn; arg };
       })
     fn arguments
@@ -42,20 +28,30 @@ let is_duplicable (e : O.Expr.t) : bool =
   | Expr_int _ | Expr_float _ | Expr_string _ | Expr_char _ | Expr_ident _ ->
       true
   | Expr_constr { arguments = []; _ } -> true
-  | _ -> false
+  | Expr_constr _ | Expr_binop _ | Expr_let _ | Expr_if_then_else _
+  | Expr_record _ | Expr_record_update _ | Expr_apply _ | Expr_pattern _
+  | Expr_accessor _ | Expr_access _ | Expr_record_extend _
+  | Expr_record_select _ | Expr_record_empty | Expr_unit | Expr_kernel _
+  | Expr_lambda _ | Expr_list _ | Expr_cons _ | Expr_tuple _ ->
+      false
 
 let rec is_pure (e : O.Expr.t) : bool =
   match e.expr with
   | Expr_lambda _ -> true
   | Expr_pattern _ -> false
   | Expr_apply _ -> begin
-      match spine_of e with
+      match O.Expr.spine e with
       | { expr = Expr_ident name; _ }, ([ _; _ ] as operands)
         when Data.Operator.referred_to_by name <> None ->
           List.for_all is_pure operands
       | _ -> false
     end
-  | _ -> List.for_all is_pure (Subexpressions.list e)
+  | Expr_constr _ | Expr_binop _ | Expr_let _ | Expr_if_then_else _
+  | Expr_record _ | Expr_record_update _ | Expr_ident _ | Expr_accessor _
+  | Expr_access _ | Expr_record_extend _ | Expr_record_select _
+  | Expr_record_empty | Expr_unit | Expr_kernel _ | Expr_char _ | Expr_string _
+  | Expr_int _ | Expr_float _ | Expr_list _ | Expr_cons _ | Expr_tuple _ ->
+      List.for_all is_pure (Subexpressions.list e)
 
 let rec expression_size (e : O.Expr.t) : int =
   match e.expr with
@@ -65,7 +61,12 @@ let rec expression_size (e : O.Expr.t) : int =
           acc + pattern_branch_cost + expression_size case.expr)
         (1 + expression_size expr)
         pattern_data_items
-  | _ ->
+  | Expr_constr _ | Expr_binop _ | Expr_let _ | Expr_if_then_else _
+  | Expr_record _ | Expr_record_update _ | Expr_apply _ | Expr_ident _
+  | Expr_accessor _ | Expr_access _ | Expr_record_extend _
+  | Expr_record_select _ | Expr_record_empty | Expr_unit | Expr_kernel _
+  | Expr_lambda _ | Expr_char _ | Expr_string _ | Expr_int _ | Expr_float _
+  | Expr_list _ | Expr_cons _ | Expr_tuple _ ->
       List.fold_left
         (fun acc child -> acc + expression_size child)
         1 (Subexpressions.list e)
@@ -219,12 +220,18 @@ let propagate_constants (e : O.Expr.t) : O.Expr.t =
         | Expr_constr { name; arguments = [] }
           when Data.Name.base name = "False" ->
             else_exp
-        | _ ->
+        | Expr_constr _ | Expr_binop _ | Expr_let _ | Expr_if_then_else _
+        | Expr_record _ | Expr_record_update _ | Expr_apply _ | Expr_ident _
+        | Expr_pattern _ | Expr_accessor _ | Expr_access _
+        | Expr_record_extend _ | Expr_record_select _ | Expr_record_empty
+        | Expr_unit | Expr_kernel _ | Expr_lambda _ | Expr_char _
+        | Expr_string _ | Expr_int _ | Expr_float _ | Expr_list _ | Expr_cons _
+        | Expr_tuple _ ->
             { e with expr = Expr_if_then_else { if_exp; then_exp; else_exp } }
       end
     | Expr_apply _ -> begin
         let folded = Subexpressions.transform e ~f:(propagate ~constants) in
-        match spine_of folded with
+        match O.Expr.spine folded with
         | { expr = Expr_ident name; _ }, ([ _; _ ] as arguments) ->
             Data.Operator.referred_to_by name
             |> Fun.flip Option.bind (fun operator ->
@@ -233,7 +240,12 @@ let propagate_constants (e : O.Expr.t) : O.Expr.t =
             |> Option.value ~default:folded
         | _ -> folded
       end
-    | _ -> Subexpressions.transform e ~f:(propagate ~constants)
+    | Expr_constr _ | Expr_binop _ | Expr_record _ | Expr_record_update _
+    | Expr_accessor _ | Expr_access _ | Expr_record_extend _
+    | Expr_record_select _ | Expr_record_empty | Expr_unit | Expr_kernel _
+    | Expr_char _ | Expr_string _ | Expr_int _ | Expr_float _ | Expr_list _
+    | Expr_cons _ | Expr_tuple _ ->
+        Subexpressions.transform e ~f:(propagate ~constants)
   in
   propagate ~constants:By_name.empty e
 
@@ -254,7 +266,7 @@ let rec reduce_beta (e : O.Expr.t) : O.Expr.t =
         | [] -> reduced_body
         | params ->
             {
-              O.Expr.typ = result_type lambda.typ ~applied:taken;
+              O.Expr.typ = O.Type.result_after ~applied:taken lambda.typ;
               expr = Expr_lambda { params; body = reduced_body };
             }
       in
@@ -267,7 +279,7 @@ let rec reduce_beta (e : O.Expr.t) : O.Expr.t =
   let reduced =
     match e.expr with
     | Expr_apply _ -> begin
-        match spine_of e with
+        match O.Expr.spine e with
         | ( ({ expr = Expr_lambda { params; body }; _ } as lambda),
             (_ :: _ as arguments) ) ->
             let arguments = List.map reduce_beta arguments in
@@ -287,7 +299,13 @@ let rec reduce_beta (e : O.Expr.t) : O.Expr.t =
               }
         | _ -> None
       end
-    | _ -> None
+    | Expr_constr _ | Expr_binop _ | Expr_let _ | Expr_if_then_else _
+    | Expr_record _ | Expr_record_update _ | Expr_ident _ | Expr_pattern _
+    | Expr_accessor _ | Expr_access _ | Expr_record_extend _
+    | Expr_record_select _ | Expr_record_empty | Expr_unit | Expr_kernel _
+    | Expr_lambda _ | Expr_char _ | Expr_string _ | Expr_int _ | Expr_float _
+    | Expr_list _ | Expr_cons _ | Expr_tuple _ ->
+        None
   in
   match reduced with
   | Some result -> result
@@ -304,7 +322,13 @@ let rec eliminate_dead_lets (e : O.Expr.t) : O.Expr.t =
                    (Data.Name.local (Data.Located.unwrap binding.bind_body.name))
                  body) ->
       body
-  | _ -> e
+  | Expr_constr _ | Expr_binop _ | Expr_let _ | Expr_if_then_else _
+  | Expr_record _ | Expr_record_update _ | Expr_apply _ | Expr_ident _
+  | Expr_pattern _ | Expr_accessor _ | Expr_access _ | Expr_record_extend _
+  | Expr_record_select _ | Expr_record_empty | Expr_unit | Expr_kernel _
+  | Expr_lambda _ | Expr_char _ | Expr_string _ | Expr_int _ | Expr_float _
+  | Expr_list _ | Expr_cons _ | Expr_tuple _ ->
+      e
 
 type inlinable = {
   parameters : O.Declaration.param list;
@@ -410,7 +434,7 @@ let inlinable_declarations (decls : O.Declaration.t list) :
 let rec inline_calls ~(table : inlinable By_name.t) ~(bound : Names.t)
     (e : O.Expr.t) : O.Expr.t =
   let inlined_call () =
-    let head, arguments = spine_of e in
+    let head, arguments = O.Expr.spine e in
     let arguments = List.map (inline_calls ~table ~bound) arguments in
     let expand candidate =
       let arity = List.length candidate.parameters in
@@ -443,10 +467,11 @@ let rec inline_calls ~(table : inlinable By_name.t) ~(bound : Names.t)
                  (List.drop arity arguments))
       else None
     in
-    match head.expr with
-    | Expr_ident name when not (Names.mem name bound) ->
-        Option.bind (By_name.find_opt name table) expand
-    | _ -> None
+    let unbound name =
+      if Names.mem name bound then None
+      else Option.bind (By_name.find_opt name table) expand
+    in
+    Option.bind (O.Expr.ident_of head) unbound
   in
   match e.expr with
   | Expr_ident _ | Expr_apply _ -> begin
@@ -489,7 +514,12 @@ let rec inline_calls ~(table : inlinable By_name.t) ~(bound : Names.t)
               pattern_data_items = List.map inline_case pattern_data_items;
             };
       }
-  | _ -> Subexpressions.transform e ~f:(inline_calls ~table ~bound)
+  | Expr_constr _ | Expr_binop _ | Expr_if_then_else _ | Expr_record _
+  | Expr_record_update _ | Expr_accessor _ | Expr_access _
+  | Expr_record_extend _ | Expr_record_select _ | Expr_record_empty | Expr_unit
+  | Expr_kernel _ | Expr_char _ | Expr_string _ | Expr_int _ | Expr_float _
+  | Expr_list _ | Expr_cons _ | Expr_tuple _ ->
+      Subexpressions.transform e ~f:(inline_calls ~table ~bound)
 
 let optimize (decls : T.Declaration.t list) : O.Declaration.t list =
   let round decls =

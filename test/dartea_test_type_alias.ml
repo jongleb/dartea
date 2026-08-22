@@ -47,44 +47,21 @@ let test_ty_alias_type_with_params _ =
       Impl.Type_alias
         {
           Typealias.typedef =
-            {
-              Typedef.Impl.parameters =
+            Utils.concrete_type
+              ~parameters:
                 [
-                  {
-                    Typedef.Impl.parameters = [];
-                    body =
-                      Typedef.Kind.Tkind_concrete (Data.Located.dummy "Param1");
-                  };
-                  {
-                    Typedef.Impl.parameters =
+                  Utils.concrete_type "Param1";
+                  Utils.concrete_type
+                    ~parameters:
                       [
-                        {
-                          Typedef.Impl.parameters = [];
-                          body =
-                            Typedef.Kind.Tkind_concrete
-                              (Data.Located.dummy "Param3");
-                        };
-                        {
-                          Typedef.Impl.parameters =
-                            [
-                              {
-                                Typedef.Impl.parameters = [];
-                                body =
-                                  Typedef.Kind.Tkind_concrete
-                                    (Data.Located.dummy "Param5");
-                              };
-                            ];
-                          body =
-                            Typedef.Kind.Tkind_concrete
-                              (Data.Located.dummy "Param4");
-                        };
-                      ];
-                    body =
-                      Typedef.Kind.Tkind_concrete (Data.Located.dummy "Param2");
-                  };
-                ];
-              body = Typedef.Kind.Tkind_concrete (Data.Located.dummy "With");
-            };
+                        Utils.concrete_type "Param3";
+                        Utils.concrete_type
+                          ~parameters:[ Utils.concrete_type "Param5" ]
+                          "Param4";
+                      ]
+                    "Param2";
+                ]
+              "With";
           params = [];
           name = Data.Located.dummy "Complicated";
         };
@@ -104,46 +81,25 @@ let test_ty_alias_type_with_params_and_record_param _ =
       Impl.Type_alias
         {
           Typealias.typedef =
-            {
-              Typedef.Impl.parameters =
+            Utils.concrete_type
+              ~parameters:
                 [
-                  {
-                    Typedef.Impl.parameters = [];
-                    body =
-                      Typedef.Kind.Tkind_concrete (Data.Located.dummy "Param1");
-                  };
-                  {
-                    Typedef.Impl.parameters =
+                  Utils.concrete_type "Param1";
+                  Utils.concrete_type
+                    ~parameters:
                       [
-                        {
-                          Typedef.Impl.parameters = [];
-                          body =
-                            Typedef.Kind.Tkind_record
-                              {
-                                Typedef.Type_record.values =
-                                  [
-                                    {
-                                      Typedef.Type_record_row.name =
-                                        Data.Located.dummy "a";
-                                      body =
-                                        {
-                                          Typedef.Impl.parameters = [];
-                                          body =
-                                            Typedef.Kind.Tkind_concrete
-                                              (Data.Located.dummy "String");
-                                        };
-                                    };
-                                  ];
-                                row_type = None;
-                              };
-                        };
-                      ];
-                    body =
-                      Typedef.Kind.Tkind_concrete (Data.Located.dummy "Param2");
-                  };
-                ];
-              body = Typedef.Kind.Tkind_concrete (Data.Located.dummy "With");
-            };
+                        Utils.record_type
+                          [
+                            {
+                              Typedef.Type_record_row.name =
+                                Data.Located.dummy "a";
+                              body = Utils.concrete_type "String";
+                            };
+                          ];
+                      ]
+                    "Param2";
+                ]
+              "With";
           params = [];
           name = Data.Located.dummy "Complicated";
         };
@@ -159,46 +115,25 @@ let test_ty_alias_type_with_params_and_record_param_with_a_lot_of_parens _ =
       Impl.Type_alias
         {
           Typealias.typedef =
-            {
-              Typedef.Impl.parameters =
+            Utils.concrete_type
+              ~parameters:
                 [
-                  {
-                    Typedef.Impl.parameters = [];
-                    body =
-                      Typedef.Kind.Tkind_concrete (Data.Located.dummy "Param1");
-                  };
-                  {
-                    Typedef.Impl.parameters =
+                  Utils.concrete_type "Param1";
+                  Utils.concrete_type
+                    ~parameters:
                       [
-                        {
-                          Typedef.Impl.parameters = [];
-                          body =
-                            Typedef.Kind.Tkind_record
-                              {
-                                Typedef.Type_record.values =
-                                  [
-                                    {
-                                      Typedef.Type_record_row.name =
-                                        Data.Located.dummy "a";
-                                      body =
-                                        {
-                                          Typedef.Impl.parameters = [];
-                                          body =
-                                            Typedef.Kind.Tkind_concrete
-                                              (Data.Located.dummy "String");
-                                        };
-                                    };
-                                  ];
-                                row_type = None;
-                              };
-                        };
-                      ];
-                    body =
-                      Typedef.Kind.Tkind_concrete (Data.Located.dummy "Param2");
-                  };
-                ];
-              body = Typedef.Kind.Tkind_concrete (Data.Located.dummy "With");
-            };
+                        Utils.record_type
+                          [
+                            {
+                              Typedef.Type_record_row.name =
+                                Data.Located.dummy "a";
+                              body = Utils.concrete_type "String";
+                            };
+                          ];
+                      ]
+                    "Param2";
+                ]
+              "With";
           params = [];
           name = Data.Located.dummy "Complicated";
         };
@@ -216,24 +151,11 @@ let test_ty_alias_tuples _ =
       Impl.Type_alias
         {
           Typealias.typedef =
-            {
-              Typedef.Impl.parameters = [];
-              body =
-                Typedef.Kind.Tkind_tuple
-                  [
-                    {
-                      Typedef.Impl.parameters = [];
-                      body =
-                        Typedef.Kind.Tkind_concrete
-                          (Data.Located.dummy "String");
-                    };
-                    {
-                      Typedef.Impl.parameters = [];
-                      body =
-                        Typedef.Kind.Tkind_concrete (Data.Located.dummy "Int");
-                    };
-                  ];
-            };
+            Utils.make_typedef
+              ~body:
+                (Typedef.Kind.Tkind_tuple
+                   [ Utils.concrete_type "String"; Utils.concrete_type "Int" ])
+              ();
           params = [];
           name = Data.Located.dummy "User";
         };
@@ -249,92 +171,45 @@ let test_ty_alias_and_record_and_plain _ =
       Impl.Type_alias
         {
           Typealias.typedef =
-            {
-              Typedef.Impl.parameters =
+            Utils.concrete_type
+              ~parameters:
                 [
-                  {
-                    Typedef.Impl.parameters = [];
-                    body =
-                      Typedef.Kind.Tkind_tuple
-                        [
-                          {
-                            Typedef.Impl.parameters = [];
-                            body =
-                              Typedef.Kind.Tkind_concrete
-                                (Data.Located.dummy "String");
-                          };
-                          {
-                            Typedef.Impl.parameters = [];
-                            body =
-                              Typedef.Kind.Tkind_record
-                                {
-                                  Typedef.Type_record.values =
-                                    [
-                                      {
-                                        Typedef.Type_record_row.name =
-                                          Data.Located.dummy "age";
-                                        body =
-                                          {
-                                            Typedef.Impl.parameters = [];
-                                            body =
-                                              Typedef.Kind.Tkind_concrete
-                                                (Data.Located.dummy "Int");
-                                          };
-                                      };
-                                      {
-                                        Typedef.Type_record_row.name =
-                                          Data.Located.dummy "dog";
-                                        body =
-                                          {
-                                            Typedef.Impl.parameters =
-                                              [
-                                                {
-                                                  Typedef.Impl.parameters = [];
-                                                  body =
-                                                    Typedef.Kind.Tkind_record
-                                                      {
-                                                        Typedef.Type_record
-                                                        .values =
-                                                          [
-                                                            {
-                                                              Typedef
-                                                              .Type_record_row
-                                                              .name =
-                                                                Data.Located
-                                                                .dummy "dogName";
-                                                              body =
-                                                                {
-                                                                  Typedef.Impl
-                                                                  .parameters =
-                                                                    [];
-                                                                  body =
-                                                                    Typedef.Kind
-                                                                    .Tkind_concrete
-                                                                      (Data
-                                                                       .Located
-                                                                       .dummy
-                                                                         "String");
-                                                                };
-                                                            };
-                                                          ];
-                                                        row_type = None;
-                                                      };
-                                                };
-                                              ];
-                                            body =
-                                              Typedef.Kind.Tkind_concrete
-                                                (Data.Located.dummy "Maybe");
-                                          };
-                                      };
-                                    ];
-                                  row_type = None;
-                                };
-                          };
-                        ];
-                  };
-                ];
-              body = Typedef.Kind.Tkind_concrete (Data.Located.dummy "Maybe");
-            };
+                  Utils.make_typedef
+                    ~body:
+                      (Typedef.Kind.Tkind_tuple
+                         [
+                           Utils.concrete_type "String";
+                           Utils.record_type
+                             [
+                               {
+                                 Typedef.Type_record_row.name =
+                                   Data.Located.dummy "age";
+                                 body = Utils.concrete_type "Int";
+                               };
+                               {
+                                 Typedef.Type_record_row.name =
+                                   Data.Located.dummy "dog";
+                                 body =
+                                   Utils.concrete_type
+                                     ~parameters:
+                                       [
+                                         Utils.record_type
+                                           [
+                                             {
+                                               Typedef.Type_record_row.name =
+                                                 Data.Located.dummy "dogName";
+                                               body =
+                                                 Utils.concrete_type "String";
+                                             };
+                                           ];
+                                       ]
+                                     "Maybe";
+                               };
+                             ];
+                         ])
+                    ();
+                ]
+              "Maybe";
           params = [];
           name = Data.Located.dummy "MaybeUser";
         };
@@ -353,132 +228,56 @@ let test_ty_alias_and_record_and_plain_and_one_more_tuple _ =
       Impl.Type_alias
         {
           Typealias.typedef =
-            {
-              Typedef.Impl.parameters =
+            Utils.concrete_type
+              ~parameters:
                 [
-                  {
-                    Typedef.Impl.parameters = [];
-                    body =
-                      Typedef.Kind.Tkind_tuple
-                        [
-                          {
-                            Typedef.Impl.parameters = [];
-                            body =
-                              Typedef.Kind.Tkind_concrete
-                                (Data.Located.dummy "String");
-                          };
-                          {
-                            Typedef.Impl.parameters = [];
-                            body =
-                              Typedef.Kind.Tkind_record
-                                {
-                                  Typedef.Type_record.values =
-                                    [
-                                      {
-                                        Typedef.Type_record_row.name =
-                                          Data.Located.dummy "age";
-                                        body =
-                                          {
-                                            Typedef.Impl.parameters = [];
-                                            body =
-                                              Typedef.Kind.Tkind_concrete
-                                                (Data.Located.dummy "Int");
-                                          };
-                                      };
-                                      {
-                                        Typedef.Type_record_row.name =
-                                          Data.Located.dummy "dog";
-                                        body =
-                                          {
-                                            Typedef.Impl.parameters =
-                                              [
-                                                {
-                                                  Typedef.Impl.parameters = [];
-                                                  body =
-                                                    Typedef.Kind.Tkind_record
-                                                      {
-                                                        Typedef.Type_record
-                                                        .values =
-                                                          [
-                                                            {
-                                                              Typedef
-                                                              .Type_record_row
-                                                              .name =
-                                                                Data.Located
-                                                                .dummy "dogName";
-                                                              body =
-                                                                {
-                                                                  Typedef.Impl
-                                                                  .parameters =
-                                                                    [];
-                                                                  body =
-                                                                    Typedef.Kind
-                                                                    .Tkind_tuple
-                                                                      [
-                                                                        {
-                                                                          Typedef
-                                                                          .Impl
-                                                                          .parameters =
-                                                                            [];
-                                                                          body =
-                                                                            Typedef
-                                                                            .Kind
-                                                                            .Tkind_concrete
-                                                                              (Data
-                                                                               .Located
-                                                                               .dummy
-                                                                                "String");
-                                                                        };
-                                                                        {
-                                                                          Typedef
-                                                                          .Impl
-                                                                          .parameters =
-                                                                            [];
-                                                                          body =
-                                                                            Typedef
-                                                                            .Kind
-                                                                            .Tkind_concrete
-                                                                              (Data
-                                                                               .Located
-                                                                               .dummy
-                                                                                "Int");
-                                                                        };
-                                                                        {
-                                                                          Typedef
-                                                                          .Impl
-                                                                          .parameters =
-                                                                            [];
-                                                                          body =
-                                                                            Typedef
-                                                                            .Kind
-                                                                            .Tkind_concrete
-                                                                              (Data
-                                                                               .Located
-                                                                               .dummy
-                                                                                "Int");
-                                                                        };
-                                                                      ];
-                                                                };
-                                                            };
-                                                          ];
-                                                        row_type = None;
-                                                      };
-                                                };
-                                              ];
-                                            body =
-                                              Typedef.Kind.Tkind_concrete
-                                                (Data.Located.dummy "Maybe");
-                                          };
-                                      };
-                                    ];
-                                  row_type = None;
-                                };
-                          };
-                        ];
-                  };
-                ];
-              body = Typedef.Kind.Tkind_concrete (Data.Located.dummy "Maybe");
-            };
+                  Utils.make_typedef
+                    ~body:
+                      (Typedef.Kind.Tkind_tuple
+                         [
+                           Utils.concrete_type "String";
+                           Utils.record_type
+                             [
+                               {
+                                 Typedef.Type_record_row.name =
+                                   Data.Located.dummy "age";
+                                 body = Utils.concrete_type "Int";
+                               };
+                               {
+                                 Typedef.Type_record_row.name =
+                                   Data.Located.dummy "dog";
+                                 body =
+                                   Utils.concrete_type
+                                     ~parameters:
+                                       [
+                                         Utils.record_type
+                                           [
+                                             {
+                                               Typedef.Type_record_row.name =
+                                                 Data.Located.dummy "dogName";
+                                               body =
+                                                 Utils.make_typedef
+                                                   ~body:
+                                                     (Typedef.Kind.Tkind_tuple
+                                                        [
+                                                          Utils.concrete_type
+                                                            "String";
+                                                          Utils.concrete_type
+                                                            "Int";
+                                                          Utils.concrete_type
+                                                            "Int";
+                                                        ])
+                                                   ();
+                                             };
+                                           ];
+                                       ]
+                                     "Maybe";
+                               };
+                             ];
+                         ])
+                    ();
+                ]
+              "Maybe";
           params = [];
           name = Data.Located.dummy "MaybeUser";
         };
@@ -497,28 +296,14 @@ let test_ty_alias_record_with_params_row_type _ =
       Impl.Type_alias
         {
           Typealias.typedef =
-            {
-              Typedef.Impl.parameters = [];
-              body =
-                Typedef.Kind.Tkind_record
-                  {
-                    Typedef.Type_record.values =
-                      [
-                        {
-                          Typedef.Type_record_row.name =
-                            Data.Located.dummy "fieldN";
-                          body =
-                            {
-                              Typedef.Impl.parameters = [];
-                              body =
-                                Typedef.Kind.Tkind_concrete
-                                  (Data.Located.dummy "String");
-                            };
-                        };
-                      ];
-                    row_type = Some (Data.Located.dummy "a");
-                  };
-            };
+            Utils.record_type
+              ~row_type:(Data.Located.dummy "a")
+              [
+                {
+                  Typedef.Type_record_row.name = Data.Located.dummy "fieldN";
+                  body = Utils.concrete_type "String";
+                };
+              ];
           params = [ Data.Located.dummy "a" ];
           name = Data.Located.dummy "User";
         };
@@ -535,20 +320,9 @@ let test_function_types _ =
       Impl.Type_alias
         {
           Typealias.typedef =
-            {
-              Typedef.Impl.parameters = [];
-              body =
-                Typedef.Kind.Tkind_function
-                  {
-                    Typedef.Type_function.arguments = [ {
-                          Typedef.Impl.parameters = [];
-                          body = Typedef.Kind.Tkind_var (Data.Located.dummy "a");
-                        } ]; result = ({
-                          Typedef.Impl.parameters = [];
-                          body = Typedef.Kind.Tkind_var (Data.Located.dummy "a");
-                        });
-                  };
-            };
+            Utils.fn_type
+              ~arguments:[ Utils.var_type "a" ]
+              ~result:(Utils.var_type "a");
           params = [ Data.Located.dummy "a" ];
           name = Data.Located.dummy "Id";
         };
@@ -564,83 +338,31 @@ let test_function_with_function_param_types _ =
       Impl.Type_alias
         {
           Typealias.typedef =
-            {
-              Typedef.Impl.parameters = [];
-              body =
-                Typedef.Kind.Tkind_function
-                  {
-                    Typedef.Type_function.arguments = [ {
-                          Typedef.Impl.parameters = [];
-                          body =
-                            Typedef.Kind.Tkind_concrete
-                              (Data.Located.dummy "String");
-                        }; {
-                          Typedef.Impl.parameters = [];
-                          body =
-                            Typedef.Kind.Tkind_concrete
-                              (Data.Located.dummy "Int");
-                        }; {
-                          Typedef.Impl.parameters = [];
-                          body =
-                            Typedef.Kind.Tkind_tuple
-                              [
-                                {
-                                  Typedef.Impl.parameters = [];
-                                  body =
-                                    Typedef.Kind.Tkind_var
-                                      (Data.Located.dummy "a");
-                                };
-                                {
-                                  Typedef.Impl.parameters = [];
-                                  body =
-                                    Typedef.Kind.Tkind_var
-                                      (Data.Located.dummy "b");
-                                };
-                              ];
-                        } ]; result = ({
-                          Typedef.Impl.parameters = [];
-                          body =
-                            Typedef.Kind.Tkind_function
-                              {
-                                Typedef.Type_function.arguments = [ {
-                                      Typedef.Impl.parameters = [];
-                                      body =
-                                        Typedef.Kind.Tkind_concrete
-                                          (Data.Located.dummy "String");
-                                    }; {
-                                      Typedef.Impl.parameters = [];
-                                      body =
-                                        Typedef.Kind.Tkind_var
-                                          (Data.Located.dummy "a");
-                                    } ]; result = ({
-                                      Typedef.Impl.parameters = [];
-                                      body =
-                                        Typedef.Kind.Tkind_tuple
-                                          [
-                                            {
-                                              Typedef.Impl.parameters = [];
-                                              body =
-                                                Typedef.Kind.Tkind_var
-                                                  (Data.Located.dummy "b");
-                                            };
-                                            {
-                                              Typedef.Impl.parameters = [];
-                                              body =
-                                                Typedef.Kind.Tkind_var
-                                                  (Data.Located.dummy "b");
-                                            };
-                                            {
-                                              Typedef.Impl.parameters = [];
-                                              body =
-                                                Typedef.Kind.Tkind_var
-                                                  (Data.Located.dummy "c");
-                                            };
-                                          ];
-                                    });
-                              };
-                        });
-                  };
-            };
+            Utils.fn_type
+              ~arguments:
+                [
+                  Utils.concrete_type "String";
+                  Utils.concrete_type "Int";
+                  Utils.make_typedef
+                    ~body:
+                      (Typedef.Kind.Tkind_tuple
+                         [ Utils.var_type "a"; Utils.var_type "b" ])
+                    ();
+                ]
+              ~result:
+                (Utils.fn_type
+                   ~arguments:
+                     [ Utils.concrete_type "String"; Utils.var_type "a" ]
+                   ~result:
+                     (Utils.make_typedef
+                        ~body:
+                          (Typedef.Kind.Tkind_tuple
+                             [
+                               Utils.var_type "b";
+                               Utils.var_type "b";
+                               Utils.var_type "c";
+                             ])
+                        ()));
           params =
             [
               Data.Located.dummy "a";
@@ -680,65 +402,27 @@ let test_fun_no_lrbraces _ =
       Impl.Type_alias
         {
           Typealias.typedef =
-            {
-              Typedef.Impl.parameters = [];
-              body =
-                Typedef.Kind.Tkind_tuple
-                  [
-                    {
-                      Typedef.Impl.parameters = [];
-                      body =
-                        Typedef.Kind.Tkind_function
-                          {
-                            Typedef.Type_function.arguments = [ {
-                                  Typedef.Impl.parameters = [];
-                                  body =
-                                    Typedef.Kind.Tkind_var
-                                      (Data.Located.dummy "a");
-                                } ]; result = ({
-                                  Typedef.Impl.parameters = [];
-                                  body =
-                                    Typedef.Kind.Tkind_var
-                                      (Data.Located.dummy "a");
-                                });
-                          };
-                    };
-                    {
-                      Typedef.Impl.parameters = [];
-                      body =
-                        Typedef.Kind.Tkind_record
-                          {
-                            Typedef.Type_record.values =
-                              [
-                                {
-                                  Typedef.Type_record_row.name =
-                                    Data.Located.dummy "field";
-                                  body =
-                                    {
-                                      Typedef.Impl.parameters = [];
-                                      body =
-                                        Typedef.Kind.Tkind_function
-                                          {
-                                            Typedef.Type_function.arguments = [ {
-                                                  Typedef.Impl.parameters = [];
-                                                  body =
-                                                    Typedef.Kind.Tkind_var
-                                                      (Data.Located.dummy "a");
-                                                } ]; result = ({
-                                                  Typedef.Impl.parameters = [];
-                                                  body =
-                                                    Typedef.Kind.Tkind_var
-                                                      (Data.Located.dummy "a");
-                                                });
-                                          };
-                                    };
-                                };
-                              ];
-                            row_type = Some (Data.Located.dummy "a");
-                          };
-                    };
-                  ];
-            };
+            Utils.make_typedef
+              ~body:
+                (Typedef.Kind.Tkind_tuple
+                   [
+                     Utils.fn_type
+                       ~arguments:[ Utils.var_type "a" ]
+                       ~result:(Utils.var_type "a");
+                     Utils.record_type
+                       ~row_type:(Data.Located.dummy "a")
+                       [
+                         {
+                           Typedef.Type_record_row.name =
+                             Data.Located.dummy "field";
+                           body =
+                             Utils.fn_type
+                               ~arguments:[ Utils.var_type "a" ]
+                               ~result:(Utils.var_type "a");
+                         };
+                       ];
+                   ])
+              ();
           params = [ Data.Located.dummy "a" ];
           name = Data.Located.dummy "Fun1";
         };
