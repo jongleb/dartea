@@ -189,6 +189,7 @@ and stmt_to_string ?(indent_lvl = 0) (s : J.stmt) : string =
       ind ^ "import * as " ^ local ^ " from \"" ^ from ^ "\";"
   | J.Export names ->
       ind ^ "export { " ^ String.concat ", " names ^ " };"
+  | J.Comment text -> ind ^ "// " ^ text
 
 (* Convert case to string *)
 and case_to_string ?(indent_lvl = 0) (c : J.case) : string =

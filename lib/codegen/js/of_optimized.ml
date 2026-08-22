@@ -1549,8 +1549,14 @@ let import_lines imports =
                })
            modules)
 
-let emit_module ~arities ~constructors ~siblings ~typedecls ~imports ~exports
-    (decls : O.Declaration.t list) : string =
+let comment_lines lines =
+  match lines with
+  | [] -> ""
+  | spoken ->
+      To_string.program_to_string (List.map (fun line -> J.Comment line) spoken)
+
+let emit_module ~notice ~arities ~constructors ~siblings ~typedecls ~imports
+    ~exports (decls : O.Declaration.t list) : string =
   let program =
     program_with_helpers ~arities ~constructors ~siblings ~typedecls ~exports
       decls
@@ -1559,5 +1565,6 @@ let emit_module ~arities ~constructors ~siblings ~typedecls ~imports ~exports
     if J.references runtime_module_name program then [ runtime_module_name ]
     else []
   in
-  import_lines (runtime_import @ imports)
+  comment_lines notice
+  ^ import_lines (runtime_import @ imports)
   ^ To_string.program_to_string program

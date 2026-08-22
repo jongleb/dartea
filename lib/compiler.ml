@@ -3,6 +3,7 @@ module type BACKEND = sig
   val runtime_module : unit -> (string * string) option
 
   val emit_module :
+    notice:string list ->
     arities:(Data.Name.t * int) list ->
     constructors:(Data.Name.t * int) list ->
     siblings:(Data.Name.t * (Data.Name.t * int) list) list ->
@@ -21,9 +22,9 @@ module Js_backend : BACKEND = struct
       ( Codegen_js.Of_optimized.runtime_module_name,
         Codegen_js.Of_optimized.runtime_module_source () )
 
-  let emit_module ~arities ~constructors ~siblings ~typedecls ~imports ~exports
-      decls =
-    Codegen_js.Of_optimized.emit_module ~arities ~constructors ~siblings
+  let emit_module ~notice ~arities ~constructors ~siblings ~typedecls ~imports
+      ~exports decls =
+    Codegen_js.Of_optimized.emit_module ~notice ~arities ~constructors ~siblings
       ~typedecls ~imports ~exports decls
 end
 
@@ -197,6 +198,10 @@ module Make (B : BACKEND) = struct
             (Prelude.name module_ ^ ".elm", Prelude.source module_))
           Prelude.all
     in
+    let notice_for name =
+      let prelude_named module_ = String.equal (Prelude.name module_) name in
+      if List.exists prelude_named Prelude.all then Prelude.notice else []
+    in
     let compiling progress module_ =
       match resolved_against progress.dependencies module_ with
       | Error found ->
@@ -229,7 +234,8 @@ module Make (B : BACKEND) = struct
                   {
                     module_name = resolved.name;
                     source =
-                      B.emit_module ~arities:(imported_arities imports)
+                      B.emit_module ~notice:(notice_for resolved.name)
+                        ~arities:(imported_arities imports)
                         ~constructors ~siblings ~typedecls:(shaped_types typed)
                         ~imports:(providing_modules declarations)
                         ~exports:(exported_names resolved typed)
