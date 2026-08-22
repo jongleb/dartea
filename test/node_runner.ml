@@ -47,11 +47,12 @@ let evaluate ~(compiled : Dartea.Compiler.compiled list) ~expr =
   let (_ : Unix.process_status) = Unix.close_process_in ic in
   String.trim out
 
-let contains ~needle haystack =
-  let needle_length = String.length needle
-  and haystack_length = String.length haystack in
-  let rec from index =
-    index + needle_length <= haystack_length
-    && (String.sub haystack index needle_length = needle || from (index + 1))
-  in
-  from 0
+let index_of ~needle haystack =
+  let needle_length = String.length needle in
+  let last_start = String.length haystack - needle_length in
+  let matches_at index = String.sub haystack index needle_length = needle in
+  Seq.ints 0
+  |> Seq.take_while (fun index -> index <= last_start)
+  |> Seq.find matches_at
+
+let contains ~needle haystack = index_of ~needle haystack <> None
