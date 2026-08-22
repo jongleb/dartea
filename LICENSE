@@ -37,72 +37,46 @@ both licensed under the same BSD 3-Clause License reproduced above. Their
 copyright notices are retained here, as clause 1 requires, and apply to the
 files listed under each.
 
+
 elm/core -- https://github.com/elm/core
 Copyright 2014-present Evan Czaplicki
 
     lib/prelude/Basics.elm
     lib/prelude/Char.elm
+    lib/prelude/List.elm
     lib/prelude/Maybe.elm
     lib/prelude/String.elm
     lib/prelude/Tuple.elm
-        Module and value names, type signatures and bodies taken from the
-        elm/core modules of the same names; a subset of the originals.
-
-    lib/codegen/js/dartea_runtime.js
-        Rewritten in modern JavaScript from Elm/Kernel/Utils.js, Basics.js and
-        Char.js, keeping the original algorithms and their constants.
-
-    lib/data/kernel.ml
-        The set of Elm.Kernel.* primitives a prelude module may refer to, and
-        their arities -- the kernel surface of elm/core, as a closed sum.
-
     lib/prelude/prelude.ml
-        The list of prelude modules and the default imports every module
-        receives, following Elm/Compiler/Imports.hs of elm/compiler.
+    lib/data/kernel.ml
+    lib/codegen/js/dartea_runtime.js
 
-These files are embedded into the compiler binary and are compiled into
-Basics.mjs, Char.mjs, Maybe.mjs, String.mjs, Tuple.mjs and Dartea_runtime.mjs
-alongside every program this compiler builds. Redistributing that output
-redistributes material derived from elm/core.
+The prelude modules are embedded into the compiler binary and are compiled
+into Basics.mjs, Char.mjs, List.mjs, Maybe.mjs, String.mjs, Tuple.mjs and
+Dartea_runtime.mjs alongside every program this compiler builds.
+Redistributing that output redistributes material derived from elm/core.
+
 
 elm/compiler -- https://github.com/elm/compiler
 Copyright 2012-present Evan Czaplicki
 
-Text reproduced verbatim:
-
-    lib/reporting/report.ml
-        Diagnostic wording taken word for word from Reporting/Error/Type.hs,
-        Canonicalize.hs, Syntax.hs, Import.hs and Pattern.hs, including the
-        hint texts and the elm-lang.org documentation links.
-
-    test/errors/*.txt
-        Golden files containing that wording.
-
-Structure mirrored rather than text copied:
-
     lib/reporting/category.ml
     lib/reporting/context.ml
+    lib/reporting/doc.ml
     lib/reporting/expectation.ml
     lib/reporting/hint.ml
-    lib/reporting/type_error.ml
     lib/reporting/name_error.ml
-    lib/reporting/syntax_error.ml
-    lib/reporting/warning.ml
-        The taxonomy of errors -- the Category, Context, Expected and hint
-        sums of Reporting/Error/Type.hs and the per-phase error sums --
-        translated into OCaml. These files contain no English text.
-
-    lib/reporting/doc.ml
+    lib/reporting/report.ml
     lib/reporting/snippet.ml
-        Report layout: the document combinators of Reporting/Doc.hs and the
-        numbered source excerpt with the ^^^ underline of
-        Reporting/Render/Code.hs.
+    lib/reporting/syntax_error.ml
+    lib/reporting/type_error.ml
+    lib/reporting/warning.ml
+    test/errors/*.txt
 
-The Elm language itself -- its syntax, its operator precedences and the names
-and signatures of its standard library -- is followed deliberately, because
-compatibility is the point of this project. That is a specification, not
-copied expression, and it is named here for honesty rather than as a licence
-obligation.
+The diagnostic wording in report.ml and in the golden files is reproduced
+verbatim; the rest is Elm's error taxonomy and report layout translated into
+OCaml, and carries no English text.
+
 
 This software is an independent implementation. It is not affiliated with or
 endorsed by the Elm project or by Evan Czaplicki.
@@ -113,27 +87,21 @@ Studied, not copied
 
 
 No code from these is present here. They are named because they shaped design
-decisions and because the reader deserves to know where the ideas came from.
+decisions.
 
-    ReScript and Melange
-        Runtime data representation (string tags, TAG and _0 fields, cons
-        cells), the uncurried calling convention, module-qualified access,
-        and the rule that a backend builds AST nodes instead of splicing
-        JavaScript text.
+    ReScript, Melange
+        Runtime data representation, the uncurried calling convention, and
+        building backend AST nodes instead of splicing JavaScript text.
 
-    Luc Maranget, Compiling Pattern Matching to Good Decision Trees (ACM
-    ML'08) and Warnings for Pattern Matching (JFP 2007)
-        The decision-tree compilation and usefulness algorithms in
+    Luc Maranget, Compiling Pattern Matching to Good Decision Trees (ML'08)
+    and Warnings for Pattern Matching (JFP 2007)
         lib/after_typed/exhaustive.ml.
 
-    Alex Reinking, Ningning Xie, Leonardo de Moura and Daan Leijen, Perceus:
-    Garbage Free Reference Counting with Reuse (PLDI 2021)
-        The reference-counting scheme of lib/codegen/c/dartea_runtime.h. The
-        dup / drop / reuse vocabulary is the paper's. The object layout was
-        chosen here. This file was not compared line by line against the Koka
-        runtime; no evidence of copied code was found, but that is an
-        inspection, not a proof.
-
+    Reinking, Xie, de Moura and Leijen, Perceus: Garbage Free Reference
+    Counting with Reuse (PLDI 2021)
+        lib/codegen/c/dartea_runtime.h. The dup / drop / reuse vocabulary is
+        the paper's; the object layout was chosen here. Not compared line by
+        line against the Koka runtime.
 
 -------------------------------------------------------------------------------
 Linked dependencies

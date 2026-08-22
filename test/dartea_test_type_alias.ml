@@ -310,7 +310,6 @@ let test_ty_alias_record_with_params_row_type _ =
     ]
   in
   let input = "type alias User a = { a | fieldN: String }" in
-  prerr_endline @@ Impl.show @@ List.hd @@ Result.get_ok @@ Main.parse ~file:"Main.elm" input;
   let result = Main.parse ~file:"Main.elm" input in
   assert_equal expect_data (parsed result)
 

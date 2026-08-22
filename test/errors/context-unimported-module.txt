@@ -1,16 +1,16 @@
 -- NAMING ERROR ------------------------------------------------------- Main.elm
 
-I cannot find a `List.map` variable:
+I cannot find a `Paint.shown` variable:
 
-1| xs = List.map (\x -> x) [ 1, 2 ]
-        ^^^^^^^^
+1| xs = Paint.shown
+        ^^^^^^^^^^^
 
-I cannot find a `List` import. These names seem close though:
+I cannot find a `Paint` import. These names seem close though:
 
-    max
+    sin
+    xor
     tan
-    min
-    apR
+    sqrt
 
 Hint: Read <https://elm-lang.org/0.19.1/imports> to see how `import`
 declarations work in Elm.

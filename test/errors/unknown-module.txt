@@ -1,17 +1,17 @@
 -- MODULE NOT FOUND --------------------------------------------------- Main.elm
 
-You are trying to import a `List` module:
+You are trying to import a `Tuplee` module:
 
-3| import List
-          ^^^^
+3| import Tuplee
+          ^^^^^^
 
 I looked through the modules of this project, but I cannot find it! Maybe it is
 a typo for one of these names?
 
-    Char
     Tuple
-    String
     Maybe
+    String
+    List
 
 Hint: Read <https://elm-lang.org/0.19.1/imports> to see how `import`
 declarations work in Elm.
