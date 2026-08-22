@@ -3,6 +3,13 @@ type t = Basics | Char | Maybe | String | Tuple
 
 let name = Variants.to_name
 
+let notice =
+  [
+    "Derived from elm/core -- https://github.com/elm/core";
+    "Copyright 2014-present Evan Czaplicki, BSD 3-Clause License.";
+    "Emitted by dartea; its LICENSE file carries the full text.";
+  ]
+
 let source = function
   | Basics -> Prelude_source.basics
   | Char -> Prelude_source.char

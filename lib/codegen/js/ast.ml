@@ -71,6 +71,7 @@ and stmt =
   | Throw of expr
   | Import_namespace of { local : identifier; from : string }
   | Export of identifier list
+  | Comment of string
 [@@deriving show]
 
 and case = { test : expr option; consequent : stmt list } [@@deriving show]
@@ -111,7 +112,7 @@ and statement_references (wanted : identifier) (s : stmt) : bool =
   | Return (Some e) ->
       references e
   | Return None | VarDecl { init = None; _ } | Continue | Import_namespace _
-  | Export _ ->
+  | Export _ | Comment _ ->
       false
   | FunctionDecl { body; _ } | Block body | While { body; _ } -> block body
   | If { test; consequent; alternate } ->
