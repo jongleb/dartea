@@ -31,6 +31,7 @@ end
 type compiled = {
   module_name : string;
   source : string;
+  exports : string list;
   warnings : Reporting.Warning.t list;
 }
 
@@ -40,6 +41,8 @@ type outcome = {
   sources : (string * string) list;
   entry : Entry.t option;
 }
+
+let prelude_file module_ = Prelude.name module_ ^ Project.Elm_file.extension
 
 let frontend_module ~file content =
   match Parse.Main.parse ~file content with
@@ -126,12 +129,12 @@ module Make (B : BACKEND) = struct
       (List.map
          (fun module_ ->
            parsed_module
-             ~file:(Prelude.name module_ ^ ".elm")
+             ~file:(prelude_file module_)
              ~fallback_name:(Prelude.name module_)
              (Prelude.source module_))
          Prelude.all)
 
-  let module_of (source : File_loader.Files.Elm_file.t) =
+  let module_of (source : Project.Elm_file.t) =
     let frontend = frontend_module ~file:source.path source.content in
     let name = named_after_path ~expected:source.name frontend.name in
     let module_ = Canonical.Module.of_frontend ~fallback_name:name frontend in
@@ -181,7 +184,7 @@ module Make (B : BACKEND) = struct
   let cycle_region ~modules sources =
     let importing = List.nth_opt modules 0 in
     List.find_map
-      (fun (source : File_loader.Files.Elm_file.t) ->
+      (fun (source : Project.Elm_file.t) ->
         let module_ = module_of source in
         match importing with
         | Some name when String.equal module_.name name ->
@@ -194,16 +197,16 @@ module Make (B : BACKEND) = struct
       sources
     |> Option.value ~default:Data.Region.nowhere
 
-  let compile_modules ?entry (sources : File_loader.Files.Elm_file.t list) :
+  let compile_modules ~entry (sources : Project.Elm_file.t list) :
       outcome =
     let written =
       List.map
-        (fun (source : File_loader.Files.Elm_file.t) ->
+        (fun (source : Project.Elm_file.t) ->
           (source.path, source.content))
         sources
       @ List.map
           (fun module_ ->
-            (Prelude.name module_ ^ ".elm", Prelude.source module_))
+            (prelude_file module_, Prelude.source module_))
           Prelude.all
     in
     let notice_for name =
@@ -238,16 +241,17 @@ module Make (B : BACKEND) = struct
                 }
               else
                 let declarations, constructors, siblings = prepared typed in
+                let exports = exported_names resolved typed in
                 let compiled =
                   {
                     module_name = resolved.name;
+                    exports = List.map Data.Name.base exports;
                     source =
                       B.emit_module ~notice:(notice_for resolved.name)
                         ~arities:(imported_arities imports)
                         ~constructors ~siblings ~typedecls:(shaped_types typed)
                         ~imports:(providing_modules declarations)
-                        ~exports:(exported_names resolved typed)
-                        declarations;
+                        ~exports declarations;
                     warnings =
                       List.concat_map
                         (After_typed.Exhaustiveness_check.warnings
@@ -292,7 +296,7 @@ module Make (B : BACKEND) = struct
           match B.runtime_module () with
           | None -> []
           | Some (module_name, source) ->
-              [ { module_name; source; warnings = [] } ]
+              [ { module_name; source; exports = []; warnings = [] } ]
         in
         let finished =
           List.fold_left compile_module
@@ -322,8 +326,12 @@ module Make (B : BACKEND) = struct
         }
 
   let compile_source (content : string) : outcome =
-    compile_modules
-      [ File_loader.Files.Elm_file.of_path ~path:"Main.elm" content ]
+    compile_modules ~entry:None
+      [
+        Project.Elm_file.of_path
+          ~path:("Main" ^ Project.Elm_file.extension)
+          content;
+      ]
 end
 
 include Make (Js_backend)

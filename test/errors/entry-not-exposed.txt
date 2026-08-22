@@ -1,0 +1,9 @@
+-- ENTRY NOT EXPOSED -------------------------------------------------- Main.elm
+
+I start from this `main` value, but `Main` keeps it to itself:
+
+5| main =
+   ^^^^
+
+The `classic_js_browser` delivery reaches the entry point through the exports of
+its module. Put `main` in the exposing list of `Main`.

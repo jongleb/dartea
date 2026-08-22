@@ -3,14 +3,14 @@ open OUnit2
 let root = Filename.concat ".." "playgrounds"
 let goldens = "emitted"
 let prelude_folder = "prelude"
-let suffix = "." ^ Dartea.Compiler.extension
 let read path = In_channel.with_open_bin path In_channel.input_all
 let promoting_into = Sys.getenv_opt "DARTEA_PROMOTE_EMITTED"
-let names_printer names = String.concat ", " names
 let named modules = List.sort String.compare (List.map fst modules)
 
 let golden ~folder module_name =
-  Filename.concat (Filename.concat goldens folder) (module_name ^ suffix)
+  Filename.concat
+    (Filename.concat goldens folder)
+    (Codegen_js.Of_optimized.module_file module_name)
 
 let promoted ~folder ~module_name content =
   Option.iter
@@ -18,7 +18,8 @@ let promoted ~folder ~module_name content =
       let target = Filename.concat directory folder in
       if not (Sys.file_exists target) then Sys.mkdir target 0o755;
       Out_channel.with_open_bin
-        (Filename.concat target (module_name ^ suffix))
+        (Filename.concat target
+           (Codegen_js.Of_optimized.module_file module_name))
         (fun out -> Out_channel.output_string out content))
     promoting_into
 
@@ -42,17 +43,19 @@ let emitted (outcome : Dartea.Compiler.outcome) =
 
 let compiled_in folder =
   Eio_main.run @@ fun env ->
-  match File_loader.Files.load Eio.Path.(Eio.Stdenv.fs env / folder) with
-  | Ok sources -> Dartea.Compiler.compile_modules sources
+  match Project.Sources.load Eio.Path.(Eio.Stdenv.fs env / folder) with
+  | Ok sources -> Dartea.Compiler.compile_modules ~entry:None sources
   | Error error -> refused Reporting.Sources.empty [ error ]
 
-let prelude_emitted = lazy (emitted (Dartea.Compiler.compile_modules []))
+let prelude_emitted =
+  lazy (emitted (Dartea.Compiler.compile_modules ~entry:None []))
 
 let listed folder =
   let path = Filename.concat goldens folder in
   if Sys.file_exists path then
     Sys.readdir path |> Array.to_list
-    |> List.filter (fun file -> Filename.check_suffix file suffix)
+    |> List.filter (fun file ->
+           Filename.check_suffix file Codegen_js.Of_optimized.module_suffix)
     |> List.map Filename.remove_extension
     |> List.sort String.compare
   else []
@@ -66,7 +69,8 @@ let same_as_goldens ~folder modules =
   List.iter
     (fun (module_name, source) -> promoted ~folder ~module_name source)
     modules;
-  assert_equal ~printer:names_printer ~msg:folder (listed folder) (named modules);
+  assert_equal ~printer:Sample.names ~msg:folder (listed folder)
+    (named modules);
   List.iter (same_as_golden ~folder) modules
 
 let test_prelude _ =
@@ -78,7 +82,8 @@ let playgrounds =
          let path = Filename.concat root entry in
          Sys.is_directory path
          && Array.exists
-              (fun file -> Filename.check_suffix file ".elm")
+              (fun file ->
+                Filename.check_suffix file Project.Elm_file.extension)
               (Sys.readdir path))
   |> List.sort String.compare
 

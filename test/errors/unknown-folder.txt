@@ -1,0 +1,5 @@
+-- UNKNOWN FOLDER ---------------------------------------------------------- src
+
+I cannot find the folder `src`.
+
+Point me at a folder that exists, and I will look for source files there.

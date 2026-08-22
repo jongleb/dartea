@@ -10,7 +10,7 @@
   interface
   canonicalization
   ast
-  file_loader
+  project
   data
   after_typed
   codegen_js

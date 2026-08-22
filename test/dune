@@ -24,6 +24,6 @@
   canonicalization
   interface
   ir
-  file_loader
+  project
   codegen_js
   eio_main))

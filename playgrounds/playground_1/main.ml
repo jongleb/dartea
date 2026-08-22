@@ -3,8 +3,8 @@ let () =
   let cwd = Eio.Stdenv.cwd env in
   let path = Eio.Path.(cwd / "playgrounds" / "elm_code") in
   let outcome =
-    match File_loader.Files.load path with
-    | Ok sources -> Dartea.Compiler.compile_modules sources
+    match Project.Sources.load path with
+    | Ok sources -> Dartea.Compiler.compile_modules ~entry:None sources
     | Error error ->
         prerr_endline
           (Reporting.Report.to_string ~colours:false

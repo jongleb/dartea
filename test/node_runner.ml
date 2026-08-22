@@ -7,7 +7,7 @@ let read_all ic =
    with End_of_file -> ());
   Buffer.contents buffer
 
-let source path content = File_loader.Files.Elm_file.of_path ~path content
+let source path content = Project.Elm_file.of_path ~path content
 
 let output_of (outcome : Dartea.Compiler.outcome) =
   match outcome.errors with
@@ -24,19 +24,16 @@ let source_of ~module_name (compiled : Dartea.Compiler.compiled list) =
 let evaluate ~(compiled : Dartea.Compiler.compiled list) ~expr =
   let directory = Filename.temp_dir "dartea" "" in
   List.iter
-    (fun (c : Dartea.Compiler.compiled) ->
-      let file =
-        Filename.concat directory
-          (c.module_name ^ "." ^ Dartea.Compiler.extension)
-      in
-      let out = open_out file in
-      output_string out c.source;
+    (fun (file : Dartea.Delivery.file) ->
+      let out = open_out (Filename.concat directory file.path) in
+      output_string out file.content;
       close_out out)
-    compiled;
+    (Dartea.Delivery.Esm_folder.files ~entry:None compiled);
   let program =
     Printf.sprintf
-      "import * as Main from \"./Main.%s\"; console.log(JSON.stringify(%s));"
-      Dartea.Compiler.extension expr
+      "import * as Main from \"./%s\"; console.log(JSON.stringify(%s));"
+      (Codegen_js.Of_optimized.module_file "Main")
+      expr
   in
   let command =
     Printf.sprintf "cd %s && node --input-type=module -e %s 2>&1"

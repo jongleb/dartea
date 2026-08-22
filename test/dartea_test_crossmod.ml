@@ -4,7 +4,7 @@ let source = Node_runner.source
 
 let node_eval ~modules ~expr =
   Node_runner.evaluate
-    ~compiled:(Node_runner.output_of (Dartea.Compiler.compile_modules modules))
+    ~compiled:(Node_runner.output_of (Dartea.Compiler.compile_modules ~entry:None modules))
     ~expr
 
 let assert_runs ~modules ~expr ~expected =

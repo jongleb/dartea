@@ -1,4 +1,4 @@
 (executable
  (public_name dartea)
  (name main)
- (libraries dartea reporting file_loader unix eio_main))
+ (libraries dartea reporting project files unix eio_main))

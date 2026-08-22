@@ -1534,6 +1534,8 @@ let program_with_helpers ~arities ~constructors ~siblings ~typedecls ~exports
 let runtime_module_source () = Runtime.source
 
 let extension = "mjs"
+let module_suffix = "." ^ extension
+let module_file module_name = module_name ^ module_suffix
 
 let import_lines imports =
   match imports with
@@ -1545,7 +1547,7 @@ let import_lines imports =
              J.Import_namespace
                {
                  local = module_ident module_name;
-                 from = "./" ^ module_name ^ "." ^ extension;
+                 from = "./" ^ module_file module_name;
                })
            modules)
 

@@ -46,6 +46,7 @@ let title_of_type (problem : Type_error.t) =
 
 let title_of_project (problem : Project_error.t) =
   match problem with
+  | Unknown_folder _ -> "UNKNOWN FOLDER"
   | No_sources _ -> "NO SOURCE FILES"
   | Bad_json _ -> "BAD JSON"
   | Missing_field _ -> "MISSING FIELD"
@@ -54,6 +55,10 @@ let title_of_project (problem : Project_error.t) =
   | Duplicate_module _ -> "DUPLICATE MODULE"
   | Unknown_entry _ -> "UNKNOWN ENTRY"
   | No_entry _ -> "NO ENTRY POINT"
+  | Entry_not_exposed _ -> "ENTRY NOT EXPOSED"
+  | Bad_entry _ -> "BAD ENTRY POINT"
+  | Unknown_delivery _ -> "UNKNOWN DELIVERY"
+  | Delivery_needs_entry _ -> "NO ENTRY POINT"
 
 let title (problem : Error.problem) =
   match problem with
@@ -999,17 +1004,24 @@ let of_warning source (warning : Warning.t) =
            (Printf.sprintf "The %s pattern is redundant:" (ordinal index))
            "Any value with this shape will be handled by a previous pattern, so it should be removed.")
 
-let extension = ".elm"
-
-let of_project_problem (problem : Project_error.t) =
+let of_project_problem source region (problem : Project_error.t) =
+  let snippet () = Snippet.of_region source region in
   match problem with
+  | Unknown_folder { folder } ->
+      Doc.stack
+        [
+          Doc.words
+            (Printf.sprintf "I cannot find the folder %s." (quoted folder));
+          Doc.words
+            "Point me at a folder that exists, and I will look for source files there.";
+        ]
   | No_sources { folder } ->
       Doc.stack
         [
           Doc.words
             (Printf.sprintf
-               "I looked for %s files in %s and every folder inside it, but I found none."
-               (quoted extension) (quoted folder));
+               "I looked for source files in %s and every folder inside it, but I found none."
+               (quoted folder));
           Doc.words
             "Point me at the folder that holds your source files, and I will start from there.";
         ]
@@ -1067,6 +1079,52 @@ let of_project_problem (problem : Project_error.t) =
             (Printf.sprintf "A program starts from %s. Add it, and I will know what to run."
                (quoted declaration));
         ]
+  | Entry_not_exposed { delivery; module_name; declaration } ->
+      Doc.stack
+        [
+          Doc.words
+            (Printf.sprintf "I start from this %s value, but %s keeps it to itself:"
+               (quoted declaration) (quoted module_name));
+          snippet ();
+          Doc.words
+            (Printf.sprintf
+               "The %s delivery reaches the entry point through the exports of its module. Put %s in the exposing list of %s."
+               (quoted delivery) (quoted declaration) (quoted module_name));
+        ]
+  | Bad_entry { delivery; declaration; expected; found; _ } ->
+      Doc.stack
+        [
+          Doc.words
+            (Printf.sprintf "I cannot handle this type of %s value:"
+               (quoted declaration));
+          snippet ();
+          Doc.words
+            (Printf.sprintf "The type of %s value I am seeing is:"
+               (quoted declaration));
+          indented (Doc.text found);
+          Doc.words
+            (Printf.sprintf
+               "The %s delivery only knows how to handle %s though. Modify %s to be one of those types of values, or pick a delivery that can take this one."
+               (quoted delivery) expected (quoted declaration));
+        ]
+  | Unknown_delivery { name; known } ->
+      Doc.stack
+        [
+          Doc.words
+            (Printf.sprintf "I do not know a delivery named %s." (quoted name));
+          Doc.words
+            (Printf.sprintf "The ones I know are %s."
+               (String.concat ", " (List.map quoted known)));
+        ]
+  | Delivery_needs_entry { delivery } ->
+      Doc.stack
+        [
+          Doc.words
+            (Printf.sprintf "The %s delivery needs to know where the program starts."
+               (quoted delivery));
+          Doc.words
+            "Name the file it lives in, and I will start from there.";
+        ]
   | Duplicate_module { name; one; other } ->
       Doc.stack
         [
@@ -1084,7 +1142,8 @@ let of_error source (error : Error.t) =
     | Error.Syntax problem -> of_syntax_problem source error.region problem
     | Error.Name problem -> of_name_problem source error.region problem
     | Error.Type problem -> of_type_problem source error.region problem
-    | Error.Project problem -> of_project_problem problem
+    | Error.Project problem ->
+        of_project_problem source error.region problem
   in
   {
     title = title error.problem;

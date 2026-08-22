@@ -1,0 +1,3 @@
+(library
+ (name project)
+ (libraries files eio yojson reporting))

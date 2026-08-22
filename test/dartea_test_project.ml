@@ -1,29 +1,14 @@
 open OUnit2
 
-let rec ensured directory =
-  if not (Sys.file_exists directory) then begin
-    ensured (Filename.dirname directory);
-    Sys.mkdir directory 0o755
-  end
-
-let written ~folder ~path content =
-  let file = Filename.concat folder path in
-  ensured (Filename.dirname file);
-  Out_channel.with_open_bin file (fun out ->
-      Out_channel.output_string out content)
-
-let rendered sources (error : Reporting.Error.t) =
-  Reporting.Report.to_string ~colours:false
-    (Reporting.Sources.report sources error)
-
 let loaded folder =
   Eio_main.run @@ fun env ->
-  File_loader.Files.load Eio.Path.(Eio.Stdenv.fs env / folder)
+  Project.Sources.load Eio.Path.(Eio.Stdenv.fs env / folder)
 
 let sources_of folder =
   match loaded folder with
   | Ok sources -> sources
-  | Error error -> assert_failure (rendered Reporting.Sources.empty error)
+  | Error error ->
+      assert_failure (Sample.rendered Reporting.Sources.empty error)
 
 let unexpected problem = assert_failure (Reporting.Error.show_problem problem)
 
@@ -33,19 +18,16 @@ let refused folder =
   | Error { problem = Project problem; _ } -> problem
   | Error error -> unexpected error.problem
 
-let names_printer names = String.concat ", " names
-let sorted names = List.sort String.compare names
-
 let names sources =
-  sorted
+  Sample.sorted
     (List.map
-       (fun (source : File_loader.Files.Elm_file.t) -> source.name)
+       (fun (source : Project.Elm_file.t) -> source.name)
        sources)
 
 let paths sources =
-  sorted
+  Sample.sorted
     (List.map
-       (fun (source : File_loader.Files.Elm_file.t) -> source.path)
+       (fun (source : Project.Elm_file.t) -> source.path)
        sources)
 
 let thing = {|module Deep.Thing exposing (answer)
@@ -66,73 +48,69 @@ main =
     Deep.Thing.answer + 1
 |}
 
-let starter = {|module Main exposing (main)
-
-
-main : String
-main =
-    "hi"
-|}
-
 let compiled sources =
-  let outcome = Dartea.Compiler.compile_modules sources in
+  let outcome = Dartea.Compiler.compile_modules ~entry:None sources in
   match outcome.errors with
   | [] ->
-      sorted
+      Sample.sorted
         (List.map
            (fun (module_ : Dartea.Compiler.compiled) -> module_.module_name)
            outcome.output)
   | error :: _ ->
-      assert_failure (rendered (Reporting.Sources.of_list outcome.sources) error)
+      assert_failure
+        (Sample.rendered (Reporting.Sources.of_list outcome.sources) error)
 
 let application directories =
   Printf.sprintf {|{ "type": "application", "source-directories": [%s] }|}
     (String.concat ", " (List.map (Printf.sprintf {|"%s"|}) directories))
 
 let project_with elm_json =
-  let folder = Filename.temp_dir "dartea" "" in
-  written ~folder ~path:"elm.json" elm_json;
-  written ~folder ~path:"src/Main.elm" main;
+  let folder = Sample.folder () in
+  Sample.written ~folder ~path:"elm.json" elm_json;
+  Sample.written ~folder ~path:"src/Main.elm" main;
   folder
 
 let test_source_folder _ =
-  let folder = Filename.temp_dir "dartea" "" in
-  written ~folder ~path:"src/Main.elm" main;
-  written ~folder ~path:"src/Deep/Thing.elm" thing;
+  let folder = Sample.folder () in
+  Sample.written ~folder ~path:"src/Main.elm" main;
+  Sample.written ~folder ~path:"src/Deep/Thing.elm" thing;
   let sources = sources_of folder in
-  assert_equal ~printer:names_printer [ "Deep.Thing"; "Main" ] (names sources);
-  assert_equal ~printer:names_printer
+  assert_equal ~printer:Sample.names [ "Deep.Thing"; "Main" ] (names sources);
+  assert_equal ~printer:Sample.names
     [ "src/Deep/Thing.elm"; "src/Main.elm" ]
     (paths sources);
   assert_bool "the project did not compile"
     (List.mem "Deep.Thing" (compiled sources))
 
 let test_folder_without_src _ =
-  let folder = Filename.temp_dir "dartea" "" in
-  written ~folder ~path:"Main.elm" main;
-  written ~folder ~path:"Deep/Thing.elm" thing;
+  let folder = Sample.folder () in
+  Sample.written ~folder ~path:"Main.elm" main;
+  Sample.written ~folder ~path:"Deep/Thing.elm" thing;
   let sources = sources_of folder in
-  assert_equal ~printer:names_printer [ "Deep.Thing"; "Main" ] (names sources);
-  assert_equal ~printer:names_printer [ "Deep/Thing.elm"; "Main.elm" ] (paths sources);
+  assert_equal ~printer:Sample.names [ "Deep.Thing"; "Main" ] (names sources);
+  assert_equal ~printer:Sample.names
+    [ "Deep/Thing.elm"; "Main.elm" ]
+    (paths sources);
   assert_bool "the project did not compile"
     (List.mem "Deep.Thing" (compiled sources))
 
 let test_hidden_folders_are_skipped _ =
-  let folder = Filename.temp_dir "dartea" "" in
-  written ~folder ~path:"Main.elm" "main : Int\nmain =\n    1\n";
-  written ~folder ~path:".hidden/Other.elm" "other : Int\nother =\n    2\n";
-  assert_equal ~printer:names_printer [ "Main" ] (names (sources_of folder))
+  let folder = Sample.folder () in
+  Sample.written ~folder ~path:"Main.elm" "main : Int\nmain =\n    1\n";
+  Sample.written ~folder ~path:".hidden/Other.elm"
+    "other : Int\nother =\n    2\n";
+  assert_equal ~printer:Sample.names [ "Main" ] (names (sources_of folder))
 
 let test_name_must_match_the_path _ =
-  let folder = Filename.temp_dir "dartea" "" in
-  written ~folder ~path:"src/Deep/Other.elm" thing;
+  let folder = Sample.folder () in
+  Sample.written ~folder ~path:"src/Deep/Other.elm" thing;
   let mismatched (error : Reporting.Error.t) =
     match error.problem with
     | Syntax (Module_name_mismatch { expected }) ->
         assert_equal ~printer:Fun.id "Deep.Other" expected
     | problem -> unexpected problem
   in
-  match Dartea.Compiler.compile_modules (sources_of folder) with
+  match Dartea.Compiler.compile_modules ~entry:None (sources_of folder) with
   | outcome -> (
       match outcome.errors with
       | [] -> assert_failure "the mismatch compiled without an error"
@@ -140,29 +118,31 @@ let test_name_must_match_the_path _ =
   | exception Reporting.Error.Found error -> mismatched error
 
 let test_empty_folder_is_refused _ =
-  let folder = Filename.temp_dir "dartea" "" in
+  let folder = Sample.folder () in
   match refused folder with
   | No_sources _ -> ()
   | problem -> unexpected (Project problem)
 
 let test_source_directories _ =
-  let folder = Filename.temp_dir "dartea" "" in
-  written ~folder ~path:"elm.json" (application [ "app"; "vendor" ]);
-  written ~folder ~path:"app/Main.elm" main;
-  written ~folder ~path:"vendor/Deep/Thing.elm" thing;
+  let folder = Sample.folder () in
+  Sample.written ~folder ~path:"elm.json" (application [ "app"; "vendor" ]);
+  Sample.written ~folder ~path:"app/Main.elm" main;
+  Sample.written ~folder ~path:"vendor/Deep/Thing.elm" thing;
   let sources = sources_of folder in
-  assert_equal ~printer:names_printer [ "Deep.Thing"; "Main" ] (names sources);
-  assert_equal ~printer:names_printer
+  assert_equal ~printer:Sample.names [ "Deep.Thing"; "Main" ] (names sources);
+  assert_equal ~printer:Sample.names
     [ "app/Main.elm"; "vendor/Deep/Thing.elm" ]
     (paths sources);
   assert_bool "the project did not compile"
     (List.mem "Deep.Thing" (compiled sources))
 
 let test_package_looks_in_src _ =
-  let folder = Filename.temp_dir "dartea" "" in
-  written ~folder ~path:"elm.json" {|{ "type": "package", "name": "gleb/thing" }|};
-  written ~folder ~path:"src/Deep/Thing.elm" thing;
-  assert_equal ~printer:names_printer [ "Deep.Thing" ] (names (sources_of folder))
+  let folder = Sample.folder () in
+  Sample.written ~folder ~path:"elm.json"
+    {|{ "type": "package", "name": "gleb/thing" }|};
+  Sample.written ~folder ~path:"src/Deep/Thing.elm" thing;
+  assert_equal ~printer:Sample.names [ "Deep.Thing" ]
+    (names (sources_of folder))
 
 let test_broken_json _ =
   match refused (project_with {|{ "type": "application", }|}) with
@@ -190,28 +170,29 @@ let test_source_directory_must_exist _ =
   | problem -> unexpected (Project problem)
 
 let test_one_module_per_name _ =
-  let folder = Filename.temp_dir "dartea" "" in
-  written ~folder ~path:"elm.json" (application [ "app"; "vendor" ]);
-  written ~folder ~path:"app/Deep/Thing.elm" thing;
-  written ~folder ~path:"vendor/Deep/Thing.elm" thing;
+  let folder = Sample.folder () in
+  Sample.written ~folder ~path:"elm.json" (application [ "app"; "vendor" ]);
+  Sample.written ~folder ~path:"app/Deep/Thing.elm" thing;
+  Sample.written ~folder ~path:"vendor/Deep/Thing.elm" thing;
   match refused folder with
   | Duplicate_module { name; one; other } ->
       assert_equal ~printer:Fun.id "Deep.Thing" name;
-      assert_equal ~printer:names_printer
+      assert_equal ~printer:Sample.names
         [ "app/Deep/Thing.elm"; "vendor/Deep/Thing.elm" ]
         [ one; other ]
   | problem -> unexpected (Project problem)
 
 let entry_of ~entry sources =
-  let outcome = Dartea.Compiler.compile_modules ~entry sources in
+  let outcome = Dartea.Compiler.compile_modules ~entry:(Some entry) sources in
   match outcome.errors with
   | [] -> outcome.entry
   | error :: _ ->
-      assert_failure (rendered (Reporting.Sources.of_list outcome.sources) error)
+      assert_failure
+        (Sample.rendered (Reporting.Sources.of_list outcome.sources) error)
 
 let test_entry_is_the_main_declaration _ =
-  let folder = Filename.temp_dir "dartea" "" in
-  written ~folder ~path:"src/Main.elm" starter;
+  let folder = Sample.folder () in
+  Sample.written ~folder ~path:"src/Main.elm" Sample.starter;
   match entry_of ~entry:"Main" (sources_of folder) with
   | None -> assert_failure "the entry point was not found"
   | Some (entry : Dartea.Entry.t) ->
@@ -220,8 +201,8 @@ let test_entry_is_the_main_declaration _ =
       assert_equal ~printer:Typed.Type.show Typed.Type.TStr entry.typ
 
 let test_entry_need_not_be_exposed _ =
-  let folder = Filename.temp_dir "dartea" "" in
-  written ~folder ~path:"src/Main.elm"
+  let folder = Sample.folder () in
+  Sample.written ~folder ~path:"src/Main.elm"
     {|module Main exposing (answer)
 
 
@@ -238,10 +219,10 @@ main =
     (Option.is_some (entry_of ~entry:"Main" (sources_of folder)))
 
 let test_module_without_main _ =
-  let folder = Filename.temp_dir "dartea" "" in
-  written ~folder ~path:"src/Main.elm" "answer : Int\nanswer =\n    1\n";
+  let folder = Sample.folder () in
+  Sample.written ~folder ~path:"src/Main.elm" "answer : Int\nanswer =\n    1\n";
   let outcome =
-    Dartea.Compiler.compile_modules ~entry:"Main" (sources_of folder)
+    Dartea.Compiler.compile_modules ~entry:(Some "Main") (sources_of folder)
   in
   match outcome.errors with
   | [ { problem = Project (No_entry { module_name; declaration }); _ } ] ->
@@ -267,21 +248,21 @@ let ran ~inside argument =
   (exit_code (Unix.close_process_in channel), printed)
 
 let test_empty_folder_stops_the_driver _ =
-  let folder = Filename.temp_dir "dartea" "" in
+  let folder = Sample.folder () in
   let code, printed = ran ~inside:folder Filename.current_dir_name in
   assert_equal ~printer:string_of_int 1 code;
   assert_bool printed (Node_runner.contains ~needle:"NO SOURCE FILES" printed)
 
 let test_driver_takes_the_entry_file _ =
-  let folder = Filename.temp_dir "dartea" "" in
-  written ~folder ~path:"src/Main.elm" starter;
+  let folder = Sample.folder () in
+  Sample.written ~folder ~path:"src/Main.elm" Sample.starter;
   let code, printed = ran ~inside:folder "src/Main.elm" in
   assert_equal ~printer:Fun.id "" printed;
   assert_equal ~printer:string_of_int 0 code
 
 let test_driver_refuses_an_unknown_entry_file _ =
-  let folder = Filename.temp_dir "dartea" "" in
-  written ~folder ~path:"src/Main.elm" starter;
+  let folder = Sample.folder () in
+  Sample.written ~folder ~path:"src/Main.elm" Sample.starter;
   let code, printed = ran ~inside:folder "src/Nope.elm" in
   assert_equal ~printer:string_of_int 1 code;
   assert_bool printed (Node_runner.contains ~needle:"UNKNOWN ENTRY" printed)
@@ -297,7 +278,8 @@ let suite =
     "package_looks_in_src" >:: test_package_looks_in_src;
     "broken_json" >:: test_broken_json;
     "missing_type" >:: test_missing_type;
-    "source_directories_must_be_strings" >:: test_source_directories_must_be_strings;
+    "source_directories_must_be_strings"
+    >:: test_source_directories_must_be_strings;
     "source_directory_must_exist" >:: test_source_directory_must_exist;
     "one_module_per_name" >:: test_one_module_per_name;
     "entry_is_the_main_declaration" >:: test_entry_is_the_main_declaration;
@@ -305,5 +287,6 @@ let suite =
     "module_without_main" >:: test_module_without_main;
     "empty_folder_stops_the_driver" >:: test_empty_folder_stops_the_driver;
     "driver_takes_the_entry_file" >:: test_driver_takes_the_entry_file;
-    "driver_refuses_an_unknown_entry_file" >:: test_driver_refuses_an_unknown_entry_file;
+    "driver_refuses_an_unknown_entry_file"
+    >:: test_driver_refuses_an_unknown_entry_file;
   ]

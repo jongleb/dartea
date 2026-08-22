@@ -1,0 +1,137 @@
+open OUnit2
+
+let source content = Project.Elm_file.of_path ~path:"Main.elm" content
+
+let outcome_of ~entry content =
+  let outcome = Dartea.Compiler.compile_modules ~entry [ source content ] in
+  match outcome.errors with
+  | [] -> outcome
+  | error :: _ ->
+      assert_failure
+        (Reporting.Report.to_string ~colours:false
+           (Reporting.Sources.report
+              (Reporting.Sources.of_list outcome.sources)
+              error))
+
+let delivered ~delivery (outcome : Dartea.Compiler.outcome) =
+  let module Delivery = (val delivery : Dartea.Delivery.S) in
+  Delivery.files ~entry:outcome.entry outcome.output
+
+let refused ~delivery outcome =
+  match delivered ~delivery outcome with
+  | _ -> assert_failure "the delivery accepted the entry point"
+  | exception Reporting.Error.Found { problem = Project problem; _ } -> problem
+  | exception Reporting.Error.Found error ->
+      assert_failure (Reporting.Error.show_problem error.problem)
+
+let paths files =
+  List.map (fun (file : Dartea.Delivery.file) -> file.path) files
+  |> List.sort String.compare
+
+let browser = Dartea.Delivery.find "classic_js_browser"
+
+let test_esm_folder_is_one_file_per_module _ =
+  let outcome = outcome_of ~entry:None Sample.starter in
+  let files = delivered ~delivery:Dartea.Delivery.default outcome in
+  assert_equal ~printer:Sample.names
+    (List.map
+       (fun (module_ : Dartea.Compiler.compiled) ->
+         Codegen_js.Of_optimized.module_file module_.module_name)
+       outcome.output
+    |> List.sort String.compare)
+    (paths files);
+  List.iter2
+    (fun (module_ : Dartea.Compiler.compiled) (file : Dartea.Delivery.file) ->
+      assert_equal ~printer:Fun.id ~msg:module_.module_name module_.source
+        file.content)
+    outcome.output files
+
+let test_browser_writes_a_page_and_a_bundle _ =
+  let outcome = outcome_of ~entry:(Some "Main") Sample.starter in
+  assert_equal ~printer:Sample.names
+    [ "build/index.html"; "build/main.js" ]
+    (paths (delivered ~delivery:browser outcome))
+
+let written directory (file : Dartea.Delivery.file) =
+  Sample.written ~folder:directory ~path:file.path file.content
+
+let test_browser_bundle_runs_under_node _ =
+  let outcome = outcome_of ~entry:(Some "Main") Sample.starter in
+  let directory = Sample.folder () in
+  List.iter (written directory) (delivered ~delivery:browser outcome);
+  let command =
+    Printf.sprintf "cd %s && node --input-type=module -e %s 2>&1"
+      (Filename.quote (Filename.concat directory "build"))
+      (Filename.quote
+         {|import { main } from "./main.js"; console.log(main);|})
+  in
+  let channel = Unix.open_process_in command in
+  let printed = Node_runner.read_all channel in
+  let (_ : Unix.process_status) = Unix.close_process_in channel in
+  assert_equal ~printer:Fun.id "5 from dartea" (String.trim printed)
+
+let test_browser_needs_an_entry _ =
+  match refused ~delivery:browser (outcome_of ~entry:None Sample.starter) with
+  | Delivery_needs_entry { delivery } ->
+      assert_equal ~printer:Fun.id "classic_js_browser" delivery
+  | problem -> assert_failure (Reporting.Project_error.show problem)
+
+let test_browser_needs_an_exposed_entry _ =
+  let hidden = {|module Main exposing (other)
+
+
+other : Int
+other =
+    1
+
+
+main : String
+main =
+    "hi"
+|} in
+  match refused ~delivery:browser (outcome_of ~entry:(Some "Main") hidden) with
+  | Entry_not_exposed { delivery; module_name; declaration } ->
+      assert_equal ~printer:Fun.id "classic_js_browser" delivery;
+      assert_equal ~printer:Fun.id "Main" module_name;
+      assert_equal ~printer:Fun.id "main" declaration
+  | problem -> assert_failure (Reporting.Project_error.show problem)
+
+let test_browser_needs_a_string _ =
+  let counted = {|module Main exposing (main)
+
+
+main : Int
+main =
+    1
+|} in
+  match refused ~delivery:browser (outcome_of ~entry:(Some "Main") counted) with
+  | Bad_entry { expected; found; _ } ->
+      assert_equal ~printer:Fun.id "String" expected;
+      assert_equal ~printer:Fun.id "Int" found
+  | problem -> assert_failure (Reporting.Project_error.show problem)
+
+let test_unknown_delivery _ =
+  match Dartea.Delivery.find "nope" with
+  | _ -> assert_failure "an unknown delivery was accepted"
+  | exception
+      Reporting.Error.Found
+        { problem = Project (Unknown_delivery { name; known }); _ } ->
+      assert_equal ~printer:Fun.id "nope" name;
+      assert_equal ~printer:Sample.names
+        [ "classic_js_browser"; "esm_folder" ]
+        (List.sort String.compare known)
+  | exception Reporting.Error.Found error ->
+      assert_failure (Reporting.Error.show_problem error.problem)
+
+let suite =
+  [
+    "esm_folder_is_one_file_per_module"
+    >:: test_esm_folder_is_one_file_per_module;
+    "browser_writes_a_page_and_a_bundle"
+    >:: test_browser_writes_a_page_and_a_bundle;
+    "browser_bundle_runs_under_node" >:: test_browser_bundle_runs_under_node;
+    "browser_needs_an_entry" >:: test_browser_needs_an_entry;
+    "browser_needs_an_exposed_entry" >:: test_browser_needs_an_exposed_entry;
+    "browser_needs_a_string" >:: test_browser_needs_a_string;
+    "unknown_delivery" >:: test_unknown_delivery;
+  ]

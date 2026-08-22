@@ -1,0 +1,14 @@
+-- BAD ENTRY POINT ---------------------------------------------------- Main.elm
+
+I cannot handle this type of `main` value:
+
+5| main =
+   ^^^^
+
+The type of `main` value I am seeing is:
+
+    Int
+
+The `classic_js_browser` delivery only knows how to handle String though. Modify
+`main` to be one of those types of values, or pick a delivery that can take this
+one.

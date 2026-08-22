@@ -143,9 +143,23 @@ let sample_of_syntax (problem : Reporting.Syntax_error.t) =
 x = 1
 |}
 
+let entry_sample =
+  "module Main exposing (main)\n\n\nmain : Int\nmain =\n    1\n"
+
 let sample_of_project (problem : Reporting.Project_error.t) =
-  let file = Reporting.Project_error.file_of problem in
-  Rendered { file; content = ""; region = { Data.Region.nowhere with file } }
+  match problem with
+  | Entry_not_exposed _ | Bad_entry _ ->
+      Rendered
+        {
+          file = "Main.elm";
+          content = entry_sample;
+          region = at ~line:5 ~column:1 ~length:4 ~offset:38;
+        }
+  | Unknown_folder _ | No_sources _ | Bad_json _ | Missing_field _ | Bad_field _
+  | Missing_source_directory _ | Duplicate_module _ | Unknown_entry _
+  | No_entry _ | Unknown_delivery _ | Delivery_needs_entry _ ->
+      let file = Reporting.Project_error.file_of problem in
+      Rendered { file; content = ""; region = { Data.Region.nowhere with file } }
 
 let sample (problem : Error.problem) =
   match problem with
@@ -221,6 +235,7 @@ let syntax_kinds : (string * Reporting.Syntax_error.t) list =
 
 let project_kinds : (string * Reporting.Project_error.t) list =
   [
+    ("unknown-folder", Unknown_folder { folder = "src" });
     ("no-sources", No_sources { folder = "src" });
     ( "bad-json",
       Bad_json
@@ -240,6 +255,26 @@ let project_kinds : (string * Reporting.Project_error.t) list =
       Missing_source_directory { file = "elm.json"; folder = "vendor" } );
     ("unknown-entry", Unknown_entry { path = "src/Nope.elm" });
     ("no-entry", No_entry { module_name = "Main"; declaration = "main" });
+    ( "entry-not-exposed",
+      Entry_not_exposed
+        {
+          delivery = "classic_js_browser";
+          module_name = "Main";
+          declaration = "main";
+        } );
+    ( "bad-entry",
+      Bad_entry
+        {
+          delivery = "classic_js_browser";
+          module_name = "Main";
+          declaration = "main";
+          expected = "String";
+          found = "Int";
+        } );
+    ( "unknown-delivery",
+      Unknown_delivery
+        { name = "nope"; known = [ "esm_folder"; "classic_js_browser" ] } );
+    ("delivery-needs-entry", Delivery_needs_entry { delivery = "classic_js_browser" });
     ( "duplicate-module",
       Duplicate_module
         {
@@ -281,9 +316,9 @@ let same_kind (one : Error.problem) (other : Error.problem) =
 
 let reported files =
   match
-    Dartea.Compiler.compile_modules
+    Dartea.Compiler.compile_modules ~entry:None
       (List.map
-         (fun (path, content) -> File_loader.Files.Elm_file.of_path ~path content)
+         (fun (path, content) -> Project.Elm_file.of_path ~path content)
          files)
   with
   | outcome -> (
@@ -398,9 +433,9 @@ let warning_kinds : (string * Reporting.Warning.problem) list =
 
 let warned files =
   match
-    Dartea.Compiler.compile_modules
+    Dartea.Compiler.compile_modules ~entry:None
       (List.map
-         (fun (path, content) -> File_loader.Files.Elm_file.of_path ~path content)
+         (fun (path, content) -> Project.Elm_file.of_path ~path content)
          files)
   with
   | outcome ->
