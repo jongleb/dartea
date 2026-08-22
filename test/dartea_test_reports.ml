@@ -55,7 +55,7 @@ let sample_of_name (problem : Reporting.Name_error.t) =
   | Unknown_module _ ->
       main {|module Main exposing (..)
 
-import List
+import Tuplee
 
 xs = 1
 |}
@@ -177,7 +177,7 @@ let type_kinds : (string * Reporting.Type_error.t) list =
 
 let name_kinds : (string * Reporting.Name_error.t) list =
   [
-    ("unknown-module", Unknown_module { qualifier = "List"; near = [] });
+    ("unknown-module", Unknown_module { qualifier = "Tuplee"; near = [] });
     ( "not-exposed",
       Not_exposed { module_name = "Paint"; name = "secret"; near = [] } );
     ("ctors-not-exposed", Ctors_not_exposed { module_name = "Paint"; type_name = "Colour" });
@@ -303,7 +303,10 @@ let contexts =
         ("Paint.elm", "module Paint exposing (shown)\n\nshown = 1\n\nsecret = 2\n");
       ] );
     ( "context-unimported-module",
-      [ ("Main.elm", "xs = List.map (\\x -> x) [ 1, 2 ]\n") ] );
+      [
+        ("Main.elm", "xs = Paint.shown\n");
+        ("Paint.elm", "module Paint exposing (shown)\n\nshown = 1\n");
+      ] );
     ( "context-constructor-payload",
       [
         ( "Main.elm",

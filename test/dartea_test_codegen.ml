@@ -3326,8 +3326,61 @@ result = answer ()
   in
   assert_js ~src ~expr:"Main.result" ~expected:"42"
 
+let test_list_folds_and_maps _ =
+  let src =
+    {|
+result : Int
+result =
+    List.sum (List.map (\n -> n * n) (List.filter (\n -> n > 2) (List.range 1 5)))
+|}
+  in
+  assert_js ~src ~expr:"Main.result" ~expected:"50"
+
+let test_list_sort_is_stable_by_key _ =
+  let src =
+    {|
+result : String
+result =
+    List.foldr (\n acc -> String.fromInt n ++ acc) ""
+        (List.sortBy negate [ 3, 1, 2 ])
+|}
+  in
+  assert_js ~src ~expr:"Main.result" ~expected:{|"321"|}
+
+let test_list_head_of_empty_is_nothing _ =
+  let src =
+    {|
+result : String
+result =
+    case List.head (List.filter (\n -> n > 9) (List.range 1 5)) of
+        Just n ->
+            String.fromInt n
+
+        Nothing ->
+            "nothing"
+|}
+  in
+  assert_js ~src ~expr:"Main.result" ~expected:{|"nothing"|}
+
+let test_list_partition_splits_on_the_test _ =
+  let src =
+    {|
+result : Int
+result =
+    case List.partition (\n -> n > 2) (List.range 1 5) of
+        ( yes, no ) ->
+            List.length yes * 10 + List.length no
+|}
+  in
+  assert_js ~src ~expr:"Main.result" ~expected:"32"
+
 let suite =
   [
+    "list_folds_and_maps" >:: test_list_folds_and_maps;
+    "list_sort_is_stable_by_key" >:: test_list_sort_is_stable_by_key;
+    "list_head_of_empty_is_nothing" >:: test_list_head_of_empty_is_nothing;
+    "list_partition_splits_on_the_test"
+    >:: test_list_partition_splits_on_the_test;
     "comments_are_skipped" >:: test_comments_are_skipped;
     "comment_markers_inside_a_string_are_text"
     >:: test_comment_markers_inside_a_string_are_text;
