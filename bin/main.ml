@@ -29,11 +29,8 @@ let () =
   Eio_main.run @@ fun env ->
   let folder = if Array.length Sys.argv > 1 then Sys.argv.(1) else "." in
   let path = Eio.Path.(Eio.Stdenv.fs env / folder) in
-  match File_loader.Files.current_folder path with
-  | [] ->
-      printed
-        [
-          Reporting.Sources.report Reporting.Sources.empty
-            (Reporting.Error.project (No_sources { folder }));
-        ]; exit 1
-  | sources -> compiled ~path sources
+  match File_loader.Files.load path with
+  | Error error ->
+      printed [ Reporting.Sources.report Reporting.Sources.empty error ];
+      exit 1
+  | Ok sources -> compiled ~path sources

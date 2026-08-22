@@ -3,7 +3,13 @@ let () =
   let cwd = Eio.Stdenv.cwd env in
   let path = Eio.Path.(cwd / "playgrounds" / "elm_code") in
   let outcome =
-    File_loader.Files.current_folder path |> Dartea.Compiler.compile_modules
+    match File_loader.Files.load path with
+    | Ok sources -> Dartea.Compiler.compile_modules sources
+    | Error error ->
+        prerr_endline
+          (Reporting.Report.to_string ~colours:false
+             (Reporting.Sources.report Reporting.Sources.empty error));
+        exit 1
   in
   let sources = Reporting.Sources.of_list outcome.sources in
   List.iter

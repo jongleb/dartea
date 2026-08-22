@@ -1,6 +1,6 @@
 (library
  (name file_loader)
- (libraries eio_main str eio)
+ (libraries eio_main str eio yojson reporting)
  (flags
   (-w -40 -w +26))
  (preprocess

@@ -1,0 +1,9 @@
+-- DUPLICATE MODULE ----------------------------------------- app/Deep/Thing.elm
+
+I found more than one file for the module `Deep.Thing`:
+
+    app/Deep/Thing.elm
+    vendor/Deep/Thing.elm
+
+I cannot tell which one you mean. Delete one of them, or move it out of the
+source directories.

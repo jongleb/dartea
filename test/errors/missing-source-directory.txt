@@ -1,0 +1,5 @@
+-- MISSING DIRECTORY -------------------------------------------------- elm.json
+
+One of the source directories is `vendor`, but there is no such folder.
+
+Create it, or take it out of the `source-directories` field.

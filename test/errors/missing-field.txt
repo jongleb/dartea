@@ -1,0 +1,5 @@
+-- MISSING FIELD ------------------------------------------------------ elm.json
+
+I need a `type` field in this file, but I do not see one.
+
+Add it, and I will know where to look for your code.

@@ -14,11 +14,10 @@ let name ~region problem = { region; problem = Name problem }
 let type_ ~region problem = { region; problem = Type problem }
 
 let project (problem : Project_error.t) =
-  let region =
-    match problem with
-    | No_sources { folder } -> { Data.Region.nowhere with file = folder }
-  in
-  { region; problem = Project problem }
+  let file = Project_error.file_of problem in
+  { region = { Data.Region.nowhere with file }; problem = Project problem }
+
+let raise_project problem = raise (Found (project problem))
 let raise_syntax ~region problem = raise (Found (syntax ~region problem))
 let raise_type ~region problem = raise (Found (type_ ~region problem))
 let raise_name ~region problem = raise (Found (name ~region problem))

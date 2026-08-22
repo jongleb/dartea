@@ -33,9 +33,6 @@ let title_of_name (problem : Name_error.t) =
   | Import_cycle _ -> "IMPORT CYCLE"
   | Recursive_value _ -> "CYCLIC DEFINITION"
 
-let title_of_project (problem : Project_error.t) =
-  match problem with No_sources _ -> "NO SOURCE FILES"
-
 let title_of_type (problem : Type_error.t) =
   match problem with
   | Bad_expression { expected = From_context { context = Call_arity _; _ }; _ } ->
@@ -46,6 +43,15 @@ let title_of_type (problem : Type_error.t) =
   | Bad_arity { expects; given; _ } ->
       if given < expects then "TOO FEW ARGS" else "TOO MANY ARGS"
   | Case_without_branches -> "EMPTY CASE"
+
+let title_of_project (problem : Project_error.t) =
+  match problem with
+  | No_sources _ -> "NO SOURCE FILES"
+  | Bad_json _ -> "BAD JSON"
+  | Missing_field _ -> "MISSING FIELD"
+  | Bad_field _ -> "BAD FIELD"
+  | Missing_source_directory _ -> "MISSING DIRECTORY"
+  | Duplicate_module _ -> "DUPLICATE MODULE"
 
 let title (problem : Error.problem) =
   match problem with
@@ -1004,6 +1010,49 @@ let of_project_problem (problem : Project_error.t) =
                (quoted extension) (quoted folder));
           Doc.words
             "Point me at the folder that holds your source files, and I will start from there.";
+        ]
+  | Bad_json { problem; _ } ->
+      Doc.stack
+        [
+          Doc.words "I got stuck while reading this file as JSON:";
+          indented (Doc.words problem);
+          Doc.words
+            "JSON wants commas between fields, double quotes around every name, and no trailing comma before a closing brace.";
+        ]
+  | Missing_field { field; _ } ->
+      Doc.stack
+        [
+          Doc.words
+            (Printf.sprintf "I need a %s field in this file, but I do not see one."
+               (quoted field));
+          Doc.words "Add it, and I will know where to look for your code.";
+        ]
+  | Bad_field { field; expected; _ } ->
+      Doc.stack
+        [
+          Doc.words
+            (Printf.sprintf "The %s field is not what I expected." (quoted field));
+          Doc.words (Printf.sprintf "I need %s there." expected);
+        ]
+  | Missing_source_directory { folder; _ } ->
+      Doc.stack
+        [
+          Doc.words
+            (Printf.sprintf
+               "One of the source directories is %s, but there is no such folder."
+               (quoted folder));
+          Doc.words
+            "Create it, or take it out of the `source-directories` field.";
+        ]
+  | Duplicate_module { name; one; other } ->
+      Doc.stack
+        [
+          Doc.words
+            (Printf.sprintf "I found more than one file for the module %s:"
+               (quoted name));
+          indented (Doc.above [ Doc.text one; Doc.text other ]);
+          Doc.words
+            "I cannot tell which one you mean. Delete one of them, or move it out of the source directories.";
         ]
 
 let of_error source (error : Error.t) =

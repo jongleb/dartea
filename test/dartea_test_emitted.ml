@@ -6,6 +6,11 @@ let prelude_folder = "prelude"
 let suffix = "." ^ Dartea.Compiler.extension
 let read path = In_channel.with_open_bin path In_channel.input_all
 let promoting_into = Sys.getenv_opt "DARTEA_PROMOTE_EMITTED"
+let names_printer names = String.concat ", " names
+let named modules = List.sort String.compare (List.map fst modules)
+
+let golden ~folder module_name =
+  Filename.concat (Filename.concat goldens folder) (module_name ^ suffix)
 
 let promoted ~folder ~module_name content =
   Option.iter
@@ -17,6 +22,15 @@ let promoted ~folder ~module_name content =
         (fun out -> Out_channel.output_string out content))
     promoting_into
 
+let refused sources errors =
+  assert_failure
+    (String.concat "\n"
+       (List.map
+          (fun error ->
+            Reporting.Report.to_string ~colours:false
+              (Reporting.Sources.report sources error))
+          errors))
+
 let emitted (outcome : Dartea.Compiler.outcome) =
   match outcome.errors with
   | [] ->
@@ -24,20 +38,13 @@ let emitted (outcome : Dartea.Compiler.outcome) =
         (fun (compiled : Dartea.Compiler.compiled) ->
           (compiled.module_name, compiled.source))
         outcome.output
-  | errors ->
-      let sources = Reporting.Sources.of_list outcome.sources in
-      assert_failure
-        (String.concat "\n"
-           (List.map
-              (fun error ->
-                Reporting.Report.to_string ~colours:false
-                  (Reporting.Sources.report sources error))
-              errors))
+  | errors -> refused (Reporting.Sources.of_list outcome.sources) errors
 
 let compiled_in folder =
   Eio_main.run @@ fun env ->
-  Eio.Path.(Eio.Stdenv.fs env / folder)
-  |> File_loader.Files.current_folder |> Dartea.Compiler.compile_modules
+  match File_loader.Files.load Eio.Path.(Eio.Stdenv.fs env / folder) with
+  | Ok sources -> Dartea.Compiler.compile_modules sources
+  | Error error -> refused Reporting.Sources.empty [ error ]
 
 let prelude_emitted = lazy (emitted (Dartea.Compiler.compile_modules []))
 
@@ -50,22 +57,20 @@ let listed folder =
     |> List.sort String.compare
   else []
 
-let names_printer names = String.concat ", " names
-
 let same_as_golden ~folder (module_name, source) =
-  let path = Filename.concat (Filename.concat goldens folder) (module_name ^ suffix) in
+  let path = golden ~folder module_name in
   assert_bool (Printf.sprintf "%s is missing" path) (Sys.file_exists path);
   assert_equal ~printer:Fun.id ~msg:path (read path) source
 
-let test_prelude _ =
-  let produced = Lazy.force prelude_emitted in
+let same_as_goldens ~folder modules =
   List.iter
-    (fun (module_name, source) ->
-      promoted ~folder:prelude_folder ~module_name source)
-    produced;
-  assert_equal ~printer:names_printer ~msg:prelude_folder (listed prelude_folder)
-    (List.map fst produced |> List.sort String.compare);
-  List.iter (same_as_golden ~folder:prelude_folder) produced
+    (fun (module_name, source) -> promoted ~folder ~module_name source)
+    modules;
+  assert_equal ~printer:names_printer ~msg:folder (listed folder) (named modules);
+  List.iter (same_as_golden ~folder) modules
+
+let test_prelude _ =
+  same_as_goldens ~folder:prelude_folder (Lazy.force prelude_emitted)
 
 let playgrounds =
   Sys.readdir root |> Array.to_list
@@ -77,25 +82,29 @@ let playgrounds =
               (Sys.readdir path))
   |> List.sort String.compare
 
-let test_playground folder =
-  folder >:: fun _ ->
-  let produced = emitted (compiled_in (Filename.concat root folder)) in
-  let prelude = Lazy.force prelude_emitted in
-  let own =
-    List.filter (fun (module_name, _) -> not (List.mem_assoc module_name prelude)) produced
-  in
-  List.iter (fun (module_name, source) -> promoted ~folder ~module_name source) own;
-  assert_equal ~printer:names_printer ~msg:folder (listed folder)
-    (List.map fst own |> List.sort String.compare);
-  List.iter (same_as_golden ~folder) own;
+let unchanged_prelude ~folder produced =
   List.iter
     (fun (module_name, source) ->
-      match List.assoc_opt module_name prelude with
+      match List.assoc_opt module_name (Lazy.force prelude_emitted) with
       | None -> ()
       | Some expected ->
           assert_equal ~printer:Fun.id
-            ~msg:(Printf.sprintf "%s in %s drifted from the prelude" module_name folder)
+            ~msg:
+              (Printf.sprintf "%s in %s drifted from the prelude" module_name
+                 folder)
             expected source)
     produced
+
+let own produced =
+  let prelude = Lazy.force prelude_emitted in
+  List.filter
+    (fun (module_name, _) -> not (List.mem_assoc module_name prelude))
+    produced
+
+let test_playground folder =
+  folder >:: fun _ ->
+  let produced = emitted (compiled_in (Filename.concat root folder)) in
+  unchanged_prelude ~folder produced;
+  same_as_goldens ~folder (own produced)
 
 let suite = ("prelude" >:: test_prelude) :: List.map test_playground playgrounds

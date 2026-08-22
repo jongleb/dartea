@@ -1,0 +1,8 @@
+-- BAD JSON ----------------------------------------------------------- elm.json
+
+I got stuck while reading this file as JSON:
+
+    Line 1, bytes 25-27: Expected string or identifier but found '} '
+
+JSON wants commas between fields, double quotes around every name, and no
+trailing comma before a closing brace.

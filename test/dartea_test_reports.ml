@@ -144,14 +144,8 @@ x = 1
 |}
 
 let sample_of_project (problem : Reporting.Project_error.t) =
-  match problem with
-  | No_sources { folder } ->
-      Rendered
-        {
-          file = folder;
-          content = "";
-          region = { Data.Region.nowhere with file = folder };
-        }
+  let file = Reporting.Project_error.file_of problem in
+  Rendered { file; content = ""; region = { Data.Region.nowhere with file } }
 
 let sample (problem : Error.problem) =
   match problem with
@@ -226,7 +220,32 @@ let syntax_kinds : (string * Reporting.Syntax_error.t) list =
   ]
 
 let project_kinds : (string * Reporting.Project_error.t) list =
-  [ ("no-sources", No_sources { folder = "src" }) ]
+  [
+    ("no-sources", No_sources { folder = "src" });
+    ( "bad-json",
+      Bad_json
+        {
+          file = "elm.json";
+          problem = "Line 1, bytes 25-27: Expected string or identifier but found '} '";
+        } );
+    ("missing-field", Missing_field { file = "elm.json"; field = "type" });
+    ( "bad-field",
+      Bad_field
+        {
+          file = "elm.json";
+          field = "source-directories";
+          expected = "an array of strings";
+        } );
+    ( "missing-source-directory",
+      Missing_source_directory { file = "elm.json"; folder = "vendor" } );
+    ( "duplicate-module",
+      Duplicate_module
+        {
+          name = "Deep.Thing";
+          one = "app/Deep/Thing.elm";
+          other = "vendor/Deep/Thing.elm";
+        } );
+  ]
 
 let kinds =
   List.map (fun (name, problem) -> (name, Error.Type problem)) type_kinds
