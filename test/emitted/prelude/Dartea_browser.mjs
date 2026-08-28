@@ -13,6 +13,13 @@ const $$VirtualDom$node = (tag, attributes, children) => ({
   children: $$toArray(children),
 });
 
+const $$VirtualDom$keyedNode = (tag, attributes, children) => ({
+  TAG: "keyed",
+  tag,
+  attributes: $$toArray(attributes),
+  children: $$toArray(children),
+});
+
 const $$VirtualDom$attribute = (key, value) => ({ TAG: "attribute", key, value });
 const $$VirtualDom$property = (key, value) => ({ TAG: "property", key, value });
 const $$VirtualDom$style = (key, value) => ({ TAG: "style", key, value });
@@ -44,6 +51,7 @@ export {
   $$VirtualDom$text,
   $$VirtualDom$property,
   $$VirtualDom$node,
+  $$VirtualDom$keyedNode,
   $$VirtualDom$attribute,
   $$VirtualDom$style,
 };

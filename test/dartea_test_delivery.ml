@@ -91,6 +91,12 @@ let test_mapped_messages_reach_the_model _ =
     "pokepokeattr[L0RAL4] (created 0 , same buttons true )"
     (printed_by ~program:Sample.mapped_program ~stub:Sample.mapped_stub)
 
+let test_keyed_list_moves_nodes_instead_of_making_them _ =
+  assert_equal ~printer:Fun.id
+    "-10,1,2,3,4,5,6,7,8,9,10 (created 1, kept true) -> \
+     10,9,8,7,6,5,4,3,2,1,-10 (created 0, kept true)"
+    (printed_by ~program:Sample.keyed_program ~stub:Sample.keyed_stub)
+
 let test_value_lands_on_the_property _ =
   assert_equal ~printer:Fun.id
     {|property "3", attribute undefined, class "wrap"|}
@@ -153,6 +159,8 @@ let suite =
     "the_counter_reacts_to_a_click" >:: test_the_counter_reacts_to_a_click;
     "typing_reaches_the_model" >:: test_typing_reaches_the_model;
     "mapped_messages_reach_the_model" >:: test_mapped_messages_reach_the_model;
+    "keyed_list_moves_nodes_instead_of_making_them"
+    >:: test_keyed_list_moves_nodes_instead_of_making_them;
     "value_lands_on_the_property" >:: test_value_lands_on_the_property;
     "browser_needs_an_entry" >:: test_browser_needs_an_entry;
     "browser_needs_an_exposed_entry" >:: test_browser_needs_an_exposed_entry;
