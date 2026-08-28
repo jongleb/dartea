@@ -338,6 +338,72 @@ console.log(
 );
 |}
 
+let reshaped_program = {|module Main exposing (main)
+
+import Browser
+import Html exposing (Html, button, div, text)
+import Html.Events exposing (onClick)
+
+
+type Inner
+    = Poked
+
+
+type Msg
+    = Flipped
+    | Wrapped Inner
+
+
+type alias Model =
+    { flipped : Bool, log : String }
+
+
+update : Msg -> Model -> Model
+update msg model =
+    case msg of
+        Flipped ->
+            { model | flipped = not model.flipped }
+
+        Wrapped Poked ->
+            { model | log = model.log ++ "P" }
+
+
+inner : Bool -> Html Inner
+inner flipped =
+    if flipped then
+        div [ onClick Poked ] [ text "block" ]
+
+    else
+        text "flat"
+
+
+view : Model -> Html Msg
+view model =
+    div []
+        [ button [ onClick Flipped ] [ text "flip" ]
+        , Html.map Wrapped (inner model.flipped)
+        , div [] [ text ("[" ++ model.log ++ "]") ]
+        ]
+
+
+main : Browser.Program () Model Msg
+main =
+    Browser.sandbox
+        { init = { flipped = False, log = "" }, update = update, view = view }
+|}
+
+let reshaped_stub = dom ^ {|const host = await mounted();
+const flip = tagged(host, "button")[0];
+const listening = () =>
+  tagged(host, "div").find((node) => node.listeners.click !== undefined);
+flip.listeners.click(happening({}));
+listening().listeners.click(happening({}));
+flip.listeners.click(happening({}));
+flip.listeners.click(happening({}));
+listening().listeners.click(happening({}));
+console.log(shown(host));
+|}
+
 let keyed_program = {|module Main exposing (main)
 
 import Browser

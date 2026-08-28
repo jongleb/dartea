@@ -91,6 +91,10 @@ let test_mapped_messages_reach_the_model _ =
     "pokepokeattr[L0RAL4] (created 0 , same buttons true )"
     (printed_by ~program:Sample.mapped_program ~stub:Sample.mapped_stub)
 
+let test_a_mapped_subtree_survives_being_replaced _ =
+  assert_equal ~printer:Fun.id "flipblock[PP]"
+    (printed_by ~program:Sample.reshaped_program ~stub:Sample.reshaped_stub)
+
 let test_keyed_list_moves_nodes_instead_of_making_them _ =
   assert_equal ~printer:Fun.id
     "-10,1,2,3,4,5,6,7,8,9,10 (created 1, kept true) -> \
@@ -159,6 +163,8 @@ let suite =
     "the_counter_reacts_to_a_click" >:: test_the_counter_reacts_to_a_click;
     "typing_reaches_the_model" >:: test_typing_reaches_the_model;
     "mapped_messages_reach_the_model" >:: test_mapped_messages_reach_the_model;
+    "a_mapped_subtree_survives_being_replaced"
+    >:: test_a_mapped_subtree_survives_being_replaced;
     "keyed_list_moves_nodes_instead_of_making_them"
     >:: test_keyed_list_moves_nodes_instead_of_making_them;
     "value_lands_on_the_property" >:: test_value_lands_on_the_property;
