@@ -7,7 +7,11 @@
 -}
 
 
-module VirtualDom exposing (Attribute, Node, attribute, node, on, style, text)
+module VirtualDom exposing
+    ( Attribute, Handler(..), Node, attribute, node, on, property, style, text )
+
+import Json.Decode
+import Json.Encode
 
 
 type Node msg
@@ -33,11 +37,26 @@ attribute =
     Elm.Kernel.VirtualDom.attribute
 
 
+property : String -> Json.Encode.Value -> Attribute msg
+property =
+    Elm.Kernel.VirtualDom.property
+
+
 style : String -> String -> Attribute msg
 style =
     Elm.Kernel.VirtualDom.style
 
 
-on : String -> msg -> Attribute msg
+type Handler msg
+    = Normal (Json.Decode.Decoder msg)
+    | MayStopPropagation (Json.Decode.Decoder ( msg, Bool ))
+    | MayPreventDefault (Json.Decode.Decoder ( msg, Bool ))
+    | Custom
+        (Json.Decode.Decoder
+            { message : msg, stopPropagation : Bool, preventDefault : Bool }
+        )
+
+
+on : String -> Handler msg -> Attribute msg
 on =
     Elm.Kernel.VirtualDom.on

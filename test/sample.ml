@@ -140,3 +140,74 @@ console.log(
     ")",
 );
 |}
+
+let field_program = {|module Main exposing (main)
+
+import Browser
+import Html exposing (Html, div, input)
+import Html.Attributes exposing (class, type_, value)
+
+
+type Msg
+    = Bumped
+
+
+update : Msg -> Int -> Int
+update _ model =
+    model + 1
+
+
+view : Int -> Html Msg
+view model =
+    div [ class "wrap" ]
+        [ input [ type_ "text", value (String.fromInt model) ] [] ]
+
+
+main : Browser.Program () Int Msg
+main =
+    Browser.sandbox { init = 3, update = update, view = view }
+|}
+
+let property_stub = {|const make = (tag) => ({
+  tag,
+  listeners: {},
+  attributes: {},
+  childNodes: [],
+  style: { setProperty() {}, removeProperty() {} },
+  setAttribute(key, value) { this.attributes[key] = value; },
+  removeAttribute(key) { delete this.attributes[key]; },
+  addEventListener(event, handler) { this.listeners[event] = handler; },
+  appendChild(child) { this.childNodes.push(child); return child; },
+  removeChild() {},
+  replaceChild() {},
+  set textContent(_) { this.childNodes = []; },
+  get textContent() { return ""; },
+});
+
+globalThis.document = {
+  createElement: make,
+  createTextNode: (text) => ({ text, childNodes: [] }),
+};
+
+const found = (node, tag) => {
+  if (node.tag === tag) return node;
+  for (const child of node.childNodes ?? []) {
+    const inside = found(child, tag);
+    if (inside) return inside;
+  }
+  return undefined;
+};
+
+const { mount } = await import("./main.js");
+const host = make("body");
+mount(host);
+const field = found(host, "input");
+console.log(
+  "property " +
+    JSON.stringify(field.value) +
+    ", attribute " +
+    JSON.stringify(field.attributes.value) +
+    ", class " +
+    JSON.stringify(found(host, "div").className),
+);
+|}

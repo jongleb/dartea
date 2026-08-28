@@ -456,7 +456,7 @@ page =
       ]
     ~expr:"Main.page"
     ~expected:
-      {|{"TAG":"node","tag":"div","attributes":[{"TAG":"attribute","key":"class","value":"box"}],"children":[{"TAG":"text","text":"hi"}]}|}
+      {|{"TAG":"node","tag":"div","attributes":[{"TAG":"property","key":"className","value":"box"}],"children":[{"TAG":"text","text":"hi"}]}|}
 
 let test_html_needs_an_import _ =
   let outcome =

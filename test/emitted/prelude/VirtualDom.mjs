@@ -9,6 +9,7 @@ const Attribute = "Attribute";
 const node = Dartea_browser.$$VirtualDom$node;
 const text = Dartea_browser.$$VirtualDom$text;
 const attribute = Dartea_browser.$$VirtualDom$attribute;
+const property = Dartea_browser.$$VirtualDom$property;
 const style = Dartea_browser.$$VirtualDom$style;
 const on = Dartea_browser.$$VirtualDom$on;
-export { attribute, node, on, style, text };
+export { attribute, node, on, property, style, text };

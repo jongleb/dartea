@@ -9,7 +9,8 @@
 
 module Html exposing
     ( Attribute, Html
-    , a, button, div, h1, input, li, node, p, span, text, ul
+    , a, button, div, footer, h1, header, input, label, li, node, p, section
+    , span, strong, text, ul
     )
 
 import VirtualDom
@@ -46,6 +47,31 @@ button =
 div : List (Attribute msg) -> List (Html msg) -> Html msg
 div =
     node "div"
+
+
+footer : List (Attribute msg) -> List (Html msg) -> Html msg
+footer =
+    node "footer"
+
+
+header : List (Attribute msg) -> List (Html msg) -> Html msg
+header =
+    node "header"
+
+
+label : List (Attribute msg) -> List (Html msg) -> Html msg
+label =
+    node "label"
+
+
+section : List (Attribute msg) -> List (Html msg) -> Html msg
+section =
+    node "section"
+
+
+strong : List (Attribute msg) -> List (Html msg) -> Html msg
+strong =
+    node "strong"
 
 
 h1 : List (Attribute msg) -> List (Html msg) -> Html msg

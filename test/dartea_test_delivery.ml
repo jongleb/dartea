@@ -78,6 +78,24 @@ let test_the_counter_reacts_to_a_click _ =
     "+0 -> +2 (created 0, replaced 0, same node true)"
     (String.trim printed)
 
+let test_value_lands_on_the_property _ =
+  let outcome = outcome_of ~entry:(Some "Main") Sample.field_program in
+  let directory = Sample.folder () in
+  List.iter (written directory) (delivered ~delivery:browser outcome);
+  Sample.written
+    ~folder:(Filename.concat directory "build")
+    ~path:"stub.mjs" Sample.property_stub;
+  let command =
+    Printf.sprintf "cd %s && node stub.mjs 2>&1"
+      (Filename.quote (Filename.concat directory "build"))
+  in
+  let channel = Unix.open_process_in command in
+  let printed = Node_runner.read_all channel in
+  let (_ : Unix.process_status) = Unix.close_process_in channel in
+  assert_equal ~printer:Fun.id
+    {|property "3", attribute undefined, class "wrap"|}
+    (String.trim printed)
+
 let test_browser_needs_an_entry _ =
   match refused ~delivery:browser (outcome_of ~entry:None Sample.program) with
   | Delivery_needs_entry { delivery } ->
@@ -133,6 +151,7 @@ let suite =
     "browser_writes_a_page_and_a_bundle"
     >:: test_browser_writes_a_page_and_a_bundle;
     "the_counter_reacts_to_a_click" >:: test_the_counter_reacts_to_a_click;
+    "value_lands_on_the_property" >:: test_value_lands_on_the_property;
     "browser_needs_an_entry" >:: test_browser_needs_an_entry;
     "browser_needs_an_exposed_entry" >:: test_browser_needs_an_exposed_entry;
     "browser_needs_a_program" >:: test_browser_needs_a_program;

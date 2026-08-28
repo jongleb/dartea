@@ -156,7 +156,8 @@ let test_a_backend_without_the_platform_refuses_it _ =
   | { problem = Syntax _ | Type _ | Project _; _ } :: _ | [] ->
       assert_failure "the platform kernel was accepted without a platform"
   | { problem = Name (Unknown_kernel { module_name; _ }); _ } :: _ ->
-      assert_equal ~printer:Fun.id "Elm.Kernel.VirtualDom" module_name
+      assert_bool module_name
+        (String.starts_with ~prefix:"Elm.Kernel." module_name)
   | { problem = Name _; _ } :: _ ->
       assert_failure "a different naming error came out"
 

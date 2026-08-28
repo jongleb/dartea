@@ -5,6 +5,7 @@ let provided =
     (Browser, "VirtualDom", "node", 3);
     (Browser, "VirtualDom", "text", 1);
     (Browser, "VirtualDom", "attribute", 2);
+    (Browser, "VirtualDom", "property", 2);
     (Browser, "VirtualDom", "style", 2);
     (Browser, "VirtualDom", "on", 2);
     (Browser, "Browser", "sandbox", 1);
