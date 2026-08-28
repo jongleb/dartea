@@ -60,13 +60,13 @@ let test_browser_writes_a_page_and_a_bundle _ =
 let written directory (file : Dartea.Delivery.file) =
   Sample.written ~folder:directory ~path:file.path file.content
 
-let test_the_counter_reacts_to_a_click _ =
-  let outcome = outcome_of ~entry:(Some "Main") Sample.program in
+let printed_by ~program ~stub =
+  let outcome = outcome_of ~entry:(Some "Main") program in
   let directory = Sample.folder () in
   List.iter (written directory) (delivered ~delivery:browser outcome);
   Sample.written
     ~folder:(Filename.concat directory "build")
-    ~path:"stub.mjs" Sample.dom_stub;
+    ~path:"stub.mjs" stub;
   let command =
     Printf.sprintf "cd %s && node stub.mjs 2>&1"
       (Filename.quote (Filename.concat directory "build"))
@@ -74,27 +74,22 @@ let test_the_counter_reacts_to_a_click _ =
   let channel = Unix.open_process_in command in
   let printed = Node_runner.read_all channel in
   let (_ : Unix.process_status) = Unix.close_process_in channel in
+  String.trim printed
+
+let test_typing_reaches_the_model _ =
+  assert_equal ~printer:Fun.id
+    {|<ok> -> <ok!> (stopped 1, prevented 1, value "ok!")|}
+    (printed_by ~program:Sample.typing_program ~stub:Sample.typing_stub)
+
+let test_the_counter_reacts_to_a_click _ =
   assert_equal ~printer:Fun.id
     "+0 -> +2 (created 0, replaced 0, same node true)"
-    (String.trim printed)
+    (printed_by ~program:Sample.program ~stub:Sample.dom_stub)
 
 let test_value_lands_on_the_property _ =
-  let outcome = outcome_of ~entry:(Some "Main") Sample.field_program in
-  let directory = Sample.folder () in
-  List.iter (written directory) (delivered ~delivery:browser outcome);
-  Sample.written
-    ~folder:(Filename.concat directory "build")
-    ~path:"stub.mjs" Sample.property_stub;
-  let command =
-    Printf.sprintf "cd %s && node stub.mjs 2>&1"
-      (Filename.quote (Filename.concat directory "build"))
-  in
-  let channel = Unix.open_process_in command in
-  let printed = Node_runner.read_all channel in
-  let (_ : Unix.process_status) = Unix.close_process_in channel in
   assert_equal ~printer:Fun.id
     {|property "3", attribute undefined, class "wrap"|}
-    (String.trim printed)
+    (printed_by ~program:Sample.field_program ~stub:Sample.property_stub)
 
 let test_browser_needs_an_entry _ =
   match refused ~delivery:browser (outcome_of ~entry:None Sample.program) with
@@ -151,6 +146,7 @@ let suite =
     "browser_writes_a_page_and_a_bundle"
     >:: test_browser_writes_a_page_and_a_bundle;
     "the_counter_reacts_to_a_click" >:: test_the_counter_reacts_to_a_click;
+    "typing_reaches_the_model" >:: test_typing_reaches_the_model;
     "value_lands_on_the_property" >:: test_value_lands_on_the_property;
     "browser_needs_an_entry" >:: test_browser_needs_an_entry;
     "browser_needs_an_exposed_entry" >:: test_browser_needs_an_exposed_entry;

@@ -16,7 +16,7 @@ const $$VirtualDom$node = (tag, attributes, children) => ({
 const $$VirtualDom$attribute = (key, value) => ({ TAG: "attribute", key, value });
 const $$VirtualDom$property = (key, value) => ({ TAG: "property", key, value });
 const $$VirtualDom$style = (key, value) => ({ TAG: "style", key, value });
-const $$VirtualDom$on = (event, msg) => ({ TAG: "on", event, msg });
+const $$VirtualDom$on = (event, handler) => ({ TAG: "on", event, handler });
 
 const $$Browser$sandbox = (config) => ({ TAG: "program", config });
 

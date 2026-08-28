@@ -141,6 +141,114 @@ console.log(
 );
 |}
 
+let typing_program = {|module Main exposing (main)
+
+import Browser
+import Html exposing (Html, div, form, input, text)
+import Html.Attributes exposing (value)
+import Html.Events exposing (onInput, onSubmit)
+
+
+type Msg
+    = Typed String
+    | Sent
+
+
+update : Msg -> String -> String
+update msg model =
+    case msg of
+        Typed given ->
+            given
+
+        Sent ->
+            model ++ "!"
+
+
+view : String -> Html Msg
+view model =
+    form [ onSubmit Sent ]
+        [ input [ value model, onInput Typed ] []
+        , div [] [ text ("<" ++ model ++ ">") ]
+        ]
+
+
+main : Browser.Program () String Msg
+main =
+    Browser.sandbox { init = "", update = update, view = view }
+|}
+
+let typing_stub = {|let stopped = 0;
+let prevented = 0;
+
+const make = (tag) => ({
+  tag,
+  listeners: {},
+  attributes: {},
+  childNodes: [],
+  style: { setProperty() {}, removeProperty() {} },
+  setAttribute(key, value) { this.attributes[key] = value; },
+  removeAttribute(key) { delete this.attributes[key]; },
+  addEventListener(event, handler) { this.listeners[event] = handler; },
+  appendChild(child) { this.childNodes.push(child); return child; },
+  removeChild(child) {
+    this.childNodes = this.childNodes.filter((kept) => kept !== child);
+  },
+  replaceChild(next, previous) {
+    this.childNodes = this.childNodes.map((kept) =>
+      kept === previous ? next : kept,
+    );
+  },
+  set textContent(_) { this.childNodes = []; },
+  get textContent() { return ""; },
+});
+
+globalThis.document = {
+  createElement: make,
+  createTextNode: (text) => ({ text, childNodes: [] }),
+};
+
+const shown = (node) =>
+  node.nodeValue !== undefined
+    ? node.nodeValue
+    : node.text !== undefined
+      ? node.text
+      : node.childNodes.map(shown).join("");
+
+const found = (node, tag) => {
+  if (node.tag === tag) return node;
+  for (const child of node.childNodes ?? []) {
+    const inside = found(child, tag);
+    if (inside) return inside;
+  }
+  return undefined;
+};
+
+const happening = (extra) => ({
+  ...extra,
+  stopPropagation() { stopped += 1; },
+  preventDefault() { prevented += 1; },
+});
+
+const { mount } = await import("./main.js");
+const host = make("body");
+mount(host);
+found(host, "input").listeners.input(happening({ target: { value: "ok" } }));
+const typed = shown(found(host, "div"));
+found(host, "form").listeners.submit(happening({}));
+console.log(
+  typed +
+    " -> " +
+    shown(found(host, "div")) +
+    " (stopped " +
+    stopped +
+    ", prevented " +
+    prevented +
+    ", value " +
+    JSON.stringify(found(host, "input").value) +
+    ")",
+);
+|}
+
 let field_program = {|module Main exposing (main)
 
 import Browser

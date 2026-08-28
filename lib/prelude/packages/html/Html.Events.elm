@@ -116,15 +116,15 @@ keyCode =
     Json.Decode.field "keyCode" Json.Decode.int
 
 
-alwaysStop : a -> ( a, Bool )
-alwaysStop given =
+alwaysTrue : a -> ( a, Bool )
+alwaysTrue given =
     ( given, True )
 
 
 onInput : (String -> msg) -> VirtualDom.Attribute msg
 onInput tagger =
     stopPropagationOn "input"
-        (Json.Decode.map alwaysStop (Json.Decode.map tagger targetValue))
+        (Json.Decode.map alwaysTrue (Json.Decode.map tagger targetValue))
 
 
 onCheck : (Bool -> msg) -> VirtualDom.Attribute msg
@@ -135,4 +135,4 @@ onCheck tagger =
 onSubmit : msg -> VirtualDom.Attribute msg
 onSubmit given =
     preventDefaultOn "submit"
-        (Json.Decode.map alwaysStop (Json.Decode.succeed given))
+        (Json.Decode.map alwaysTrue (Json.Decode.succeed given))
