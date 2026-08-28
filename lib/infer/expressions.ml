@@ -148,7 +148,7 @@ let rec infer_pattern (type_env : Type_env.t) (pattern : Canonical.Pattern.t) :
           in
           let inferred, bound, matched =
             against_payloads ([], Value_env.empty) arguments
-              (instantiate (Type_env.constructor_scheme declared ctor))
+              (instantiate (Type_env.constructor_scheme type_env declared ctor))
           in
           ({ typ = matched; pattern = P_T_ctor (name, List.rev inferred) }, bound)
     end

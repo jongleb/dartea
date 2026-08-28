@@ -1,6 +1,6 @@
 module type BACKEND = sig
   val extension : string
-  val runtime_modules : string list -> (string * string) list
+  val runtime_modules : Data.Name.t list -> (string * string) list
 
   val platform_kernel : Data.Name.t -> int option
 
@@ -19,15 +19,12 @@ end
 module Js_backend : BACKEND = struct
   let extension = Codegen_js.Of_optimized.extension
 
-  let runtime_modules module_names =
+  let runtime_modules used =
     ( Codegen_js.Of_optimized.runtime_module_name,
       Codegen_js.Of_optimized.runtime_module_source () )
-    ::
-    (if Codegen_js.Browser_kernel.needed_by module_names then
-       [ Codegen_js.Of_optimized.browser_module ]
-     else [])
+    :: Codegen_js.Platform_kernel.runtimes used
 
-  let platform_kernel = Codegen_js.Browser_kernel.arity
+  let platform_kernel = Codegen_js.Platform_kernel.arity
 
   let emit_module ~notice ~arities ~constructors ~siblings ~typedecls ~imports
       ~exports decls =
@@ -172,9 +169,10 @@ module Make (B : BACKEND) = struct
     let module_ = Canonical.Module.of_frontend ~fallback_name:name frontend in
     { module_ with imports = Prelude.default_imports @ module_.imports }
 
-  let resolved_against dependencies (module_ : Canonical.Module.t) =
-    Canonicalization.Resolve_names.in_module ~platform_kernel:B.platform_kernel
-      ~dependencies module_
+  let resolved_against ~platform_kernel dependencies
+      (module_ : Canonical.Module.t) =
+    Canonicalization.Resolve_names.in_module ~platform_kernel ~dependencies
+      module_
 
   let exported_names (module_ : Canonical.Module.t)
       (typed : Infer.Declarations.infer_result) =
@@ -249,8 +247,17 @@ module Make (B : BACKEND) = struct
       |> Option.map Prelude.notice
       |> Option.value ~default:[]
     in
+    let used_kernels = ref [] in
+    let platform_kernel name =
+      match B.platform_kernel name with
+      | Some arity ->
+          if not (List.exists (Data.Name.equal name) !used_kernels) then
+            used_kernels := name :: !used_kernels;
+          Some arity
+      | None -> None
+    in
     let compiling progress module_ =
-      match resolved_against progress.dependencies module_ with
+      match resolved_against ~platform_kernel progress.dependencies module_ with
       | Error found ->
           { progress with errors = List.rev_append found progress.errors }
       | Ok resolved -> (
@@ -319,11 +326,11 @@ module Make (B : BACKEND) = struct
       | exception Reporting.Error.Found error ->
           { progress with errors = error :: progress.errors }
     in
-    let written_modules = List.map module_of sources in
-    let wanted =
-      Module_names.of_list (List.concat_map imported_by written_modules)
-    in
     match
+      let written_modules = List.map module_of sources in
+      let wanted =
+        Module_names.of_list (List.concat_map imported_by written_modules)
+      in
       Canonicalization.Module_graph.in_dependency_order
         (reachable ~wanted (Lazy.force prelude_modules) @ written_modules)
     with
@@ -357,10 +364,7 @@ module Make (B : BACKEND) = struct
           List.map
             (fun (module_name, source) ->
               { module_name; source; exports = []; warnings = [] })
-            (B.runtime_modules
-               (List.map
-                  (fun (module_ : compiled) -> module_.module_name)
-                  compiled_modules))
+            (B.runtime_modules !used_kernels)
         in
         let errors =
           match (entry, finished.entry, finished.errors) with

@@ -32,7 +32,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 Third-party material
 
 
-This software contains material derived from five projects by Evan Czaplicki,
+This software contains material derived from six projects by Evan Czaplicki,
 all licensed under the same BSD 3-Clause License reproduced above. Their
 copyright notices are retained here, as clause 1 requires, and apply to the
 files listed under each.
@@ -97,6 +97,19 @@ reproduced; the update loop is dartea's own and is written against dartea's
 value representation. A program that imports Browser is compiled alongside
 Browser.mjs, and redistributing that output redistributes material derived from
 elm/browser.
+
+
+elm/json -- https://github.com/elm/json
+Copyright 2014-present Evan Czaplicki
+
+    lib/prelude/packages/json/Json.Decode.elm
+    lib/prelude/packages/json/Json.Encode.elm
+
+The module names, type names and signatures are reproduced; the decoders are
+dartea's own, written in Elm over a small set of primitives rather than in
+JavaScript over Elm's value representation. A program that imports Json.Decode
+is compiled alongside Json.Decode.mjs, and redistributing that output
+redistributes material derived from elm/json.
 
 
 elm/compiler -- https://github.com/elm/compiler

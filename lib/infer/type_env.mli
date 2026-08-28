@@ -12,7 +12,7 @@ val constructor_of :
   (Canonical.Typedecl.t * Canonical.Typedecl.type_ctor) option
 
 val constructor_scheme :
-  Canonical.Typedecl.t -> Canonical.Typedecl.type_ctor -> Typed.Type.scheme
+  t -> Canonical.Typedecl.t -> Canonical.Typedecl.type_ctor -> Typed.Type.scheme
 
 val constructor_values : t -> Value_env.t
 val constructor_infos : t -> ctor_info list

@@ -8,6 +8,8 @@
   packages/html/Html.elm
   packages/html/Html.Attributes.elm
   packages/html/Html.Events.elm
+  packages/json/Json.Decode.elm
+  packages/json/Json.Encode.elm
   List.elm
   Maybe.elm
   Result.elm
@@ -32,6 +34,10 @@
     (cat packages/html/Html.Attributes.elm)
     (echo "|elm}\n\nlet html_events = {elm|")
     (cat packages/html/Html.Events.elm)
+    (echo "|elm}\n\nlet json_decode = {elm|")
+    (cat packages/json/Json.Decode.elm)
+    (echo "|elm}\n\nlet json_encode = {elm|")
+    (cat packages/json/Json.Encode.elm)
     (echo "|elm}\n\nlet list = {elm|")
     (cat List.elm)
     (echo "|elm}\n\nlet maybe = {elm|")

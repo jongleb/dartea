@@ -74,7 +74,9 @@ let test_the_counter_reacts_to_a_click _ =
   let channel = Unix.open_process_in command in
   let printed = Node_runner.read_all channel in
   let (_ : Unix.process_status) = Unix.close_process_in channel in
-  assert_equal ~printer:Fun.id "+0 -> +2" (String.trim printed)
+  assert_equal ~printer:Fun.id
+    "+0 -> +2 (created 0, replaced 0, same node true)"
+    (String.trim printed)
 
 let test_browser_needs_an_entry _ =
   match refused ~delivery:browser (outcome_of ~entry:None Sample.program) with

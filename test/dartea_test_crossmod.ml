@@ -324,6 +324,88 @@ let compiled_names modules =
   |> Node_runner.output_of
   |> List.map (fun (module_ : Dartea.Compiler.compiled) -> module_.module_name)
 
+let test_an_alias_inside_a_constructor _ =
+  assert_runs
+    ~modules:
+      [
+        source "Main.elm"
+          {|
+module Main exposing (used)
+
+type T = T
+
+type alias V = T
+
+type Box a = Box (V -> a)
+
+open : Box a -> V -> a
+open box given =
+    case box of
+        Box inside -> inside given
+
+used : String
+used = open (Box (\_ -> "kept")) T
+|};
+      ]
+    ~expr:"Main.used" ~expected:{|"kept"|}
+
+let test_json_round_trip _ =
+  assert_runs
+    ~modules:
+      [
+        source "Main.elm"
+          {|
+module Main exposing (report)
+
+import Json.Decode as D
+import Json.Encode as E
+
+pair : D.Decoder ( String, Int )
+pair =
+    D.map2 (\found age -> ( found, age ))
+        (D.field "name" D.string)
+        (D.field "age" D.int)
+
+report : String
+report =
+    let
+        text = E.encode (E.object [ ( "name", E.string "ann" ), ( "age", E.int 7 ) ])
+    in
+    case D.decodeString pair text of
+        Ok found -> Tuple.first found ++ "/" ++ String.fromInt (Tuple.second found)
+        Err problem -> "err " ++ D.errorToString problem
+|};
+      ]
+    ~expr:"Main.report" ~expected:{|"ann/7"|}
+
+let test_json_reports_the_path _ =
+  assert_runs
+    ~modules:
+      [
+        source "Main.elm"
+          {|
+module Main exposing (problem)
+
+import Json.Decode as D
+
+problem : String
+problem =
+    case D.decodeString (D.field "age" D.int) "{\"age\":\"seven\"}" of
+        Ok _ -> "unexpected"
+        Err found -> D.errorToString found
+|};
+      ]
+    ~expr:"Main.problem"
+    ~expected:
+      {|"At field `age`:\n    Expecting an INT, but instead got: \"seven\""|}
+
+let test_a_syntax_error_is_reported_not_raised _ =
+  let outcome =
+    Dartea.Compiler.compile_modules ~entry:None
+      [ source "Main.elm" "port module Main exposing (..)\n" ]
+  in
+  assert_bool "a syntax error produced no report" (outcome.errors <> [])
+
 let test_unimported_prelude_module_stays_out _ =
   let names =
     compiled_names
@@ -471,6 +553,11 @@ let suite =
     "html_builds_a_page" >:: test_html_builds_a_page;
     "html_needs_an_import" >:: test_html_needs_an_import;
     "a_partly_applied_platform_kernel" >:: test_a_partly_applied_platform_kernel;
+    "an_alias_inside_a_constructor" >:: test_an_alias_inside_a_constructor;
+    "json_round_trip" >:: test_json_round_trip;
+    "json_reports_the_path" >:: test_json_reports_the_path;
+    "a_syntax_error_is_reported_not_raised"
+    >:: test_a_syntax_error_is_reported_not_raised;
     "unimported_prelude_module_stays_out"
     >:: test_unimported_prelude_module_stays_out;
     "imported_prelude_module_comes_along"

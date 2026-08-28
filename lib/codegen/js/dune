@@ -1,6 +1,6 @@
 (rule
  (target runtime_source.ml)
- (deps dartea_runtime.js dartea_browser.js dartea_engine.js)
+ (deps dartea_runtime.js dartea_browser.js dartea_json.js dartea_engine.js)
  (action
   (with-stdout-to
    runtime_source.ml
@@ -9,6 +9,8 @@
     (cat dartea_runtime.js)
     (echo "|js}\n\nlet dartea_browser = {js|")
     (cat dartea_browser.js)
+    (echo "|js}\n\nlet dartea_json = {js|")
+    (cat dartea_json.js)
     (echo "|js}\n\nlet dartea_engine = {js|")
     (cat dartea_engine.js)
     (echo "|js}\n")))))

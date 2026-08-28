@@ -91,4 +91,4 @@ let value (kernel : Data.Kernel.t) : J.expr =
   | Language (Binary binary) ->
       arrow [ "a"; "b" ]
         (binary_operation binary (J.Identifier "a") (J.Identifier "b"))
-  | Platform platform -> Browser_kernel.reference platform.name
+  | Platform platform -> Platform_kernel.reference platform.name

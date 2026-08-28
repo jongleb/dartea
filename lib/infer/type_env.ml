@@ -54,19 +54,6 @@ let typedef_to_type ~variables (impl : Canonical.Typedef.Impl.t) =
 
 let written_type impl = typedef_to_type ~variables:(source_variables ()) impl
 
-let constructor_scheme (typedef : Canonical.Typedecl.t)
-    (ctor : Canonical.Typedecl.type_ctor) =
-  let variables = source_variables () in
-  let params = List.map variables typedef.params in
-  let result_type =
-    concrete_type typedef.name (List.map (fun param -> TVar param) params)
-  in
-  Scheme
-    ( params,
-      function_of
-        (List.map (typedef_to_type ~variables) ctor.data)
-        ~result:result_type )
-
 let typedecl_payloads (typedef : Canonical.Typedecl.t) =
   let variables = source_variables () in
   ( List.map variables typedef.params,
@@ -74,12 +61,6 @@ let typedecl_payloads (typedef : Canonical.Typedecl.t) =
       (fun (ctor : Canonical.Typedecl.type_ctor) ->
         (ctor.id, List.map (typedef_to_type ~variables) ctor.data))
       typedef.ctors )
-
-let constructor_values (type_env : t) =
-  Name_map.fold
-    (fun ctor_name (typedef, ctor) collected ->
-      Value_env.bind ctor_name (constructor_scheme typedef ctor) collected)
-    type_env.constructors Value_env.primitives
 
 let build ~(imports : Interface.t list) (module_ : Canonical.Module.t) : t =
   let declared_here =
@@ -152,6 +133,26 @@ let rec expand ~region type_env ty =
 
 let expand_written ~region type_env impl =
   expand ~region type_env (written_type impl)
+
+let constructor_scheme type_env (typedef : Canonical.Typedecl.t)
+    (ctor : Canonical.Typedecl.type_ctor) =
+  let variables = source_variables () in
+  let params = List.map variables typedef.params in
+  let result_type =
+    concrete_type typedef.name (List.map (fun param -> TVar param) params)
+  in
+  let payload written =
+    expand ~region:ctor.region type_env (typedef_to_type ~variables written)
+  in
+  Scheme (params, function_of (List.map payload ctor.data) ~result:result_type)
+
+let constructor_values (type_env : t) =
+  Name_map.fold
+    (fun ctor_name (typedef, ctor) collected ->
+      Value_env.bind ctor_name
+        (constructor_scheme type_env typedef ctor)
+        collected)
+    type_env.constructors Value_env.primitives
 
 let constructor_of name type_env = Name_map.find_opt name type_env.constructors
 let typedecls type_env = List.map snd (Name_map.bindings type_env.types)

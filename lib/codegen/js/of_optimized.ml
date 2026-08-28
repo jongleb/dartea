@@ -1573,7 +1573,7 @@ let emit_module ~notice ~arities ~constructors ~siblings ~typedecls ~imports
   let runtime_import =
     List.filter
       (fun name -> J.references name program)
-      [ runtime_module_name; Runtime.browser_module_name ]
+      (runtime_module_name :: Platform_kernel.module_names)
   in
   comment_lines notice
   ^ import_lines (runtime_import @ imports)
