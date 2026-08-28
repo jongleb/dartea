@@ -86,6 +86,11 @@ let test_the_counter_reacts_to_a_click _ =
     "+0 -> +2 (created 0, replaced 0, same node true)"
     (printed_by ~program:Sample.program ~stub:Sample.dom_stub)
 
+let test_mapped_messages_reach_the_model _ =
+  assert_equal ~printer:Fun.id
+    "pokepokeattr[L0RAL4] (created 0 , same buttons true )"
+    (printed_by ~program:Sample.mapped_program ~stub:Sample.mapped_stub)
+
 let test_value_lands_on_the_property _ =
   assert_equal ~printer:Fun.id
     {|property "3", attribute undefined, class "wrap"|}
@@ -147,6 +152,7 @@ let suite =
     >:: test_browser_writes_a_page_and_a_bundle;
     "the_counter_reacts_to_a_click" >:: test_the_counter_reacts_to_a_click;
     "typing_reaches_the_model" >:: test_typing_reaches_the_model;
+    "mapped_messages_reach_the_model" >:: test_mapped_messages_reach_the_model;
     "value_lands_on_the_property" >:: test_value_lands_on_the_property;
     "browser_needs_an_entry" >:: test_browser_needs_an_entry;
     "browser_needs_an_exposed_entry" >:: test_browser_needs_an_exposed_entry;

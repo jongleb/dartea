@@ -6,6 +6,7 @@ type t =
   | Html
   | Html_attributes
   | Html_events
+  | Html_keyed
   | Json_decode
   | Json_encode
   | List
@@ -24,6 +25,7 @@ let name = function
   | Html -> "Html"
   | Html_attributes -> "Html.Attributes"
   | Html_events -> "Html.Events"
+  | Html_keyed -> "Html.Keyed"
   | Json_decode -> "Json.Decode"
   | Json_encode -> "Json.Encode"
   | List -> "List"
@@ -52,7 +54,7 @@ let notice module_ =
   match module_ with
   | VirtualDom ->
       derived_from "elm/virtual-dom" "Copyright (c) 2016-present Evan Czaplicki"
-  | Html | Html_attributes | Html_events ->
+  | Html | Html_attributes | Html_events | Html_keyed ->
       derived_from "elm/html" "Copyright (c) 2014-present Evan Czaplicki"
   | Browser ->
       derived_from "elm/browser" "Copyright 2017-present Evan Czaplicki"
@@ -69,6 +71,7 @@ let source = function
   | Html -> Prelude_source.html
   | Html_attributes -> Prelude_source.html_attributes
   | Html_events -> Prelude_source.html_events
+  | Html_keyed -> Prelude_source.html_keyed
   | Json_decode -> Prelude_source.json_decode
   | Json_encode -> Prelude_source.json_encode
   | List -> Prelude_source.list
@@ -80,8 +83,8 @@ let source = function
 
 let imported_by_default = function
   | Basics | Char | List | Maybe | Result | String | Tuple -> true
-  | Browser | Dict | Html | Html_attributes | Html_events | Json_decode
-  | Json_encode | VirtualDom ->
+  | Browser | Dict | Html | Html_attributes | Html_events | Html_keyed
+  | Json_decode | Json_encode | VirtualDom ->
       false
 
 let exposed_by_default = function
@@ -92,8 +95,8 @@ let exposed_by_default = function
   | Result ->
       Canonical.Exposed.Only
         [ Canonical.Exposed.Type { name = name Result; ctors_exposed = true } ]
-  | Browser | Char | Dict | Html | Html_attributes | Html_events | Json_decode
-  | Json_encode | List | String | Tuple | VirtualDom ->
+  | Browser | Char | Dict | Html | Html_attributes | Html_events | Html_keyed
+  | Json_decode | Json_encode | List | String | Tuple | VirtualDom ->
       Canonical.Exposed.Only []
 
 let default_imports : Canonical.Import.t list =

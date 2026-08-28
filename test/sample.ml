@@ -249,6 +249,102 @@ console.log(
 );
 |}
 
+let mapped_program = {|module Main exposing (main)
+
+import Browser
+import Html exposing (Html, button, div, text)
+import Html.Attributes
+import Html.Events exposing (onClick)
+
+
+type Inner
+    = Poked
+
+
+type Middle
+    = Wrapped Inner
+
+
+type Deep
+    = Deep Inner
+
+
+type Msg
+    = Left Int Middle
+    | Right Inner
+    | Third Deep
+
+
+poker : Html Inner
+poker =
+    button [ onClick Poked ] [ text "poke" ]
+
+
+mapped : Html Deep
+mapped =
+    button [ Html.Attributes.map Deep (onClick Poked) ] [ text "attr" ]
+
+
+update : Msg -> String -> String
+update msg model =
+    case msg of
+        Left depth (Wrapped Poked) ->
+            model ++ "L" ++ String.fromInt depth
+
+        Right Poked ->
+            model ++ "R"
+
+        Third (Deep Poked) ->
+            model ++ "A"
+
+
+view : String -> Html Msg
+view model =
+    div []
+        [ Html.map (Left (String.length model)) (Html.map Wrapped poker)
+        , Html.map Right poker
+        , Html.map Third mapped
+        , div [] [ text ("[" ++ model ++ "]") ]
+        ]
+
+
+main : Browser.Program () String Msg
+main =
+    Browser.sandbox { init = "", update = update, view = view }
+|}
+
+let mapped_stub = {|let created = 0;
+const make = (tag) => ({
+  tag, listeners: {}, attributes: {}, childNodes: [],
+  style: { setProperty() {}, removeProperty() {} },
+  setAttribute(k, v) { this.attributes[k] = v; },
+  removeAttribute(k) { delete this.attributes[k]; },
+  addEventListener(e, h) { this.listeners[e] = h; },
+  appendChild(c) { this.childNodes.push(c); return c; },
+  removeChild() {}, replaceChild() { },
+  set textContent(_) { this.childNodes = []; },
+  get textContent() { return ""; },
+});
+globalThis.document = {
+  createElement: (tag) => { created += 1; return make(tag); },
+  createTextNode: (text) => ({ text, childNodes: [] }),
+};
+const shown = (n) => (n.nodeValue !== undefined ? n.nodeValue : n.text !== undefined ? n.text : n.childNodes.map(shown).join(""));
+const buttons = (n, found = []) => {
+  if (n.tag === "button") found.push(n);
+  for (const c of n.childNodes ?? []) buttons(c, found);
+  return found;
+};
+const happening = () => ({ stopPropagation() {}, preventDefault() {} });
+const { mount } = await import("./main.js");
+const host = make("body");
+mount(host);
+const [left, right, third] = buttons(host);
+created = 0;
+for (const which of [left, right, third, left]) which.listeners.click(happening());
+console.log(shown(host), "(created", created, ", same buttons", buttons(host)[0] === left, ")");
+|}
+
 let field_program = {|module Main exposing (main)
 
 import Browser

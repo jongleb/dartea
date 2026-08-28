@@ -8,7 +8,9 @@
 
 
 module VirtualDom exposing
-    ( Attribute, Handler(..), Node, attribute, node, on, property, style, text )
+    ( Attribute, Handler(..), Node, attribute, keyedNode, map, mapAttribute
+    , node, on, property, style, text
+    )
 
 import Json.Decode
 import Json.Encode
@@ -25,6 +27,15 @@ type Attribute msg
 node : String -> List (Attribute msg) -> List (Node msg) -> Node msg
 node =
     Elm.Kernel.VirtualDom.node
+
+
+keyedNode :
+    String
+    -> List (Attribute msg)
+    -> List ( String, Node msg )
+    -> Node msg
+keyedNode =
+    Elm.Kernel.VirtualDom.keyedNode
 
 
 text : String -> Node msg
@@ -60,3 +71,13 @@ type Handler msg
 on : String -> Handler msg -> Attribute msg
 on =
     Elm.Kernel.VirtualDom.on
+
+
+map : (a -> msg) -> Node a -> Node msg
+map =
+    Elm.Kernel.VirtualDom.map
+
+
+mapAttribute : (a -> b) -> Attribute a -> Attribute b
+mapAttribute =
+    Elm.Kernel.VirtualDom.mapAttribute

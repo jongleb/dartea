@@ -3,11 +3,14 @@ type home = Browser | Json
 let provided =
   [
     (Browser, "VirtualDom", "node", 3);
+    (Browser, "VirtualDom", "keyedNode", 3);
     (Browser, "VirtualDom", "text", 1);
     (Browser, "VirtualDom", "attribute", 2);
     (Browser, "VirtualDom", "property", 2);
     (Browser, "VirtualDom", "style", 2);
     (Browser, "VirtualDom", "on", 2);
+    (Browser, "VirtualDom", "map", 2);
+    (Browser, "VirtualDom", "mapAttribute", 2);
     (Browser, "Browser", "sandbox", 1);
     (Json, "Json", "isString", 1);
     (Json, "Json", "isBool", 1);

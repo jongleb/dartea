@@ -16,4 +16,6 @@ const attribute = Dartea_browser.$$VirtualDom$attribute;
 const property = Dartea_browser.$$VirtualDom$property;
 const style = Dartea_browser.$$VirtualDom$style;
 const on = Dartea_browser.$$VirtualDom$on;
-export { Custom, MayPreventDefault, MayStopPropagation, Normal, attribute, node, on, property, style, text };
+const map = Dartea_browser.$$VirtualDom$map;
+const mapAttribute = Dartea_browser.$$VirtualDom$mapAttribute;
+export { Custom, MayPreventDefault, MayStopPropagation, Normal, attribute, map, mapAttribute, node, on, property, style, text };

@@ -26,4 +26,5 @@ const $$for = eta1$11 => VirtualDom.property("htmlFor", Json$Encode.string(eta1$
 const href = eta1$12 => VirtualDom.property("href", Json$Encode.string(eta1$12));
 const src = eta1$13 => VirtualDom.property("src", Json$Encode.string(eta1$13));
 const style = (eta1$14, eta2) => VirtualDom.style(eta1$14, eta2);
-export { autofocus, checked, $$class, classList, $$for, hidden, href, id, name, placeholder, src, style, title, type_, value };
+const map = (eta1$15, eta2$1) => VirtualDom.mapAttribute(eta1$15, eta2$1);
+export { autofocus, checked, $$class, classList, $$for, hidden, href, id, map, name, placeholder, src, style, title, type_, value };

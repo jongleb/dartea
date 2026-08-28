@@ -8,7 +8,7 @@
 
 
 module Html.Attributes exposing
-    ( autofocus, checked, class, classList, for, hidden, href, id, name
+    ( autofocus, checked, class, classList, for, hidden, href, id, map, name
     , placeholder, src, style, title, type_, value
     )
 
@@ -106,3 +106,8 @@ src =
 style : String -> String -> VirtualDom.Attribute msg
 style =
     VirtualDom.style
+
+
+map : (a -> msg) -> VirtualDom.Attribute a -> VirtualDom.Attribute msg
+map =
+    VirtualDom.mapAttribute

@@ -9,7 +9,7 @@
 
 module Html exposing
     ( Attribute, Html
-    , a, button, div, footer, form, h1, header, input, label, li, node, p
+    , a, button, div, footer, form, h1, header, input, label, li, map, node, p
     , section, span, strong, text, ul
     )
 
@@ -27,6 +27,11 @@ type alias Attribute msg =
 node : String -> List (Attribute msg) -> List (Html msg) -> Html msg
 node =
     VirtualDom.node
+
+
+map : (a -> msg) -> Html a -> Html msg
+map =
+    VirtualDom.map
 
 
 text : String -> Html msg
