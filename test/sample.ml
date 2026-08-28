@@ -61,6 +61,7 @@ main =
 
 let dom = {|let created = 0;
 let replaced = 0;
+let styled = 0;
 let stopped = 0;
 let prevented = 0;
 
@@ -68,9 +69,15 @@ const make = (tag) => ({
   tag,
   listeners: {},
   attributes: {},
+  namespaces: {},
   childNodes: [],
-  style: { setProperty() {}, removeProperty() {} },
+  style: { setProperty() { styled += 1; }, removeProperty() {} },
   setAttribute(key, value) { this.attributes[key] = value; },
+  setAttributeNS(namespace, key, value) {
+    this.attributes[key] = value;
+    this.namespaces[key] = namespace;
+  },
+  removeAttributeNS(namespace, key) { delete this.attributes[key]; },
   removeAttribute(key) { delete this.attributes[key]; },
   addEventListener(event, handler) { this.listeners[event] = handler; },
   appendChild(child) { this.childNodes.push(child); return child; },
@@ -96,6 +103,12 @@ const make = (tag) => ({
 
 globalThis.document = {
   createElement: (tag) => { created += 1; return make(tag); },
+  createElementNS: (namespace, tag) => {
+    created += 1;
+    const node = make(tag);
+    node.namespace = namespace;
+    return node;
+  },
   createTextNode: (text) => ({ text, childNodes: [] }),
 };
 
@@ -335,6 +348,188 @@ console.log(
     JSON.stringify(field.attributes.value) +
     ", class " +
     JSON.stringify(found(host, "div").className),
+);
+|}
+
+let guarded_program = {|module Main exposing (main)
+
+import Browser
+import Html exposing (Html)
+import Html.Attributes exposing (href)
+import Json.Encode
+import VirtualDom
+
+
+type Msg
+    = Ignored
+
+
+update : Msg -> Int -> Int
+update _ model =
+    model
+
+
+link : String -> Html Msg
+link written =
+    VirtualDom.node "a" [ href written ] []
+
+
+view : Int -> Html Msg
+view _ =
+    VirtualDom.node "div"
+        []
+        [ VirtualDom.node "script" [] []
+        , VirtualDom.nodeNS "http://www.w3.org/2000/svg"
+            "svg"
+            [ VirtualDom.attributeNS "http://www.w3.org/1999/xlink"
+                "xlink:href"
+                "#icon"
+            , VirtualDom.attribute "viewBox" "0 0 10 10"
+            ]
+            []
+        , link "javascript:alert(1)"
+        , link "   JaVaScRiPt:alert(2)"
+        , link "java\tscript:alert(3)"
+        , link "data:text/html,<b>"
+        , link "/safe"
+        , VirtualDom.node "b" [ VirtualDom.attribute "onclick" "boom()" ] []
+        , VirtualDom.node "i"
+            [ VirtualDom.property "innerHTML" (Json.Encode.string "<b>") ]
+            []
+        ]
+
+
+main : Browser.Program () Int Msg
+main =
+    Browser.sandbox { init = 0, update = update, view = view }
+|}
+
+let guarded_stub = dom ^ {|const host = await mounted();
+const kids = host.childNodes[0].childNodes;
+const svg = kids[1];
+console.log(
+  [
+    "script " + kids[0].tag,
+    "svg " + svg.namespace,
+    "xlink " + svg.namespaces["xlink:href"] + " " + svg.attributes["xlink:href"],
+    "viewBox " + svg.namespaces.viewBox,
+    "hrefs " + JSON.stringify(kids.slice(2, 7).map((node) => node.href)),
+    "onclick " + JSON.stringify(kids[7].attributes),
+    "innerHTML " + JSON.stringify(kids[8]["data-innerHTML"]),
+  ].join(" | "),
+);
+|}
+
+let lazy_program = {|module Main exposing (main)
+
+import Browser
+import Html exposing (Html, button, div, text)
+import Html.Attributes exposing (style)
+import Html.Events exposing (onClick)
+import Html.Lazy
+
+
+type Msg
+    = Bumped
+    | Renamed
+
+
+type alias Model =
+    { count : Int, label : String }
+
+
+update : Msg -> Model -> Model
+update msg model =
+    case msg of
+        Bumped ->
+            { model | count = model.count + 1 }
+
+        Renamed ->
+            { model | label = model.label ++ "!" }
+
+
+tile : String -> Html Msg
+tile written =
+    div [ style "color" written ] [ text written ]
+
+
+v1 : String -> Html Msg
+v1 a =
+    tile (a)
+
+
+v2 : String -> String -> Html Msg
+v2 a b =
+    tile (a ++ b)
+
+
+v3 : String -> String -> String -> Html Msg
+v3 a b c =
+    tile (a ++ b ++ c)
+
+
+v4 : String -> String -> String -> String -> Html Msg
+v4 a b c d =
+    tile (a ++ b ++ c ++ d)
+
+
+v5 : String -> String -> String -> String -> String -> Html Msg
+v5 a b c d e =
+    tile (a ++ b ++ c ++ d ++ e)
+
+
+v6 : String -> String -> String -> String -> String -> String -> Html Msg
+v6 a b c d e f =
+    tile (a ++ b ++ c ++ d ++ e ++ f)
+
+
+v7 : String -> String -> String -> String -> String -> String -> String -> Html Msg
+v7 a b c d e f g =
+    tile (a ++ b ++ c ++ d ++ e ++ f ++ g)
+
+
+v8 : String -> String -> String -> String -> String -> String -> String -> String -> Html Msg
+v8 a b c d e f g h =
+    tile (a ++ b ++ c ++ d ++ e ++ f ++ g ++ h)
+
+
+view : Model -> Html Msg
+view model =
+    div []
+        [ button [ onClick Bumped ] [ text "b" ]
+        , button [ onClick Renamed ] [ text "r" ]
+        , div [] [ text (String.fromInt model.count) ]
+        , Html.Lazy.lazy v1 model.label
+        , Html.Lazy.lazy2 v2 model.label "2"
+        , Html.Lazy.lazy3 v3 model.label "2" "3"
+        , Html.Lazy.lazy4 v4 model.label "2" "3" "4"
+        , Html.Lazy.lazy5 v5 model.label "2" "3" "4" "5"
+        , Html.Lazy.lazy6 v6 model.label "2" "3" "4" "5" "6"
+        , Html.Lazy.lazy7 v7 model.label "2" "3" "4" "5" "6" "7"
+        , Html.Lazy.lazy8 v8 model.label "2" "3" "4" "5" "6" "7" "8"
+        ]
+
+
+main : Browser.Program () Model Msg
+main =
+    Browser.sandbox
+        { init = { count = 0, label = "-" }, update = update, view = view }
+|}
+
+let lazy_stub = dom ^ {|const host = await mounted();
+const [bump, rename] = tagged(host, "button");
+styled = 0;
+bump.listeners.click(happening({}));
+const quiet = styled;
+styled = 0;
+rename.listeners.click(happening({}));
+console.log(
+  shown(host) +
+    " (skipped " +
+    quiet +
+    ", recomputed " +
+    styled +
+    ")",
 );
 |}
 

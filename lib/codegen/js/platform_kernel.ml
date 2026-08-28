@@ -4,11 +4,22 @@ let provided =
   [
     (Browser, "VirtualDom", "node", 3);
     (Browser, "VirtualDom", "keyedNode", 3);
+    (Browser, "VirtualDom", "nodeNS", 4);
+    (Browser, "VirtualDom", "keyedNodeNS", 4);
+    (Browser, "VirtualDom", "attributeNS", 3);
     (Browser, "VirtualDom", "text", 1);
     (Browser, "VirtualDom", "attribute", 2);
     (Browser, "VirtualDom", "property", 2);
     (Browser, "VirtualDom", "style", 2);
     (Browser, "VirtualDom", "on", 2);
+    (Browser, "VirtualDom", "lazy", 2);
+    (Browser, "VirtualDom", "lazy2", 3);
+    (Browser, "VirtualDom", "lazy3", 4);
+    (Browser, "VirtualDom", "lazy4", 5);
+    (Browser, "VirtualDom", "lazy5", 6);
+    (Browser, "VirtualDom", "lazy6", 7);
+    (Browser, "VirtualDom", "lazy7", 8);
+    (Browser, "VirtualDom", "lazy8", 9);
     (Browser, "VirtualDom", "map", 2);
     (Browser, "VirtualDom", "mapAttribute", 2);
     (Browser, "Browser", "sandbox", 1);

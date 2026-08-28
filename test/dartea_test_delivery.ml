@@ -91,6 +91,16 @@ let test_mapped_messages_reach_the_model _ =
     "pokepokeattr[L0RAL4] (created 0 , same buttons true )"
     (printed_by ~program:Sample.mapped_program ~stub:Sample.mapped_stub)
 
+let test_guards_stay_silent_like_elm _ =
+  assert_equal ~printer:Fun.id
+    {|script p | svg http://www.w3.org/2000/svg | xlink http://www.w3.org/1999/xlink #icon | viewBox undefined | hrefs ["","","","","/safe"] | onclick {"data-onclick":"boom()"} | innerHTML "<b>"|}
+    (printed_by ~program:Sample.guarded_program ~stub:Sample.guarded_stub)
+
+let test_lazy_skips_an_unchanged_subtree _ =
+  assert_equal ~printer:Fun.id
+    "br1-!-!2-!23-!234-!2345-!23456-!234567-!2345678 (skipped 0, recomputed 8)"
+    (printed_by ~program:Sample.lazy_program ~stub:Sample.lazy_stub)
+
 let test_a_mapped_subtree_survives_being_replaced _ =
   assert_equal ~printer:Fun.id "flipblock[PP]"
     (printed_by ~program:Sample.reshaped_program ~stub:Sample.reshaped_stub)
@@ -163,6 +173,8 @@ let suite =
     "the_counter_reacts_to_a_click" >:: test_the_counter_reacts_to_a_click;
     "typing_reaches_the_model" >:: test_typing_reaches_the_model;
     "mapped_messages_reach_the_model" >:: test_mapped_messages_reach_the_model;
+    "guards_stay_silent_like_elm" >:: test_guards_stay_silent_like_elm;
+    "lazy_skips_an_unchanged_subtree" >:: test_lazy_skips_an_unchanged_subtree;
     "a_mapped_subtree_survives_being_replaced"
     >:: test_a_mapped_subtree_survives_being_replaced;
     "keyed_list_moves_nodes_instead_of_making_them"

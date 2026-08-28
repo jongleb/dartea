@@ -80,12 +80,13 @@ Copyright (c) 2014-present, Evan Czaplicki
     lib/prelude/packages/html/Html.Attributes.elm
     lib/prelude/packages/html/Html.Events.elm
     lib/prelude/packages/html/Html.Keyed.elm
+    lib/prelude/packages/html/Html.Lazy.elm
 
 The module names, type names and signatures are reproduced; the tag and
 attribute helpers are written against dartea's own VirtualDom module. A program
 that imports Html is compiled alongside Html.mjs, Html.Attributes.mjs and
-Html.Events.mjs and Html.Keyed.mjs, and redistributing that output redistributes
-material derived from elm/html.
+Html.Events.mjs, Html.Keyed.mjs and Html.Lazy.mjs, and redistributing that
+output redistributes material derived from elm/html.
 
 
 elm/browser -- https://github.com/elm/browser

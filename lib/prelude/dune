@@ -9,6 +9,7 @@
   packages/html/Html.Attributes.elm
   packages/html/Html.Events.elm
   packages/html/Html.Keyed.elm
+  packages/html/Html.Lazy.elm
   packages/json/Json.Decode.elm
   packages/json/Json.Encode.elm
   List.elm
@@ -37,6 +38,8 @@
     (cat packages/html/Html.Events.elm)
     (echo "|elm}\n\nlet html_keyed = {elm|")
     (cat packages/html/Html.Keyed.elm)
+    (echo "|elm}\n\nlet html_lazy = {elm|")
+    (cat packages/html/Html.Lazy.elm)
     (echo "|elm}\n\nlet json_decode = {elm|")
     (cat packages/json/Json.Decode.elm)
     (echo "|elm}\n\nlet json_encode = {elm|")
