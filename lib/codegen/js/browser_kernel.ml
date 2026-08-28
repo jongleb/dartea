@@ -4,6 +4,8 @@ let provided =
     ("VirtualDom", "text", 1);
     ("VirtualDom", "attribute", 2);
     ("VirtualDom", "style", 2);
+    ("VirtualDom", "on", 2);
+    ("Browser", "sandbox", 1);
   ]
 
 let arity (name : Data.Name.t) =

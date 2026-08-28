@@ -7,7 +7,7 @@
 -}
 
 
-module VirtualDom exposing (Attribute, Node, attribute, node, style, text)
+module VirtualDom exposing (Attribute, Node, attribute, node, on, style, text)
 
 
 type Node msg
@@ -36,3 +36,8 @@ attribute =
 style : String -> String -> Attribute msg
 style =
     Elm.Kernel.VirtualDom.style
+
+
+on : String -> msg -> Attribute msg
+on =
+    Elm.Kernel.VirtualDom.on

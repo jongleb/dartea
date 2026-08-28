@@ -2,30 +2,36 @@
  (target prelude_source.ml)
  (deps
   Basics.elm
+  packages/browser/Browser.elm
   Char.elm
   Dict.elm
-  Html.elm
-  Html.Attributes.elm
+  packages/html/Html.elm
+  packages/html/Html.Attributes.elm
+  packages/html/Html.Events.elm
   List.elm
   Maybe.elm
   Result.elm
   String.elm
   Tuple.elm
-  VirtualDom.elm)
+  packages/virtual-dom/VirtualDom.elm)
  (action
   (with-stdout-to
    prelude_source.ml
    (progn
     (echo "let basics = {elm|")
     (cat Basics.elm)
+    (echo "|elm}\n\nlet browser = {elm|")
+    (cat packages/browser/Browser.elm)
     (echo "|elm}\n\nlet char = {elm|")
     (cat Char.elm)
     (echo "|elm}\n\nlet dict = {elm|")
     (cat Dict.elm)
     (echo "|elm}\n\nlet html = {elm|")
-    (cat Html.elm)
+    (cat packages/html/Html.elm)
     (echo "|elm}\n\nlet html_attributes = {elm|")
-    (cat Html.Attributes.elm)
+    (cat packages/html/Html.Attributes.elm)
+    (echo "|elm}\n\nlet html_events = {elm|")
+    (cat packages/html/Html.Events.elm)
     (echo "|elm}\n\nlet list = {elm|")
     (cat List.elm)
     (echo "|elm}\n\nlet maybe = {elm|")
@@ -37,7 +43,7 @@
     (echo "|elm}\n\nlet tuple = {elm|")
     (cat Tuple.elm)
     (echo "|elm}\n\nlet virtual_dom = {elm|")
-    (cat VirtualDom.elm)
+    (cat packages/virtual-dom/VirtualDom.elm)
     (echo "|elm}\n")))))
 
 (library

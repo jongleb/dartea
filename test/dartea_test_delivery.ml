@@ -52,7 +52,7 @@ let test_esm_folder_is_one_file_per_module _ =
        files)
 
 let test_browser_writes_a_page_and_a_bundle _ =
-  let outcome = outcome_of ~entry:(Some "Main") Sample.starter in
+  let outcome = outcome_of ~entry:(Some "Main") Sample.program in
   assert_equal ~printer:Sample.names
     [ "build/dartea.LICENSE.txt"; "build/index.html"; "build/main.js" ]
     (paths (delivered ~delivery:browser outcome))
@@ -60,23 +60,24 @@ let test_browser_writes_a_page_and_a_bundle _ =
 let written directory (file : Dartea.Delivery.file) =
   Sample.written ~folder:directory ~path:file.path file.content
 
-let test_browser_bundle_runs_under_node _ =
-  let outcome = outcome_of ~entry:(Some "Main") Sample.starter in
+let test_the_counter_reacts_to_a_click _ =
+  let outcome = outcome_of ~entry:(Some "Main") Sample.program in
   let directory = Sample.folder () in
   List.iter (written directory) (delivered ~delivery:browser outcome);
+  Sample.written
+    ~folder:(Filename.concat directory "build")
+    ~path:"stub.mjs" Sample.dom_stub;
   let command =
-    Printf.sprintf "cd %s && node --input-type=module -e %s 2>&1"
+    Printf.sprintf "cd %s && node stub.mjs 2>&1"
       (Filename.quote (Filename.concat directory "build"))
-      (Filename.quote
-         {|import { main } from "./main.js"; console.log(main);|})
   in
   let channel = Unix.open_process_in command in
   let printed = Node_runner.read_all channel in
   let (_ : Unix.process_status) = Unix.close_process_in channel in
-  assert_equal ~printer:Fun.id "5 from dartea" (String.trim printed)
+  assert_equal ~printer:Fun.id "+0 -> +2" (String.trim printed)
 
 let test_browser_needs_an_entry _ =
-  match refused ~delivery:browser (outcome_of ~entry:None Sample.starter) with
+  match refused ~delivery:browser (outcome_of ~entry:None Sample.program) with
   | Delivery_needs_entry { delivery } ->
       assert_equal ~printer:Fun.id "classic_js_browser" delivery
   | problem -> assert_failure (Reporting.Project_error.show problem)
@@ -101,18 +102,13 @@ main =
       assert_equal ~printer:Fun.id "main" declaration
   | problem -> assert_failure (Reporting.Project_error.show problem)
 
-let test_browser_needs_a_string _ =
-  let counted = {|module Main exposing (main)
-
-
-main : Int
-main =
-    1
-|} in
-  match refused ~delivery:browser (outcome_of ~entry:(Some "Main") counted) with
+let test_browser_needs_a_program _ =
+  match
+    refused ~delivery:browser (outcome_of ~entry:(Some "Main") Sample.starter)
+  with
   | Bad_entry { expected; found; _ } ->
-      assert_equal ~printer:Fun.id "String" expected;
-      assert_equal ~printer:Fun.id "Int" found
+      assert_equal ~printer:Fun.id "Browser.Program" expected;
+      assert_equal ~printer:Fun.id "String" found
   | problem -> assert_failure (Reporting.Project_error.show problem)
 
 let test_unknown_delivery _ =
@@ -134,9 +130,9 @@ let suite =
     >:: test_esm_folder_is_one_file_per_module;
     "browser_writes_a_page_and_a_bundle"
     >:: test_browser_writes_a_page_and_a_bundle;
-    "browser_bundle_runs_under_node" >:: test_browser_bundle_runs_under_node;
+    "the_counter_reacts_to_a_click" >:: test_the_counter_reacts_to_a_click;
     "browser_needs_an_entry" >:: test_browser_needs_an_entry;
     "browser_needs_an_exposed_entry" >:: test_browser_needs_an_exposed_entry;
-    "browser_needs_a_string" >:: test_browser_needs_a_string;
+    "browser_needs_a_program" >:: test_browser_needs_a_program;
     "unknown_delivery" >:: test_unknown_delivery;
   ]

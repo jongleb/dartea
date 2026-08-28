@@ -15,8 +15,12 @@ const $$VirtualDom$node = (tag, attributes, children) => ({
 
 const $$VirtualDom$attribute = (key, value) => ({ TAG: "attribute", key, value });
 const $$VirtualDom$style = (key, value) => ({ TAG: "style", key, value });
+const $$VirtualDom$on = (event, msg) => ({ TAG: "on", event, msg });
+const $$Browser$sandbox = (config) => ({ TAG: "program", config });
 
 export {
+  $$Browser$sandbox,
+  $$VirtualDom$on,
   $$VirtualDom$text,
   $$VirtualDom$node,
   $$VirtualDom$attribute,

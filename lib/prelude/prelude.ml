@@ -1,9 +1,11 @@
 type t =
   | Basics
+  | Browser
   | Char
   | Dict
   | Html
   | Html_attributes
+  | Html_events
   | List
   | Maybe
   | Result
@@ -14,10 +16,12 @@ type t =
 
 let name = function
   | Basics -> "Basics"
+  | Browser -> "Browser"
   | Char -> "Char"
   | Dict -> "Dict"
   | Html -> "Html"
   | Html_attributes -> "Html.Attributes"
+  | Html_events -> "Html.Events"
   | List -> "List"
   | Maybe -> "Maybe"
   | Result -> "Result"
@@ -44,17 +48,21 @@ let notice module_ =
   match module_ with
   | VirtualDom ->
       derived_from "elm/virtual-dom" "Copyright (c) 2016-present Evan Czaplicki"
-  | Html | Html_attributes ->
+  | Html | Html_attributes | Html_events ->
       derived_from "elm/html" "Copyright (c) 2014-present Evan Czaplicki"
+  | Browser ->
+      derived_from "elm/browser" "Copyright 2017-present Evan Czaplicki"
   | Basics | Char | Dict | List | Maybe | Result | String | Tuple ->
       derived_from "elm/core" "Copyright 2014-present Evan Czaplicki"
 
 let source = function
   | Basics -> Prelude_source.basics
+  | Browser -> Prelude_source.browser
   | Char -> Prelude_source.char
   | Dict -> Prelude_source.dict
   | Html -> Prelude_source.html
   | Html_attributes -> Prelude_source.html_attributes
+  | Html_events -> Prelude_source.html_events
   | List -> Prelude_source.list
   | Maybe -> Prelude_source.maybe
   | Result -> Prelude_source.result
@@ -64,7 +72,7 @@ let source = function
 
 let imported_by_default = function
   | Basics | Char | List | Maybe | Result | String | Tuple -> true
-  | Dict | Html | Html_attributes | VirtualDom -> false
+  | Browser | Dict | Html | Html_attributes | Html_events | VirtualDom -> false
 
 let exposed_by_default = function
   | Basics -> Canonical.Exposed.All
@@ -74,7 +82,8 @@ let exposed_by_default = function
   | Result ->
       Canonical.Exposed.Only
         [ Canonical.Exposed.Type { name = name Result; ctors_exposed = true } ]
-  | Char | Dict | Html | Html_attributes | List | String | Tuple | VirtualDom ->
+  | Browser | Char | Dict | Html | Html_attributes | Html_events | List
+  | String | Tuple | VirtualDom ->
       Canonical.Exposed.Only []
 
 let default_imports : Canonical.Import.t list =

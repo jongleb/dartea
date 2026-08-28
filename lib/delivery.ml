@@ -25,7 +25,10 @@ end
 module Classic_js_browser : S = struct
   let name = "classic_js_browser"
   let folder = "build"
-  let handled = "String"
+  let handled = "Browser.Program"
+
+  let program =
+    Data.Name.global ~module_name:"Browser" ~exported_name:"Program"
 
   let wanted = function
     | None ->
@@ -47,8 +50,8 @@ module Classic_js_browser : S = struct
            })
 
   let showable (entry : Entry.t) =
-    match entry.typ with
-    | Typed.Type.TStr -> ()
+    match Typed.Type.head entry.typ with
+    | Typed.Type.TCustom (name, _) when Data.Name.equal name program -> ()
     | found ->
         Reporting.Error.raise_project_at ~region:entry.region
           (Bad_entry
@@ -81,8 +84,7 @@ module Classic_js_browser : S = struct
         (Codegen_js.Bundle.of_modules ~entry_module:entry.module_name
            ~declaration:entry.declaration (bundled modules));
       built Codegen_js.Bundle.page_file
-        (Codegen_js.Bundle.page ~title:entry.module_name
-           ~declaration:entry.declaration);
+        (Codegen_js.Bundle.page ~title:entry.module_name);
     ]
 end
 

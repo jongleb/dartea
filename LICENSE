@@ -32,7 +32,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 Third-party material
 
 
-This software contains material derived from four projects by Evan Czaplicki,
+This software contains material derived from five projects by Evan Czaplicki,
 all licensed under the same BSD 3-Clause License reproduced above. Their
 copyright notices are retained here, as clause 1 requires, and apply to the
 files listed under each.
@@ -63,7 +63,7 @@ elm/core.
 elm/virtual-dom -- https://github.com/elm/virtual-dom
 Copyright (c) 2016-present, Evan Czaplicki
 
-    lib/prelude/VirtualDom.elm
+    lib/prelude/packages/virtual-dom/VirtualDom.elm
     lib/codegen/js/browser_kernel.ml
 
 The module names, type names and signatures are reproduced; the implementations
@@ -76,13 +76,27 @@ from elm/virtual-dom.
 elm/html -- https://github.com/elm/html
 Copyright (c) 2014-present, Evan Czaplicki
 
-    lib/prelude/Html.elm
-    lib/prelude/Html.Attributes.elm
+    lib/prelude/packages/html/Html.elm
+    lib/prelude/packages/html/Html.Attributes.elm
+    lib/prelude/packages/html/Html.Events.elm
 
 The module names, type names and signatures are reproduced; the tag and
 attribute helpers are written against dartea's own VirtualDom module. A program
-that imports Html is compiled alongside Html.mjs and Html.Attributes.mjs, and
-redistributing that output redistributes material derived from elm/html.
+that imports Html is compiled alongside Html.mjs, Html.Attributes.mjs and
+Html.Events.mjs, and redistributing that output redistributes material derived
+from elm/html.
+
+
+elm/browser -- https://github.com/elm/browser
+Copyright 2017-present Evan Czaplicki
+
+    lib/prelude/packages/browser/Browser.elm
+
+The module name, the `Program` type and the shape of `Browser.sandbox` are
+reproduced; the update loop is dartea's own and is written against dartea's
+value representation. A program that imports Browser is compiled alongside
+Browser.mjs, and redistributing that output redistributes material derived from
+elm/browser.
 
 
 elm/compiler -- https://github.com/elm/compiler

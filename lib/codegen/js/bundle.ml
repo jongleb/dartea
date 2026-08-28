@@ -23,13 +23,14 @@ let wrapped { name; source } =
     (body source)
 
 let of_modules ~entry_module ~declaration modules =
-  Printf.sprintf "%s\nexport const %s = %s.%s;\n"
+  Printf.sprintf
+    "%s\n\n%s\nexport const %s = %s.%s;\n\nexport const mount = (host) =>\n  %s(%s, host);\n"
     (String.concat "\n\n" (List.map wrapped modules))
-    declaration
+    Runtime.engine_source declaration
     (Of_optimized.module_ident entry_module)
-    declaration
+    declaration Runtime.mount declaration
 
-let page ~title ~declaration =
+let page ~title =
   Printf.sprintf
     {|<!DOCTYPE html>
 <html lang="en">
@@ -40,10 +41,10 @@ let page ~title ~declaration =
   <body>
     <div id="main"></div>
     <script type="module">
-      import { %s } from "./%s";
-      document.getElementById("main").textContent = %s;
+      import { mount } from "./%s";
+      mount(document.getElementById("main"));
     </script>
   </body>
 </html>
 |}
-    title declaration entry_file declaration
+    title entry_file
