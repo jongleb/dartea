@@ -141,21 +141,24 @@ let offside state lexbuf =
   | Some LET, Let_inline -> bracket (retag ~context:Let state)
   | _ -> layout state ~indent
 
+let unaligned state = { state with aligned = false }
+
 let starting_binding state lexbuf =
+  let name_column = token_column state lexbuf in
   match context state with
   | Let ->
-      {
-        (mark ~column:(token_column state lexbuf) ~context:Let_binding state) with
-        aligned = false;
-      }
+      ([], unaligned (mark ~column:name_column ~context:Let_binding state))
+  | Let_binding when state.aligned ->
+      let* state = unbracket state in
+      ([], unaligned (move ~column:(name_column + 1) state))
   | Top_level | Expression | Let_binding | Let_inline | If | Case | Case_head
   | Case_arm | Type_alias | Type_decl | Type_annotation | Delimited ->
-      state
+      ([], state)
 
 let handle state lexbuf token =
   match token with
   | EQUAL ->
-      let state = { state with aligned = false } in
+      let state = unaligned state in
       begin
         match context state with
         | Top_level -> EQUAL +> push ~column:1 ~context:Expression state
@@ -181,9 +184,11 @@ let handle state lexbuf token =
   | TYPE -> ([ TYPE ], mark ~column:0 ~context:Type_decl state)
   | ALIAS when context state = Type_decl ->
       ([ ALIAS ], retag ~context:Type_alias state)
-  | LPAREN -> ([ LPAREN ], starting_binding state lexbuf)
+  | LPAREN ->
+      let* state = starting_binding state lexbuf in
+      ([ LPAREN ], state)
   | LBRACE ->
-      let state = starting_binding state lexbuf in
+      let* state = starting_binding state lexbuf in
       ([ LBRACE ], mark ~column:(column state) ~context:Delimited state)
   | RBRACE -> close_through (function Delimited -> true | _ -> false) RBRACE state
   | IN -> close_through (function Let | Let_inline -> true | _ -> false) IN state
@@ -193,17 +198,12 @@ let handle state lexbuf token =
       let* state =
         match context state with
         | Type_annotation when name_column = 0 -> pop state
-        | Let ->
-            ([], mark ~column:name_column ~context:Let_binding state)
-        | Let_binding when state.aligned ->
-            let* state = unbracket state in
-            ([], move ~column:(name_column + 1) state)
         | Let_inline -> ([], move ~column:(name_column + 1) state)
-        | Type_annotation | Let_binding | Top_level | Expression | If | Case
-        | Case_head | Case_arm | Type_alias | Type_decl | Delimited ->
-            ([], state)
+        | Top_level | Expression | Let | Let_binding | If | Case | Case_head
+        | Case_arm | Type_alias | Type_decl | Type_annotation | Delimited ->
+            starting_binding state lexbuf
       in
-      ([ token ], { state with aligned = false })
+      ([ token ], unaligned state)
   | token -> ([ token ], state)
 
 let rec next_token state lexbuf =

@@ -77,6 +77,44 @@ let known_limitation name input =
 
 let let_tests =
   [
+    ok "let_tuple_bind_after_name_bind" {|
+f: Int
+f =
+  let
+    x =
+      1
+
+    ( a, b ) =
+      ( 2, 3 )
+  in
+  x + a + b
+|};
+    ok "let_record_bind_after_name_bind" {|
+f: Int
+f =
+  let
+    x =
+      1
+
+    { c } =
+      { c = 2 }
+  in
+  x + c
+|};
+    ok "let_tuple_bind_after_case_bind" {|
+f: Int
+f =
+  let
+    g n =
+      case n of
+        _ ->
+          1
+
+    ( a, b ) =
+      ( 2, 3 )
+  in
+  g 0 + a + b
+|};
     ok "let_singleline" {|
 a: Int
 a = let x = 2 in x

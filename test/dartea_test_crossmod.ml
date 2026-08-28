@@ -319,8 +319,42 @@ viaQualifiedAlias = (Shapes.Point 5 6).x + Shapes.origin.y
     ~expr:"[Main.viaExposedAlias, Main.viaQualifiedAlias].join(\",\")"
     ~expected:{|"7,5"|}
 
+let test_dict_needs_an_import _ =
+  let outcome =
+    Dartea.Compiler.compile_modules ~entry:None
+      [
+        source "Main.elm"
+          {|
+module Main exposing (main)
+
+main : Int
+main = Dict.size Dict.empty
+|};
+      ]
+  in
+  assert_bool "Dict was reachable without an import" (outcome.errors <> [])
+
+let test_dict_runs _ =
+  assert_runs
+    ~modules:
+      [
+        source "Main.elm"
+          {|
+module Main exposing (main)
+
+import Dict
+
+main : Int
+main =
+    Dict.size (Dict.insert 3 "c" (Dict.fromList [ ( 1, "a" ), ( 2, "b" ) ]))
+|};
+      ]
+    ~expr:"Main.main" ~expected:"3"
+
 let suite =
   [
+    "dict_runs" >:: test_dict_runs;
+    "dict_needs_an_import" >:: test_dict_needs_an_import;
     "qualified, exposed and aliased imports"
     >:: test_qualified_exposed_and_aliased_imports;
     "imported ctor survives the boundary"

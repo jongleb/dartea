@@ -1,6 +1,13 @@
 (rule
  (target prelude_source.ml)
- (deps Basics.elm Char.elm List.elm Maybe.elm Result.elm String.elm
+ (deps
+  Basics.elm
+  Char.elm
+  Dict.elm
+  List.elm
+  Maybe.elm
+  Result.elm
+  String.elm
   Tuple.elm)
  (action
   (with-stdout-to
@@ -10,6 +17,8 @@
     (cat Basics.elm)
     (echo "|elm}\n\nlet char = {elm|")
     (cat Char.elm)
+    (echo "|elm}\n\nlet dict = {elm|")
+    (cat Dict.elm)
     (echo "|elm}\n\nlet list = {elm|")
     (cat List.elm)
     (echo "|elm}\n\nlet maybe = {elm|")

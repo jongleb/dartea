@@ -1,4 +1,4 @@
-type t = Basics | Char | List | Maybe | Result | String | Tuple
+type t = Basics | Char | Dict | List | Maybe | Result | String | Tuple
 [@@deriving enumerate, variants]
 
 let name = Variants.to_name
@@ -13,11 +13,16 @@ let notice =
 let source = function
   | Basics -> Prelude_source.basics
   | Char -> Prelude_source.char
+  | Dict -> Prelude_source.dict
   | List -> Prelude_source.list
   | Maybe -> Prelude_source.maybe
   | Result -> Prelude_source.result
   | String -> Prelude_source.string
   | Tuple -> Prelude_source.tuple
+
+let imported_by_default = function
+  | Basics | Char | List | Maybe | Result | String | Tuple -> true
+  | Dict -> false
 
 let exposed_by_default = function
   | Basics -> Canonical.Exposed.All
@@ -27,7 +32,7 @@ let exposed_by_default = function
   | Result ->
       Canonical.Exposed.Only
         [ Canonical.Exposed.Type { name = name Result; ctors_exposed = true } ]
-  | Char | List | String | Tuple -> Canonical.Exposed.Only []
+  | Char | Dict | List | String | Tuple -> Canonical.Exposed.Only []
 
 let default_imports : Canonical.Import.t list =
   List.map
@@ -38,4 +43,4 @@ let default_imports : Canonical.Import.t list =
         exposed = exposed_by_default module_;
         region = Data.Region.nowhere;
       })
-    all
+    (List.filter imported_by_default all)

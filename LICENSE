@@ -43,6 +43,7 @@ Copyright 2014-present Evan Czaplicki
 
     lib/prelude/Basics.elm
     lib/prelude/Char.elm
+    lib/prelude/Dict.elm
     lib/prelude/List.elm
     lib/prelude/Maybe.elm
     lib/prelude/Result.elm
@@ -53,8 +54,9 @@ Copyright 2014-present Evan Czaplicki
     lib/codegen/js/dartea_runtime.js
 
 The prelude modules are embedded into the compiler binary and are compiled
-into Basics.mjs, Char.mjs, List.mjs, Maybe.mjs, Result.mjs, String.mjs,
-Tuple.mjs and Dartea_runtime.mjs alongside every program this compiler builds.
+into Basics.mjs, Char.mjs, Dict.mjs, List.mjs, Maybe.mjs, Result.mjs,
+String.mjs, Tuple.mjs and Dartea_runtime.mjs alongside every program this
+compiler builds.
 Redistributing that output redistributes material derived from elm/core.
 
 
