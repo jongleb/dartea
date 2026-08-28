@@ -85,8 +85,10 @@ let value (kernel : Data.Kernel.t) : J.expr =
     J.Arrow { params = parameters; body = J.ArrowExpr body }
   in
   match kernel with
-  | Nullary nullary -> nullary_value nullary
-  | Unary unary -> arrow [ "x" ] (unary_operation unary (J.Identifier "x"))
-  | Binary binary ->
+  | Language (Nullary nullary) -> nullary_value nullary
+  | Language (Unary unary) ->
+      arrow [ "x" ] (unary_operation unary (J.Identifier "x"))
+  | Language (Binary binary) ->
       arrow [ "a"; "b" ]
         (binary_operation binary (J.Identifier "a") (J.Identifier "b"))
+  | Platform platform -> Browser_kernel.reference platform.name

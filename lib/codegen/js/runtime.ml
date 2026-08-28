@@ -1,5 +1,7 @@
 let module_name = "Dartea_runtime"
 let source = Runtime_source.dartea_runtime
+let browser_module_name = "Dartea_browser"
+let browser_source = Runtime_source.dartea_browser
 let curry = "$$curry"
 let append = "$$append"
 let equal = "$$eq"

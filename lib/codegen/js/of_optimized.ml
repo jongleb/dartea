@@ -1538,6 +1538,8 @@ let program_with_helpers ~arities ~constructors ~siblings ~typedecls ~exports
 
 let runtime_module_source () = Runtime.source
 
+let browser_module = (Runtime.browser_module_name, Runtime.browser_source)
+
 let extension = "mjs"
 let module_suffix = "." ^ extension
 let module_file module_name = module_name ^ module_suffix
@@ -1569,8 +1571,9 @@ let emit_module ~notice ~arities ~constructors ~siblings ~typedecls ~imports
       decls
   in
   let runtime_import =
-    if J.references runtime_module_name program then [ runtime_module_name ]
-    else []
+    List.filter
+      (fun name -> J.references name program)
+      [ runtime_module_name; Runtime.browser_module_name ]
   in
   comment_lines notice
   ^ import_lines (runtime_import @ imports)

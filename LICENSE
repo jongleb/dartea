@@ -32,8 +32,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 Third-party material
 
 
-This software contains material derived from two projects by Evan Czaplicki,
-both licensed under the same BSD 3-Clause License reproduced above. Their
+This software contains material derived from four projects by Evan Czaplicki,
+all licensed under the same BSD 3-Clause License reproduced above. Their
 copyright notices are retained here, as clause 1 requires, and apply to the
 files listed under each.
 
@@ -53,11 +53,36 @@ Copyright 2014-present Evan Czaplicki
     lib/data/kernel.ml
     lib/codegen/js/dartea_runtime.js
 
-The prelude modules are embedded into the compiler binary and are compiled
-into Basics.mjs, Char.mjs, Dict.mjs, List.mjs, Maybe.mjs, Result.mjs,
-String.mjs, Tuple.mjs and Dartea_runtime.mjs alongside every program this
-compiler builds.
-Redistributing that output redistributes material derived from elm/core.
+The prelude modules are embedded into the compiler binary; those a program
+imports are compiled alongside it, as Basics.mjs, Char.mjs, Dict.mjs, List.mjs,
+Maybe.mjs, Result.mjs, String.mjs and Tuple.mjs. Dartea_runtime.mjs ships with
+every program. Redistributing that output redistributes material derived from
+elm/core.
+
+
+elm/virtual-dom -- https://github.com/elm/virtual-dom
+Copyright (c) 2016-present, Evan Czaplicki
+
+    lib/prelude/VirtualDom.elm
+    lib/codegen/js/browser_kernel.ml
+
+The module names, type names and signatures are reproduced; the implementations
+are not, because elm/virtual-dom is written against the Elm runtime's own value
+representation. A program that imports VirtualDom is compiled alongside
+VirtualDom.mjs, and redistributing that output redistributes material derived
+from elm/virtual-dom.
+
+
+elm/html -- https://github.com/elm/html
+Copyright (c) 2014-present, Evan Czaplicki
+
+    lib/prelude/Html.elm
+    lib/prelude/Html.Attributes.elm
+
+The module names, type names and signatures are reproduced; the tag and
+attribute helpers are written against dartea's own VirtualDom module. A program
+that imports Html is compiled alongside Html.mjs and Html.Attributes.mjs, and
+redistributing that output redistributes material derived from elm/html.
 
 
 elm/compiler -- https://github.com/elm/compiler

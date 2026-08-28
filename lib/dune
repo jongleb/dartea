@@ -1,3 +1,19 @@
+(env
+ (_
+  (flags
+   (-w -40 -w +26 -warn-error +8))))
+
+(rule
+ (target licence_text.ml)
+ (deps ../LICENSE)
+ (action
+  (with-stdout-to
+   licence_text.ml
+   (progn
+    (echo "let licence = {licence|")
+    (cat ../LICENSE)
+    (echo "|licence}\n")))))
+
 (library
  (name dartea)
  (libraries

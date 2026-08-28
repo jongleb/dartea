@@ -139,9 +139,11 @@ return {
 })();
 
 const Basics = (() => {
-// Derived from elm/core -- https://github.com/elm/core
-// Copyright 2014-present Evan Czaplicki, BSD 3-Clause License.
-// Emitted by dartea; its LICENSE file carries the full text.
+// Compiled by dartea, an independent compiler. Not affiliated with or
+// endorsed by the Elm project.
+// Contains material derived from elm/core,
+// Copyright 2014-present Evan Czaplicki, under the BSD 3-Clause License.
+// dartea's LICENSE carries the full text.
 const LT = "LT";
 const EQ = "EQ";
 const GT = "GT";
@@ -226,9 +228,11 @@ return { EQ, GT, LT, abs, acos, always, apL, apR, asin, atan, atan2, ceiling, cl
 })();
 
 const Char = (() => {
-// Derived from elm/core -- https://github.com/elm/core
-// Copyright 2014-present Evan Czaplicki, BSD 3-Clause License.
-// Emitted by dartea; its LICENSE file carries the full text.
+// Compiled by dartea, an independent compiler. Not affiliated with or
+// endorsed by the Elm project.
+// Contains material derived from elm/core,
+// Copyright 2014-present Evan Czaplicki, under the BSD 3-Clause License.
+// dartea's LICENSE carries the full text.
 const toCode = x => Dartea_runtime.$$charToCode(x);
 const isUpper = $$char => {
   const code = toCode($$char);
@@ -259,9 +263,11 @@ return { fromCode, isAlpha, isAlphaNum, isDigit, isHexDigit, isLower, isOctDigit
 })();
 
 const Maybe = (() => {
-// Derived from elm/core -- https://github.com/elm/core
-// Copyright 2014-present Evan Czaplicki, BSD 3-Clause License.
-// Emitted by dartea; its LICENSE file carries the full text.
+// Compiled by dartea, an independent compiler. Not affiliated with or
+// endorsed by the Elm project.
+// Contains material derived from elm/core,
+// Copyright 2014-present Evan Czaplicki, under the BSD 3-Clause License.
+// dartea's LICENSE carries the full text.
 const Just = _0 => ({ _0: _0 });
 const Nothing = "Nothing";
 const withDefault = ($$default, maybe) => {
@@ -292,9 +298,11 @@ return { Just, Nothing, andThen, map, withDefault };
 })();
 
 const List = (() => {
-// Derived from elm/core -- https://github.com/elm/core
-// Copyright 2014-present Evan Czaplicki, BSD 3-Clause License.
-// Emitted by dartea; its LICENSE file carries the full text.
+// Compiled by dartea, an independent compiler. Not affiliated with or
+// endorsed by the Elm project.
+// Contains material derived from elm/core,
+// Copyright 2014-present Evan Czaplicki, under the BSD 3-Clause License.
+// dartea's LICENSE carries the full text.
 const singleton = value => ({ hd: value, tl: 0 });
 const repeatHelp = (result, n, value$1) => {
   while (true) {
@@ -635,9 +643,11 @@ return { all, any, append, concat, concatMap, cons, drop, filter, filterMap, fol
 })();
 
 const Result = (() => {
-// Derived from elm/core -- https://github.com/elm/core
-// Copyright 2014-present Evan Czaplicki, BSD 3-Clause License.
-// Emitted by dartea; its LICENSE file carries the full text.
+// Compiled by dartea, an independent compiler. Not affiliated with or
+// endorsed by the Elm project.
+// Contains material derived from elm/core,
+// Copyright 2014-present Evan Czaplicki, under the BSD 3-Clause License.
+// dartea's LICENSE carries the full text.
 const Ok = _0 => ({ TAG: "Ok", _0: _0 });
 const Err = _0 => ({ TAG: "Err", _0: _0 });
 const withDefault = (def, result) => {
@@ -743,9 +753,11 @@ return { Err, Ok, andThen, fromMaybe, map, map2, map3, map4, map5, mapError, toM
 })();
 
 const $$String = (() => {
-// Derived from elm/core -- https://github.com/elm/core
-// Copyright 2014-present Evan Czaplicki, BSD 3-Clause License.
-// Emitted by dartea; its LICENSE file carries the full text.
+// Compiled by dartea, an independent compiler. Not affiliated with or
+// endorsed by the Elm project.
+// Contains material derived from elm/core,
+// Copyright 2014-present Evan Czaplicki, under the BSD 3-Clause License.
+// dartea's LICENSE carries the full text.
 const length = x => x.length;
 const append = (a, b) => a + b;
 const split = (a, b) => Dartea_runtime.$$stringSplit(a, b);
@@ -966,9 +978,11 @@ return { all, any, append, concat, cons, contains, dropLeft, dropRight, endsWith
 })();
 
 const Tuple = (() => {
-// Derived from elm/core -- https://github.com/elm/core
-// Copyright 2014-present Evan Czaplicki, BSD 3-Clause License.
-// Emitted by dartea; its LICENSE file carries the full text.
+// Compiled by dartea, an independent compiler. Not affiliated with or
+// endorsed by the Elm project.
+// Contains material derived from elm/core,
+// Copyright 2014-present Evan Czaplicki, under the BSD 3-Clause License.
+// dartea's LICENSE carries the full text.
 const pair = (a, b) => [a, b];
 const first = t => {
   const x = t[0];

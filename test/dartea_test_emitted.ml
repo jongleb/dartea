@@ -46,8 +46,26 @@ let compiled_in folder =
   | Ok sources -> Dartea.Compiler.compile_modules ~entry:None sources
   | Error error -> refused Reporting.Sources.empty [ error ]
 
+let probe = "Prelude"
+
+let probe_source =
+  let imports =
+    Prelude.all
+    |> List.filter (fun module_ -> not (Prelude.imported_by_default module_))
+    |> List.map (fun module_ -> "import " ^ Prelude.name module_)
+    |> String.concat "\n"
+  in
+  Printf.sprintf
+    "module %s exposing (nothing)\n\n%s\n\nnothing : Int\nnothing =\n    0\n"
+    probe imports
+
 let prelude_emitted =
-  lazy (emitted (Dartea.Compiler.compile_modules ~entry:None []))
+  lazy
+    (Dartea.Compiler.compile_modules ~entry:None
+       [ Project.Elm_file.of_path ~path:(probe ^ ".elm") probe_source ]
+    |> emitted
+    |> List.filter (fun (module_name, _) ->
+           not (String.equal module_name probe)))
 
 let listed folder =
   let path = Filename.concat goldens folder in

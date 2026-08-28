@@ -36,10 +36,10 @@ let rec expr_of_typed (e : T.Expr.t) : O.Expr.t =
     | T.Expr.Expr_apply { fn; arg } -> begin
         let head, arguments = T.Expr.spine e in
         match (head.T.Expr.expr, arguments) with
-        | T.Expr.Expr_kernel (Unary kernel), [ argument ] ->
+        | T.Expr.Expr_kernel (Language (Unary kernel)), [ argument ] ->
             O.Expr.Expr_kernel
               (Kernel_unary { kernel; argument = expr_of_typed argument })
-        | T.Expr.Expr_kernel (Binary kernel), [ left; right ] ->
+        | T.Expr.Expr_kernel (Language (Binary kernel)), [ left; right ] ->
             O.Expr.Expr_kernel
               (Kernel_binary
                  {
@@ -47,7 +47,8 @@ let rec expr_of_typed (e : T.Expr.t) : O.Expr.t =
                    left = expr_of_typed left;
                    right = expr_of_typed right;
                  })
-        | T.Expr.Expr_kernel (Nullary _ | Unary _ | Binary _), _
+        | T.Expr.Expr_kernel
+            (Language (Nullary _ | Unary _ | Binary _) | Platform _), _
         | ( (T.Expr.Expr_constr _ | T.Expr.Expr_binop _ | T.Expr.Expr_let _
             | T.Expr.Expr_if_then_else _ | T.Expr.Expr_record _
             | T.Expr.Expr_record_update _ | T.Expr.Expr_apply _

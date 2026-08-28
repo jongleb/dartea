@@ -1,6 +1,8 @@
 module type BACKEND = sig
   val extension : string
-  val runtime_module : unit -> (string * string) option
+  val runtime_modules : string list -> (string * string) list
+
+  val platform_kernel : Data.Name.t -> int option
 
   val emit_module :
     notice:string list ->
@@ -17,10 +19,15 @@ end
 module Js_backend : BACKEND = struct
   let extension = Codegen_js.Of_optimized.extension
 
-  let runtime_module () =
-    Some
-      ( Codegen_js.Of_optimized.runtime_module_name,
-        Codegen_js.Of_optimized.runtime_module_source () )
+  let runtime_modules module_names =
+    ( Codegen_js.Of_optimized.runtime_module_name,
+      Codegen_js.Of_optimized.runtime_module_source () )
+    ::
+    (if Codegen_js.Browser_kernel.needed_by module_names then
+       [ Codegen_js.Of_optimized.browser_module ]
+     else [])
+
+  let platform_kernel = Codegen_js.Browser_kernel.arity
 
   let emit_module ~notice ~arities ~constructors ~siblings ~typedecls ~imports
       ~exports decls =
@@ -42,7 +49,32 @@ type outcome = {
   entry : Entry.t option;
 }
 
+module Module_names = Canonical.Exports.Names
+
 let prelude_file module_ = Prelude.name module_ ^ Project.Elm_file.extension
+
+let imported_by (module_ : Canonical.Module.t) =
+  List.map (fun (import : Canonical.Import.t) -> import.module_name)
+    module_.imports
+
+let reachable ~wanted prelude =
+  let rec grown needed =
+    let reached =
+      List.fold_left
+        (fun found (module_ : Canonical.Module.t) ->
+          if Module_names.mem module_.name found then
+            Module_names.union found
+              (Module_names.of_list (imported_by module_))
+          else found)
+        needed prelude
+    in
+    if Module_names.equal reached needed then needed else grown reached
+  in
+  let needed = grown wanted in
+  List.filter
+    (fun (module_ : Canonical.Module.t) ->
+      Module_names.mem module_.name needed)
+    prelude
 
 let frontend_module ~file content =
   match Parse.Main.parse ~file content with
@@ -141,7 +173,8 @@ module Make (B : BACKEND) = struct
     { module_ with imports = Prelude.default_imports @ module_.imports }
 
   let resolved_against dependencies (module_ : Canonical.Module.t) =
-    Canonicalization.Resolve_names.in_module ~dependencies module_
+    Canonicalization.Resolve_names.in_module ~platform_kernel:B.platform_kernel
+      ~dependencies module_
 
   let exported_names (module_ : Canonical.Module.t)
       (typed : Infer.Declarations.infer_result) =
@@ -210,8 +243,11 @@ module Make (B : BACKEND) = struct
           Prelude.all
     in
     let notice_for name =
-      let prelude_named module_ = String.equal (Prelude.name module_) name in
-      if List.exists prelude_named Prelude.all then Prelude.notice else []
+      List.find_opt
+        (fun module_ -> String.equal (Prelude.name module_) name)
+        Prelude.all
+      |> Option.map Prelude.notice
+      |> Option.value ~default:[]
     in
     let compiling progress module_ =
       match resolved_against progress.dependencies module_ with
@@ -283,9 +319,13 @@ module Make (B : BACKEND) = struct
       | exception Reporting.Error.Found error ->
           { progress with errors = error :: progress.errors }
     in
+    let written_modules = List.map module_of sources in
+    let wanted =
+      Module_names.of_list (List.concat_map imported_by written_modules)
+    in
     match
       Canonicalization.Module_graph.in_dependency_order
-        (Lazy.force prelude_modules @ List.map module_of sources)
+        (reachable ~wanted (Lazy.force prelude_modules) @ written_modules)
     with
     | exception Reporting.Error.Found error ->
         { output = []; errors = [ error ]; sources = written; entry = None }
@@ -301,12 +341,6 @@ module Make (B : BACKEND) = struct
             ];
         }
     | Ok ordered ->
-        let runtime =
-          match B.runtime_module () with
-          | None -> []
-          | Some (module_name, source) ->
-              [ { module_name; source; exports = []; warnings = [] } ]
-        in
         let finished =
           List.fold_left compile_module
             {
@@ -318,6 +352,16 @@ module Make (B : BACKEND) = struct
             }
             ordered
         in
+        let compiled_modules = List.rev finished.output in
+        let runtime =
+          List.map
+            (fun (module_name, source) ->
+              { module_name; source; exports = []; warnings = [] })
+            (B.runtime_modules
+               (List.map
+                  (fun (module_ : compiled) -> module_.module_name)
+                  compiled_modules))
+        in
         let errors =
           match (entry, finished.entry, finished.errors) with
           | Some module_name, None, [] ->
@@ -328,7 +372,7 @@ module Make (B : BACKEND) = struct
           | _, _, errors -> List.rev errors
         in
         {
-          output = (if errors = [] then runtime @ List.rev finished.output else []);
+          output = (if errors = [] then runtime @ compiled_modules else []);
           errors;
           sources = written;
           entry = finished.entry;

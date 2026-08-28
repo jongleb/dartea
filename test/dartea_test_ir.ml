@@ -120,7 +120,8 @@ let generated_names (declaration : declaration) =
 
 module Ir_backend : Dartea.Compiler.BACKEND = struct
   let extension = "ir"
-  let runtime_module () = None
+  let runtime_modules _ = []
+  let platform_kernel _ = None
 
   let emit_module ~notice:_ ~arities ~constructors ~siblings ~typedecls:_
       ~imports:_ ~exports:_ declarations =
@@ -130,7 +131,8 @@ end
 
 module Checked_backend : Dartea.Compiler.BACKEND = struct
   let extension = "problems"
-  let runtime_module () = None
+  let platform_kernel _ = None
+  let runtime_modules _ = []
 
   let emit_module ~notice:_ ~arities ~constructors ~siblings ~typedecls:_
       ~imports:_ ~exports:_ declarations =
@@ -141,6 +143,22 @@ end
 
 module Compiler = Dartea.Compiler.Make (Ir_backend)
 module Checker = Dartea.Compiler.Make (Checked_backend)
+
+let test_a_backend_without_the_platform_refuses_it _ =
+  let outcome =
+    Compiler.compile_modules ~entry:None
+      [
+        Project.Elm_file.of_path ~path:"Main.elm"
+          "module Main exposing (hello)\n\nimport VirtualDom\n\nhello :            VirtualDom.Node msg\nhello = VirtualDom.text \"hi\"\n";
+      ]
+  in
+  match outcome.errors with
+  | { problem = Syntax _ | Type _ | Project _; _ } :: _ | [] ->
+      assert_failure "the platform kernel was accepted without a platform"
+  | { problem = Name (Unknown_kernel { module_name; _ }); _ } :: _ ->
+      assert_equal ~printer:Fun.id "Elm.Kernel.VirtualDom" module_name
+  | { problem = Name _; _ } :: _ ->
+      assert_failure "a different naming error came out"
 
 let ir_of source =
   Node_runner.output_of (Compiler.compile_source source)
@@ -471,6 +489,8 @@ let law_conversion_is_deterministic =
 
 let suite =
   [
+    "a backend without the platform refuses its kernels"
+    >:: test_a_backend_without_the_platform_refuses_it;
     "adt is well scoped" >:: assert_scoped adt_source;
     "record is well scoped" >:: assert_scoped record_source;
     "list is well scoped" >:: assert_scoped list_source;

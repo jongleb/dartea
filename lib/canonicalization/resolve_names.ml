@@ -43,6 +43,7 @@ type env = {
   term_scope : scope;
   type_scope : scope;
   qualifiers : dependency By_name.t;
+  platform_kernel : Data.Name.t -> int option;
 }
 
 let exports_include (exports : Exports.t) namespace name =
@@ -226,6 +227,7 @@ let environment_of ~(dependencies : Canonical.Module.t list)
           sources = By_name.empty;
         };
       qualifiers = By_name.empty;
+      platform_kernel = (fun _ -> None);
     }
   in
   let env, errors =
@@ -342,11 +344,19 @@ module Resolution = struct
     let same expr = Data.Located.at name.region expr in
     match Data.Kernel.referred_to_by name.thing with
     | Known kernel -> Reported.return (same (Canonical.Expr.Expr_kernel kernel))
-    | Unknown { module_name; exported_name } ->
-        Reported.rejected
-          (same (Canonical.Expr.Expr_ident name.thing))
-          ~region:name.region
-          (Problem.Unknown_kernel { module_name; exported_name })
+    | Unknown { name = inside; module_name; exported_name } -> begin
+        match env.platform_kernel inside with
+        | Some arity ->
+            Reported.return
+              (same
+                 (Canonical.Expr.Expr_kernel
+                    (Platform { name = inside; arity })))
+        | None ->
+            Reported.rejected
+              (same (Canonical.Expr.Expr_ident name.thing))
+              ~region:name.region
+              (Problem.Unknown_kernel { module_name; exported_name })
+      end
     | Not_kernel ->
         Reported.map (resolved env Terms name) ~f:(fun resolved ->
             same (Canonical.Expr.Expr_ident resolved))
@@ -411,10 +421,11 @@ let resolved_declarations map ~f =
   in
   (resolved, List.rev errors)
 
-let in_module ~(dependencies : Canonical.Module.t list) (m : Canonical.Module.t)
-    : (Canonical.Module.t, error list) result =
+let in_module ~platform_kernel ~(dependencies : Canonical.Module.t list)
+    (m : Canonical.Module.t) : (Canonical.Module.t, error list) result =
   let open Reported.Let_syntax in
   let env, import_errors = environment_of ~dependencies m in
+  let env = { env with platform_kernel } in
   let top_declarations, declaration_errors =
     resolved_values m.top_declarations
       ~f:(fun (d : Canonical.Declaration.t) ->

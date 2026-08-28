@@ -319,6 +319,28 @@ viaQualifiedAlias = (Shapes.Point 5 6).x + Shapes.origin.y
     ~expr:"[Main.viaExposedAlias, Main.viaQualifiedAlias].join(\",\")"
     ~expected:{|"7,5"|}
 
+let compiled_names modules =
+  Dartea.Compiler.compile_modules ~entry:None modules
+  |> Node_runner.output_of
+  |> List.map (fun (module_ : Dartea.Compiler.compiled) -> module_.module_name)
+
+let test_unimported_prelude_module_stays_out _ =
+  let names =
+    compiled_names
+      [ source "Main.elm" "module Main exposing (main)\n\nmain : Int\nmain = 1\n" ]
+  in
+  assert_bool "Dict was emitted without an import" (not (List.mem "Dict" names))
+
+let test_imported_prelude_module_comes_along _ =
+  let names =
+    compiled_names
+      [
+        source "Main.elm"
+          "module Main exposing (main)\n\nimport Dict\n\nmain : Int\nmain = Dict.size Dict.empty\n";
+      ]
+  in
+  assert_bool "Dict was left out despite the import" (List.mem "Dict" names)
+
 let test_dict_needs_an_import _ =
   let outcome =
     Dartea.Compiler.compile_modules ~entry:None
@@ -333,6 +355,96 @@ main = Dict.size Dict.empty
       ]
   in
   assert_bool "Dict was reachable without an import" (outcome.errors <> [])
+
+let test_html_builds_a_page _ =
+  assert_runs
+    ~modules:
+      [
+        source "Main.elm"
+          {|
+module Main exposing (page)
+
+import Html exposing (Html, div, text)
+import Html.Attributes exposing (class)
+
+page : Html msg
+page =
+    div [ class "box" ] [ text "hi" ]
+|};
+      ]
+    ~expr:"Main.page"
+    ~expected:
+      {|{"TAG":"node","tag":"div","attributes":[{"TAG":"attribute","key":"class","value":"box"}],"children":[{"TAG":"text","text":"hi"}]}|}
+
+let test_html_needs_an_import _ =
+  let outcome =
+    Dartea.Compiler.compile_modules ~entry:None
+      [
+        source "Main.elm"
+          "module Main exposing (page)\n\npage = Html.text \"hi\"\n";
+      ]
+  in
+  assert_bool "Html was reachable without an import" (outcome.errors <> [])
+
+let test_virtual_dom_builds_a_tree _ =
+  assert_runs
+    ~modules:
+      [
+        source "Main.elm"
+          {|
+module Main exposing (page)
+
+import VirtualDom
+
+page : VirtualDom.Node msg
+page =
+    VirtualDom.node "div"
+        [ VirtualDom.attribute "id" "main" ]
+        [ VirtualDom.text "hi" ]
+|};
+      ]
+    ~expr:"Main.page"
+    ~expected:
+      {|{"TAG":"node","tag":"div","attributes":[{"TAG":"attribute","key":"id","value":"main"}],"children":[{"TAG":"text","text":"hi"}]}|}
+
+let test_a_partly_applied_platform_kernel _ =
+  assert_runs
+    ~modules:
+      [
+        source "Main.elm"
+          {|
+module Main exposing (page)
+
+import VirtualDom
+
+div : List (VirtualDom.Attribute msg) -> List (VirtualDom.Node msg) -> VirtualDom.Node msg
+div =
+    VirtualDom.node "div"
+
+page : VirtualDom.Node msg
+page =
+    div [] []
+|};
+      ]
+    ~expr:"Main.page"
+    ~expected:{|{"TAG":"node","tag":"div","attributes":[],"children":[]}|}
+
+let test_virtual_dom_text_builds_a_node _ =
+  assert_runs
+    ~modules:
+      [
+        source "Main.elm"
+          {|
+module Main exposing (hello)
+
+import VirtualDom
+
+hello : VirtualDom.Node msg
+hello =
+    VirtualDom.text "hi"
+|};
+      ]
+    ~expr:"Main.hello" ~expected:{|{"TAG":"text","text":"hi"}|}
 
 let test_dict_runs _ =
   assert_runs
@@ -354,6 +466,15 @@ main =
 let suite =
   [
     "dict_runs" >:: test_dict_runs;
+    "virtual_dom_text_builds_a_node" >:: test_virtual_dom_text_builds_a_node;
+    "virtual_dom_builds_a_tree" >:: test_virtual_dom_builds_a_tree;
+    "html_builds_a_page" >:: test_html_builds_a_page;
+    "html_needs_an_import" >:: test_html_needs_an_import;
+    "a_partly_applied_platform_kernel" >:: test_a_partly_applied_platform_kernel;
+    "unimported_prelude_module_stays_out"
+    >:: test_unimported_prelude_module_stays_out;
+    "imported_prelude_module_comes_along"
+    >:: test_imported_prelude_module_comes_along;
     "dict_needs_an_import" >:: test_dict_needs_an_import;
     "qualified, exposed and aliased imports"
     >:: test_qualified_exposed_and_aliased_imports;

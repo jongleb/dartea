@@ -1,7 +1,7 @@
 open OUnit2
 
 let resolve ~dependencies source =
-  Canonicalization.Resolve_names.in_module
+  Canonicalization.Resolve_names.in_module ~platform_kernel:(fun _ -> None)
     ~dependencies:(List.map Utils.canonical dependencies)
     (Utils.canonical source)
 
@@ -714,7 +714,7 @@ length : String -> Int
 length = Elm.Kernel.String.length
 |} in
   assert_equal ~printer:Canonical.Expr.show
-    (Data.Located.dummy(Canonical.Expr.Expr_kernel (Data.Kernel.Unary Data.Kernel.String_length)))
+    (Data.Located.dummy(Canonical.Expr.Expr_kernel (Data.Kernel.Language (Unary Data.Kernel.String_length))))
     (expr_of module_ "length")
 
 let problems_of problems = problems

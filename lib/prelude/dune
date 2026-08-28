@@ -4,11 +4,14 @@
   Basics.elm
   Char.elm
   Dict.elm
+  Html.elm
+  Html.Attributes.elm
   List.elm
   Maybe.elm
   Result.elm
   String.elm
-  Tuple.elm)
+  Tuple.elm
+  VirtualDom.elm)
  (action
   (with-stdout-to
    prelude_source.ml
@@ -19,6 +22,10 @@
     (cat Char.elm)
     (echo "|elm}\n\nlet dict = {elm|")
     (cat Dict.elm)
+    (echo "|elm}\n\nlet html = {elm|")
+    (cat Html.elm)
+    (echo "|elm}\n\nlet html_attributes = {elm|")
+    (cat Html.Attributes.elm)
     (echo "|elm}\n\nlet list = {elm|")
     (cat List.elm)
     (echo "|elm}\n\nlet maybe = {elm|")
@@ -29,12 +36,12 @@
     (cat String.elm)
     (echo "|elm}\n\nlet tuple = {elm|")
     (cat Tuple.elm)
+    (echo "|elm}\n\nlet virtual_dom = {elm|")
+    (cat VirtualDom.elm)
     (echo "|elm}\n")))))
 
 (library
  (name prelude)
  (libraries canonical)
- (flags
-  (-w -40 -w +26))
  (preprocess
   (pps ppx_jane)))

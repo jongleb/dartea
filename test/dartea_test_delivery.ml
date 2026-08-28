@@ -34,22 +34,27 @@ let test_esm_folder_is_one_file_per_module _ =
   let outcome = outcome_of ~entry:None Sample.starter in
   let files = delivered ~delivery:Dartea.Delivery.default outcome in
   assert_equal ~printer:Sample.names
-    (List.map
-       (fun (module_ : Dartea.Compiler.compiled) ->
-         Codegen_js.Of_optimized.module_file module_.module_name)
-       outcome.output
+    (Dartea.Delivery.licence_file
+     :: List.map
+          (fun (module_ : Dartea.Compiler.compiled) ->
+            Codegen_js.Of_optimized.module_file module_.module_name)
+          outcome.output
     |> List.sort String.compare)
     (paths files);
   List.iter2
     (fun (module_ : Dartea.Compiler.compiled) (file : Dartea.Delivery.file) ->
       assert_equal ~printer:Fun.id ~msg:module_.module_name module_.source
         file.content)
-    outcome.output files
+    outcome.output
+    (List.filter
+       (fun (file : Dartea.Delivery.file) ->
+         not (String.equal file.path Dartea.Delivery.licence_file))
+       files)
 
 let test_browser_writes_a_page_and_a_bundle _ =
   let outcome = outcome_of ~entry:(Some "Main") Sample.starter in
   assert_equal ~printer:Sample.names
-    [ "build/index.html"; "build/main.js" ]
+    [ "build/dartea.LICENSE.txt"; "build/index.html"; "build/main.js" ]
     (paths (delivered ~delivery:browser outcome))
 
 let written directory (file : Dartea.Delivery.file) =

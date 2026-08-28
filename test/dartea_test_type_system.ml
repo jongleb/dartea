@@ -1,7 +1,7 @@
 open OUnit2
 
 let resolved module_ =
-  match Canonicalization.Resolve_names.in_module ~dependencies:[] module_ with
+  match Canonicalization.Resolve_names.in_module ~platform_kernel:(fun _ -> None) ~dependencies:[] module_ with
   | Ok resolved -> resolved
   | Error errors ->
       assert_failure

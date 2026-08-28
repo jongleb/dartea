@@ -43,10 +43,17 @@ type binary =
   | Basics_xor
 [@@deriving show, enumerate]
 
-type t = Nullary of nullary | Unary of unary | Binary of binary
+type language = Nullary of nullary | Unary of unary | Binary of binary
 [@@deriving show, enumerate]
 
-let arity = function Nullary _ -> 0 | Unary _ -> 1 | Binary _ -> 2
+type platform = { name : Name.t; arity : int } [@@deriving show]
+type t = Language of language | Platform of platform [@@deriving show]
+
+let language_arity = function Nullary _ -> 0 | Unary _ -> 1 | Binary _ -> 2
+
+let arity = function
+  | Language language -> language_arity language
+  | Platform platform -> platform.arity
 
 let written_as module_name exported_name =
   Name.global ~module_name ~exported_name
@@ -96,11 +103,11 @@ let origin = function
   | Binary Basics_atan2 -> basics "atan2"
   | Binary Basics_xor -> basics "xor"
 
-let by_origin = Lookup.by ~key:origin all
+let by_origin = Lookup.by ~key:origin all_of_language
 
 type reference =
   | Not_kernel
-  | Unknown of { module_name : string; exported_name : string }
+  | Unknown of { name : Name.t; module_name : string; exported_name : string }
   | Known of t
 
 let namespace = "Elm.Kernel."
@@ -118,11 +125,9 @@ let referred_to_by (name : Name.t) : reference =
       match inside_namespace module_name with
       | None -> Not_kernel
       | Some kernel_module -> begin
-          match
-            Hashtbl.find_opt by_origin
-              (Name.global ~module_name:kernel_module ~exported_name)
-          with
-          | Some kernel -> Known kernel
-          | None -> Unknown { module_name; exported_name }
+          let inside = Name.global ~module_name:kernel_module ~exported_name in
+          match Hashtbl.find_opt by_origin inside with
+          | Some kernel -> Known (Language kernel)
+          | None -> Unknown { name = inside; module_name; exported_name }
         end
     end

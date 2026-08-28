@@ -1,28 +1,70 @@
-type t = Basics | Char | Dict | List | Maybe | Result | String | Tuple
-[@@deriving enumerate, variants]
+type t =
+  | Basics
+  | Char
+  | Dict
+  | Html
+  | Html_attributes
+  | List
+  | Maybe
+  | Result
+  | String
+  | Tuple
+  | VirtualDom
+[@@deriving enumerate]
 
-let name = Variants.to_name
+let name = function
+  | Basics -> "Basics"
+  | Char -> "Char"
+  | Dict -> "Dict"
+  | Html -> "Html"
+  | Html_attributes -> "Html.Attributes"
+  | List -> "List"
+  | Maybe -> "Maybe"
+  | Result -> "Result"
+  | String -> "String"
+  | Tuple -> "Tuple"
+  | VirtualDom -> "VirtualDom"
 
-let notice =
+let compiled_by =
   [
-    "Derived from elm/core -- https://github.com/elm/core";
-    "Copyright 2014-present Evan Czaplicki, BSD 3-Clause License.";
-    "Emitted by dartea; its LICENSE file carries the full text.";
+    "Compiled by dartea, an independent compiler. Not affiliated with or";
+    "endorsed by the Elm project.";
   ]
+
+let derived_from source copyright =
+  [
+    "Contains material derived from " ^ source ^ ",";
+    copyright ^ ", under the BSD 3-Clause License.";
+    "dartea's LICENSE carries the full text.";
+  ]
+
+let notice module_ =
+  compiled_by
+  @
+  match module_ with
+  | VirtualDom ->
+      derived_from "elm/virtual-dom" "Copyright (c) 2016-present Evan Czaplicki"
+  | Html | Html_attributes ->
+      derived_from "elm/html" "Copyright (c) 2014-present Evan Czaplicki"
+  | Basics | Char | Dict | List | Maybe | Result | String | Tuple ->
+      derived_from "elm/core" "Copyright 2014-present Evan Czaplicki"
 
 let source = function
   | Basics -> Prelude_source.basics
   | Char -> Prelude_source.char
   | Dict -> Prelude_source.dict
+  | Html -> Prelude_source.html
+  | Html_attributes -> Prelude_source.html_attributes
   | List -> Prelude_source.list
   | Maybe -> Prelude_source.maybe
   | Result -> Prelude_source.result
   | String -> Prelude_source.string
   | Tuple -> Prelude_source.tuple
+  | VirtualDom -> Prelude_source.virtual_dom
 
 let imported_by_default = function
   | Basics | Char | List | Maybe | Result | String | Tuple -> true
-  | Dict -> false
+  | Dict | Html | Html_attributes | VirtualDom -> false
 
 let exposed_by_default = function
   | Basics -> Canonical.Exposed.All
@@ -32,7 +74,8 @@ let exposed_by_default = function
   | Result ->
       Canonical.Exposed.Only
         [ Canonical.Exposed.Type { name = name Result; ctors_exposed = true } ]
-  | Char | Dict | List | String | Tuple -> Canonical.Exposed.Only []
+  | Char | Dict | Html | Html_attributes | List | String | Tuple | VirtualDom ->
+      Canonical.Exposed.Only []
 
 let default_imports : Canonical.Import.t list =
   List.map

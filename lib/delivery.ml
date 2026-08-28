@@ -1,5 +1,8 @@
 type file = { path : string; content : string }
 
+let licence_file = "dartea.LICENSE.txt"
+let licence path = { path; content = Licence_text.licence }
+
 module type S = sig
   val name : string
   val files : entry:Entry.t option -> Compiler.compiled list -> file list
@@ -9,13 +12,14 @@ module Esm_folder : S = struct
   let name = "esm_folder"
 
   let files ~entry:_ modules =
-    List.map
-      (fun (module_ : Compiler.compiled) ->
-        {
-          path = Codegen_js.Of_optimized.module_file module_.module_name;
-          content = module_.source;
-        })
-      modules
+    licence licence_file
+    :: List.map
+         (fun (module_ : Compiler.compiled) ->
+           {
+             path = Codegen_js.Of_optimized.module_file module_.module_name;
+             content = module_.source;
+           })
+         modules
 end
 
 module Classic_js_browser : S = struct
@@ -72,6 +76,7 @@ module Classic_js_browser : S = struct
     exposed entry modules;
     showable entry;
     [
+      built licence_file Licence_text.licence;
       built Codegen_js.Bundle.entry_file
         (Codegen_js.Bundle.of_modules ~entry_module:entry.module_name
            ~declaration:entry.declaration (bundled modules));

@@ -1,7 +1,5 @@
 (library
  (name canonical)
  (libraries data frontend non_empty_list)
- (flags
-  (-w -40 -w +26))
  (preprocess
   (pps ppx_jane ppx_deriving.show ppx_deriving.make)))

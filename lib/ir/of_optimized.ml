@@ -371,12 +371,12 @@ let of_declaration context (source : O.Declaration.t) : declaration =
         normalize_atom ~locals argument ~k:(fun atom ->
             emit k
               (B_kernel
-                 { kernel = Data.Kernel.Unary kernel; arguments = [ atom ] }))
+                 { kernel = Data.Kernel.Language (Unary kernel); arguments = [ atom ] }))
     | O.Expr.Kernel_binary { kernel; left; right } ->
         normalize_atoms ~locals [ left; right ] ~k:(fun atoms ->
             emit k
               (B_kernel
-                 { kernel = Data.Kernel.Binary kernel; arguments = atoms }))
+                 { kernel = Data.Kernel.Language (Binary kernel); arguments = atoms }))
     | O.Expr.Kernel_value kernel ->
         emit k
           (missing_arguments_closure ~missing:(Data.Kernel.arity kernel)
