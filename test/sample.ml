@@ -1,4 +1,5 @@
 let folder () = Filename.temp_dir "dartea" ""
+let read path = In_channel.with_open_bin path In_channel.input_all
 
 let rec ensured directory =
   if not (Sys.file_exists directory) then begin

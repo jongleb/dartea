@@ -1094,29 +1094,15 @@ let spelling_gen =
     [ "a"; "b"; "t"; "u"; "a0"; "a1"; "a2"; "a3"; "b0"; "b1"; "x"; "y"; "elem";
       "value" ]
 
-let spelled_with one other =
-  Printf.sprintf
-    {|
-first : ( %s, %s ) -> %s
-first t =
-    case t of
-        ( x, y ) ->
-            x
-
-used : String
-used = first ( "s", 1 )
-|}
-    one other one
-
 let law_a_spelling_does_not_change_the_verdict =
   Test.make ~count:2000
     ~name:"how a type variable is spelled does not change the verdict"
-    ~print:(fun (one, other) -> spelled_with one other)
+    ~print:(fun (one, other) -> Utils.spelled_with one other)
     (Gen.pair spelling_gen spelling_gen)
     (fun (one, other) ->
       String.equal one other
       ||
-      match outcome (spelled_with one other) with
+      match outcome (Utils.spelled_with one other) with
       | None -> false
       | Some inferred ->
           List.exists

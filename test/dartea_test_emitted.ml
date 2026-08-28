@@ -3,7 +3,6 @@ open OUnit2
 let root = Filename.concat ".." "playgrounds"
 let goldens = "emitted"
 let prelude_folder = "prelude"
-let read path = In_channel.with_open_bin path In_channel.input_all
 let promoting_into = Sys.getenv_opt "DARTEA_PROMOTE_EMITTED"
 let named modules = List.sort String.compare (List.map fst modules)
 
@@ -63,7 +62,7 @@ let listed folder =
 let same_as_golden ~folder (module_name, source) =
   let path = golden ~folder module_name in
   assert_bool (Printf.sprintf "%s is missing" path) (Sys.file_exists path);
-  assert_equal ~printer:Fun.id ~msg:path (read path) source
+  assert_equal ~printer:Fun.id ~msg:path (Sample.read path) source
 
 let same_as_goldens ~folder modules =
   List.iter

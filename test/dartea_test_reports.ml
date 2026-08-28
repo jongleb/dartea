@@ -393,8 +393,6 @@ let contexts =
 
 let golden name = Filename.concat "errors" (name ^ ".txt")
 
-let read path =
-  In_channel.with_open_bin path In_channel.input_all
 
 let promoting_into = Sys.getenv_opt "DARTEA_PROMOTE_ERRORS"
 
@@ -409,7 +407,7 @@ let test_report (name, problem) =
         (fun out -> Out_channel.output_string out produced))
     promoting_into;
   assert_bool (Printf.sprintf "%s is missing" path) (Sys.file_exists path);
-  assert_equal ~printer:Fun.id (read path) produced
+  assert_equal ~printer:Fun.id (Sample.read path) produced
 
 let sample_of_warning (problem : Reporting.Warning.problem) =
   match problem with
@@ -473,7 +471,7 @@ let test_warning (name, problem) =
             (fun out -> Out_channel.output_string out produced))
         promoting_into;
       assert_bool (Printf.sprintf "%s is missing" path) (Sys.file_exists path);
-      assert_equal ~printer:Fun.id (read path) produced
+      assert_equal ~printer:Fun.id (Sample.read path) produced
 
 let test_context (name, files) =
   name >:: fun _ ->
@@ -492,7 +490,7 @@ let test_context (name, files) =
             (fun out -> Out_channel.output_string out produced))
         promoting_into;
       assert_bool (Printf.sprintf "%s is missing" path) (Sys.file_exists path);
-      assert_equal ~printer:Fun.id (read path) produced
+      assert_equal ~printer:Fun.id (Sample.read path) produced
 
 let test_colours_are_a_layer _ =
   let files = [ ("Main.elm", "x = missing\n") ] in

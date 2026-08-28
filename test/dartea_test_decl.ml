@@ -5,9 +5,6 @@ open Located
 open Expr
 module Main = Parse.Main
 
-let parsed result =
-  Result.get_ok result |> List.map Utils.dummify_all_locs
-
 let test_decl_string _ =
   let expect_data =
     [
@@ -32,7 +29,7 @@ let test_decl_string _ =
    thisIsTheString: String
    thisIsTheString = "This"|} in
   let result = Main.parse ~file:"Main.elm" input in
-  assert_equal expect_data (parsed result)
+  assert_equal expect_data (Utils.dummified result)
 
 (* let test_let_in _ =
      let expect_data =
@@ -69,7 +66,7 @@ let test_decl_string _ =
    lol: Kek
    lol = let a = 2 in 2|} in
      let result = Main.parse ~file:"Main.elm" input in
-     assert_equal expect_data (parsed result)
+     assert_equal expect_data (Utils.dummified result)
 
    let test_let_in_binop _ =
      let expect_data =
@@ -113,7 +110,7 @@ let test_decl_string _ =
    lol = let a = 2 in 2 + 3|}
      in
      let result = Main.parse ~file:"Main.elm" input in
-     assert_equal expect_data (parsed result)
+     assert_equal expect_data (Utils.dummified result)
 
    let test_let_in_let_in_let _ =
      let expect_data =
@@ -189,7 +186,7 @@ let test_decl_string _ =
    kek = let a = let b = let c = 3 in 3 in 3 in 3|}
      in
      let result = Main.parse ~file:"Main.elm" input in
-     assert_equal expect_data (parsed result)
+     assert_equal expect_data (Utils.dummified result)
 
    let test_math _ =
      let expect_data =
@@ -251,7 +248,7 @@ let test_decl_string _ =
            calc_binops thing
        | _ -> assert false
      in
-     assert_equal expect_data (parsed result);
+     assert_equal expect_data (Utils.dummified result);
      assert_equal (2 + (3 * 8 / 2)) math_result
 
    let test_multiple_let _ =
@@ -303,7 +300,7 @@ let test_decl_string _ =
    c = 4 in 3|}
      in
      let result = Main.parse ~file:"Main.elm" input in
-     assert_equal expect_data (parsed result)
+     assert_equal expect_data (Utils.dummified result)
 
    let test_multiple_let_with_types _ =
      let expect_data =
@@ -368,7 +365,7 @@ let test_decl_string _ =
    c = 4 in 3|}
      in
      let result = Main.parse ~file:"Main.elm" input in
-     assert_equal expect_data (parsed result)
+     assert_equal expect_data (Utils.dummified result)
 
    let test_if_then_else _ =
      let expect_data =
@@ -413,7 +410,7 @@ let test_decl_string _ =
    lol = if True then 3 + 2 else 4 + 5|}
      in
      let result = Main.parse ~file:"Main.elm" input in
-     assert_equal expect_data (parsed result)
+     assert_equal expect_data (Utils.dummified result)
 
    let test_if_then_else_if_else _ =
      let expect_data =
@@ -473,7 +470,7 @@ let test_decl_string _ =
    lol = if True then 3 + 2 else if False then 4 else if True then 10 else 155|}
      in
      let result = Main.parse ~file:"Main.elm" input in
-     assert_equal expect_data (parsed result)
+     assert_equal expect_data (Utils.dummified result)
 
    let test_record _ =
      let expect_data =
@@ -505,7 +502,7 @@ let test_decl_string _ =
    lel = { a = "LOL", b = 69 }|}
      in
      let result = Main.parse ~file:"Main.elm" input in
-     assert_equal expect_data (parsed result) *)
+     assert_equal expect_data (Utils.dummified result) *)
 
 (* let test_call_fn_inside_record _ =
      let expect_data =
@@ -543,7 +540,7 @@ let test_decl_string _ =
    lel: Lol
    kek = {a=fn 2 3}|} in
      let result = Main.parse ~file:"Main.elm" input in
-     assert_equal expect_data (parsed result) *)
+     assert_equal expect_data (Utils.dummified result) *)
 
 (* let test_call_fn_inside_record_plus_fn _ =
      let expect_data =
@@ -591,7 +588,7 @@ let test_decl_string _ =
    kek = {a=fn 2 (fn2 2 3) }|}
      in
      let result = Main.parse ~file:"Main.elm" input in
-     assert_equal expect_data (parsed result) *)
+     assert_equal expect_data (Utils.dummified result) *)
 
 let test_list_pm _ =
   let expect_data =
@@ -674,7 +671,7 @@ listTestPM = case [1, 2, 4] of
     _ -> 0|}
   in
   let result = Main.parse ~file:"Main.elm" input in
-  assert_equal expect_data (parsed result)
+  assert_equal expect_data (Utils.dummified result)
 
 let test_record_pm _ =
   let expect_data =
@@ -719,7 +716,7 @@ dfsf = case 2 of
   _ -> 5|}
   in
   let result = Main.parse ~file:"Main.elm" input in
-  assert_equal expect_data (parsed result)
+  assert_equal expect_data (Utils.dummified result)
 
 let test_constr_pm _ =
   let expect_data =
@@ -784,7 +781,7 @@ abcd = case b of
   _ -> 4|}
   in
   let result = Main.parse ~file:"Main.elm" input in
-  assert_equal expect_data (parsed result)
+  assert_equal expect_data (Utils.dummified result)
 
 let test_cons_pm _ =
   let expect_data =
@@ -832,7 +829,7 @@ dfsf = case 2 of
     _ -> 5|}
   in
   let result = Main.parse ~file:"Main.elm" input in
-  assert_equal expect_data (parsed result)
+  assert_equal expect_data (Utils.dummified result)
 
 let test_import_maybe_two_dots _ =
   let expect_data =
@@ -927,7 +924,7 @@ let test_access _ =
   in
   let input = {|abcd = test.lol.kek|} in
   let result = input |> Main.parse ~file:"Main.elm" in
-  assert_equal expect_data (parsed result)
+  assert_equal expect_data (Utils.dummified result)
 
 (* let test_accessor _ =
    let expect_data =
@@ -953,14 +950,14 @@ let test_access _ =
    in
    let input = {|abcd = map .xField list|} in
    let result = input |> Main.parse ~file:"Main.elm" in
-   assert_equal expect_data (parsed result) *)
+   assert_equal expect_data (Utils.dummified result) *)
 
 let test_module_export_all _ =
   let expect_data = [ Impl.ModuleName ~?"Lol"; Impl.Export Exposing.Open ] in
   let input = "module Lol exposing (..)\n" in
   (* FIXME: \n terminated (think about it) *)
   let result = input |> Main.parse ~file:"Main.elm" in
-  assert_equal expect_data (parsed result)
+  assert_equal expect_data (Utils.dummified result)
 
 let test_apply _ =
   let expect_data =
@@ -994,7 +991,7 @@ let test_apply _ =
   in
   let input = {|abcd = let a = 2 in a + 3|} in
   let result = input |> Main.parse ~file:"Main.elm" in
-  assert_equal expect_data (parsed result)
+  assert_equal expect_data (Utils.dummified result)
 
 let test_apply_long _ =
   let expect_data =
@@ -1053,7 +1050,7 @@ let test_apply_long _ =
   in
   let input = {|abcd = let a = 2 in eklmn 5 a (fb 1 2 3)|} in
   let result = input |> Main.parse ~file:"Main.elm" in
-  assert_equal expect_data (parsed result)
+  assert_equal expect_data (Utils.dummified result)
 
 let decls_wih_a_lot_of_gaps_and_newlines_between _ =
   let expect_data =
@@ -1115,7 +1112,7 @@ test =
 |}
   in
   let result = input |> Main.parse ~file:"Main.elm" in
-  assert_equal expect_data (parsed result)
+  assert_equal expect_data (Utils.dummified result)
 
 let decl_case_of _ =
   let expect_data =
@@ -1170,7 +1167,7 @@ dfsdsf = case 2 of
 |}
   in
   let result = input |> Main.parse ~file:"Main.elm" in
-  assert_equal expect_data (parsed result)
+  assert_equal expect_data (Utils.dummified result)
 
 let decl_case_of_plus_case_of _ =
   let expect_data =
@@ -1260,7 +1257,7 @@ dfsdsf = case 2 of
 |}
   in
   let result = input |> Main.parse ~file:"Main.elm" in
-  assert_equal expect_data (parsed result)
+  assert_equal expect_data (Utils.dummified result)
 
 let let_name_equal_expr _ =
   let expect_data =
@@ -1947,7 +1944,7 @@ xxx =
 |}
   in
   let result = input |> Main.parse ~file:"Main.elm" in
-  assert_equal expect_data (parsed result)
+  assert_equal expect_data (Utils.dummified result)
 
 let ifthenelse_test _ =
   let expect_data =
@@ -2006,7 +2003,7 @@ kek = if 3 > 4
   |}
   in
   let result = input |> Main.parse ~file:"Main.elm" in
-  assert_equal expect_data (parsed result)
+  assert_equal expect_data (Utils.dummified result)
 
 let giant_merged_test _ =
   let expected_data =
@@ -2420,7 +2417,7 @@ megaTest = let a = 3 in
 |}
   in
   let result = input |> Main.parse ~file:"Main.elm" in
-  assert_equal expected_data (parsed result)
+  assert_equal expected_data (Utils.dummified result)
 
 let giant_merged_test2 _ =
   let expected_data =
@@ -3274,7 +3271,7 @@ mega_test3 =
   |}
   in
   let result = input |> Main.parse ~file:"Main.elm" in
-  assert_equal expected_data (parsed result)
+  assert_equal expected_data (Utils.dummified result)
 
 let giant_merged_test3 _ =
   let input =
@@ -3485,7 +3482,7 @@ tuplePM = case (1, 2, 3) of
   _ -> 0|}
   in
   let result = Main.parse ~file:"Main.elm" input in
-  assert_equal expect_data (parsed result) *)
+  assert_equal expect_data (Utils.dummified result) *)
 
 let test_nested_ctor_pm _ =
   let expect_data =
@@ -3543,7 +3540,7 @@ nestedPm = case value of
   _ -> 999|}
   in
   let result = Main.parse ~file:"Main.elm" input in
-  assert_equal expect_data (parsed result)
+  assert_equal expect_data (Utils.dummified result)
 
 let test_complex_cons_pm _ =
   let expect_data =
@@ -3606,7 +3603,7 @@ listSum = case myList of
   _ -> -1|}
   in
   let result = Main.parse ~file:"Main.elm" input in
-  assert_equal expect_data (parsed result)
+  assert_equal expect_data (Utils.dummified result)
 
 let test_pipe _ =
   let expect_data =
@@ -3640,7 +3637,7 @@ let test_pipe _ =
   in
   let input = {| result = 5 |> plus 1 |> abcd |} in
   let result = input |> Main.parse ~file:"Main.elm" in
-  assert_equal expect_data (parsed result)
+  assert_equal expect_data (Utils.dummified result)
 
 let test_lambda_simple _ =
   let expect_data =
@@ -3672,7 +3669,7 @@ let test_lambda_simple _ =
 square = 
   \n -> n * n|} in
   let result = Main.parse ~file:"Main.elm" input in
-  assert_equal expect_data (parsed result)
+  assert_equal expect_data (Utils.dummified result)
 
 let test_lambda_multiple_params _ =
   let expect_data =
@@ -3704,7 +3701,7 @@ let test_lambda_multiple_params _ =
 add = 
   \x y -> x + y|} in
   let result = Main.parse ~file:"Main.elm" input in
-  assert_equal expect_data (parsed result)
+  assert_equal expect_data (Utils.dummified result)
 
 let test_lambda_in_apply _ =
   let expect_data =
@@ -3747,7 +3744,7 @@ let test_lambda_in_apply _ =
 squares = 
   map (\n -> n * n) list|} in
   let result = Main.parse ~file:"Main.elm" input in
-  assert_equal expect_data (parsed result)
+  assert_equal expect_data (Utils.dummified result)
 
 let test_lambda_complex_body _ =
   let expect_data =
@@ -3791,7 +3788,7 @@ let test_lambda_complex_body _ =
 process = 
   \x -> if x > 0 then x * 2 else 0|} in
   let result = Main.parse ~file:"Main.elm" input in
-  assert_equal expect_data (parsed result)
+  assert_equal expect_data (Utils.dummified result)
 
 (* Type annotation tests *)
 let test_type_annotation_same_line _ =
@@ -3827,7 +3824,7 @@ let test_type_annotation_same_line _ =
 add: Int -> Int -> Int
 add x y = x + y|} in
   let result = Main.parse ~file:"Main.elm" input in
-  assert_equal expect_data (parsed result)
+  assert_equal expect_data (Utils.dummified result)
 
 let test_type_annotation_with_indent _ =
   let expect_data =
@@ -3863,7 +3860,7 @@ multiply:
     Int -> Int -> Int
 multiply a b = a * b|} in
   let result = Main.parse ~file:"Main.elm" input in
-  assert_equal expect_data (parsed result)
+  assert_equal expect_data (Utils.dummified result)
 
 let test_type_annotation_missing_function_name _ =
   let input = {|

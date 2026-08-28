@@ -193,7 +193,9 @@ let rec list_to_cons_cells = function
 
 let needs_temp_var = function
   | J.Identifier _ | J.Literal _ -> false
-  | _ -> true
+  | J.Binary _ | J.Unary _ | J.Call _ | J.New _ | J.Function _ | J.Arrow _
+  | J.Member _ | J.Conditional _ | J.Object _ | J.Array _ | J.Assignment _ ->
+      true
 
 let fresh_temp () =
   incr temp_counter;
@@ -224,7 +226,10 @@ let strictly = function
 
 let operator_admits_equality = function
   | J.LessThanOrEqual | J.GreaterThanOrEqual -> true
-  | _ -> false
+  | J.Plus | J.Minus | J.Multiply | J.Divide | J.Modulo | J.Exponent | J.BitOr
+  | J.Equal | J.NotEqual | J.StrictEqual | J.StrictNotEqual | J.LessThan
+  | J.GreaterThan | J.And | J.Or ->
+      false
 
 let row_fields row =
   let rec walk collected (row : O.Type.t) =

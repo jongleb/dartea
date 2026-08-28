@@ -38,20 +38,14 @@ let failing ~dependencies source =
         (fun (error : Reporting.Error.t) -> without_suggestions error.problem)
         errors
 
-let declaration_named module_ name =
-  List.find_opt
-    (fun (d : Canonical.Declaration.t) ->
-      String.equal (Data.Located.unwrap d.body_part.name) name)
-    module_.Canonical.Module.top_declarations
-
 let expr_of module_ name =
-  match declaration_named module_ name with
+  match Utils.declaration_named module_ name with
   | Some (d : Canonical.Declaration.t) ->
       Utils.Canonical_expr_util.dummify d.body_part.expr
   | None -> assert_failure (Printf.sprintf "declaration %s not found" name)
 
 let signature_of module_ name =
-  match declaration_named module_ name with
+  match Utils.declaration_named module_ name with
   | Some (d : Canonical.Declaration.t) ->
       Option.map
         (fun (tp : Canonical.Declaration.type_part) ->
@@ -819,7 +813,7 @@ good a =
 |}
   in
   assert_bool "shadowing a parameter is not a duplicate"
-    (Option.is_some (declaration_named module_ "good"))
+    (Option.is_some (Utils.declaration_named module_ "good"))
 
 let suite =
   [

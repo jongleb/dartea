@@ -148,7 +148,9 @@ let starting_binding state lexbuf =
         (mark ~column:(token_column state lexbuf) ~context:Let_binding state) with
         aligned = false;
       }
-  | _ -> state
+  | Top_level | Expression | Let_binding | Let_inline | If | Case | Case_head
+  | Case_arm | Type_alias | Type_decl | Type_annotation | Delimited ->
+      state
 
 let handle state lexbuf token =
   match token with
@@ -159,7 +161,9 @@ let handle state lexbuf token =
         | Top_level -> EQUAL +> push ~column:1 ~context:Expression state
         | Let_binding | Let_inline | Type_alias | Type_decl ->
             EQUAL +> bracket state
-        | _ -> ([ EQUAL ], state)
+        | Expression | Let | If | Case | Case_head | Case_arm | Type_annotation
+        | Delimited ->
+            ([ EQUAL ], state)
       end
   | COLON when context state = Top_level ->
       COLON +> push ~column:0 ~context:Type_annotation state
@@ -195,7 +199,9 @@ let handle state lexbuf token =
             let* state = unbracket state in
             ([], move ~column:(name_column + 1) state)
         | Let_inline -> ([], move ~column:(name_column + 1) state)
-        | _ -> ([], state)
+        | Type_annotation | Let_binding | Top_level | Expression | If | Case
+        | Case_head | Case_arm | Type_alias | Type_decl | Delimited ->
+            ([], state)
       in
       ([ token ], { state with aligned = false })
   | token -> ([ token ], state)

@@ -32,7 +32,7 @@ let analyze ~shareable (tree : DT.t) : t =
           Hashtbl.add ids node !next;
           order := (!next, node) :: !order;
           incr next
-      | _ -> ()
+      | Some _ | None -> ()
     end
   in
   visit tree;

@@ -123,7 +123,11 @@ let rec expr_to_string ?(parens = false) (e : J.expr) : string =
         match property with
         | J.Literal (J.String s) -> obj_str ^ "." ^ s
         | J.Identifier s -> obj_str ^ "." ^ s
-        | _ -> obj_str ^ "[" ^ expr_to_string property ^ "]")
+        | J.Literal (J.Int _ | J.Float _ | J.Bool _ | J.Null)
+        | J.Binary _ | J.Unary _ | J.Call _ | J.New _ | J.Function _ | J.Arrow _
+        | J.Member _ | J.Conditional _ | J.Object _ | J.Array _ | J.Assignment _
+          ->
+            obj_str ^ "[" ^ expr_to_string property ^ "]")
   | J.Conditional { test; consequent; alternate } ->
       let s =
         expr_to_string ~parens:true test ^ " ? "

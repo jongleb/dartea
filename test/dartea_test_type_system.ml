@@ -510,24 +510,10 @@ identity x = x
 |}
     ~name:"usedTwice" ~expected:"( number, String )"
 
-let spelled_with one other =
-  Printf.sprintf
-    {|
-first : ( %s, %s ) -> %s
-first t =
-    case t of
-        ( x, y ) ->
-            x
-
-used : String
-used = first ( "s", 1 )
-|}
-    one other one
-
 let test_a_written_type_variable_never_meets_a_generated_one _ =
   List.iter
     (fun (one, other) ->
-      assert_type ~src:(spelled_with one other) ~name:"used" ~expected:"String")
+      assert_type ~src:(Utils.spelled_with one other) ~name:"used" ~expected:"String")
     [ ("a0", "a1"); ("a1", "a2"); ("b0", "b1"); ("a", "b"); ("t", "u") ]
 
 let test_a_polymorphic_declaration_stays_polymorphic _ =

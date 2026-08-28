@@ -2,9 +2,6 @@ open OUnit2
 open Ast.Kind.Frontend
 module Main = Parse.Main
 
-let parsed result =
-  Result.get_ok result |> List.map Utils.dummify_all_locs
-
 let test_ty_alias_record _ =
   let typedef =
     Typedef.(
@@ -39,7 +36,7 @@ let test_ty_alias_record _ =
   let expect_data = [ top ] in
   let input = "type alias User = { name: String, age: Int }" in
   let result = Main.parse ~file:"Main.elm" input in
-  assert_equal expect_data (parsed result)
+  assert_equal expect_data (Utils.dummified result)
 
 let test_ty_alias_type_with_params _ =
   let expect_data =
@@ -71,7 +68,7 @@ let test_ty_alias_type_with_params _ =
     "type alias Complicated = With Param1 (Param2 Param3 (Param4 Param5))"
   in
   let result =
-    parsed (Main.parse ~file:"Main.elm" input)
+    Utils.dummified (Main.parse ~file:"Main.elm" input)
   in
   assert_equal expect_data result
 
@@ -107,7 +104,7 @@ let test_ty_alias_type_with_params_and_record_param _ =
   in
   let input = "type alias Complicated = With Param1 (Param2 {a: String})" in
   let result = Main.parse ~file:"Main.elm" input in
-  assert_equal expect_data (parsed result)
+  assert_equal expect_data (Utils.dummified result)
 
 let test_ty_alias_type_with_params_and_record_param_with_a_lot_of_parens _ =
   let expect_data =
@@ -143,7 +140,7 @@ let test_ty_alias_type_with_params_and_record_param_with_a_lot_of_parens _ =
     "type alias Complicated = With ((Param1)) (Param2 {a: ((((((String))))))})"
   in
   let result = Main.parse ~file:"Main.elm" input in
-  assert_equal expect_data (parsed result)
+  assert_equal expect_data (Utils.dummified result)
 
 let test_ty_alias_tuples _ =
   let expect_data =
@@ -163,7 +160,7 @@ let test_ty_alias_tuples _ =
   in
   let input = "type alias User = (String, Int)" in
   let result = Main.parse ~file:"Main.elm" input in
-  assert_equal expect_data (parsed result)
+  assert_equal expect_data (Utils.dummified result)
 
 let test_ty_alias_and_record_and_plain _ =
   let expect_data =
@@ -220,7 +217,7 @@ let test_ty_alias_and_record_and_plain _ =
      String} })"
   in
   let result = Main.parse ~file:"Main.elm" input in
-  assert_equal expect_data (parsed result)
+  assert_equal expect_data (Utils.dummified result)
 
 let test_ty_alias_and_record_and_plain_and_one_more_tuple _ =
   let expect_data =
@@ -288,7 +285,7 @@ let test_ty_alias_and_record_and_plain_and_one_more_tuple _ =
      (String, Int, Int)} })"
   in
   let result = Main.parse ~file:"Main.elm" input in
-  assert_equal expect_data (parsed result)
+  assert_equal expect_data (Utils.dummified result)
 
 let test_ty_alias_record_with_params_row_type _ =
   let expect_data =
@@ -311,7 +308,7 @@ let test_ty_alias_record_with_params_row_type _ =
   in
   let input = "type alias User a = { a | fieldN: String }" in
   let result = Main.parse ~file:"Main.elm" input in
-  assert_equal expect_data (parsed result)
+  assert_equal expect_data (Utils.dummified result)
 
 let test_function_types _ =
   let expect_data =
@@ -329,7 +326,7 @@ let test_function_types _ =
   in
   let input = "type alias Id a = a -> a" in
   let result = Main.parse ~file:"Main.elm" input in
-  assert_equal expect_data (parsed result)
+  assert_equal expect_data (Utils.dummified result)
 
 let test_function_with_function_param_types _ =
   let expect_data =
@@ -377,7 +374,7 @@ let test_function_with_function_param_types _ =
      b, c))"
   in
   let result = Main.parse ~file:"Main.elm" input in
-  assert_equal expect_data (parsed result)
+  assert_equal expect_data (Utils.dummified result)
 
 let test_any_fail_if_type_parametr_is_uppecase _ =
   let input = "type alias Id A = A -> A" in
@@ -428,7 +425,7 @@ let test_fun_no_lrbraces _ =
     ]
   in
   let result = Main.parse ~file:"Main.elm" input in
-  assert_equal expect (parsed result)
+  assert_equal expect (Utils.dummified result)
 
 let suite =
   [

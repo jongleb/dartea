@@ -4,9 +4,6 @@ open Data
 open Located
 module Main = Parse.Main
 
-let parsed result =
-  Result.get_ok result |> List.map Utils.dummify_all_locs
-
 let test_ty_type_with_params_complicated _ =
   let expect_data =
     [
@@ -50,7 +47,7 @@ let test_ty_type_with_params_complicated _ =
     "type Complicated a = Constr1 a (a -> a) {a | field: Maybe a -> String}"
   in
   let result = Main.parse ~file:"Main.elm" input in
-  assert_equal expect_data (parsed result)
+  assert_equal expect_data (Utils.dummified result)
 
 (** I am bothered thinking up the names of these functions. *)
 
@@ -145,7 +142,7 @@ let test_types_fn_2 _ =
      -> String, a, a -> a)}"
   in
   let result = Main.parse ~file:"Main.elm" input in
-  assert_equal expect_data (parsed result)
+  assert_equal expect_data (Utils.dummified result)
 
 let suite =
   [

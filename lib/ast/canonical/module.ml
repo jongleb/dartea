@@ -68,7 +68,15 @@ let record_constructor (alias : Frontend.Typealias.t) :
           body_part =
             { Declaration.name = alias.name; expr = value; params };
         }
-  | _ -> None
+  | { Typedef.Impl.body = Typedef.Kind.Tkind_record _; _ } -> None
+  | {
+   Typedef.Impl.body =
+     ( Typedef.Kind.Tkind_concrete _ | Typedef.Kind.Tkind_var _
+     | Typedef.Kind.Tkind_unit | Typedef.Kind.Tkind_tuple _
+     | Typedef.Kind.Tkind_function _ );
+   _;
+  } ->
+      None
 
 let of_frontend ~fallback_name (frontend_module : Frontend.Module.t) : t =
   let type_aliases =

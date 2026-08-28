@@ -190,15 +190,6 @@ let render program ~style =
   in
   "\n" ^ String.concat "\n\n" (header @ imports @ declarations) ^ "\n"
 
-let layout_stream input =
-  let lexbuf = Lexing.from_string input in
-  let rec go state acc =
-    match Parse.Indenter.next_token state lexbuf with
-    | Parse.Parser.EOF, _ -> List.rev acc
-    | token, state -> go state (token :: acc)
-  in
-  go Parse.Indenter.initial []
-
 let brackets stream =
   List.filter
     (fun t -> t = Parse.Parser.INDENT || t = Parse.Parser.DEDENT)
@@ -357,7 +348,7 @@ let law_parses =
 let law_balanced =
   Test.make ~count:2000 ~name:"layout emits a balanced bracket word"
     ~print:print_source source_gen
-    (fun source -> balance (layout_stream source) = (0, 0))
+    (fun source -> balance (Utils.layout_stream source) = (0, 0))
 
 let law_blank_lines =
   Test.make ~count:2000 ~name:"blank lines do not change the layout"
@@ -374,7 +365,7 @@ let law_blank_lines =
                 (fun i line -> if i = index then [ blank; line ] else [ line ])
                 lines))
       in
-      layout_stream spliced = layout_stream source)
+      Utils.layout_stream spliced = Utils.layout_stream source)
 
 let law_comment_lines_ignored =
   Test.make ~count:2000 ~name:"a comment line does not change the layout"
@@ -391,7 +382,7 @@ let law_comment_lines_ignored =
                 (fun i line -> if i = index then [ remark; line ] else [ line ])
                 lines))
       in
-      layout_stream spliced = layout_stream source)
+      Utils.layout_stream spliced = Utils.layout_stream source)
 
 let law_block_comments_ignored =
   Test.make ~count:2000 ~name:"a block comment does not change the layout"
@@ -409,7 +400,7 @@ let law_block_comments_ignored =
                 (fun i line -> if i = index then [ remark; line ] else [ line ])
                 lines))
       in
-      layout_stream spliced = layout_stream source)
+      Utils.layout_stream spliced = Utils.layout_stream source)
 
 let law_style_irrelevant =
   Test.make ~count:2000 ~name:"whitespace style does not change the token stream"
@@ -421,8 +412,8 @@ let law_style_irrelevant =
       let right =
         { right with let_bindings_on_new_line = left.let_bindings_on_new_line }
       in
-      layout_stream (render program ~style:left)
-      = layout_stream (render program ~style:right))
+      Utils.layout_stream (render program ~style:left)
+      = Utils.layout_stream (render program ~style:right))
 
 let law_only_inserts_brackets =
   Test.make ~count:2000 ~name:"layout only inserts brackets"
@@ -430,7 +421,7 @@ let law_only_inserts_brackets =
       render program ~style:left ^ "\n----\n" ^ render program ~style:right)
     (Gen.triple program_gen style_gen style_gen)
     (fun (program, left, right) ->
-      let stream style = layout_stream (render program ~style) in
+      let stream style = Utils.layout_stream (render program ~style) in
       without_brackets (stream left) = without_brackets (stream right)
       && brackets (stream left) <> [])
 
@@ -463,7 +454,7 @@ let law_uniform_shift =
     ~print:(fun (source, _) -> source)
     (Gen.pair source_gen (Gen.int_range 1 4))
     (fun (source, by) ->
-      layout_stream (shift_indented_lines source ~by) = layout_stream source)
+      Utils.layout_stream (shift_indented_lines source ~by) = Utils.layout_stream source)
 
 let raw_tokens input =
   let lexbuf = Lexing.from_string input in
@@ -487,7 +478,7 @@ let bracket_depth tokens =
 let law_erases_to_raw_tokens =
   Test.make ~count:2000 ~name:"erasing brackets gives back the raw token stream"
     ~print:print_source source_gen
-    (fun source -> without_brackets (layout_stream source) = raw_tokens source)
+    (fun source -> without_brackets (Utils.layout_stream source) = raw_tokens source)
 
 let law_emission_is_debt_change =
   Test.make ~count:2000 ~name:"emitted depth plus queued depth equals scope debt"

@@ -383,6 +383,37 @@ module Canonical_typedef_util = struct
           }
 end
 
+let dummified result = Result.get_ok result |> List.map dummify_all_locs
+
+let layout_stream input =
+  let lexbuf = Lexing.from_string input in
+  let rec go state acc =
+    match Parse.Indenter.next_token state lexbuf with
+    | Parse.Parser.EOF, _ -> List.rev acc
+    | token, state -> go state (token :: acc)
+  in
+  go Parse.Indenter.initial []
+
+let declaration_named module_ name =
+  List.find_opt
+    (fun (d : Canonical.Declaration.t) ->
+      String.equal (Data.Located.unwrap d.body_part.name) name)
+    module_.Canonical.Module.top_declarations
+
+let spelled_with one other =
+  Printf.sprintf
+    {|
+first : ( %s, %s ) -> %s
+first t =
+    case t of
+        ( x, y ) ->
+            x
+
+used : String
+used = first ( "s", 1 )
+|}
+    one other one
+
 let parsed source =
   match Parse.Main.parse ~file:"Main.elm" source with
   | Ok impl_list -> impl_list

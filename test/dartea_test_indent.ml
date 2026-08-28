@@ -2,15 +2,6 @@ open OUnit2
 
 module Main = Parse.Main
 
-let layout_stream input =
-  let lexbuf = Lexing.from_string input in
-  let rec go state acc =
-    match Parse.Indenter.next_token state lexbuf with
-    | Parse.Parser.EOF, _ -> List.rev acc
-    | token, state -> go state (token :: acc)
-  in
-  go Parse.Indenter.initial []
-
 let assert_balanced input =
   let depth, lowest =
     List.fold_left
@@ -19,7 +10,7 @@ let assert_balanced input =
         | Parse.Parser.INDENT -> (depth + 1, lowest)
         | Parse.Parser.DEDENT -> (depth - 1, min lowest (depth - 1))
         | _ -> (depth, lowest))
-      (0, 0) (layout_stream input)
+      (0, 0) (Utils.layout_stream input)
   in
   assert_equal ~printer:string_of_int ~msg:"unmatched DEDENT" 0 lowest;
   assert_equal ~printer:string_of_int ~msg:"unclosed INDENT" 0 depth
@@ -30,7 +21,7 @@ let splice lines index line =
 
 let assert_blank_lines_ignored input =
   let lines = String.split_on_char '\n' input in
-  let expected = layout_stream input in
+  let expected = Utils.layout_stream input in
   List.iteri
     (fun index _ ->
       if index < List.length lines - 1 then
@@ -41,7 +32,7 @@ let assert_blank_lines_ignored input =
             assert_bool
               (Printf.sprintf "blank line of width %d at line %d changed layout"
                  width index)
-              (layout_stream spliced = expected))
+              (Utils.layout_stream spliced = expected))
           [ 0; 1; 3 ])
     lines
 
