@@ -1,6 +1,6 @@
 module T = Typed
 module O = Optimized
-module Names = Scope.Names
+module Names = O.Expr.Names
 module By_name = Data.Name.Map
 
 let inline_size_limit = 10
@@ -51,7 +51,7 @@ let rec is_pure (e : O.Expr.t) : bool =
   | Expr_access _ | Expr_record_extend _ | Expr_record_select _
   | Expr_record_empty | Expr_unit | Expr_kernel _ | Expr_char _ | Expr_string _
   | Expr_int _ | Expr_float _ | Expr_list _ | Expr_cons _ | Expr_tuple _ ->
-      List.for_all is_pure (Subexpressions.list e)
+      List.for_all is_pure (O.Expr.children e)
 
 let rec expression_size (e : O.Expr.t) : int =
   match e.expr with
@@ -69,10 +69,10 @@ let rec expression_size (e : O.Expr.t) : int =
   | Expr_list _ | Expr_cons _ | Expr_tuple _ ->
       List.fold_left
         (fun acc child -> acc + expression_size child)
-        1 (Subexpressions.list e)
+        1 (O.Expr.children e)
 
 let occurs_free ~(name : Data.Name.t) (e : O.Expr.t) : bool =
-  Names.mem name (Scope.free_variables ~bound:Names.empty e)
+  Names.mem name (O.Expr.free_variables ~bound:Names.empty e)
 
 let rec zip_exactly parameters (arguments : O.Expr.t list) =
   match (parameters, arguments) with
@@ -100,7 +100,7 @@ let arguments_escape_binders ~(binders : Names.t)
     (fun argument ->
       not
         (Names.disjoint binders
-           (Scope.free_variables ~bound:Names.empty argument)))
+           (O.Expr.free_variables ~bound:Names.empty argument)))
     arguments
 
 let fold_primitive (operator : Data.Operator.t) (arguments : O.Expr.t list) :
@@ -186,7 +186,7 @@ let propagate_constants (e : O.Expr.t) : O.Expr.t =
         }
     | Expr_lambda { params; body } ->
         let constants =
-          forget_all (Scope.bound_by_lambda params) constants
+          forget_all (O.Expr.bound_by_lambda params) constants
         in
         {
           e with
@@ -196,7 +196,7 @@ let propagate_constants (e : O.Expr.t) : O.Expr.t =
         let scrutinee = propagate ~constants expr in
         let propagate_case (case : O.Expr.expr_pattern_case) =
           let constants =
-            forget_all (Scope.bound_by_pattern case.pattern) constants
+            forget_all (O.Pattern.bound case.pattern) constants
           in
           { case with expr = propagate ~constants case.expr }
         in
@@ -230,7 +230,7 @@ let propagate_constants (e : O.Expr.t) : O.Expr.t =
             { e with expr = Expr_if_then_else { if_exp; then_exp; else_exp } }
       end
     | Expr_apply _ -> begin
-        let folded = Subexpressions.transform e ~f:(propagate ~constants) in
+        let folded = O.Expr.map_children e ~f:(propagate ~constants) in
         match O.Expr.spine folded with
         | { expr = Expr_ident name; _ }, ([ _; _ ] as arguments) ->
             Data.Operator.referred_to_by name
@@ -245,7 +245,7 @@ let propagate_constants (e : O.Expr.t) : O.Expr.t =
     | Expr_record_select _ | Expr_record_empty | Expr_unit | Expr_kernel _
     | Expr_char _ | Expr_string _ | Expr_int _ | Expr_float _ | Expr_list _
     | Expr_cons _ | Expr_tuple _ ->
-        Subexpressions.transform e ~f:(propagate ~constants)
+        O.Expr.map_children e ~f:(propagate ~constants)
   in
   propagate ~constants:By_name.empty e
 
@@ -254,7 +254,7 @@ let rec reduce_beta (e : O.Expr.t) : O.Expr.t =
     let taken = Int.min (List.length params) (List.length arguments) in
     let bound_params = List.take taken params in
     let bound_arguments = List.take taken arguments in
-    let binders = Scope.bound_by_lambda bound_params in
+    let binders = O.Expr.bound_by_lambda bound_params in
     if arguments_escape_binders ~binders ~arguments:bound_arguments then None
     else
       let names =
@@ -309,10 +309,10 @@ let rec reduce_beta (e : O.Expr.t) : O.Expr.t =
   in
   match reduced with
   | Some result -> result
-  | None -> Subexpressions.transform e ~f:reduce_beta
+  | None -> O.Expr.map_children e ~f:reduce_beta
 
 let rec eliminate_dead_lets (e : O.Expr.t) : O.Expr.t =
-  let e = Subexpressions.transform e ~f:eliminate_dead_lets in
+  let e = O.Expr.map_children e ~f:eliminate_dead_lets in
   match e.expr with
   | Expr_let { binding; body }
     when is_pure binding.bind_body.body
@@ -368,7 +368,7 @@ and matched_all bindings parameters arguments =
   | [], _ | _, [] -> bindings
 
 let rec specialised bindings (e : O.Expr.t) : O.Expr.t =
-  let e = Subexpressions.transform e ~f:(specialised bindings) in
+  let e = O.Expr.map_children e ~f:(specialised bindings) in
   let expr =
     match e.expr with
     | Expr_lambda { params; body } ->
@@ -401,7 +401,7 @@ let rec specialised bindings (e : O.Expr.t) : O.Expr.t =
 let inlinable_declarations (decls : O.Declaration.t list) :
     inlinable By_name.t =
   let candidate (d : O.Declaration.t) =
-    let free_names = Scope.free_in_declaration d in
+    let free_names = O.Declaration.free d in
     let worth_inlining =
       match d.params with
       | [] -> is_duplicable d.body
@@ -415,7 +415,7 @@ let inlinable_declarations (decls : O.Declaration.t list) :
       Some
         {
           parameters = d.params;
-          parameter_names = Scope.bound_by_declaration d;
+          parameter_names = O.Declaration.bound d;
           body = d.body;
           free_names;
         }
@@ -477,7 +477,7 @@ let rec inline_calls ~(table : inlinable By_name.t) ~(bound : Names.t)
   | Expr_ident _ | Expr_apply _ -> begin
       match inlined_call () with
       | Some result -> result
-      | None -> Subexpressions.transform e ~f:(inline_calls ~table ~bound)
+      | None -> O.Expr.map_children e ~f:(inline_calls ~table ~bound)
     end
   | Expr_let { binding; body } ->
       let name = Data.Name.local (Data.Located.unwrap binding.bind_body.name) in
@@ -492,7 +492,7 @@ let rec inline_calls ~(table : inlinable By_name.t) ~(bound : Names.t)
             };
       }
   | Expr_lambda { params; body } ->
-      let bound = Names.union bound (Scope.bound_by_lambda params) in
+      let bound = Names.union bound (O.Expr.bound_by_lambda params) in
       {
         e with
         expr = Expr_lambda { params; body = inline_calls ~table ~bound body };
@@ -501,7 +501,7 @@ let rec inline_calls ~(table : inlinable By_name.t) ~(bound : Names.t)
       let scrutinee = inline_calls ~table ~bound expr in
       let inline_case (case : O.Expr.expr_pattern_case) =
         let bound =
-          Names.union bound (Scope.bound_by_pattern case.pattern)
+          Names.union bound (O.Pattern.bound case.pattern)
         in
         { case with expr = inline_calls ~table ~bound case.expr }
       in
@@ -519,14 +519,14 @@ let rec inline_calls ~(table : inlinable By_name.t) ~(bound : Names.t)
   | Expr_record_extend _ | Expr_record_select _ | Expr_record_empty | Expr_unit
   | Expr_kernel _ | Expr_char _ | Expr_string _ | Expr_int _ | Expr_float _
   | Expr_list _ | Expr_cons _ | Expr_tuple _ ->
-      Subexpressions.transform e ~f:(inline_calls ~table ~bound)
+      O.Expr.map_children e ~f:(inline_calls ~table ~bound)
 
 let optimize (decls : T.Declaration.t list) : O.Declaration.t list =
   let round decls =
     let table = inlinable_declarations decls in
     List.map
       (fun (d : O.Declaration.t) ->
-        let bound = Scope.bound_by_declaration d in
+        let bound = O.Declaration.bound d in
         let body =
           d.body
           |> inline_calls ~table ~bound
@@ -541,5 +541,5 @@ let optimize (decls : T.Declaration.t list) : O.Declaration.t list =
     if remaining <= 0 then decls
     else rounds ~remaining:(remaining - 1) (round decls)
   in
-  Typed_to_optimized.convert decls |> Eta_expand.saturate
+  List.map O.Declaration.of_typed decls |> List.map O.Declaration.saturated
   |> rounds ~remaining:optimization_rounds

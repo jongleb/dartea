@@ -176,6 +176,18 @@ module Type = struct
     | TInt | TFloat | TChar | TBool | TStr | TUnit | TRowEmpty | TFun _ | TTup _
     | TCustom _ | TRecord _ | TRowExtend _ ->
         map_children (substitute bindings) t
+
+  type arity = Exactly of int | At_least of int
+
+  let arity typ =
+    let rec through arrows = function
+      | TFun (_, result) -> through (arrows + 1) result
+      | TVar _ -> At_least arrows
+      | TInt | TFloat | TChar | TBool | TStr | TUnit | TTup _ | TCustom _
+      | TRecord _ | TRowExtend _ | TRowEmpty ->
+          Exactly arrows
+    in
+    through 0 typ
 end
 
 module Pattern = struct
@@ -216,6 +228,31 @@ module Pattern = struct
 
   let substitute bindings = map_types (Type.substitute bindings)
   let zonk = map_types Type.zonk
+
+  module Names = Data.Name.Set
+
+  let union_map f items =
+    List.fold_left (fun found item -> Names.union found (f item)) Names.empty items
+
+  let rec bound p =
+    match p.pattern with
+    | P_T_var name -> Names.singleton (Data.Name.local name)
+    | P_T_record fields -> Names.of_list (List.map Data.Name.local fields)
+    | P_T_tuple items | P_T_list items -> union_map bound items
+    | P_T_alias (inner, name) -> Names.add (Data.Name.local name) (bound inner)
+    | P_T_cons (head, tail) -> Names.union (bound head) (bound tail)
+    | P_T_ctor (_, arguments) -> union_map bound arguments
+    | P_T_anything | P_T_unit | P_T_chr _ | P_T_str _ | P_T_int _ -> Names.empty
+
+  let rec referenced p =
+    match p.pattern with
+    | P_T_ctor (name, arguments) -> Names.add name (union_map referenced arguments)
+    | P_T_tuple items | P_T_list items -> union_map referenced items
+    | P_T_alias (inner, _) -> referenced inner
+    | P_T_cons (head, tail) -> Names.union (referenced head) (referenced tail)
+    | P_T_var _ | P_T_record _ | P_T_anything | P_T_unit | P_T_chr _ | P_T_str _
+    | P_T_int _ ->
+        Names.empty
 end
 
 module Expr = struct

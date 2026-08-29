@@ -2,7 +2,7 @@ module J = Ast
 module O = Optimized
 module DT = After_typed.Exhaustive.Decision_tree
 module Occ = After_typed.Exhaustive.Occurrence
-module DS = After_typed.Decision_share
+module DS = After_typed.Exhaustive.Share
 module Scope = Data.Name.Map
 
 type env = { scope : string Scope.t; names : Names.t; instances : Instances.t }
@@ -248,9 +248,9 @@ let split_at n lst =
 let declared_arity env name =
   if Scope.mem name env.scope then None else Names.arity_of env.names name
 
-type arity = After_typed.Arity.t = Exactly of int | At_least of int
+type arity = O.Type.arity = Exactly of int | At_least of int
 
-let arity_of_type = After_typed.Arity.of_type
+let arity_of_type = O.Type.arity
 
 let closure_partial env callee args missing =
   let rparams = List.init missing (fun _ -> temp env) in
@@ -801,7 +801,7 @@ and emit_match_assign env (r : string) (occ : J.expr)
 
 let decl_stmts env (decl : O.Declaration.t) : J.stmt list =
   let name = Names.located decl.name in
-  let decl = After_typed.Eta_expand.body_lambda_merged decl in
+  let decl = O.Declaration.merged decl in
   match decl.params with
   | [] ->
       let s, e = emit_value env decl.body in
@@ -865,7 +865,7 @@ let prepared ~arities ~constructors ~siblings ~typedecls decls =
     (fun (decl : O.Declaration.t) ->
       let src = Data.Name.local (Data.Located.unwrap decl.name) in
       Names.reserve names (Names.of_name src);
-      Names.note_arity names src (After_typed.Eta_expand.declaration_arity decl))
+      Names.note_arity names src (O.Declaration.arity decl))
     decls;
   List.iter (fun (name, sibs) -> Names.note_siblings names name sibs) siblings;
   { scope = Scope.empty; names; instances = Instances.create typedecls }

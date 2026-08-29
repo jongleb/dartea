@@ -503,3 +503,108 @@ let build siblings patterns =
       rows =
         List.mapi (fun action p -> { pats = [ p ]; binds = []; action }) patterns;
     }
+
+let warnings
+    (siblings_env : (Data.Name.t * int) list Data.Name.Map.t)
+    (decl : Typed.Declaration.t) =
+  let open Typed.Expr in
+  let rec in_expression (expr : Typed.Expr.t) =
+    match expr.expr with
+    | Expr_pattern pattern_match ->
+        let branches = pattern_match.pattern_data_items in
+        let patterns = List.map (fun (case : expr_pattern_case) -> case.pattern) branches in
+        let missing =
+          match counterexample siblings_env patterns with
+          | None -> []
+          | Some unhandled ->
+              [ Reporting.Warning.missing_patterns ~region:expr.region [ unhandled ] ]
+        in
+        let redundant =
+          List.map
+            (fun index ->
+              let branch = List.nth branches index in
+              Reporting.Warning.redundant_pattern ~region:branch.pattern_region
+                (index + 1))
+            (redundant_clauses siblings_env patterns)
+        in
+        missing @ redundant
+        @ in_expression pattern_match.expr
+        @ List.concat_map
+            (fun (case : expr_pattern_case) -> in_expression case.expr)
+            branches
+    | Expr_let let_expr ->
+        in_expression let_expr.binding.bind_body.body
+        @ in_expression let_expr.body
+    | Expr_if_then_else ite ->
+        in_expression ite.if_exp @ in_expression ite.then_exp
+        @ in_expression ite.else_exp
+    | Expr_apply apply -> in_expression apply.fn @ in_expression apply.arg
+    | Expr_binop binop ->
+        let left, right = binop.operands in
+        in_expression left @ in_expression right
+    | Expr_constr constr -> List.concat_map in_expression constr.arguments
+    | Expr_list exprs -> List.concat_map in_expression exprs
+    | Expr_cons { head; tail } -> in_expression head @ in_expression tail
+    | Expr_tuple items -> List.concat_map in_expression items
+    | Expr_record_update { record; fields } ->
+        in_expression record
+        @ List.concat_map
+            (fun (row : expr_record_row) -> in_expression row.value)
+            fields
+    | Expr_lambda lambda -> in_expression lambda.body
+    | Expr_access access -> in_expression access.expr
+    | Expr_record rows ->
+        List.concat_map
+          (fun (row : expr_record_row) -> in_expression row.value)
+          rows
+    | Expr_ident _ | Expr_accessor _ | Expr_record_extend _
+    | Expr_record_select _ | Expr_record_empty | Expr_unit | Expr_kernel _
+    | Expr_char _ | Expr_string _ | Expr_int _ | Expr_float _ ->
+        []
+  in
+  in_expression decl.body
+
+module Share = struct
+  module DT = Decision_tree
+
+  type t = { ids : (DT.t, int) Hashtbl.t; order : (int * DT.t) list }
+
+  let analyze ~shareable (tree : DT.t) : t =
+    let counts : (DT.t, int) Hashtbl.t = Hashtbl.create 32 in
+    let rec count (node : DT.t) =
+      let seen = match Hashtbl.find_opt counts node with Some n -> n | None -> 0 in
+      Hashtbl.replace counts node (seen + 1);
+      if seen = 0 then
+        match node with
+        | DT.Switch { branches; default; _ } ->
+            List.iter (fun (_, child) -> count child) branches;
+            Option.iter count default
+        | DT.Fail | DT.Leaf _ -> ()
+    in
+    count tree;
+    let ids : (DT.t, int) Hashtbl.t = Hashtbl.create 16 in
+    let order = ref [] in
+    let next = ref 0 in
+    let rec visit (node : DT.t) =
+      if not (Hashtbl.mem ids node) then begin
+        begin
+          match node with
+          | DT.Switch { branches; default; _ } ->
+              List.iter (fun (_, child) -> visit child) branches;
+              Option.iter visit default
+          | DT.Fail | DT.Leaf _ -> ()
+        end;
+        match Hashtbl.find_opt counts node with
+        | Some n when n >= 2 && shareable node ->
+            Hashtbl.add ids node !next;
+            order := (!next, node) :: !order;
+            incr next
+        | Some _ | None -> ()
+      end
+    in
+    visit tree;
+    { ids; order = List.rev !order }
+
+  let id_of (plan : t) (tree : DT.t) : int option = Hashtbl.find_opt plan.ids tree
+  let shared (plan : t) : (int * DT.t) list = plan.order
+end

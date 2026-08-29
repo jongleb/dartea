@@ -160,8 +160,8 @@ module Make (B : BACKEND) = struct
   }
 
   let providing_modules declarations =
-    After_typed.Scope.referenced_in_declarations declarations
-    |> After_typed.Scope.Names.elements
+    Optimized.Declaration.referenced_in_all declarations
+    |> Data.Name.Set.elements
     |> List.filter_map (fun (name : Data.Name.t) ->
            match name with
            | Data.Name.Global { module_name; _ } -> Some module_name
@@ -172,10 +172,10 @@ module Make (B : BACKEND) = struct
     let declarations =
       match
         After_typed.Optimize.optimize typed.declarations
-        |> After_typed.Dependency_sort.sort_declarations
+        |> Optimized.Declaration.sorted
       with
       | Ok declarations -> declarations
-      | Error (After_typed.Dependency_sort.Bad_recursion names) ->
+      | Error (Optimized.Declaration.Bad_recursion names) ->
           let written = List.map Data.Name.base names in
           let region =
             List.find_map
@@ -295,7 +295,7 @@ module Make (B : BACKEND) = struct
           (fun found declaration ->
             Bodies.add
               (module_.module_name, declared declaration)
-              (After_typed.Scope.free_in_declaration declaration)
+              (Optimized.Declaration.free declaration)
               found)
           found module_.declarations)
       Bodies.empty modules
@@ -312,7 +312,7 @@ module Make (B : BACKEND) = struct
           | Some free ->
               grown seen
                 (List.map (addressed ~home:(fst key))
-                   (After_typed.Scope.Names.elements free)
+                   (Data.Name.Set.elements free)
                 @ rest))
     in
     grown Reached.empty (List.map (addressed ~home:"") roots)
@@ -452,7 +452,7 @@ module Make (B : BACKEND) = struct
                   | Some _ | None -> exports
                 in
                 let declarations =
-                  After_typed.Dead_code.alive ~roots declarations
+                  Optimized.Declaration.alive ~roots declarations
                 in
                 let compiled =
                   {
@@ -466,7 +466,7 @@ module Make (B : BACKEND) = struct
                     declarations;
                     warnings =
                       List.concat_map
-                        (After_typed.Exhaustiveness_check.warnings
+                        (After_typed.Exhaustive.warnings
                            typed.siblings_env)
                         typed.declarations;
                   }

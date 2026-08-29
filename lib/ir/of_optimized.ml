@@ -1,7 +1,6 @@
 module O = Optimized
 module DT = After_typed.Exhaustive.Decision_tree
 module Occ = After_typed.Exhaustive.Occurrence
-module Scope = After_typed.Scope
 module By_name = Data.Name.Map
 module Text = Set.Make (String)
 
@@ -76,7 +75,7 @@ let split_at count items =
   go [] count items
 
 let local_names names =
-  Scope.Names.fold
+  Data.Name.Set.fold
     (fun name found ->
       match name with
       | Data.Name.Local text -> text :: found
@@ -247,7 +246,7 @@ let of_declaration context (source : O.Declaration.t) : declaration =
         params
     in
     let captures =
-      Scope.free_variables ~bound:(Scope.bound_by_lambda params) body
+      O.Expr.free_variables ~bound:(O.Expr.bound_by_lambda params) body
       |> local_names
       |> List.filter (fun text -> Text.mem text locals)
       |> List.sort_uniq String.compare
@@ -469,7 +468,7 @@ let of_declaration context (source : O.Declaration.t) : declaration =
     match List.nth_opt case.arms action with
     | None -> T_fail { message = "unreachable pattern branch" }
     | Some (arm : O.Expr.expr_pattern_case) ->
-        let bound = Scope.bound_by_pattern arm.pattern |> local_names in
+        let bound = O.Pattern.bound arm.pattern |> local_names in
         let inside =
           List.fold_left
             (fun known text -> Text.add text known)
