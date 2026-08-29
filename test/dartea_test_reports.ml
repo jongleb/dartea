@@ -157,7 +157,7 @@ let sample_of_project (problem : Reporting.Project_error.t) =
         }
   | Unknown_folder _ | No_sources _ | Bad_json _ | Missing_field _ | Bad_field _
   | Missing_source_directory _ | Duplicate_module _ | Unknown_entry _
-  | No_entry _ | Unknown_delivery _ | Delivery_needs_entry _ ->
+  | No_entry _ | Delivery_needs_entry _ ->
       let file = Reporting.Project_error.file_of problem in
       Rendered { file; content = ""; region = { Data.Region.nowhere with file } }
 
@@ -271,10 +271,7 @@ let project_kinds : (string * Reporting.Project_error.t) list =
           expected = "String";
           found = "Int";
         } );
-    ( "unknown-delivery",
-      Unknown_delivery
-        { name = "nope"; known = [ "esm_folder"; "classic_js_browser" ] } );
-    ("delivery-needs-entry", Delivery_needs_entry { delivery = "classic_js_browser" });
+    ("delivery-needs-entry", Delivery_needs_entry { delivery = "page" });
     ( "duplicate-module",
       Duplicate_module
         {

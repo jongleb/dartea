@@ -1,5 +1,0 @@
--- UNKNOWN DELIVERY ------------------------------------------------------- nope
-
-I do not know a delivery named `nope`.
-
-The ones I know are `esm_folder`, `classic_js_browser`.

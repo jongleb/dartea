@@ -22,17 +22,22 @@ let warned ~seen (outcome : Dartea.Compiler.outcome) =
       printed (List.map (Reporting.Sources.warning seen) module_.warnings))
     outcome.modules
 
-let delivered ~path ~seen ~delivery (outcome : Dartea.Compiler.outcome) =
-  match Dartea.Delivery.produced ~delivery outcome with
-  | files -> List.iter (saved ~path) files
-  | exception Reporting.Error.Found error -> refused ~seen [ error ]
+let discarded = "/dev/null"
 
-let compiled ~path ~delivery ~entry sources =
+let delivered ~path ~seen ~output (outcome : Dartea.Compiler.outcome) =
+  if String.equal output discarded then ()
+  else
+    let delivery = Dartea.Delivery.for_output output in
+    match Dartea.Delivery.produced ~delivery ~output outcome with
+    | files -> List.iter (saved ~path) files
+    | exception Reporting.Error.Found error -> refused ~seen [ error ]
+
+let compiled ~path ~output ~entry sources =
   let outcome = Dartea.Compiler.compile_modules ~entry sources in
   let seen = Reporting.Sources.of_list outcome.sources in
   warned ~seen outcome;
   match outcome.errors with
-  | [] -> delivered ~path ~seen ~delivery outcome
+  | [] -> delivered ~path ~seen ~output outcome
   | errors -> refused ~seen errors
 
 let entry_in sources path =
@@ -51,49 +56,46 @@ let loaded path =
   | Ok sources -> sources
   | Error error -> refused ~seen:Reporting.Sources.empty [ error ]
 
-type request = { delivery : string option; target : string }
-
-let dashes = "--"
-let flag argument = String.starts_with ~prefix:dashes argument
-
-let without_dashes argument =
-  String.sub argument (String.length dashes)
-    (String.length argument - String.length dashes)
-
-let requested arguments =
-  let flags, targets = List.partition flag arguments in
-  {
-    delivery =
-      (match List.rev flags with
-      | [] -> None
-      | last :: _ -> Some (without_dashes last));
-    target =
-      (match targets with
-      | [] -> Filename.current_dir_name
-      | first :: _ -> first);
-  }
-
-let chosen = function
-  | None -> Dartea.Delivery.default
-  | Some name -> (
-      match Dartea.Delivery.find name with
-      | found -> found
-      | exception Reporting.Error.Found error ->
-          refused ~seen:Reporting.Sources.empty [ error ])
-
 let folder_and_entry target =
   if String.ends_with ~suffix:Project.Elm_file.extension target then
     (Filename.current_dir_name, Some target)
   else (target, None)
 
-let ran env request =
-  let delivery = chosen request.delivery in
-  let folder, entry_file = folder_and_entry request.target in
+let ran env ~target ~output =
+  let folder, entry_file = folder_and_entry target in
   let path = Eio.Path.(Eio.Stdenv.fs env / folder) in
   let sources = loaded path in
   let entry = Option.map (entry_in sources) entry_file in
-  compiled ~path ~delivery ~entry sources
+  compiled ~path ~output ~entry sources
 
-let () =
-  Eio_main.run @@ fun env ->
-  ran env (requested (List.tl (Array.to_list Sys.argv)))
+let make target output = Eio_main.run @@ fun env -> ran env ~target ~output
+
+let target =
+  let doc = "The source folder, or a single $(b,.elm) file to start from." in
+  Cmdliner.Arg.(
+    value
+    & pos 0 string Filename.current_dir_name
+    & info [] ~docv:"TARGET" ~doc)
+
+let output =
+  let doc =
+    "Where to write the result. The extension decides what is produced: \
+     $(b,.js) writes a script, $(b,.html) writes a page with the script \
+     inside, $(b,/dev/null) writes nothing and only checks. Anything else is \
+     taken as a folder, and one file per module is written into it."
+  in
+  Cmdliner.Arg.(
+    value & opt string "index.html" & info [ "output" ] ~docv:"FILE" ~doc)
+
+let make_command =
+  let doc = "Compile Elm files into JavaScript." in
+  Cmdliner.Cmd.v
+    (Cmdliner.Cmd.info "make" ~doc)
+    Cmdliner.Term.(const make $ target $ output)
+
+let dartea =
+  let doc = "an independent compiler for the Elm language" in
+  Cmdliner.Cmd.group (Cmdliner.Cmd.info "dartea" ~version:"0.1.0" ~doc)
+    [ make_command ]
+
+let () = exit (Cmdliner.Cmd.eval dartea)

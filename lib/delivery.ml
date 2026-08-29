@@ -6,8 +6,15 @@ let licence path = { path; content = Licence_text.licence }
 module type S = sig
   val name : string
   val roots : Compiler.outcome -> Data.Name.t list
-  val files : entry:Entry.t option -> Compiler.compiled list -> file list
+
+  val files :
+    entry:Entry.t option ->
+    output:string ->
+    Compiler.compiled list ->
+    file list
 end
+
+let beside output = Filename.concat (Filename.dirname output) licence_file
 
 module Esm_folder : S = struct
   let name = "esm_folder"
@@ -24,38 +31,39 @@ module Esm_folder : S = struct
         else [])
       outcome.modules
 
-  let files ~entry:_ modules =
-    licence licence_file
+  let files ~entry:_ ~output modules =
+    let inside path = Filename.concat output path in
+    licence (inside licence_file)
     :: List.map
          (fun (module_ : Compiler.compiled) ->
            {
-             path = Codegen_js.Of_optimized.module_file module_.module_name;
+             path =
+               inside
+                 (Codegen_js.Of_optimized.module_file module_.module_name);
              content = module_.source;
            })
          modules
 end
 
-module Classic_js_browser : S = struct
-  let name = "classic_js_browser"
-  let folder = "build"
+module Browser_program = struct
   let handled = "Platform.Program"
 
   let program =
     Data.Name.global ~module_name:"Platform" ~exported_name:"Program"
 
-  let wanted = function
+  let wanted ~name = function
     | None ->
         Reporting.Error.raise_project (Delivery_needs_entry { delivery = name })
     | Some (entry : Entry.t) -> entry
 
-  let roots (outcome : Compiler.outcome) =
-    [ Compiler.entry_root (wanted outcome.entry) ]
+  let roots ~name (outcome : Compiler.outcome) =
+    [ Compiler.entry_root (wanted ~name outcome.entry) ]
 
   let exposes (entry : Entry.t) (module_ : Compiler.compiled) =
     String.equal module_.module_name entry.module_name
     && List.mem entry.declaration module_.exports
 
-  let exposed (entry : Entry.t) modules =
+  let exposed ~name (entry : Entry.t) modules =
     if not (List.exists (exposes entry) modules) then
       Reporting.Error.raise_project_at ~region:entry.region
         (Entry_not_exposed
@@ -65,9 +73,9 @@ module Classic_js_browser : S = struct
              declaration = entry.declaration;
            })
 
-  let showable (entry : Entry.t) =
+  let showable ~name (entry : Entry.t) =
     match Typed.Type.head entry.typ with
-    | Typed.Type.TCustom (name, _) when Data.Name.equal name program -> ()
+    | Typed.Type.TCustom (found, _) when Data.Name.equal found program -> ()
     | found ->
         Reporting.Error.raise_project_at ~region:entry.region
           (Bad_entry
@@ -88,33 +96,51 @@ module Classic_js_browser : S = struct
         })
       modules
 
-  let built path content = { path = Filename.concat folder path; content }
+  let script ~name entry modules =
+    exposed ~name entry modules;
+    showable ~name entry;
+    Codegen_js.Bundle.of_modules ~entry_module:entry.module_name
+      ~declaration:entry.declaration (bundled modules)
+end
 
-  let files ~entry modules =
-    let entry = wanted entry in
-    exposed entry modules;
-    showable entry;
+module Script : S = struct
+  let name = "script"
+  let roots outcome = Browser_program.roots ~name outcome
+
+  let files ~entry ~output modules =
+    let entry = Browser_program.wanted ~name entry in
     [
-      built licence_file Licence_text.licence;
-      built Codegen_js.Bundle.entry_file
-        (Codegen_js.Bundle.of_modules ~entry_module:entry.module_name
-           ~declaration:entry.declaration (bundled modules));
-      built Codegen_js.Bundle.page_file
-        (Codegen_js.Bundle.page ~title:entry.module_name);
+      licence (beside output);
+      { path = output; content = Browser_program.script ~name entry modules };
     ]
 end
 
-let all : (module S) list = [ (module Esm_folder); (module Classic_js_browser) ]
-let names = List.map (fun (module D : S) -> D.name) all
+module Sandwich : S = struct
+  let name = "page"
+  let roots outcome = Browser_program.roots ~name outcome
+
+  let files ~entry ~output modules =
+    let entry = Browser_program.wanted ~name entry in
+    [
+      licence (beside output);
+      {
+        path = output;
+        content =
+          Codegen_js.Bundle.sandwich ~title:entry.module_name
+            ~entry_module:entry.module_name
+            (Browser_program.script ~name entry modules);
+      };
+    ]
+end
+
 let default : (module S) = (module Esm_folder)
 
-let find name =
-  match List.find_opt (fun (module D : S) -> String.equal D.name name) all with
-  | Some found -> found
-  | None ->
-      Reporting.Error.raise_project (Unknown_delivery { name; known = names })
+let for_output output =
+  if Filename.check_suffix output ".js" then (module Script : S)
+  else if Filename.check_suffix output ".html" then (module Sandwich : S)
+  else default
 
-let produced ~delivery (outcome : Compiler.outcome) =
+let produced ~delivery ~output (outcome : Compiler.outcome) =
   let module Delivery = (val delivery : S) in
-  Delivery.files ~entry:outcome.entry
+  Delivery.files ~entry:outcome.entry ~output
     (Compiler.link ~roots:(Delivery.roots outcome) outcome)

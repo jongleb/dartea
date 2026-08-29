@@ -239,7 +239,8 @@ let exit_code = function
 
 let ran ~inside argument =
   let command =
-    Printf.sprintf "cd %s && NO_COLOR=1 %s %s 2>&1" (Filename.quote inside)
+    Printf.sprintf "cd %s && NO_COLOR=1 %s make %s --output=/dev/null 2>&1"
+      (Filename.quote inside)
       (Filename.quote (Filename.concat (Sys.getcwd ()) driver))
       (Filename.quote argument)
   in

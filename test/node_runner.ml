@@ -28,7 +28,7 @@ let evaluate ~(compiled : Dartea.Compiler.compiled list) ~expr =
       let out = open_out (Filename.concat directory file.path) in
       output_string out file.content;
       close_out out)
-    (Dartea.Delivery.Esm_folder.files ~entry:None compiled);
+    (Dartea.Delivery.Esm_folder.files ~entry:None ~output:"." compiled);
   let program =
     Printf.sprintf
       "import * as Main from \"./%s\"; console.log(JSON.stringify(%s));"

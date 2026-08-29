@@ -206,12 +206,14 @@ const happening = (extra) => ({
   preventDefault() { prevented += 1; },
 });
 
-const mounted = async () => {
-  const { mount } = await import("./main.js");
+const launched = async (flags) => {
+  await import("./main.js");
   const host = make("body");
-  mount(host);
+  globalThis.Dartea.Main.init({ node: host, flags });
   return host;
 };
+
+const mounted = () => launched(undefined);
 |}
 
 let dom_stub = dom ^ {|const clicked = (node) => {
@@ -595,9 +597,7 @@ main =
         }
 |}
 
-let task_stub = dom ^ {|const host = make("body");
-const { mount } = await import("./main.js");
-mount(host, null);
+let task_stub = dom ^ {|const host = await launched(null);
 console.log(shown(host).trim());
 |}
 
@@ -709,9 +709,7 @@ main =
         }
 |}
 
-let ticking_stub = dom ^ {|const host = make("body");
-const { mount } = await import("./main.js");
-mount(host, null);
+let ticking_stub = dom ^ {|const host = await launched(null);
 const counted = () => shown(host.childNodes[1]);
 const opening = timers.size;
 ticked();
@@ -782,8 +780,8 @@ main =
 |}
 
 let port_stub = dom ^ {|const host = make("body");
-const { mount } = await import("./main.js");
-const app = mount(host, null);
+await import("./main.js");
+const app = globalThis.Dartea.Main.init({ node: host, flags: null });
 const heard = [];
 app.ports.saved.subscribe((value) => heard.push(value));
 app.ports.arrived.send("fromJs");
@@ -1104,9 +1102,7 @@ console.log(
 );
 |}
 
-let todomvc_stub = dom ^ {|const host = make("body");
-const { mount } = await import("./main.js");
-mount(host, "Nothing");
+let todomvc_stub = dom ^ {|const host = await launched("Nothing");
 const listed = () => tagged(host, "li").slice(0, 2).map(shown).join(" / ");
 const field = tagged(host, "input").find((node) => node.className === "new-todo");
 const typed = (into, written) => {

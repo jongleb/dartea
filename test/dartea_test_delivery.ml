@@ -13,10 +13,11 @@ let outcome_of ~entry content =
               (Reporting.Sources.of_list outcome.sources)
               error))
 
-let delivered ~delivery outcome = Dartea.Delivery.produced ~delivery outcome
+let delivered ~delivery ~output outcome =
+  Dartea.Delivery.produced ~delivery ~output outcome
 
-let refused ~delivery outcome =
-  match delivered ~delivery outcome with
+let refused ~delivery ~output outcome =
+  match delivered ~delivery ~output outcome with
   | _ -> assert_failure "the delivery accepted the entry point"
   | exception Reporting.Error.Found { problem = Project problem; _ } -> problem
   | exception Reporting.Error.Found error ->
@@ -26,16 +27,17 @@ let paths files =
   List.map (fun (file : Dartea.Delivery.file) -> file.path) files
   |> List.sort String.compare
 
-let browser = Dartea.Delivery.find "classic_js_browser"
+let page : (module Dartea.Delivery.S) = (module Dartea.Delivery.Sandwich)
+let script : (module Dartea.Delivery.S) = (module Dartea.Delivery.Script)
 
 let test_esm_folder_is_one_file_per_module _ =
   let outcome = outcome_of ~entry:None Sample.starter in
-  let files = delivered ~delivery:Dartea.Delivery.default outcome in
+  let files = delivered ~delivery:Dartea.Delivery.default ~output:"." outcome in
   assert_equal ~printer:Sample.names
-    (Dartea.Delivery.licence_file
+    (("./" ^ Dartea.Delivery.licence_file)
      :: List.map
           (fun (module_name, _) ->
-            Codegen_js.Of_optimized.module_file module_name)
+            "./" ^ Codegen_js.Of_optimized.module_file module_name)
           (Sample.delivered ~delivery:Dartea.Delivery.default outcome)
     |> List.sort String.compare)
     (paths files);
@@ -45,21 +47,26 @@ let test_esm_folder_is_one_file_per_module _ =
     (Sample.delivered ~delivery:Dartea.Delivery.default outcome)
     (List.filter
        (fun (file : Dartea.Delivery.file) ->
-         not (String.equal file.path Dartea.Delivery.licence_file))
+         not
+           (String.equal file.path ("./" ^ Dartea.Delivery.licence_file)))
        files)
 
-let test_browser_writes_a_page_and_a_bundle _ =
+let test_a_page_is_one_file _ =
   let outcome = outcome_of ~entry:(Some "Main") Sample.program in
   assert_equal ~printer:Sample.names
-    [ "build/dartea.LICENSE.txt"; "build/index.html"; "build/main.js" ]
-    (paths (delivered ~delivery:browser outcome))
+    [ "build/dartea.LICENSE.txt"; "build/index.html" ]
+    (paths (delivered ~delivery:page ~output:"build/index.html" outcome));
+  assert_equal ~printer:Sample.names
+    [ "build/dartea.LICENSE.txt"; "build/main.js" ]
+    (paths (delivered ~delivery:script ~output:"build/main.js" outcome))
 
 let written directory (file : Dartea.Delivery.file) =
   Sample.written ~folder:directory ~path:file.path file.content
 
 let printed ~outcome ~stub =
   let directory = Sample.folder () in
-  List.iter (written directory) (delivered ~delivery:browser outcome);
+  List.iter (written directory)
+    (delivered ~delivery:script ~output:"build/main.js" outcome);
   Sample.written
     ~folder:(Filename.concat directory "build")
     ~path:"stub.mjs" stub;
@@ -152,9 +159,12 @@ let test_value_lands_on_the_property _ =
     (printed_by ~program:Sample.field_program ~stub:Sample.property_stub)
 
 let test_browser_needs_an_entry _ =
-  match refused ~delivery:browser (outcome_of ~entry:None Sample.program) with
+  match
+    refused ~delivery:page ~output:"index.html"
+      (outcome_of ~entry:None Sample.program)
+  with
   | Delivery_needs_entry { delivery } ->
-      assert_equal ~printer:Fun.id "classic_js_browser" delivery
+      assert_equal ~printer:Fun.id "page" delivery
   | problem -> assert_failure (Reporting.Project_error.show problem)
 
 let test_browser_needs_an_exposed_entry _ =
@@ -170,41 +180,29 @@ main : String
 main =
     "hi"
 |} in
-  match refused ~delivery:browser (outcome_of ~entry:(Some "Main") hidden) with
+  match refused ~delivery:page ~output:"index.html"
+      (outcome_of ~entry:(Some "Main") hidden) with
   | Entry_not_exposed { delivery; module_name; declaration } ->
-      assert_equal ~printer:Fun.id "classic_js_browser" delivery;
+      assert_equal ~printer:Fun.id "page" delivery;
       assert_equal ~printer:Fun.id "Main" module_name;
       assert_equal ~printer:Fun.id "main" declaration
   | problem -> assert_failure (Reporting.Project_error.show problem)
 
 let test_browser_needs_a_program _ =
   match
-    refused ~delivery:browser (outcome_of ~entry:(Some "Main") Sample.starter)
+    refused ~delivery:page ~output:"index.html"
+      (outcome_of ~entry:(Some "Main") Sample.starter)
   with
   | Bad_entry { expected; found; _ } ->
       assert_equal ~printer:Fun.id "Platform.Program" expected;
       assert_equal ~printer:Fun.id "String" found
   | problem -> assert_failure (Reporting.Project_error.show problem)
 
-let test_unknown_delivery _ =
-  match Dartea.Delivery.find "nope" with
-  | _ -> assert_failure "an unknown delivery was accepted"
-  | exception
-      Reporting.Error.Found
-        { problem = Project (Unknown_delivery { name; known }); _ } ->
-      assert_equal ~printer:Fun.id "nope" name;
-      assert_equal ~printer:Sample.names
-        [ "classic_js_browser"; "esm_folder" ]
-        (List.sort String.compare known)
-  | exception Reporting.Error.Found error ->
-      assert_failure (Reporting.Error.show_problem error.problem)
-
 let suite =
   [
     "esm_folder_is_one_file_per_module"
     >:: test_esm_folder_is_one_file_per_module;
-    "browser_writes_a_page_and_a_bundle"
-    >:: test_browser_writes_a_page_and_a_bundle;
+    "a_page_is_one_file" >:: test_a_page_is_one_file;
     "the_counter_reacts_to_a_click" >:: test_the_counter_reacts_to_a_click;
     "typing_reaches_the_model" >:: test_typing_reaches_the_model;
     "mapped_messages_reach_the_model" >:: test_mapped_messages_reach_the_model;
@@ -226,5 +224,4 @@ let suite =
     "browser_needs_an_entry" >:: test_browser_needs_an_entry;
     "browser_needs_an_exposed_entry" >:: test_browser_needs_an_exposed_entry;
     "browser_needs_a_program" >:: test_browser_needs_a_program;
-    "unknown_delivery" >:: test_unknown_delivery;
   ]

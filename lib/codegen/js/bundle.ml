@@ -22,29 +22,44 @@ let wrapped { name; source } =
     (Of_optimized.module_ident name)
     (body source)
 
+let started = "Dartea"
+
 let of_modules ~entry_module ~declaration modules =
   Printf.sprintf
-    "%s\n\n%s\nexport const %s = %s.%s;\n\nexport const mount = (host, flags) =>\n  %s(%s, host, flags);\n"
+    "%s\n\n%s\nglobalThis.%s = {\n  %s: {\n    init: (config) =>\n      %s(%s.%s, config.node, config.flags),\n  },\n};\n"
     (String.concat "\n\n" (List.map wrapped modules))
-    Runtime.engine_source declaration
+    Runtime.engine_source started
     (Of_optimized.module_ident entry_module)
-    declaration Runtime.mount declaration
+    Runtime.mount
+    (Of_optimized.module_ident entry_module)
+    declaration
 
-let page ~title =
+let sandwich ~title ~entry_module script =
   Printf.sprintf
     {|<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
     <title>%s</title>
+    <style>body { padding: 0; margin: 0; }</style>
   </head>
   <body>
     <div id="main"></div>
-    <script type="module">
-      import { mount } from "./%s";
-      mount(document.getElementById("main"));
+    <script>
+try {
+%s
+  %s.%s.init({ node: document.getElementById("main") });
+} catch (thrown) {
+  const header = document.createElement("h1");
+  header.style.fontFamily = "monospace";
+  header.innerText = "Initialization Error";
+  const holder = document.getElementById("main");
+  document.body.insertBefore(header, holder);
+  holder.innerText = thrown;
+  throw thrown;
+}
     </script>
   </body>
 </html>
 |}
-    title entry_file
+    title script started (Of_optimized.module_ident entry_module)

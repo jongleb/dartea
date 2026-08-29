@@ -57,7 +57,6 @@ let title_of_project (problem : Project_error.t) =
   | No_entry _ -> "NO ENTRY POINT"
   | Entry_not_exposed _ -> "ENTRY NOT EXPOSED"
   | Bad_entry _ -> "BAD ENTRY POINT"
-  | Unknown_delivery _ -> "UNKNOWN DELIVERY"
   | Delivery_needs_entry _ -> "NO ENTRY POINT"
 
 let title (problem : Error.problem) =
@@ -1106,15 +1105,6 @@ let of_project_problem source region (problem : Project_error.t) =
             (Printf.sprintf
                "The %s delivery only knows how to handle %s though. Modify %s to be one of those types of values, or pick a delivery that can take this one."
                (quoted delivery) expected (quoted declaration));
-        ]
-  | Unknown_delivery { name; known } ->
-      Doc.stack
-        [
-          Doc.words
-            (Printf.sprintf "I do not know a delivery named %s." (quoted name));
-          Doc.words
-            (Printf.sprintf "The ones I know are %s."
-               (String.concat ", " (List.map quoted known)));
         ]
   | Delivery_needs_entry { delivery } ->
       Doc.stack

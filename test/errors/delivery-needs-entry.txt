@@ -1,5 +1,5 @@
--- NO ENTRY POINT ------------------------------------------- classic_js_browser
+-- NO ENTRY POINT --------------------------------------------------------- page
 
-The `classic_js_browser` delivery needs to know where the program starts.
+The `page` delivery needs to know where the program starts.
 
 Name the file it lives in, and I will start from there.

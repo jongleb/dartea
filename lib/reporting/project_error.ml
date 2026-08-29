@@ -20,7 +20,6 @@ type t =
       expected : string;
       found : string;
     }
-  | Unknown_delivery of { name : string; known : string list }
   | Delivery_needs_entry of { delivery : string }
 [@@deriving show]
 
@@ -37,5 +36,4 @@ let file_of = function
   | Entry_not_exposed { module_name; _ }
   | Bad_entry { module_name; _ } ->
       module_name
-  | Unknown_delivery { name; _ } -> name
   | Delivery_needs_entry { delivery } -> delivery

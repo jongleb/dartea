@@ -30,3 +30,6 @@ playgrounds/**/*.mjs
 playgrounds/**/dartea.LICENSE.txt
 playgrounds/**/build/
 /*.mjs
+
+# macOS Finder
+.DS_Store
