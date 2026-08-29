@@ -1,7 +1,7 @@
 open Packages
 
 let unreadable ~file package (refusal : Npm.refusal) =
-  Reporting.Error.raise_project
+  Diagnostic.Failure.raise_project
     (Bad_range
        {
          file;
@@ -14,19 +14,19 @@ let unreadable ~file package (refusal : Npm.refusal) =
 let unusable registry ~file package asked =
   match Npm.refusals registry package with
   | refusal :: _ -> unreadable ~file package refusal
-  | [] -> Reporting.Error.raise_project (No_version { file; package; asked })
+  | [] -> Diagnostic.Failure.raise_project (No_version { file; package; asked })
 
 let solved registry ~file (manifest : Manifest.t) =
   match Solver.solved (Npm.view registry) manifest.dependencies with
   | Ok picked -> picked
   | Error (Solver.Unknown_package { package; asked_by }) ->
-      Reporting.Error.raise_project
+      Diagnostic.Failure.raise_project
         (Unknown_package { file; package; asked_by })
   | Error (Solver.No_version { package; asked }) ->
       unusable registry ~file package asked
 
 let refuse ~file (pick : Pick.t) problem =
-  Reporting.Error.raise_project
+  Diagnostic.Failure.raise_project
     (Bad_tarball
        {
          file;
@@ -45,7 +45,7 @@ let installing registry root ~file ~say pick =
   match Npm.at registry pick with
   | Some release -> stored registry root ~file pick release
   | None ->
-      Reporting.Error.raise_project
+      Diagnostic.Failure.raise_project
         (Unknown_package
            { file; package = pick.package; asked_by = "the registry" })
 
@@ -87,15 +87,15 @@ let resolved root ~say (manifest : Manifest.t) =
   match carried root ~say manifest with
   | picked -> picked
   | exception Npm.Offline { url; problem } ->
-      Reporting.Error.raise_project
+      Diagnostic.Failure.raise_project
         (Offline { file = manifest.file; url; problem })
   | exception Store.Broken { package; version; problem } ->
-      Reporting.Error.raise_project
+      Diagnostic.Failure.raise_project
         (Bad_tarball { file = manifest.file; package; version; problem })
 
 let run root ~say =
   match Manifest.of_folder root with
   | Some manifest -> resolved root ~say manifest
   | None ->
-      Reporting.Error.raise_project
+      Diagnostic.Failure.raise_project
         (Missing_manifest { file = Manifest.file_name })

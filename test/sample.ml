@@ -43,7 +43,8 @@ let compiled_in ~entry folder =
       (Files.Dir.of_string folder)
   with
   | Ok sources -> Dartea.Compiler.compile_modules ~entry sources
-  | Error error -> refused Reporting.Sources.empty [ error ]
+  | Error failure ->
+      refused Reporting.Sources.empty [ Reporting.Error.of_failure failure ]
 
 let folder () = Filename.temp_dir "dartea" ""
 let read path = In_channel.with_open_bin path In_channel.input_all

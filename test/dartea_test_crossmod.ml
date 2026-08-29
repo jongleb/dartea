@@ -3,9 +3,11 @@ open OUnit2
 let source = Node_runner.source
 
 let node_eval ~modules ~expr =
-  Node_runner.evaluate
-    ~compiled:(Node_runner.output_of (Dartea.Compiler.compile_modules ~entry:None modules))
-    ~expr
+  let outcome =
+    Dartea.Compiler.compile_modules ~entry:None
+      (Project.Sources.of_list modules)
+  in
+  Node_runner.evaluate ~compiled:(Node_runner.output_of outcome) ~expr
 
 let assert_runs ~modules ~expr ~expected =
   assert_equal ~printer:Fun.id expected (node_eval ~modules ~expr)
@@ -320,7 +322,7 @@ viaQualifiedAlias = (Shapes.Point 5 6).x + Shapes.origin.y
     ~expected:{|"7,5"|}
 
 let compiled_names modules =
-  Dartea.Compiler.compile_modules ~entry:None modules
+  Dartea.Compiler.compile_modules ~entry:None (Project.Sources.of_list modules)
   |> Node_runner.output_of
   |> List.map (fun (module_ : Dartea.Compiler.compiled) -> module_.module_name)
 
@@ -402,7 +404,8 @@ problem =
 let test_a_syntax_error_is_reported_not_raised _ =
   let outcome =
     Dartea.Compiler.compile_modules ~entry:None
-      [ source "Main.elm" "module Main exposing (..)\n\nmain = (\n" ]
+      (Project.Sources.of_list
+         [ source "Main.elm" "module Main exposing (..)\n\nmain = (\n" ])
   in
   assert_bool "a syntax error produced no report" (outcome.errors <> [])
 
@@ -426,15 +429,16 @@ let test_imported_prelude_module_comes_along _ =
 let test_dict_needs_an_import _ =
   let outcome =
     Dartea.Compiler.compile_modules ~entry:None
-      [
-        source "Main.elm"
-          {|
+      (Project.Sources.of_list
+         [
+           source "Main.elm"
+             {|
 module Main exposing (main)
 
 main : Int
 main = Dict.size Dict.empty
 |};
-      ]
+         ])
   in
   assert_bool "Dict was reachable without an import" (outcome.errors <> [])
 
@@ -461,10 +465,11 @@ page =
 let test_html_needs_an_import _ =
   let outcome =
     Dartea.Compiler.compile_modules ~entry:None
-      [
-        source "Main.elm"
-          "module Main exposing (page)\n\npage = Html.text \"hi\"\n";
-      ]
+      (Project.Sources.of_list
+         [
+           source "Main.elm"
+             "module Main exposing (page)\n\npage = Html.text \"hi\"\n";
+         ])
   in
   assert_bool "Html was reachable without an import" (outcome.errors <> [])
 

@@ -3,7 +3,8 @@ open OUnit2
 let emitted ~entry content =
   let outcome =
     Dartea.Compiler.compile_modules ~entry
-      [ Project.Elm_file.of_path ~path:"Main.elm" content ]
+      (Project.Sources.of_list
+         [ Project.Elm_file.of_path ~path:"Main.elm" content ])
   in
   match outcome.errors with
   | [] ->

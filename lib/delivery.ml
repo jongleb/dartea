@@ -53,7 +53,7 @@ module Browser_program = struct
 
   let wanted ~name = function
     | None ->
-        Reporting.Error.raise_project (Delivery_needs_entry { delivery = name })
+        Diagnostic.Failure.raise_project (Delivery_needs_entry { delivery = name })
     | Some (entry : Entry.t) -> entry
 
   let roots ~name (outcome : Compiler.outcome) =
@@ -65,7 +65,7 @@ module Browser_program = struct
 
   let exposed ~name (entry : Entry.t) modules =
     if not (List.exists (exposes entry) modules) then
-      Reporting.Error.raise_project_at ~region:entry.region
+      Diagnostic.Failure.raise_project_at ~region:entry.region
         (Entry_not_exposed
            {
              delivery = name;
@@ -77,7 +77,7 @@ module Browser_program = struct
     match Typed.Type.head entry.typ with
     | Typed.Type.TCustom (found, _) when Data.Name.equal found program -> ()
     | found ->
-        Reporting.Error.raise_project_at ~region:entry.region
+        Diagnostic.Failure.raise_project_at ~region:entry.region
           (Bad_entry
              {
                delivery = name;
@@ -105,7 +105,7 @@ module Browser_program = struct
     match Codegen_js.Flags.decoder (carried entry) with
     | Ok written -> written
     | Error found ->
-        Reporting.Error.raise_project_at ~region:entry.region
+        Diagnostic.Failure.raise_project_at ~region:entry.region
           (Bad_flags
              {
                delivery = name;

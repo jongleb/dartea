@@ -6,9 +6,7 @@
   canonicalization
   frontend
   typed
-  containers-data
   data
-  vector
   interface
   reporting)
  (preprocess

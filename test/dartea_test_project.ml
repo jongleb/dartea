@@ -7,27 +7,28 @@ let sources_of folder =
   match loaded folder with
   | Ok sources -> sources
   | Error error ->
-      assert_failure (Sample.rendered Reporting.Sources.empty error)
+      assert_failure
+        (Sample.rendered Reporting.Sources.empty
+           (Reporting.Error.of_failure error))
 
 let unexpected problem = assert_failure (Reporting.Error.show_problem problem)
 
 let refused folder =
   match loaded folder with
   | Ok _ -> assert_failure "the folder loaded without an error"
-  | Error { problem = Project problem; _ } -> problem
-  | Error error -> unexpected error.problem
+  | Error failure -> failure.problem
 
 let names sources =
   Sample.sorted
     (List.map
        (fun (source : Project.Elm_file.t) -> source.name)
-       sources)
+       (Project.Sources.files sources))
 
 let paths sources =
   Sample.sorted
     (List.map
        (fun (source : Project.Elm_file.t) -> source.path)
-       sources)
+       (Project.Sources.files sources))
 
 let thing = {|module Deep.Thing exposing (answer)
 

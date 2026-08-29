@@ -5,10 +5,11 @@ let () =
   let outcome =
     match Project.Sources.load ~provided:Prelude.packages path with
     | Ok sources -> Dartea.Compiler.compile_modules ~entry:None sources
-    | Error error ->
+    | Error failure ->
         prerr_endline
           (Reporting.Report.to_string ~colours:false
-             (Reporting.Sources.report Reporting.Sources.empty error));
+             (Reporting.Sources.report Reporting.Sources.empty
+                (Reporting.Error.of_failure failure)));
         exit 1
   in
   let sources = Reporting.Sources.of_list outcome.sources in

@@ -395,8 +395,8 @@ module Make (B : BACKEND) = struct
       (B.runtime_modules usage)
     @ List.map fst pieces
 
-  let compile_modules ~entry (sources : Project.Elm_file.t list) :
-      outcome =
+  let compile_modules ~entry (checked : Project.Sources.t) : outcome =
+    let sources = Project.Sources.files checked in
     let written =
       List.map
         (fun (source : Project.Elm_file.t) ->
@@ -534,8 +534,10 @@ module Make (B : BACKEND) = struct
           match (entry, finished.entry, finished.errors) with
           | Some module_name, None, [] ->
               [
-                Reporting.Error.project
-                  (No_entry { module_name; declaration = Entry.declaration });
+                Reporting.Error.of_failure
+                  (Diagnostic.Failure.about
+                     (No_entry
+                        { module_name; declaration = Entry.declaration }));
               ]
           | _, _, errors -> List.rev errors
         in
@@ -549,11 +551,12 @@ module Make (B : BACKEND) = struct
 
   let compile_source (content : string) : outcome =
     compile_modules ~entry:None
-      [
-        Project.Elm_file.of_path
-          ~path:("Main" ^ Project.Elm_file.extension)
-          content;
-      ]
+      (Project.Sources.of_list
+         [
+           Project.Elm_file.of_path
+             ~path:("Main" ^ Project.Elm_file.extension)
+             content;
+         ])
 end
 
 include Make (Js_backend)

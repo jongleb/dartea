@@ -74,7 +74,7 @@ let from_lock ~file root =
   match Lock.of_folder root with
   | Some (lock : Lock.t) -> lock.packages
   | None ->
-      Reporting.Error.raise_project
+      Diagnostic.Failure.raise_project
         (Missing_lock { file; lock = Lock.file_name })
 
 let locked root (manifest : Manifest.t) =

@@ -146,7 +146,7 @@ x = 1
 let entry_sample =
   "module Main exposing (main)\n\n\nmain : Int\nmain =\n    1\n"
 
-let sample_of_project (problem : Reporting.Project_error.t) =
+let sample_of_project (problem : Diagnostic.Project_error.t) =
   match problem with
   | Entry_not_exposed _ | Bad_entry _ ->
       Rendered
@@ -160,7 +160,7 @@ let sample_of_project (problem : Reporting.Project_error.t) =
   | No_entry _ | Bad_flags _ | Missing_package _ | Missing_lock _
   | Missing_manifest _ | Offline _ | Unknown_package _ | No_version _
   | Bad_tarball _ | Bad_range _ | Delivery_needs_entry _ ->
-      let file = Reporting.Project_error.file_of problem in
+      let file = Diagnostic.Project_error.file_of problem in
       Rendered { file; content = ""; region = { Data.Region.nowhere with file } }
 
 let sample (problem : Error.problem) =
@@ -235,7 +235,7 @@ let syntax_kinds : (string * Reporting.Syntax_error.t) list =
     ("module-name-mismatch", Module_name_mismatch { expected = "Main" });
   ]
 
-let project_kinds : (string * Reporting.Project_error.t) list =
+let project_kinds : (string * Diagnostic.Project_error.t) list =
   [
     ("unknown-folder", Unknown_folder { folder = "src" });
     ("no-sources", No_sources { folder = "src" });
@@ -374,9 +374,10 @@ let same_kind (one : Error.problem) (other : Error.problem) =
 let reported files =
   match
     Dartea.Compiler.compile_modules ~entry:None
-      (List.map
-         (fun (path, content) -> Project.Elm_file.of_path ~path content)
-         files)
+      (Project.Sources.of_list
+         (List.map
+            (fun (path, content) -> Project.Elm_file.of_path ~path content)
+            files))
   with
   | outcome -> (
       match outcome.errors with [] -> None | error :: _ -> Some error)
@@ -489,9 +490,10 @@ let warning_kinds : (string * Reporting.Warning.problem) list =
 let warned files =
   match
     Dartea.Compiler.compile_modules ~entry:None
-      (List.map
-         (fun (path, content) -> Project.Elm_file.of_path ~path content)
-         files)
+      (Project.Sources.of_list
+         (List.map
+            (fun (path, content) -> Project.Elm_file.of_path ~path content)
+            files))
   with
   | outcome ->
       List.concat_map

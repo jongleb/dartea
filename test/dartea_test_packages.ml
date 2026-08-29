@@ -191,8 +191,8 @@ let test_a_manifest_takes_source_directories _ =
 let test_a_bad_range_is_refused _ =
   match read_manifest {|{ "dependencies": { "@dartea/ui": "~1.2" } }|} with
   | _ -> assert_failure "the range was accepted"
-  | exception
-      Reporting.Error.Found { problem = Project (Bad_field { field; _ }); _ } ->
+  | exception Diagnostic.Failure.Found { problem = Bad_field { field; _ }; _ }
+    ->
       assert_equal ~printer:Fun.id "dependencies" field
 
 let test_a_lock_round_trips _ =

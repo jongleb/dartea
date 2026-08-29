@@ -41,7 +41,8 @@ let probe_source =
 let prelude_emitted =
   lazy
     (Dartea.Compiler.compile_modules ~entry:None
-       [ Project.Elm_file.of_path ~path:(probe ^ ".elm") probe_source ]
+       (Project.Sources.of_list
+          [ Project.Elm_file.of_path ~path:(probe ^ ".elm") probe_source ])
     |> emitted
     |> List.filter (fun (module_name, _) ->
            not (String.equal module_name probe)))

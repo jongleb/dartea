@@ -1,0 +1,5 @@
+(library
+ (name diagnostic)
+ (libraries data)
+ (preprocess
+  (pps ppx_deriving.show)))

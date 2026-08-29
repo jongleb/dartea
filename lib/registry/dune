@@ -10,4 +10,4 @@
   tar-unix
   files
   packages
-  reporting))
+  diagnostic))

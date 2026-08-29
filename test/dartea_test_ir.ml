@@ -149,10 +149,11 @@ module Checker = Dartea.Compiler.Make (Checked_backend)
 let test_a_backend_without_the_platform_refuses_it _ =
   let outcome =
     Compiler.compile_modules ~entry:None
-      [
-        Project.Elm_file.of_path ~path:"Main.elm"
-          "module Main exposing (hello)\n\nimport VirtualDom\n\nhello :            VirtualDom.Node msg\nhello = VirtualDom.text \"hi\"\n";
-      ]
+      (Project.Sources.of_list
+         [
+           Project.Elm_file.of_path ~path:"Main.elm"
+             "module Main exposing (hello)\n\nimport VirtualDom\n\nhello :            VirtualDom.Node msg\nhello = VirtualDom.text \"hi\"\n";
+         ])
   in
   match outcome.errors with
   | { problem = Syntax _ | Type _ | Project _; _ } :: _ | [] ->

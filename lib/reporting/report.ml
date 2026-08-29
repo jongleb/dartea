@@ -44,7 +44,7 @@ let title_of_type (problem : Type_error.t) =
       if given < expects then "TOO FEW ARGS" else "TOO MANY ARGS"
   | Case_without_branches -> "EMPTY CASE"
 
-let title_of_project (problem : Project_error.t) =
+let title_of_project (problem : Diagnostic.Project_error.t) =
   match problem with
   | Unknown_folder _ -> "UNKNOWN FOLDER"
   | No_sources _ -> "NO SOURCE FILES"
@@ -1012,7 +1012,7 @@ let of_warning source (warning : Warning.t) =
            (Printf.sprintf "The %s pattern is redundant:" (ordinal index))
            "Any value with this shape will be handled by a previous pattern, so it should be removed.")
 
-let of_project_problem source region (problem : Project_error.t) =
+let of_project_problem source region (problem : Diagnostic.Project_error.t) =
   let snippet () = Snippet.of_region source region in
   match problem with
   | Unknown_folder { folder } ->

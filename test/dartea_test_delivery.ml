@@ -3,7 +3,10 @@ open OUnit2
 let source content = Project.Elm_file.of_path ~path:"Main.elm" content
 
 let outcome_of ~entry content =
-  let outcome = Dartea.Compiler.compile_modules ~entry [ source content ] in
+  let outcome =
+    Dartea.Compiler.compile_modules ~entry
+      (Project.Sources.of_list [ source content ])
+  in
   match outcome.errors with
   | [] -> outcome
   | error :: _ ->
@@ -19,7 +22,7 @@ let delivered ~delivery ~output outcome =
 let refused ~delivery ~output outcome =
   match delivered ~delivery ~output outcome with
   | _ -> assert_failure "the delivery accepted the entry point"
-  | exception Reporting.Error.Found { problem = Project problem; _ } -> problem
+  | exception Diagnostic.Failure.Found { problem; _ } -> problem
   | exception Reporting.Error.Found error ->
       assert_failure (Reporting.Error.show_problem error.problem)
 
@@ -164,7 +167,7 @@ let test_browser_needs_an_entry _ =
   with
   | Delivery_needs_entry { delivery } ->
       assert_equal ~printer:Fun.id "page" delivery
-  | problem -> assert_failure (Reporting.Project_error.show problem)
+  | problem -> assert_failure (Diagnostic.Project_error.show problem)
 
 let test_browser_needs_an_exposed_entry _ =
   let hidden = {|module Main exposing (other)
@@ -185,7 +188,7 @@ main =
       assert_equal ~printer:Fun.id "page" delivery;
       assert_equal ~printer:Fun.id "Main" module_name;
       assert_equal ~printer:Fun.id "main" declaration
-  | problem -> assert_failure (Reporting.Project_error.show problem)
+  | problem -> assert_failure (Diagnostic.Project_error.show problem)
 
 let test_browser_needs_a_program _ =
   match
@@ -195,7 +198,7 @@ let test_browser_needs_a_program _ =
   | Bad_entry { expected; found; _ } ->
       assert_equal ~printer:Fun.id "Platform.Program" expected;
       assert_equal ~printer:Fun.id "String" found
-  | problem -> assert_failure (Reporting.Project_error.show problem)
+  | problem -> assert_failure (Diagnostic.Project_error.show problem)
 
 let suite =
   [

@@ -27,6 +27,7 @@
   interface
   ir
   project
+  diagnostic
   packages
   registry
   tar

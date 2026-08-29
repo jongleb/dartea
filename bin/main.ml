@@ -49,12 +49,17 @@ let entry_in sources path =
   | Some source -> source.name
   | None ->
       refused ~seen:Reporting.Sources.empty
-        [ Reporting.Error.project (Unknown_entry { path }) ]
+        [
+          Reporting.Error.of_failure
+            (Diagnostic.Failure.about (Unknown_entry { path }));
+        ]
 
 let loaded path =
   match Project.Sources.load ~provided:Prelude.packages path with
   | Ok sources -> sources
-  | Error error -> refused ~seen:Reporting.Sources.empty [ error ]
+  | Error failure ->
+      refused ~seen:Reporting.Sources.empty
+        [ Reporting.Error.of_failure failure ]
 
 let folder_and_entry target =
   if String.ends_with ~suffix:Project.Elm_file.extension target then
@@ -65,7 +70,7 @@ let make target output =
   let folder, entry_file = folder_and_entry target in
   let path = Files.Dir.of_string folder in
   let sources = loaded path in
-  let entry = Option.map (entry_in sources) entry_file in
+  let entry = Option.map (entry_in (Project.Sources.files sources)) entry_file in
   compiled ~path ~output ~entry sources
 
 let counted picked =
