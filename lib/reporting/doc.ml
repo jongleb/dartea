@@ -46,7 +46,8 @@ let wrapped ~width written =
         | _ -> (current :: lines, word))
       ([], "") words
   in
-  List.rev (if String.equal last "" then lines else last :: lines)
+  let completed = if String.equal last "" then lines else last :: lines in
+  List.rev completed
 
 let glued left right =
   match (left, right) with

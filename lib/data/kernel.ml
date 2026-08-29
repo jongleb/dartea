@@ -119,13 +119,16 @@ let namespace = "Elm.Kernel."
 let referred_to_by (name : Name.t) : reference =
   match name with
   | Name.Local _ -> Not_kernel
+  | Name.Global { module_name; _ }
+    when not (String.starts_with ~prefix:namespace module_name) ->
+      Not_kernel
   | Name.Global { module_name; exported_name } -> begin
-      match Text.after_prefix ~prefix:namespace module_name with
-      | None -> Not_kernel
-      | Some kernel_module -> begin
-          let inside = Name.global ~module_name:kernel_module ~exported_name in
-          match Hashtbl.find_opt by_origin inside with
-          | Some kernel -> Known (Language kernel)
-          | None -> Unknown { name = inside; module_name; exported_name }
-        end
+      let kernel_module =
+        String.sub module_name (String.length namespace)
+          (String.length module_name - String.length namespace)
+      in
+      let inside = Name.global ~module_name:kernel_module ~exported_name in
+      match Hashtbl.find_opt by_origin inside with
+      | Some kernel -> Known (Language kernel)
+      | None -> Unknown { name = inside; module_name; exported_name }
     end

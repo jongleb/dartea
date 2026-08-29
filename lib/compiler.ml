@@ -189,14 +189,9 @@ module Make (B : BACKEND) = struct
           Reporting.Error.raise_name ~region
             (Reporting.Name_error.Recursive_value { names = written })
     in
-    let constructors =
-      List.map
-        (fun (c : Infer.Type_env.ctor_info) -> (c.name, c.arity))
-        typed.constructors
-    in
     ( declarations,
-      constructors,
-      Data.Name.Map.bindings typed.siblings_env )
+      List.concat_map Canonical.Typedecl.arities (List.rev typed.typedecls),
+      Data.Name.Map.bindings (Canonical.Typedecl.siblings typed.typedecls) )
 
   let shaped_types (typed : Infer.Declarations.infer_result) :
       Optimized.Typedecl.t list =
@@ -246,11 +241,12 @@ module Make (B : BACKEND) = struct
     in
     let own_constructors =
       List.fold_left
-        (fun acc (c : Infer.Type_env.ctor_info) ->
-          match c.name with
+        (fun acc (name, _) ->
+          match name with
           | Data.Name.Local ctor -> Names.add ctor acc
           | Data.Name.Global _ -> acc)
-        Names.empty typed.constructors
+        Names.empty
+        (List.concat_map Canonical.Typedecl.arities typed.typedecls)
     in
     Names.inter exports.terms (Names.union declared own_constructors)
     |> Names.elements |> List.map Data.Name.local
@@ -467,7 +463,7 @@ module Make (B : BACKEND) = struct
                     warnings =
                       List.concat_map
                         (After_typed.Exhaustive.warnings
-                           typed.siblings_env)
+                           (Canonical.Typedecl.siblings typed.typedecls))
                         typed.declarations;
                   }
                 in
@@ -490,14 +486,15 @@ module Make (B : BACKEND) = struct
       | exception Reporting.Error.Found error ->
           { progress with errors = error :: progress.errors }
     in
-    match
+    let ordered_modules () =
       let written_modules = List.map module_of sources in
       let wanted =
         Module_names.of_list (List.concat_map imported_by written_modules)
       in
-      Canonicalization.Module_graph.in_dependency_order
+      Canonical.Module.in_dependency_order
         (reachable ~wanted (Lazy.force prelude_modules) @ written_modules)
-    with
+    in
+    match ordered_modules () with
     | exception Reporting.Error.Found error ->
         {
           modules = [];
@@ -506,7 +503,7 @@ module Make (B : BACKEND) = struct
           sources = written;
           entry = None;
         }
-    | Error (Canonicalization.Module_graph.Import_cycle modules) ->
+    | Error (Canonical.Module.Import_cycle modules) ->
         {
           modules = [];
           written = [];
@@ -542,8 +539,9 @@ module Make (B : BACKEND) = struct
               ]
           | _, _, errors -> List.rev errors
         in
+        let modules = if List.is_empty errors then compiled_modules else [] in
         {
-          modules = (if List.is_empty errors then compiled_modules else []);
+          modules;
           written = List.filter_map Project.Elm_file.written sources;
           errors;
           sources = written;

@@ -15,11 +15,12 @@ let digested content =
   Base64.encode_string Digestif.SHA512.(to_raw_string (digest_string content))
 
 let verified pick ~integrity content =
-  match Data.Text.after_prefix ~prefix:sha512 integrity with
-  | None ->
-      refuse pick "the registry gave me no sha512 checksum for this tarball"
-  | Some wanted when String.equal wanted (digested content) -> ()
-  | Some _ ->
+  if not (String.starts_with ~prefix:sha512 integrity) then
+    refuse pick "the registry gave me no sha512 checksum for this tarball"
+  else
+    let width = String.length sha512 in
+    let wanted = String.sub integrity width (String.length integrity - width) in
+    if not (String.equal wanted (digested content)) then
       refuse pick "the tarball does not match the checksum in the registry"
 
 let held ?global:_ header entries =

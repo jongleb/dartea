@@ -1,5 +1,5 @@
 type t = Number | Comparable | Appendable | Comp_appendable
-[@@deriving show, enumerate]
+[@@deriving show, equal, enumerate]
 
 let name = function
   | Number -> "number"

@@ -11,7 +11,7 @@ let named grouped =
 
 let groups source =
   named
-    (Canonicalization.Declaration_graph.in_dependency_order ~declaration:Fun.id
+    (Canonicalization.Scope.in_dependency_order ~declaration:Fun.id
        (declarations source))
 
 let assert_groups ~src ~expected =
@@ -59,7 +59,7 @@ middle = 3
 |} in
   let ordered given =
     named
-      (Canonicalization.Declaration_graph.in_dependency_order ~declaration:Fun.id
+      (Canonicalization.Scope.in_dependency_order ~declaration:Fun.id
          given)
   in
   assert_equal

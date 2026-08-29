@@ -1,5 +1,4 @@
 type t
-type ctor_info = { name : Data.Name.t; arity : int; index : int; total : int }
 
 val build : imports:Interface.t list -> Canonical.Module.t -> t
 
@@ -15,8 +14,6 @@ val constructor_scheme :
   t -> Canonical.Typedecl.t -> Canonical.Typedecl.type_ctor -> Typed.Type.scheme
 
 val constructor_values : t -> Value_env.t
-val constructor_infos : t -> ctor_info list
-val siblings : t -> (Data.Name.t * int) list Data.Name.Map.t
 val typedecls : t -> Canonical.Typedecl.t list
 
 val typedecl_payloads :

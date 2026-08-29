@@ -23,7 +23,8 @@ let narrow required variable =
   | None -> Variable.constrain variable required
   | Some carried ->
       let together = combine carried required in
-      if together <> carried then Variable.constrain variable together
+      if not (Data.Constraint.equal together carried) then
+        Variable.constrain variable together
 
 let rec satisfy (required : Data.Constraint.t) ty =
   match (required, Type.head ty) with

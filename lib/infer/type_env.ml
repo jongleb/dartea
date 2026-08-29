@@ -2,8 +2,6 @@ open Typed
 open Typed.Type
 module Name_map = Data.Name.Map
 
-type ctor_info = { name : Data.Name.t; arity : int; index : int; total : int }
-
 type t = {
   types : Canonical.Typedecl.t Name_map.t;
   constructors :
@@ -156,29 +154,3 @@ let constructor_values (type_env : t) =
 
 let constructor_of name type_env = Name_map.find_opt name type_env.constructors
 let typedecls type_env = List.map snd (Name_map.bindings type_env.types)
-let payload_arity (ctor : Canonical.Typedecl.type_ctor) = List.length ctor.data
-
-let siblings type_env =
-  Name_map.to_seq type_env.types
-  |> Seq.concat_map (fun (_, (declared : Canonical.Typedecl.t)) ->
-         let siblings =
-           List.map
-             (fun (ctor : Canonical.Typedecl.type_ctor) ->
-               (ctor.id, payload_arity ctor))
-             declared.ctors
-         in
-         List.to_seq declared.ctors
-         |> Seq.map (fun (ctor : Canonical.Typedecl.type_ctor) ->
-                (ctor.id, siblings)))
-  |> Name_map.of_seq
-
-let constructor_infos type_env =
-  Name_map.fold
-    (fun _ (declared : Canonical.Typedecl.t) collected ->
-      let total = List.length declared.ctors in
-      List.mapi
-        (fun index (ctor : Canonical.Typedecl.type_ctor) ->
-          { name = ctor.id; arity = payload_arity ctor; index; total })
-        declared.ctors
-      @ collected)
-    type_env.types []

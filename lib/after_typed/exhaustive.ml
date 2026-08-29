@@ -395,7 +395,8 @@ let best_column siblings m =
     prefix 0 [] m.rows
   in
   let necessity = List.length m.rows <= 32 in
-  let key i = ((if necessity then score_p i else 0), score_ba i) in
+  let necessity_score i = if necessity then score_p i else 0 in
+  let key i = (necessity_score i, score_ba i) in
   let candidate i = List.exists (fun p -> not (is_wild p)) (column_pats i) in
   match List.filter candidate (List.init (List.length m.occs) Fun.id) with
   | [] -> 0

@@ -251,7 +251,7 @@ x = Red
   in
   let siblings =
     Data.Name.Map.find_opt (global "Paint" "Red")
-      result.Infer.Declarations.siblings_env
+      (Canonical.Typedecl.siblings result.Infer.Declarations.typedecls)
   in
   assert_equal
     ~printer:(function
@@ -323,10 +323,9 @@ x = Box Blue
 |}
   in
   let arity_of name =
-    List.find_opt
-      (fun (c : Infer.Type_env.ctor_info) -> Data.Name.equal c.name name)
-      result.Infer.Declarations.constructors
-    |> Option.map (fun (c : Infer.Type_env.ctor_info) -> c.arity)
+    List.assoc_opt name
+      (List.concat_map Canonical.Typedecl.arities
+         result.Infer.Declarations.typedecls)
   in
   assert_equal
     ~printer:(function None -> "<absent>" | Some n -> string_of_int n)

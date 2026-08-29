@@ -8,9 +8,13 @@ let body source =
   |> List.filter_map (fun line ->
          if String.starts_with ~prefix:"import " line then None
          else
-           match Data.Text.after_prefix ~prefix:"export" line with
-           | Some rest -> Some ("return" ^ rest)
-           | None -> Some line)
+           let keyword = "export" in
+           if String.starts_with ~prefix:keyword line then
+             Some
+               ("return"
+               ^ String.sub line (String.length keyword)
+                   (String.length line - String.length keyword))
+           else Some line)
   |> String.concat "\n" |> String.trim
 
 let wrapped { name; source } =

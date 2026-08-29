@@ -97,9 +97,9 @@ z = 3
 |};
       ]
   in
-  match Canonicalization.Module_graph.in_dependency_order modules with
+  match Canonical.Module.in_dependency_order modules with
   | Error e ->
-      assert_failure (Canonicalization.Module_graph.show_error e)
+      assert_failure (Canonical.Module.show_error e)
   | Ok ordered ->
       assert_equal
         ~printer:(String.concat ", ")
@@ -126,12 +126,12 @@ y = 2
 |};
       ]
   in
-  match Canonicalization.Module_graph.in_dependency_order modules with
+  match Canonical.Module.in_dependency_order modules with
   | Ok _ -> assert_failure "expected an import cycle"
   | Error e ->
       assert_equal
-        ~printer:Canonicalization.Module_graph.show_error
-        (Canonicalization.Module_graph.Import_cycle [ "Main"; "Other" ])
+        ~printer:Canonical.Module.show_error
+        (Canonical.Module.Import_cycle [ "Main"; "Other" ])
         e
 
 let test_alias_is_the_real_module _ =
@@ -676,8 +676,8 @@ w = 4
 |};
       ]
   in
-  match Canonicalization.Module_graph.in_dependency_order modules with
-  | Error e -> assert_failure (Canonicalization.Module_graph.show_error e)
+  match Canonical.Module.in_dependency_order modules with
+  | Error e -> assert_failure (Canonical.Module.show_error e)
   | Ok ordered ->
       assert_equal
         ~printer:(String.concat ", ")
@@ -697,8 +697,8 @@ x = 1
 |};
       ]
   in
-  match Canonicalization.Module_graph.in_dependency_order modules with
-  | Error e -> assert_failure (Canonicalization.Module_graph.show_error e)
+  match Canonical.Module.in_dependency_order modules with
+  | Error e -> assert_failure (Canonical.Module.show_error e)
   | Ok ordered ->
       assert_equal
         ~printer:(String.concat ", ")

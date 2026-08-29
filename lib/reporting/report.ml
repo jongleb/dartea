@@ -79,7 +79,8 @@ let quoted written = "`" ^ written ^ "`"
 let indented inner = Doc.indent 4 inner
 
 let args count =
-  Printf.sprintf "%d %s" count (if count = 1 then "argument" else "arguments")
+  let noun = if count = 1 then "argument" else "arguments" in
+  Printf.sprintf "%d %s" count noun
 
 let ordinal index =
   let ending =
@@ -158,17 +159,17 @@ let hint_of (problem : Hint.t) =
           "Use Maybe.withDefault to handle possible errors. Longer term, it is usually better to write out the full `case` though!";
       ]
   | Arity_mismatch { found; expected } ->
-      [
-        simple_hint
-          (if found < expected then
-             Printf.sprintf
-               "It looks like it takes too few arguments. I was expecting %d more."
-               (expected - found)
-           else
-             Printf.sprintf
-               "It looks like it takes too many arguments. I see %d extra."
-               (found - expected));
-      ]
+      let observation =
+        if found < expected then
+          Printf.sprintf
+            "It looks like it takes too few arguments. I was expecting %d more."
+            (expected - found)
+        else
+          Printf.sprintf
+            "It looks like it takes too many arguments. I see %d extra."
+            (found - expected)
+      in
+      [ simple_hint observation ]
   | Bad_flex_super { direction; required; found } -> begin
       match (required : Data.Constraint.t) with
       | Comparable -> begin
@@ -387,24 +388,26 @@ let of_operator naming ~snippet ~category ~found ~expected ~side ~operator =
          ~details:[])
   in
   let bad_division ~kind ~needs ~mistaken ~advice ~examples =
+    let body =
+      if mistaken then
+        Doc.stack
+          [
+            Doc.words advice;
+            Doc.above (List.map (fun line -> indented (Doc.text line)) examples);
+            no_implicit_casts;
+          ]
+      else
+        lone_with
+          ~i_am_seeing:
+            (Printf.sprintf
+               "The %s side of (%s) must be %s, but instead I am seeing:" side
+               written needs)
+          ~details:[]
+    in
     problem_and_body
       (Printf.sprintf "The (%s) operator is specifically for %s division:"
          written kind)
-      (if mistaken then
-         Doc.stack
-           [
-             Doc.words advice;
-             Doc.above
-               (List.map (fun line -> indented (Doc.text line)) examples);
-             no_implicit_casts;
-           ]
-       else
-         lone_with
-           ~i_am_seeing:
-             (Printf.sprintf
-                "The %s side of (%s) must be %s, but instead I am seeing:" side
-                written needs)
-           ~details:[])
+      body
   in
   let bad_float_division () =
     bad_division ~kind:"floating-point" ~needs:"a Float"
@@ -599,20 +602,30 @@ let of_expression source region category found (expected : Expectation.t) =
               ]
       | Call_arity { callee; given } ->
           let takes = Typed.Type.arrows found in
+          let complaint =
+            if takes = 0 then
+              Printf.sprintf "%s is not a function, but it was given %s."
+                (this_value callee) (args given)
+            else
+              Printf.sprintf "%s expects %s, but it got %d instead."
+                (this_function callee) (args takes) given
+          in
           Doc.stack
             [
-              Doc.words
-                (if takes = 0 then
-                   Printf.sprintf "%s is not a function, but it was given %s."
-                     (this_value callee) (args given)
-                 else
-                   Printf.sprintf "%s expects %s, but it got %d instead."
-                     (this_function callee) (args takes) given);
+              Doc.words complaint;
               snippet;
               Doc.words "Are there any missing commas? Or missing parentheses?";
             ]
       | Call_arg { callee; index } ->
           let ith = ordinal index in
+          let earlier_arguments =
+            if index = 1 then []
+            else
+              [
+                simple_hint
+                  "I always figure out the argument types from left to right. If an argument is acceptable, I assume it is \"correct\" and move on. So the problem may actually be in one of the previous arguments!";
+              ]
+          in
           mismatch expected
             ~problem:
               (Printf.sprintf "The %s argument to %s is not what I expect:" ith
@@ -621,13 +634,7 @@ let of_expression source region category found (expected : Expectation.t) =
             ~instead_of:
               (Printf.sprintf "But %s needs the %s argument to be:"
                  (named callee) ith)
-            ~details:
-              (if index = 1 then []
-               else
-                 [
-                   simple_hint
-                     "I always figure out the argument types from left to right. If an argument is acceptable, I assume it is \"correct\" and move on. So the problem may actually be in one of the previous arguments!";
-                 ])
+            ~details:earlier_arguments
       | Record_access { field } ->
           bad_type expected
             ~problem:"This is not a record, so it has no fields to access!"
@@ -744,15 +751,18 @@ let of_type_problem source region (problem : Type_error.t) =
         ]
   | Bad_arity { thing; name; expects; given } ->
       let what = match thing with A_type -> "type" | A_variant -> "variant" in
+      let question =
+        if given < expects then
+          "What is missing? Are some parentheses misplaced?"
+        else if given - expects = 1 then
+          "Which is the extra one? Maybe some parentheses are missing?"
+        else "Which are the extra ones? Maybe some parentheses are missing?"
+      in
       explaining
         (Printf.sprintf "The %s %s needs %s, but I see %d instead:"
            (quoted (Data.Name.base name))
            what (args expects) given)
-        (if given < expects then
-           "What is missing? Are some parentheses misplaced?"
-         else if given - expects = 1 then
-           "Which is the extra one? Maybe some parentheses are missing?"
-         else "Which are the extra ones? Maybe some parentheses are missing?")
+        question
   | Case_without_branches ->
       explaining "This `case` does not have any branches:"
         "A `case` needs at least one branch, so I know what to do with the value it is given."

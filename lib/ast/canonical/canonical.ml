@@ -209,6 +209,17 @@ module Typedecl = struct
     in
     { name = Data.Name.local td.name.thing; ctors; params = td.params;
       region = td.name.region }
+
+  let arities (declared : t) =
+    List.map (fun ctor -> (ctor.id, List.length ctor.data)) declared.ctors
+
+  let siblings (declarations : t list) =
+    List.concat_map
+      (fun declared ->
+        let family = arities declared in
+        List.map (fun (ctor, _) -> (ctor, family)) family)
+      declarations
+    |> List.to_seq |> Data.Name.Map.of_seq
 end
 
 module Import = struct
@@ -551,6 +562,61 @@ module Module = struct
       type_declarations;
       top_declarations;
     }
+
+  module String_set = Set.Make (String)
+
+  type error = Import_cycle of string list [@@deriving show]
+
+  let show_error (Import_cycle modules) =
+    "these modules import each other in a cycle: " ^ String.concat ", " modules
+
+  type traversal = {
+    settled : String_set.t;
+    ordered : t list;
+  }
+
+  let in_dependency_order (modules : t list) :
+      (t list, error) result =
+    let known =
+      List.fold_left
+        (fun acc (m : t) -> String_map.add m.name m acc)
+        String_map.empty modules
+    in
+    let cycle_through ~importing name =
+      let rec until_start = function
+        | [] -> []
+        | current :: outer ->
+            if String.equal current name then [ current ]
+            else current :: until_start outer
+      in
+      List.rev (until_start importing)
+    in
+    let rec visit ~importing traversal name =
+      if String_set.mem name traversal.settled then Ok traversal
+      else if List.exists (String.equal name) importing then
+        Error (Import_cycle (cycle_through ~importing name))
+      else
+        match String_map.find_opt name known with
+        | None -> Ok traversal
+        | Some (m : t) ->
+            let importing = name :: importing in
+            List.fold_left
+              (fun traversal (import : Import.t) ->
+                Result.bind traversal (fun traversal ->
+                    visit ~importing traversal import.module_name))
+              (Ok traversal) m.imports
+            |> Result.map (fun traversal ->
+                   {
+                     settled = String_set.add name traversal.settled;
+                     ordered = m :: traversal.ordered;
+                   })
+    in
+    List.fold_left
+      (fun traversal (m : t) ->
+        Result.bind traversal (fun traversal -> visit ~importing:[] traversal m.name))
+      (Ok { settled = String_set.empty; ordered = [] })
+      modules
+    |> Result.map (fun traversal -> List.rev traversal.ordered)
 end
 
 module Exports = struct

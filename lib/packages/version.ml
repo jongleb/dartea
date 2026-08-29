@@ -31,9 +31,13 @@ module Range = struct
     | Upward version -> upward ^ show version
 
   let of_string written =
-    match Data.Text.after_prefix ~prefix:upward written with
-    | Some after -> Option.map (fun version -> Upward version) (of_string after)
-    | None -> Option.map (fun version -> Exactly version) (of_string written)
+    if String.starts_with ~prefix:upward written then
+      let after =
+        String.sub written (String.length upward)
+          (String.length written - String.length upward)
+      in
+      Option.map (fun version -> Upward version) (of_string after)
+    else Option.map (fun version -> Exactly version) (of_string written)
 end
 
 module Interval = struct

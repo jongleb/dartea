@@ -64,9 +64,14 @@ let parsed source =
   let listed = function
     | [] -> []
     | opening :: rest ->
-        Option.value ~default:opening
-          (Data.Text.after_prefix ~prefix:"export" opening)
-        :: rest
+        let keyword = "export" in
+        let unexported =
+          if String.starts_with ~prefix:keyword opening then
+            String.sub opening (String.length keyword)
+              (String.length opening - String.length keyword)
+          else opening
+        in
+        unexported :: rest
   in
   let preamble, rest = opening [] (String.split_on_char '\n' source) in
   let blocks, tail = gathered [] rest in

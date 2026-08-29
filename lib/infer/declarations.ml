@@ -6,8 +6,6 @@ open Expressions
 type infer_result = {
   values : Value_env.t;
   declarations : Typed.Declaration.t list;
-  siblings_env : (Data.Name.t * int) list Name_map.t;
-  constructors : Type_env.ctor_info list;
   typedecls : Canonical.Typedecl.t list;
   errors : Reporting.Error.t list;
 }
@@ -170,7 +168,7 @@ let infer_toplevel ~(imports : Interface.t list) (module_ : Canonical.Module.t) 
     List.mapi
       (fun position declaration -> (position, declaration))
       module_.top_declarations
-    |> Canonicalization.Declaration_graph.in_dependency_order ~declaration:snd
+    |> Canonicalization.Scope.in_dependency_order ~declaration:snd
     |> List.fold_left
          (fun (ctx, collected, found) group ->
            match infer_group ctx group with
@@ -189,8 +187,6 @@ let infer_toplevel ~(imports : Interface.t list) (module_ : Canonical.Module.t) 
     {
       values = final_values;
       declarations = as_declared;
-      siblings_env = Type_env.siblings type_env;
-      constructors = Type_env.constructor_infos type_env;
       typedecls = Type_env.typedecls type_env;
       errors = List.rev found;
     }

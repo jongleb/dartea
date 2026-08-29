@@ -17,11 +17,8 @@ let apply_to (fn : O.Expr.t) (arguments : O.Expr.t list) : O.Expr.t =
     fn arguments
 
 let boolean_constructor value : O.Expr.expr =
-  O.Expr.Expr_constr
-    {
-      name = Data.Name.local (if value then "True" else "False");
-      arguments = [];
-    }
+  let name = if value then "True" else "False" in
+  O.Expr.Expr_constr { name = Data.Name.local name; arguments = [] }
 
 let is_duplicable (e : O.Expr.t) : bool =
   match e.expr with
