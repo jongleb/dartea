@@ -9,5 +9,7 @@
   tar.gz
   tar-unix
   files
+  fpath
+
   packages
   diagnostic))

@@ -1,5 +1,5 @@
 %{
-    open Ast.Kind.Frontend
+    open Frontend
     open Data
     open Expr
     open Pattern
@@ -80,13 +80,13 @@
 %right COMPOSE_R
 %nonassoc UMINUS
 
-%type <Ast.Kind.Frontend.Expr.t> expr
-%type <Ast.Kind.Frontend.Typedef.Impl.t> type_expr
-%type <Ast.Kind.Frontend.Typedef.Kind.t> type_atom_no_parens
-%type <Ast.Kind.Frontend.Typedef.Impl.t> type_in_parens
-%type <Ast.Kind.Frontend.Typedef.Impl.t> type_in_parens_content
+%type <Frontend.Expr.t> expr
+%type <Frontend.Typedef.Impl.t> type_expr
+%type <Frontend.Typedef.Kind.t> type_atom_no_parens
+%type <Frontend.Typedef.Impl.t> type_in_parens
+%type <Frontend.Typedef.Impl.t> type_in_parens_content
 
-%start <Ast.Kind.Frontend.Impl.t list> prog
+%start <Frontend.Impl.t list> prog
 %%
 
 prog:

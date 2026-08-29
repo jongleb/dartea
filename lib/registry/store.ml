@@ -14,14 +14,8 @@ let refuse (pick : Pick.t) problem =
 let digested content =
   Base64.encode_string Digestif.SHA512.(to_raw_string (digest_string content))
 
-let checksum integrity =
-  let width = String.length sha512 in
-  if String.starts_with ~prefix:sha512 integrity then
-    Some (String.sub integrity width (String.length integrity - width))
-  else None
-
 let verified pick ~integrity content =
-  match checksum integrity with
+  match Data.Text.after_prefix ~prefix:sha512 integrity with
   | None ->
       refuse pick "the registry gave me no sha512 checksum for this tarball"
   | Some wanted when String.equal wanted (digested content) -> ()
@@ -45,27 +39,26 @@ let unpacked pick native =
   | Error _ -> refuse pick "I could not unpack the tarball"
 
 let stripped pick name =
-  match Files.Relative.of_string name with
+  match Fpath.segs (Fpath.v name) with
   | head :: rest when String.equal head root_folder -> rest
   | _ -> refuse pick ("the tarball holds " ^ name ^ " outside its own folder")
 
-let safe pick path =
-  if List.exists (String.equal upward) path then
-    refuse pick
-      ("the tarball tries to write outside itself: "
-     ^ Files.Relative.shown path)
-  else path
+let safe pick ~name segments =
+  if List.exists (String.equal upward) segments then
+    refuse pick ("the tarball tries to write outside itself: " ^ name)
+  else segments
 
 let placed root pick (name, content) =
-  match safe pick (stripped pick name) with
+  match safe pick ~name (stripped pick name) with
   | [] -> ()
-  | path ->
-      Files.Dir.saved root (Files.Relative.inside (Vendor.at pick) path) content
+  | first :: rest ->
+      let path = List.fold_left Fpath.add_seg (Fpath.v first) rest in
+      Files.saved root (Fpath.append (Pick.folder pick) path) content
 
 let cached root pick content =
-  let path = Vendor.tarball pick in
-  Files.Dir.saved root path content;
-  Files.Dir.at root path
+  let path = Pick.tarball pick in
+  Files.saved root path content;
+  Files.at root path
 
 let kept root pick ~integrity content =
   verified pick ~integrity content;

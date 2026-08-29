@@ -1,13 +1,13 @@
 type view = {
   versions : string -> Version.t list;
-  dependencies : string -> Version.t -> (string * Range.t) list;
+  dependencies : string -> Version.t -> (string * Version.Range.t) list;
 }
 
 type problem =
   | Unknown_package of { package : string; asked_by : string }
   | No_version of { package : string; asked : (string * string) list }
 
-type need = { bounds : Interval.t; asked : (string * Range.t) list }
+type need = { bounds : Version.Interval.t; asked : (string * Version.Range.t) list }
 
 type state = {
   needs : (string * need) list;
@@ -17,7 +17,7 @@ type state = {
 let root = "your dependencies"
 
 let unsatisfied package need =
-  let shown (who, range) = (who, Range.show range) in
+  let shown (who, range) = (who, Version.Range.show range) in
   No_version { package; asked = List.map shown need.asked }
 
 let asker need =
@@ -33,20 +33,20 @@ let replaced ~package need needs =
 
 let settled state package need =
   match List.assoc_opt package state.chosen with
-  | Some version when not (Interval.holds need.bounds version) ->
+  | Some version when not (Version.Interval.holds need.bounds version) ->
       Error (unsatisfied package need)
   | Some _ | None ->
       Ok { state with needs = replaced ~package need state.needs }
 
 let merged state package held wanting =
   let asked = held.asked @ wanting.asked in
-  match Interval.meet held.bounds wanting.bounds with
+  match Version.Interval.meet held.bounds wanting.bounds with
   | None -> Error (unsatisfied package { held with asked })
   | Some bounds -> settled state package { bounds; asked }
 
 let noting ~asked_by state (package, range) =
   let wanting =
-    { bounds = Interval.of_range range; asked = [ (asked_by, range) ] }
+    { bounds = Version.Interval.of_range range; asked = [ (asked_by, range) ] }
   in
   match List.assoc_opt package state.needs with
   | None -> settled state package wanting
@@ -71,7 +71,7 @@ and pick view state package need =
   match view.versions package with
   | [] -> Error (Unknown_package { package; asked_by = asker need })
   | available ->
-      let fits = List.filter (Interval.holds need.bounds) available in
+      let fits = List.filter (Version.Interval.holds need.bounds) available in
       tried view state package need (List.sort newest fits)
 
 and tried view state package need = function

@@ -1,5 +1,5 @@
 open OUnit2
-open Ast.Kind.Frontend
+open Frontend
 module Main = Parse.Main
 
 (* let test_expr_const_take_from_exports _ =

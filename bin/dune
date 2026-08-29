@@ -2,6 +2,7 @@
  (public_name dartea)
  (name main)
  (libraries
+  fpath
   dartea
   reporting
   project

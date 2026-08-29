@@ -1,5 +1,3 @@
-(* JavaScript AST for code generation *)
-
 type identifier = string [@@deriving show]
 
 type literal =
@@ -157,3 +155,24 @@ let members_of ~(object_ : identifier) (p : program) : identifier list =
              if List.mem name found then found else name :: found
          | _ -> found)
        [] p)
+
+let int n = Literal (Int n)
+let string text = Literal (String text)
+let bool truth = Literal (Bool truth)
+let binary op left right = Binary { left; op; right }
+let call callee args = Call { callee; args }
+
+let member object_ property =
+  Member { object_; property = Identifier property; computed = false }
+
+let indexed object_ index =
+  Member { object_; property = Literal (Int index); computed = true }
+
+let assigned name value =
+  ExprStmt (Assignment { left = Identifier name; right = value })
+
+let returning_when test result =
+  If { test; consequent = [ Return (Some result) ]; alternate = None }
+
+let is_object subject =
+  binary StrictEqual (Unary { op = Typeof; arg = subject }) (string "object")

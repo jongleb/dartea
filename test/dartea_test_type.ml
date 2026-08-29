@@ -1,5 +1,5 @@
 open OUnit2
-open Ast.Kind.Frontend
+open Frontend
 open Data
 open Located
 module Main = Parse.Main

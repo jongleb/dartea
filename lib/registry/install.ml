@@ -25,39 +25,29 @@ let solved registry ~file (manifest : Manifest.t) =
   | Error (Solver.No_version { package; asked }) ->
       unusable registry ~file package asked
 
-let refuse ~file (pick : Pick.t) problem =
-  Diagnostic.Failure.raise_project
-    (Bad_tarball
-       {
-         file;
-         package = pick.package;
-         version = Version.show pick.version;
-         problem;
-       })
-
-let stored registry root ~file pick (release : Npm.release) =
+let stored registry root pick (release : Npm.release) =
   match Npm.payload registry release.tarball with
   | Some content -> Store.kept root pick ~integrity:release.integrity content
-  | None -> refuse ~file pick "the registry no longer serves this tarball"
+  | None -> Store.refuse pick "the registry no longer serves this tarball"
 
 let installing registry root ~file ~say pick =
   say ("  downloading " ^ Pick.shown pick);
   match Npm.at registry pick with
-  | Some release -> stored registry root ~file pick release
+  | Some release -> stored registry root pick release
   | None ->
       Diagnostic.Failure.raise_project
         (Unknown_package
            { file; package = pick.package; asked_by = "the registry" })
 
 let taken registry root ~file ~say pick =
-  if Files.Dir.is_directory root (Vendor.at pick) then
+  if Files.is_directory root (Pick.folder pick) then
     say ("  keeping " ^ Pick.shown pick)
   else installing registry root ~file ~say pick
 
 let agrees picks (package, range) =
   match Pick.found package picks with
   | Some (pick : Pick.t) ->
-      Interval.holds (Interval.of_range range) pick.version
+      Version.Interval.holds (Version.Interval.of_range range) pick.version
   | None -> false
 
 let covering (manifest : Manifest.t) (lock : Lock.t) =

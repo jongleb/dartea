@@ -57,20 +57,20 @@ let slice source (region : R.t) =
 let expression source name =
   List.find_map
     (function
-      | Ast.Kind.Frontend.Impl.Top_declaration (d : Ast.Kind.Frontend.Declaration.t)
+      | Frontend.Impl.Top_declaration (d : Frontend.Declaration.t)
         when String.equal (Data.Located.unwrap d.body_part.name) name ->
           Some d.body_part.expr
       | _ -> None)
     (Utils.parsed source)
   |> Option.get
 
-let assert_slice ~expected source (expr : Ast.Kind.Frontend.Expr.t) =
+let assert_slice ~expected source (expr : Frontend.Expr.t) =
   assert_equal ~printer:Fun.id expected (slice source expr.region)
 
 let test_an_argument_is_underlined _ =
   let source = "f : Int -> Int\nf n = n\n\nbad = f \"text\"\n" in
   match (expression source "bad").thing with
-  | Ast.Kind.Frontend.Expr.Expr_apply { fn; arg } ->
+  | Frontend.Expr.Expr_apply { fn; arg } ->
       assert_slice ~expected:"f" source fn;
       assert_slice ~expected:"\"text\"" source arg;
       assert_slice ~expected:"f \"text\"" source (expression source "bad")
@@ -79,7 +79,7 @@ let test_an_argument_is_underlined _ =
 let test_a_branch_is_underlined _ =
   let source = "answer m =\n    case m of\n        Just x ->\n            x\n" in
   match (expression source "answer").thing with
-  | Ast.Kind.Frontend.Expr.Expr_pattern { expr; pattern_data_items = [ branch ] } ->
+  | Frontend.Expr.Expr_pattern { expr; pattern_data_items = [ branch ] } ->
       assert_slice ~expected:"m" source expr;
       assert_equal ~printer:Fun.id "Just x" (slice source branch.pattern.region);
       assert_slice ~expected:"x" source branch.expr
@@ -88,7 +88,7 @@ let test_a_branch_is_underlined _ =
 let test_an_operand_is_underlined _ =
   let source = "total a =\n    a + 1\n" in
   match (expression source "total").thing with
-  | Ast.Kind.Frontend.Expr.Expr_binop { operands = left, right; _ } ->
+  | Frontend.Expr.Expr_binop { operands = left, right; _ } ->
       assert_slice ~expected:"a" source left;
       assert_slice ~expected:"1" source right
   | _ -> assert_failure "total is not a binary operation"

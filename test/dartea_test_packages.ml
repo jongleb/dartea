@@ -7,7 +7,7 @@ let version written =
   | None -> assert_failure (written ^ " is not a version")
 
 let range written =
-  match Range.of_string written with
+  match Version.Range.of_string written with
   | Some range -> range
   | None -> assert_failure (written ^ " is not a range")
 
@@ -29,7 +29,7 @@ let test_versions_order _ =
   assert_equal ~printer:Sample.names ordered (List.map Version.show sorted)
 
 let allows written picked =
-  Interval.holds (Interval.of_range (range written)) (version picked)
+  Version.Interval.holds (Version.Interval.of_range (range written)) (version picked)
 
 let test_an_exact_range_takes_one_version _ =
   assert_bool "1.2.0 was refused" (allows "1.2.0" "1.2.0");
@@ -45,15 +45,15 @@ let test_a_caret_range_takes_the_major _ =
 let test_ranges_round_trip _ =
   List.iter
     (fun written ->
-      assert_equal ~printer:Fun.id written (Range.show (range written)))
+      assert_equal ~printer:Fun.id written (Version.Range.show (range written)))
     [ "1.2.0"; "^1.2.0" ]
 
 let met one other =
   Option.map
-    (fun (bounds : Interval.t) ->
+    (fun (bounds : Version.Interval.t) ->
       (Version.show bounds.least, Version.show bounds.below))
-    (Interval.meet (Interval.of_range (range one))
-       (Interval.of_range (range other)))
+    (Version.Interval.meet (Version.Interval.of_range (range one))
+       (Version.Interval.of_range (range other)))
 
 let printer = function
   | None -> "nothing"
@@ -155,7 +155,7 @@ let test_an_unknown_package_is_named _ =
 let read_manifest written =
   let folder = Sample.folder () in
   Sample.written ~folder ~path:Manifest.file_name written;
-  Manifest.of_folder (Files.Dir.of_string folder)
+  Manifest.of_folder (Fpath.v folder)
 
 let manifest_of written =
   match read_manifest written with
@@ -174,7 +174,7 @@ let test_a_manifest_reads_ranges _ =
     [ "@dartea/router"; "@dartea/ui" ]
     (List.map fst manifest.dependencies);
   assert_equal ~printer:Sample.names [ "^1.2.0"; "2.0.0" ]
-    (List.map (fun (_, held) -> Range.show held) manifest.dependencies)
+    (List.map (fun (_, held) -> Version.Range.show held) manifest.dependencies)
 
 let test_a_manifest_defaults_to_src _ =
   let manifest = manifest_of {|{ "name": "app" }|} in
@@ -202,7 +202,7 @@ let test_a_lock_round_trips _ =
   in
   let folder = Sample.folder () in
   Sample.written ~folder ~path:Lock.file_name (Lock.shown packages);
-  match Lock.of_folder (Files.Dir.of_string folder) with
+  match Lock.of_folder (Fpath.v folder) with
   | None -> assert_failure "the lock file was not found"
   | Some lock ->
       assert_equal ~printer:Sample.names

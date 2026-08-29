@@ -14,7 +14,7 @@ let refused ~seen errors =
   exit 1
 
 let saved ~path (file : Dartea.Delivery.file) =
-  Files.Dir.saved path (Files.Relative.of_string file.path) file.content
+  Files.saved path (Fpath.v file.path) file.content
 
 let warned ~seen (outcome : Dartea.Compiler.outcome) =
   List.iter
@@ -68,7 +68,7 @@ let folder_and_entry target =
 
 let make target output =
   let folder, entry_file = folder_and_entry target in
-  let path = Files.Dir.of_string folder in
+  let path = Fpath.v folder in
   let sources = loaded path in
   let entry = Option.map (entry_in (Project.Sources.files sources)) entry_file in
   compiled ~path ~output ~entry sources
@@ -78,7 +78,7 @@ let counted picked =
   Printf.sprintf "%d package%s" count (if count = 1 then "" else "s")
 
 let install folder =
-  match Registry.Install.run (Files.Dir.of_string folder) ~say:print_endline
+  match Registry.Install.run (Fpath.v folder) ~say:print_endline
   with
   | picked ->
       print_endline

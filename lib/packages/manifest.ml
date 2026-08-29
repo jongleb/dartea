@@ -1,37 +1,31 @@
 type t = {
   file : string;
   source_directories : string list;
-  dependencies : (string * Range.t) list;
+  dependencies : (string * Version.Range.t) list;
 }
 
 let file_name = "dartea.json"
-let path = Files.Relative.of_string file_name
+let path = Fpath.v file_name
+let folders = "source-directories"
 let field = "dependencies"
 let default_source_directory = "src"
+let an_array_of_strings = "an array of strings"
 
-let wanted ~file (name, held) = (name, Json.range ~file ~field held)
+let source_directories =
+  Json.nonempty "at least one folder"
+    (Json.items an_array_of_strings (Json.text an_array_of_strings))
 
-let depended ~file rows =
-  match List.assoc_opt field rows with
-  | None -> []
-  | Some (`Assoc packages) -> List.map (wanted ~file) packages
-  | Some _ -> Json.bad ~file ~field "an object of packages and versions"
-
-let folders ~file rows =
-  let field = "source-directories" in
-  let expected = "an array of strings" in
-  match List.assoc_opt field rows with
-  | None -> [ default_source_directory ]
-  | Some (`List []) -> Json.bad ~file ~field "at least one folder"
-  | Some (`List items) -> Json.strings ~file ~field expected items
-  | Some _ -> Json.bad ~file ~field expected
+let dependencies = Json.pairs "an object of packages and versions" Json.range
 
 let decoded ~file content =
   let rows = Json.rows_of ~file content in
   {
     file;
-    source_directories = folders ~file rows;
-    dependencies = depended ~file rows;
+    source_directories =
+      Json.optional ~file rows folders
+        ~default:[ default_source_directory ]
+        source_directories;
+    dependencies = Json.optional ~file rows field ~default:[] dependencies;
   }
 
 let of_folder root = Json.loaded root path decoded

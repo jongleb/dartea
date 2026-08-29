@@ -113,16 +113,10 @@ type reference =
 let namespace = "Elm.Kernel."
 
 let referred_to_by (name : Name.t) : reference =
-  let inside_namespace module_name =
-    let prefix = String.length namespace in
-    if String.starts_with ~prefix:namespace module_name then
-      Some (String.sub module_name prefix (String.length module_name - prefix))
-    else None
-  in
   match name with
   | Name.Local _ -> Not_kernel
   | Name.Global { module_name; exported_name } -> begin
-      match inside_namespace module_name with
+      match Text.after_prefix ~prefix:namespace module_name with
       | None -> Not_kernel
       | Some kernel_module -> begin
           let inside = Name.global ~module_name:kernel_module ~exported_name in

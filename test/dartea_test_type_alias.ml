@@ -1,5 +1,5 @@
 open OUnit2
-open Ast.Kind.Frontend
+open Frontend
 module Main = Parse.Main
 
 let test_ty_alias_record _ =

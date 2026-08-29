@@ -4,7 +4,7 @@ exception Offline of { url : string; problem : string }
 
 type release = {
   version : Version.t;
-  dependencies : (string * Range.t) list;
+  dependencies : (string * Version.Range.t) list;
   tarball : string;
   integrity : string;
 }
@@ -20,18 +20,13 @@ let abbreviated = "application/vnd.npm.install-v1+json"
 let escaped package = String.concat "%2f" (String.split_on_char '/' package)
 let address package = home ^ escaped package
 
-let rec every = function
-  | [] -> Ok []
-  | Error refused :: _ -> Error refused
-  | Ok head :: rest -> Result.map (fun tail -> head :: tail) (every rest)
-
 let text rows field =
   match List.assoc_opt field rows with
   | Some (`String written) -> Some written
   | _ -> None
 
 let parsed name range =
-  match Range.of_string range with
+  match Version.Range.of_string range with
   | Some held -> Ok (name, held)
   | None -> Error (name, range)
 
@@ -40,10 +35,16 @@ let ranged (name, written) =
   | `String range -> parsed name range
   | _ -> Error (name, Yojson.Safe.to_string written)
 
+let rec ranged_all = function
+  | [] -> Ok []
+  | (name, held) :: rest ->
+      Result.bind (ranged (name, held)) (fun range ->
+          Result.map (fun others -> range :: others) (ranged_all rest))
+
 let needed rows =
   match List.assoc_opt "dependencies" rows with
   | None -> Ok []
-  | Some (`Assoc packages) -> every (List.map ranged packages)
+  | Some (`Assoc packages) -> ranged_all packages
   | Some held -> Error ("dependencies", Yojson.Safe.to_string held)
 
 let handed rows =
@@ -77,16 +78,18 @@ let sifted outcomes =
     refusals = List.filter_map refused outcomes;
   }
 
+let nothing = { releases = []; refusals = [] }
+
 let listed rows =
   match List.assoc_opt "versions" rows with
   | Some (`Assoc releases) -> sifted (List.filter_map release_of releases)
-  | _ -> { releases = []; refusals = [] }
+  | _ -> nothing
 
 let releases content =
   match Yojson.Safe.from_string content with
   | `Assoc rows -> listed rows
-  | _ -> { releases = []; refusals = [] }
-  | exception Yojson.Json_error _ -> { releases = []; refusals = [] }
+  | _ -> nothing
+  | exception Yojson.Json_error _ -> nothing
 
 let anything = "*/*"
 
@@ -104,8 +107,7 @@ let downloaded registry package =
   let url = address package in
   match Fetch.answered registry.client ~accept:abbreviated url with
   | Fetch.Found content -> remembered registry package (releases content)
-  | Fetch.Absent ->
-      remembered registry package { releases = []; refusals = [] }
+  | Fetch.Absent -> remembered registry package nothing
   | Fetch.Broken problem -> raise (Offline { url; problem })
 
 let loaded registry package =

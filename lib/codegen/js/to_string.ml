@@ -1,12 +1,8 @@
-(* Convert JavaScript AST to string *)
-
 module J = Ast
 
 let indent_level = 2
 
-let rec repeat str n = if n <= 0 then "" else str ^ repeat str (n - 1)
-
-let indent n = repeat " " (n * indent_level)
+let indent n = String.make (n * indent_level) ' '
 
 let escaped_string text =
   let escaped = Buffer.create (String.length text + 2) in

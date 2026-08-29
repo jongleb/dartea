@@ -40,7 +40,7 @@ let delivered ~delivery outcome =
 let compiled_in ~entry folder =
   match
     Project.Sources.load ~provided:Prelude.packages
-      (Files.Dir.of_string folder)
+      (Fpath.v folder)
   with
   | Ok sources -> Dartea.Compiler.compile_modules ~entry sources
   | Error failure ->

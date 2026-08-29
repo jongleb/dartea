@@ -1,4 +1,4 @@
-open Ast.Kind.Frontend
+open Frontend
 open Data
 
 let make_name_no_loc ~name = Located.dummy name
@@ -423,4 +423,4 @@ let parsed source =
 
 let canonical source =
   Canonical.Module.of_frontend ~fallback_name:"Main"
-    (Ast.Kind.Frontend.Module.of_impl (parsed source))
+    (Frontend.Module.of_impl (parsed source))

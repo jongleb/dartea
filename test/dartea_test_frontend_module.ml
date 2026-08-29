@@ -1,5 +1,5 @@
 open OUnit2
-open Ast.Kind.Frontend
+open Frontend
 module Main = Parse.Main
 
 let parse_exn input = match Main.parse ~file:"Main.elm" input with Ok r -> r | Error error -> raise (Reporting.Error.Found error)

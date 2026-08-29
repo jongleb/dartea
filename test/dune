@@ -10,10 +10,10 @@
   ../lib/codegen/c/dartea_runtime.h
   (source_tree ../lib))
  (libraries
+  fpath
   dartea
   typed
   parse
-  ast
   data
   ounit2
   qcheck-core

@@ -3,18 +3,14 @@ type module_ = { name : string; source : string }
 let entry_file = "main.js"
 let page_file = "index.html"
 
-let without_prefix ~prefix line =
-  String.sub line (String.length prefix)
-    (String.length line - String.length prefix)
-
 let body source =
-  let exported = "export" in
   String.split_on_char '\n' source
   |> List.filter_map (fun line ->
          if String.starts_with ~prefix:"import " line then None
-         else if String.starts_with ~prefix:exported line then
-           Some ("return" ^ without_prefix ~prefix:exported line)
-         else Some line)
+         else
+           match Data.Text.after_prefix ~prefix:"export" line with
+           | Some rest -> Some ("return" ^ rest)
+           | None -> Some line)
   |> String.concat "\n" |> String.trim
 
 let wrapped { name; source } =

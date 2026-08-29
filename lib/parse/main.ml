@@ -17,7 +17,7 @@ let parse ~file content =
         (Reporting.Error.syntax ~region:(region ())
            (Reporting.Syntax_error.Unexpected_input
               { found = Lexing.lexeme lexbuf }))
-  | exception Ast.Kind.Frontend.Expr.Too_many_tuple_parts { given; region } ->
+  | exception Frontend.Expr.Too_many_tuple_parts { given; region } ->
       Error
         (Reporting.Error.syntax ~region
            (Reporting.Syntax_error.Too_many_tuple_parts { given }))
