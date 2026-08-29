@@ -6,7 +6,8 @@ let emitted ~entry content =
       [ Project.Elm_file.of_path ~path:"Main.elm" content ]
   in
   match outcome.errors with
-  | [] -> Node_runner.source_of ~module_name:"Main" outcome.output
+  | [] ->
+      Node_runner.source_of ~module_name:"Main" (Node_runner.output_of outcome)
   | error :: _ ->
       assert_failure
         (Sample.rendered (Reporting.Sources.of_list outcome.sources) error)

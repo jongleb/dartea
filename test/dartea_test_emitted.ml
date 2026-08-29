@@ -1,6 +1,5 @@
 open OUnit2
 
-let root = Filename.concat ".." "playgrounds"
 let goldens = "emitted"
 let prelude_folder = "prelude"
 let promoting_into = Sys.getenv_opt "DARTEA_PROMOTE_EMITTED"
@@ -22,29 +21,9 @@ let promoted ~folder ~module_name content =
         (fun out -> Out_channel.output_string out content))
     promoting_into
 
-let refused sources errors =
-  assert_failure
-    (String.concat "\n"
-       (List.map
-          (fun error ->
-            Reporting.Report.to_string ~colours:false
-              (Reporting.Sources.report sources error))
-          errors))
-
-let emitted (outcome : Dartea.Compiler.outcome) =
-  match outcome.errors with
-  | [] ->
-      List.map
-        (fun (compiled : Dartea.Compiler.compiled) ->
-          (compiled.module_name, compiled.source))
-        outcome.output
-  | errors -> refused (Reporting.Sources.of_list outcome.sources) errors
-
-let compiled_in folder =
-  Eio_main.run @@ fun env ->
-  match Project.Sources.load Eio.Path.(Eio.Stdenv.fs env / folder) with
-  | Ok sources -> Dartea.Compiler.compile_modules ~entry:None sources
-  | Error error -> refused Reporting.Sources.empty [ error ]
+let emitted = Sample.emitted
+let compiled_in = Sample.compiled_in
+let refused = Sample.refused
 
 let probe = "Prelude"
 
@@ -93,16 +72,7 @@ let same_as_goldens ~folder modules =
 let test_prelude _ =
   same_as_goldens ~folder:prelude_folder (Lazy.force prelude_emitted)
 
-let playgrounds =
-  Sys.readdir root |> Array.to_list
-  |> List.filter (fun entry ->
-         let path = Filename.concat root entry in
-         Sys.is_directory path
-         && Array.exists
-              (fun file ->
-                Filename.check_suffix file Project.Elm_file.extension)
-              (Sys.readdir path))
-  |> List.sort String.compare
+let playgrounds = Sample.playgrounds
 
 let unchanged_prelude ~folder produced =
   List.iter
@@ -125,7 +95,7 @@ let own produced =
 
 let test_playground folder =
   folder >:: fun _ ->
-  let produced = emitted (compiled_in (Filename.concat root folder)) in
+  let produced = emitted (compiled_in (Filename.concat Sample.playground_root folder)) in
   unchanged_prelude ~folder produced;
   same_as_goldens ~folder (own produced)
 

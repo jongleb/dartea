@@ -438,8 +438,8 @@ let warned files =
   with
   | outcome ->
       List.concat_map
-        (fun (compiled : Dartea.Compiler.compiled) -> compiled.warnings)
-        outcome.output
+        (fun (module_ : Dartea.Compiler.linkable) -> module_.warnings)
+        outcome.modules
   | exception Error.Found error ->
       assert_failure
         (Printf.sprintf "the sample was rejected: %s"

@@ -27,4 +27,6 @@ let () =
                (Reporting.Sources.warning sources found)))
         module_.warnings;
       Printf.printf "\n=== %s ===\n%s\n" module_.module_name module_.source)
-    outcome.output
+    (Dartea.Compiler.link
+       ~roots:(Dartea.Compiler.everything outcome)
+       outcome)

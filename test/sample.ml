@@ -1,3 +1,48 @@
+open OUnit2
+
+let playground_root = Filename.concat ".." "playgrounds"
+
+let playgrounds =
+  Sys.readdir playground_root |> Array.to_list
+  |> List.filter (fun entry ->
+         let path = Filename.concat playground_root entry in
+         Sys.is_directory path
+         && Array.exists
+              (fun file ->
+                Filename.check_suffix file Project.Elm_file.extension)
+              (Sys.readdir path))
+  |> List.sort String.compare
+
+let refused sources errors =
+  assert_failure
+    (String.concat "\n"
+       (List.map
+          (fun error ->
+            Reporting.Report.to_string ~colours:false
+              (Reporting.Sources.report sources error))
+          errors))
+
+let shaken ~roots (outcome : Dartea.Compiler.outcome) =
+  match outcome.errors with
+  | [] ->
+      List.map
+        (fun (compiled : Dartea.Compiler.compiled) ->
+          (compiled.module_name, compiled.source))
+        (Dartea.Compiler.link ~roots outcome)
+  | errors -> refused (Reporting.Sources.of_list outcome.sources) errors
+
+let emitted outcome = shaken ~roots:(Dartea.Compiler.everything outcome) outcome
+
+let delivered ~delivery outcome =
+  let module Delivery = (val delivery : Dartea.Delivery.S) in
+  shaken ~roots:(Delivery.roots outcome) outcome
+
+let compiled_in folder =
+  Eio_main.run @@ fun env ->
+  match Project.Sources.load Eio.Path.(Eio.Stdenv.fs env / folder) with
+  | Ok sources -> Dartea.Compiler.compile_modules ~entry:None sources
+  | Error error -> refused Reporting.Sources.empty [ error ]
+
 let folder () = Filename.temp_dir "dartea" ""
 let read path = In_channel.with_open_bin path In_channel.input_all
 
@@ -62,6 +107,9 @@ main =
 let dom = {|let created = 0;
 let replaced = 0;
 let styled = 0;
+let attributed = 0;
+let erased = 0;
+let written = 0;
 let stopped = 0;
 let prevented = 0;
 
@@ -72,13 +120,13 @@ const make = (tag) => ({
   namespaces: {},
   childNodes: [],
   style: { setProperty() { styled += 1; }, removeProperty() {} },
-  setAttribute(key, value) { this.attributes[key] = value; },
+  setAttribute(key, value) { attributed += 1; this.attributes[key] = value; },
   setAttributeNS(namespace, key, value) {
     this.attributes[key] = value;
     this.namespaces[key] = namespace;
   },
   removeAttributeNS(namespace, key) { delete this.attributes[key]; },
-  removeAttribute(key) { delete this.attributes[key]; },
+  removeAttribute(key) { erased += 1; delete this.attributes[key]; },
   addEventListener(event, handler) { this.listeners[event] = handler; },
   appendChild(child) { this.childNodes.push(child); return child; },
   insertBefore(child, before) {
@@ -109,7 +157,15 @@ globalThis.document = {
     node.namespace = namespace;
     return node;
   },
-  createTextNode: (text) => ({ text, childNodes: [] }),
+  createTextNode: (text) => {
+    let held = text;
+    return {
+      childNodes: [],
+      get text() { return held; },
+      get nodeValue() { return held; },
+      set nodeValue(next) { written += 1; held = next; },
+    };
+  },
 };
 
 const shown = (node) =>
@@ -348,6 +404,106 @@ console.log(
     JSON.stringify(field.attributes.value) +
     ", class " +
     JSON.stringify(found(host, "div").className),
+);
+|}
+
+let counted_program = {|module Main exposing (main)
+
+import Browser
+import Html exposing (Html, button, div, text)
+import Html.Attributes exposing (style)
+import Html.Events exposing (onClick)
+import VirtualDom
+
+
+type Msg
+    = Bumped
+    | Painted
+    | Stripped
+
+
+type alias Model =
+    { count : Int, colour : String, marked : Bool }
+
+
+update : Msg -> Model -> Model
+update msg model =
+    case msg of
+        Bumped ->
+            { model | count = model.count + 1 }
+
+        Painted ->
+            { model | colour = "green" }
+
+        Stripped ->
+            { model | marked = False }
+
+
+mark : Model -> List (Html.Attribute Msg)
+mark model =
+    if model.marked then
+        [ VirtualDom.attribute "data-mark" "yes" ]
+
+    else
+        []
+
+
+nest : Int -> Model -> Html Msg
+nest depth model =
+    if depth == 0 then
+        div
+            (VirtualDom.attribute "data-level" "leaf"
+                :: style "color" model.colour
+                :: mark model
+            )
+            [ text (String.fromInt model.count) ]
+
+    else
+        div
+            [ VirtualDom.attribute "data-level" (String.fromInt depth)
+            , style "color" "blue"
+            ]
+            [ nest (depth - 1) model ]
+
+
+view : Model -> Html Msg
+view model =
+    div []
+        [ button [ onClick Bumped ] [ text "b" ]
+        , button [ onClick Painted ] [ text "p" ]
+        , button [ onClick Stripped ] [ text "s" ]
+        , nest 6 model
+        ]
+
+
+main : Browser.Program () Model Msg
+main =
+    Browser.sandbox
+        { init = { count = 0, colour = "red", marked = True }
+        , update = update
+        , view = view
+        }
+|}
+
+let counted_stub = dom ^ {|const host = await mounted();
+const [bump, paint, strip] = tagged(host, "button");
+const counted = (which) => {
+  attributed = 0;
+  styled = 0;
+  erased = 0;
+  written = 0;
+  which.listeners.click(happening({}));
+  return [attributed, styled, erased, written].join("/");
+};
+console.log(
+  "bump " +
+    counted(bump) +
+    " | paint " +
+    counted(paint) +
+    " | strip " +
+    counted(strip) +
+    " | " +
+    JSON.stringify(shown(host)),
 );
 |}
 

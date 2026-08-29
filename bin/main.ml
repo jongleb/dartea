@@ -18,13 +18,12 @@ let saved ~path (file : Dartea.Delivery.file) =
 
 let warned ~seen (outcome : Dartea.Compiler.outcome) =
   List.iter
-    (fun (module_ : Dartea.Compiler.compiled) ->
+    (fun (module_ : Dartea.Compiler.linkable) ->
       printed (List.map (Reporting.Sources.warning seen) module_.warnings))
-    outcome.output
+    outcome.modules
 
 let delivered ~path ~seen ~delivery (outcome : Dartea.Compiler.outcome) =
-  let module Delivery = (val delivery : Dartea.Delivery.S) in
-  match Delivery.files ~entry:outcome.entry outcome.output with
+  match Dartea.Delivery.produced ~delivery outcome with
   | files -> List.iter (saved ~path) files
   | exception Reporting.Error.Found error -> refused ~seen [ error ]
 

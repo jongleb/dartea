@@ -39,12 +39,68 @@ type compiled = {
   warnings : Reporting.Warning.t list;
 }
 
+type linkable = {
+  module_name : string;
+  notice : string list;
+  arities : (Data.Name.t * int) list;
+  constructors : (Data.Name.t * int) list;
+  siblings : (Data.Name.t * (Data.Name.t * int) list) list;
+  typedecls : Optimized.Typedecl.t list;
+  exports : Data.Name.t list;
+  declarations : Optimized.Declaration.t list;
+  warnings : Reporting.Warning.t list;
+}
+
 type outcome = {
-  output : compiled list;
+  modules : linkable list;
+  runtime : compiled list;
+  written : string list;
   errors : Reporting.Error.t list;
   sources : (string * string) list;
   entry : Entry.t option;
 }
+
+module Reached = Set.Make (struct
+  type t = string * string
+
+  let compare (one_home, one_name) (other_home, other_name) =
+    match String.compare one_home other_home with
+    | 0 -> String.compare one_name other_name
+    | ordering -> ordering
+end)
+
+module Bodies = Map.Make (struct
+  type t = string * string
+
+  let compare (one_home, one_name) (other_home, other_name) =
+    match String.compare one_home other_home with
+    | 0 -> String.compare one_name other_name
+    | ordering -> ordering
+end)
+
+let addressed ~home (name : Data.Name.t) =
+  match name with
+  | Data.Name.Local own -> (home, own)
+  | Data.Name.Global { module_name; exported_name } ->
+      (module_name, exported_name)
+
+let declared (declaration : Optimized.Declaration.t) =
+  Data.Located.unwrap declaration.name
+
+let entry_root (entry : Entry.t) =
+  Data.Name.global ~module_name:entry.module_name
+    ~exported_name:entry.declaration
+
+let everything outcome =
+  Option.to_list (Option.map entry_root outcome.entry)
+  @ List.concat_map
+    (fun module_ ->
+      List.map
+        (fun name ->
+          Data.Name.global ~module_name:module_.module_name
+            ~exported_name:(Data.Name.base name))
+        module_.exports)
+    outcome.modules
 
 module Module_names = Canonical.Exports.Names
 
@@ -94,7 +150,7 @@ module Make (B : BACKEND) = struct
   type progress = {
     dependencies : Canonical.Module.t list;
     interfaces : Interface.t list;
-    output : compiled list;
+    output : linkable list;
     errors : Reporting.Error.t list;
     entry : Entry.t option;
   }
@@ -228,6 +284,69 @@ module Make (B : BACKEND) = struct
       sources
     |> Option.value ~default:Data.Region.nowhere
 
+  let bodies_of modules =
+    List.fold_left
+      (fun found module_ ->
+        List.fold_left
+          (fun found declaration ->
+            Bodies.add
+              (module_.module_name, declared declaration)
+              (After_typed.Scope.free_in_declaration declaration)
+              found)
+          found module_.declarations)
+      Bodies.empty modules
+
+  let reached ~roots modules =
+    let bodies = bodies_of modules in
+    let rec grown seen = function
+      | [] -> seen
+      | key :: rest when Reached.mem key seen -> grown seen rest
+      | key :: rest -> (
+          let seen = Reached.add key seen in
+          match Bodies.find_opt key bodies with
+          | None -> grown seen rest
+          | Some free ->
+              grown seen
+                (List.map (addressed ~home:(fst key))
+                   (After_typed.Scope.Names.elements free)
+                @ rest))
+    in
+    grown Reached.empty (List.map (addressed ~home:"") roots)
+
+  let linked ~alive module_ =
+    let owned = List.map declared module_.declarations in
+    let surviving name = Reached.mem (module_.module_name, name) alive in
+    let declarations =
+      List.filter
+        (fun declaration -> surviving (declared declaration))
+        module_.declarations
+    in
+    let exports =
+      List.filter
+        (fun name ->
+          let spelled = Data.Name.base name in
+          (not (List.mem spelled owned)) || surviving spelled)
+        module_.exports
+    in
+    if declarations = [] && exports = [] then None
+    else
+      Some
+        {
+          module_name = module_.module_name;
+          exports = List.map Data.Name.base exports;
+          warnings = module_.warnings;
+          source =
+            B.emit_module ~notice:module_.notice ~arities:module_.arities
+              ~constructors:module_.constructors ~siblings:module_.siblings
+              ~typedecls:module_.typedecls
+              ~imports:(providing_modules declarations)
+              ~exports declarations;
+        }
+
+  let link ~roots outcome =
+    let alive = reached ~roots outcome.modules in
+    outcome.runtime @ List.filter_map (linked ~alive) outcome.modules
+
   let compile_modules ~entry (sources : Project.Elm_file.t list) :
       outcome =
     let written =
@@ -297,13 +416,13 @@ module Make (B : BACKEND) = struct
                 let compiled =
                   {
                     module_name = resolved.name;
-                    exports = List.map Data.Name.base exports;
-                    source =
-                      B.emit_module ~notice:(notice_for resolved.name)
-                        ~arities:(imported_arities imports)
-                        ~constructors ~siblings ~typedecls:(shaped_types typed)
-                        ~imports:(providing_modules declarations)
-                        ~exports declarations;
+                    notice = notice_for resolved.name;
+                    arities = imported_arities imports;
+                    constructors;
+                    siblings;
+                    typedecls = shaped_types typed;
+                    exports;
+                    declarations;
                     warnings =
                       List.concat_map
                         (After_typed.Exhaustiveness_check.warnings
@@ -335,10 +454,19 @@ module Make (B : BACKEND) = struct
         (reachable ~wanted (Lazy.force prelude_modules) @ written_modules)
     with
     | exception Reporting.Error.Found error ->
-        { output = []; errors = [ error ]; sources = written; entry = None }
+        {
+          modules = [];
+          runtime = [];
+          written = [];
+          errors = [ error ];
+          sources = written;
+          entry = None;
+        }
     | Error (Canonicalization.Module_graph.Import_cycle modules) ->
         {
-          output = [];
+          modules = [];
+          runtime = [];
+          written = [];
           sources = written;
           entry = None;
           errors =
@@ -376,7 +504,10 @@ module Make (B : BACKEND) = struct
           | _, _, errors -> List.rev errors
         in
         {
-          output = (if errors = [] then runtime @ compiled_modules else []);
+          modules = (if errors = [] then compiled_modules else []);
+          runtime = (if errors = [] then runtime else []);
+          written =
+            List.map (fun (source : Project.Elm_file.t) -> source.name) sources;
           errors;
           sources = written;
           entry = finished.entry;

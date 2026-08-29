@@ -13,9 +13,7 @@ let outcome_of ~entry content =
               (Reporting.Sources.of_list outcome.sources)
               error))
 
-let delivered ~delivery (outcome : Dartea.Compiler.outcome) =
-  let module Delivery = (val delivery : Dartea.Delivery.S) in
-  Delivery.files ~entry:outcome.entry outcome.output
+let delivered ~delivery outcome = Dartea.Delivery.produced ~delivery outcome
 
 let refused ~delivery outcome =
   match delivered ~delivery outcome with
@@ -36,16 +34,15 @@ let test_esm_folder_is_one_file_per_module _ =
   assert_equal ~printer:Sample.names
     (Dartea.Delivery.licence_file
      :: List.map
-          (fun (module_ : Dartea.Compiler.compiled) ->
-            Codegen_js.Of_optimized.module_file module_.module_name)
-          outcome.output
+          (fun (module_name, _) ->
+            Codegen_js.Of_optimized.module_file module_name)
+          (Sample.delivered ~delivery:Dartea.Delivery.default outcome)
     |> List.sort String.compare)
     (paths files);
   List.iter2
-    (fun (module_ : Dartea.Compiler.compiled) (file : Dartea.Delivery.file) ->
-      assert_equal ~printer:Fun.id ~msg:module_.module_name module_.source
-        file.content)
-    outcome.output
+    (fun (module_name, source) (file : Dartea.Delivery.file) ->
+      assert_equal ~printer:Fun.id ~msg:module_name source file.content)
+    (Sample.delivered ~delivery:Dartea.Delivery.default outcome)
     (List.filter
        (fun (file : Dartea.Delivery.file) ->
          not (String.equal file.path Dartea.Delivery.licence_file))
@@ -90,6 +87,11 @@ let test_mapped_messages_reach_the_model _ =
   assert_equal ~printer:Fun.id
     "pokepokeattr[L0RAL4] (created 0 , same buttons true )"
     (printed_by ~program:Sample.mapped_program ~stub:Sample.mapped_stub)
+
+let test_a_point_change_writes_once _ =
+  assert_equal ~printer:Fun.id
+    {|bump 0/0/0/1 | paint 0/1/0/0 | strip 0/0/1/0 | "bps1"|}
+    (printed_by ~program:Sample.counted_program ~stub:Sample.counted_stub)
 
 let test_guards_stay_silent_like_elm _ =
   assert_equal ~printer:Fun.id
@@ -173,6 +175,7 @@ let suite =
     "the_counter_reacts_to_a_click" >:: test_the_counter_reacts_to_a_click;
     "typing_reaches_the_model" >:: test_typing_reaches_the_model;
     "mapped_messages_reach_the_model" >:: test_mapped_messages_reach_the_model;
+    "a_point_change_writes_once" >:: test_a_point_change_writes_once;
     "guards_stay_silent_like_elm" >:: test_guards_stay_silent_like_elm;
     "lazy_skips_an_unchanged_subtree" >:: test_lazy_skips_an_unchanged_subtree;
     "a_mapped_subtree_survives_being_replaced"

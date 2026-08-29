@@ -11,7 +11,7 @@ let source path content = Project.Elm_file.of_path ~path content
 
 let output_of (outcome : Dartea.Compiler.outcome) =
   match outcome.errors with
-  | [] -> outcome.output
+  | [] -> Dartea.Compiler.link ~roots:(Dartea.Compiler.everything outcome) outcome
   | error :: _ -> raise (Reporting.Error.Found error)
 
 let source_of ~module_name (compiled : Dartea.Compiler.compiled list) =

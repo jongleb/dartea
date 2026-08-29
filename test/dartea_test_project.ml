@@ -55,7 +55,7 @@ let compiled sources =
       Sample.sorted
         (List.map
            (fun (module_ : Dartea.Compiler.compiled) -> module_.module_name)
-           outcome.output)
+           (Node_runner.output_of outcome))
   | error :: _ ->
       assert_failure
         (Sample.rendered (Reporting.Sources.of_list outcome.sources) error)

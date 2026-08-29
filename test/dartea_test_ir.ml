@@ -161,14 +161,25 @@ let test_a_backend_without_the_platform_refuses_it _ =
   | { problem = Name _; _ } :: _ ->
       assert_failure "a different naming error came out"
 
+let lowered source =
+  let outcome = Compiler.compile_source source in
+  match outcome.errors with
+  | [] -> Compiler.link ~roots:(Dartea.Compiler.everything outcome) outcome
+  | error :: _ -> raise (Reporting.Error.Found error)
+
 let ir_of source =
-  Node_runner.output_of (Compiler.compile_source source)
+  lowered source
   |> List.filter_map (fun (unit : Dartea.Compiler.compiled) ->
          if String.equal unit.module_name "Main" then Some unit.source else None)
   |> String.concat ""
 
 let well_scoped source =
-  Node_runner.output_of (Checker.compile_source source)
+  let outcome = Checker.compile_source source in
+  begin
+    match outcome.errors with
+    | [] -> Checker.link ~roots:(Dartea.Compiler.everything outcome) outcome
+    | error :: _ -> raise (Reporting.Error.Found error)
+  end
   |> List.concat_map (fun (unit : Dartea.Compiler.compiled) ->
          if String.equal unit.source "" then []
          else [ unit.module_name ^ " -> " ^ unit.source ])

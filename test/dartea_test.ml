@@ -14,6 +14,7 @@ let suite =
          "test_reports" >::: Dartea_test_reports.suite;
          "test_codegen" >::: Dartea_test_codegen.suite;
          "test_emitted" >::: Dartea_test_emitted.suite;
+         "test_reachable" >::: Dartea_test_reachable.suite;
          "test_project" >::: Dartea_test_project.suite;
          "test_delivery" >::: Dartea_test_delivery.suite;
          "test_dead_code" >::: Dartea_test_dead_code.suite;

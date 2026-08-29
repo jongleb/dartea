@@ -5,11 +5,24 @@ let licence path = { path; content = Licence_text.licence }
 
 module type S = sig
   val name : string
+  val roots : Compiler.outcome -> Data.Name.t list
   val files : entry:Entry.t option -> Compiler.compiled list -> file list
 end
 
 module Esm_folder : S = struct
   let name = "esm_folder"
+
+  let roots (outcome : Compiler.outcome) =
+    List.concat_map
+      (fun (module_ : Compiler.linkable) ->
+        if List.mem module_.module_name outcome.written then
+          List.map
+            (fun exported ->
+              Data.Name.global ~module_name:module_.module_name
+                ~exported_name:(Data.Name.base exported))
+            module_.exports
+        else [])
+      outcome.modules
 
   let files ~entry:_ modules =
     licence licence_file
@@ -34,6 +47,9 @@ module Classic_js_browser : S = struct
     | None ->
         Reporting.Error.raise_project (Delivery_needs_entry { delivery = name })
     | Some (entry : Entry.t) -> entry
+
+  let roots (outcome : Compiler.outcome) =
+    [ Compiler.entry_root (wanted outcome.entry) ]
 
   let exposes (entry : Entry.t) (module_ : Compiler.compiled) =
     String.equal module_.module_name entry.module_name
@@ -97,3 +113,8 @@ let find name =
   | Some found -> found
   | None ->
       Reporting.Error.raise_project (Unknown_delivery { name; known = names })
+
+let produced ~delivery (outcome : Compiler.outcome) =
+  let module Delivery = (val delivery : S) in
+  Delivery.files ~entry:outcome.entry
+    (Compiler.link ~roots:(Delivery.roots outcome) outcome)
