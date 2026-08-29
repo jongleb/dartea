@@ -96,41 +96,58 @@ module Browser_program = struct
         })
       modules
 
+  let carried (entry : Entry.t) =
+    match Typed.Type.head entry.typ with
+    | Typed.Type.TCustom (_, taken :: _) -> taken
+    | _ -> Typed.Type.TUnit
+
+  let flags ~name (entry : Entry.t) =
+    match Codegen_js.Flags.decoder (carried entry) with
+    | Ok written -> written
+    | Error found ->
+        Reporting.Error.raise_project_at ~region:entry.region
+          (Bad_flags
+             {
+               delivery = name;
+               module_name = entry.module_name;
+               declaration = entry.declaration;
+               found;
+             })
+
   let script ~name entry modules =
     exposed ~name entry modules;
     showable ~name entry;
     Codegen_js.Bundle.of_modules ~entry_module:entry.module_name
-      ~declaration:entry.declaration (bundled modules)
+      ~declaration:entry.declaration ~flags:(flags ~name entry)
+      (bundled modules)
+
+  let files ~name ~output ~wrapped entry modules =
+    let found = wanted ~name entry in
+    [
+      licence (beside output);
+      { path = output; content = wrapped found (script ~name found modules) };
+    ]
 end
 
 module Script : S = struct
   let name = "script"
   let roots outcome = Browser_program.roots ~name outcome
+  let bare _ written = written
 
   let files ~entry ~output modules =
-    let entry = Browser_program.wanted ~name entry in
-    [
-      licence (beside output);
-      { path = output; content = Browser_program.script ~name entry modules };
-    ]
+    Browser_program.files ~name ~output ~wrapped:bare entry modules
 end
 
 module Sandwich : S = struct
   let name = "page"
   let roots outcome = Browser_program.roots ~name outcome
 
+  let page (entry : Entry.t) written =
+    Codegen_js.Bundle.sandwich ~title:entry.module_name
+      ~entry_module:entry.module_name written
+
   let files ~entry ~output modules =
-    let entry = Browser_program.wanted ~name entry in
-    [
-      licence (beside output);
-      {
-        path = output;
-        content =
-          Codegen_js.Bundle.sandwich ~title:entry.module_name
-            ~entry_module:entry.module_name
-            (Browser_program.script ~name entry modules);
-      };
-    ]
+    Browser_program.files ~name ~output ~wrapped:page entry modules
 end
 
 let default : (module S) = (module Esm_folder)

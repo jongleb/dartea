@@ -1,9 +1,7 @@
 let () =
-  Eio_main.run @@ fun env ->
-  let cwd = Eio.Stdenv.cwd env in
-  let path = Eio.Path.(cwd / "playgrounds" / "elm_code") in
+  let path = Filename.concat "playgrounds" "elm_code" in
   let outcome =
-    match Project.Sources.load path with
+    match Project.Sources.load ~provided:Prelude.packages path with
     | Ok sources -> Dartea.Compiler.compile_modules ~entry:None sources
     | Error error ->
         prerr_endline

@@ -1,0 +1,13 @@
+(library
+ (name registry)
+ (libraries
+  ezcurl
+  yojson
+  digestif
+  base64
+  tar
+  tar.gz
+  tar-unix
+  files
+  packages
+  reporting))

@@ -372,7 +372,9 @@ module Make (B : BACKEND) = struct
   let merged found used =
     List.fold_left
       (fun found (module_name, helpers) ->
-        let known = Option.value (List.assoc_opt module_name found) ~default:[] in
+        let known =
+          Option.value (List.assoc_opt module_name found) ~default:[]
+        in
         let grown =
           List.fold_left
             (fun kept helper ->
@@ -385,7 +387,8 @@ module Make (B : BACKEND) = struct
   let link ~roots outcome =
     let alive = reached ~roots outcome.modules in
     let pieces = List.filter_map (linked ~alive) outcome.modules in
-    let usage = List.fold_left (fun found (_, used) -> merged found used) [] pieces in
+    let gathering found (_, used) = merged found used in
+    let usage = List.fold_left gathering [] pieces in
     List.map
       (fun (module_name, source) ->
         { module_name; source; exports = []; warnings = [] })
@@ -474,7 +477,11 @@ module Make (B : BACKEND) = struct
                         typed.declarations
                   | Some _ | None -> known.entry
                 in
-                { known with output = compiled :: known.output; entry = started })
+                {
+                  known with
+                  output = compiled :: known.output;
+                  entry = started;
+                })
     in
     let compile_module progress module_ =
       match compiling progress module_ with
@@ -534,8 +541,7 @@ module Make (B : BACKEND) = struct
         in
         {
           modules = (if errors = [] then compiled_modules else []);
-          written =
-            List.map (fun (source : Project.Elm_file.t) -> source.name) sources;
+          written = List.filter_map Project.Elm_file.written sources;
           errors;
           sources = written;
           entry = finished.entry;

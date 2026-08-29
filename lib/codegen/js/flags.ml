@@ -1,0 +1,93 @@
+module T = Typed.Type
+
+let rec named (ty : T.t) =
+  match T.head ty with
+  | T.TInt -> "Int"
+  | T.TFloat -> "Float"
+  | T.TChar -> "Char"
+  | T.TBool -> "Bool"
+  | T.TStr -> "String"
+  | T.TUnit -> "()"
+  | T.TFun _ -> "a function"
+  | T.TTup parts -> "( " ^ String.concat ", " (List.map named parts) ^ " )"
+  | T.TCustom (name, _) -> Data.Name.base name
+  | T.TRecord _ -> "a record"
+  | T.TVar _ -> "a type variable"
+  | T.TRowExtend _ | T.TRowEmpty -> "a record row"
+
+let rec fields row =
+  match T.head row with
+  | T.TRowExtend (name, ty, rest) -> (name, ty) :: fields rest
+  | T.TRowEmpty -> []
+  | T.TVar _ | T.TInt | T.TFloat | T.TChar | T.TBool | T.TStr | T.TUnit
+  | T.TFun _ | T.TTup _ | T.TCustom _ | T.TRecord _ ->
+      []
+
+let primitive ~fits ~wanted =
+  Printf.sprintf "(value, path) => $$flagPrim(value, path, %s, %S)" fits wanted
+
+let taking helper inside =
+  Printf.sprintf "(value, path) => %s(value, path, %s)" helper inside
+
+let grouped written =
+  Printf.sprintf "(value, path) => $$flagTuple(value, path, [%s])"
+    (String.concat ", " written)
+
+let held (name, _) code = Printf.sprintf "%s: %s" name code
+
+let fitted rows written =
+  Printf.sprintf "(value, path) => $$flagRecord(value, path, { %s })"
+    (String.concat ", " (List.map2 held rows written))
+
+let rec decoder (ty : T.t) =
+  match T.head ty with
+  | T.TInt ->
+      Ok (primitive ~fits:"(given) => Number.isInteger(given)" ~wanted:"an INT")
+  | T.TFloat ->
+      Ok
+        (primitive
+           ~fits:"(given) => typeof given === \"number\""
+           ~wanted:"a FLOAT")
+  | T.TBool ->
+      Ok
+        (primitive
+           ~fits:"(given) => typeof given === \"boolean\""
+           ~wanted:"a BOOL")
+  | T.TStr ->
+      Ok
+        (primitive
+           ~fits:"(given) => typeof given === \"string\""
+           ~wanted:"a STRING")
+  | T.TUnit -> Ok "() => null"
+  | T.TCustom (name, arguments) -> custom ty name arguments
+  | T.TTup parts -> tuple ty parts
+  | T.TRecord row -> record ty row
+  | T.TVar _ | T.TChar | T.TFun _ | T.TRowExtend _ | T.TRowEmpty ->
+      Error (named ty)
+
+and custom ty name arguments =
+  match (Data.Name.base name, arguments) with
+  | "Value", _ -> Ok "(value) => value"
+  | "Maybe", [ inside ] -> Result.map (taking "$$flagMaybe") (decoder inside)
+  | "List", [ inside ] -> Result.map (taking "$$flagList") (decoder inside)
+  | _, _ -> Error (named ty)
+
+and gathered wanted =
+  let joined ty found =
+    match (decoder ty, found) with
+    | Ok one, Ok rest -> Ok (one :: rest)
+    | Error refused, _ -> Error refused
+    | Ok _, Error refused -> Error refused
+  in
+  List.fold_right joined wanted (Ok [])
+
+and tuple ty parts =
+  match gathered parts with
+  | Error refused -> Error refused
+  | Ok [] -> Error (named ty)
+  | Ok written -> Ok (grouped written)
+
+and record ty row =
+  match fields row with
+  | [] -> Error (named ty)
+  | rows -> Result.map (fitted rows) (gathered (List.map snd rows))

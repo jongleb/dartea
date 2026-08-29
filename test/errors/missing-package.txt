@@ -1,0 +1,7 @@
+-- MISSING PACKAGE ---------------------------------------------------- elm.json
+
+I need `elm/url` at version `1.0.0`, and I cannot find it.
+
+I looked in `.dartea/packages/elm/url/1.0.0/src`.
+
+Run `dartea install` to fetch it, or drop it from the dependencies.

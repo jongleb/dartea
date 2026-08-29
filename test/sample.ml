@@ -38,8 +38,7 @@ let delivered ~delivery outcome =
   shaken ~roots:(Delivery.roots outcome) outcome
 
 let compiled_in ~entry folder =
-  Eio_main.run @@ fun env ->
-  match Project.Sources.load Eio.Path.(Eio.Stdenv.fs env / folder) with
+  match Project.Sources.load ~provided:Prelude.packages folder with
   | Ok sources -> Dartea.Compiler.compile_modules ~entry sources
   | Error error -> refused Reporting.Sources.empty [ error ]
 
@@ -210,6 +209,7 @@ const happening = (extra) =>
 const launched = async (flags) => {
   await import("./main.js");
   const host = make("body");
+  document.body = host;
   globalThis.Dartea.Main.init({ node: host, flags });
   return host;
 };
@@ -782,6 +782,7 @@ main =
 
 let port_stub = dom ^ {|const host = make("body");
 await import("./main.js");
+document.body = host;
 const app = globalThis.Dartea.Main.init({ node: host, flags: null });
 const heard = [];
 app.ports.saved.subscribe((value) => heard.push(value));
@@ -1103,7 +1104,7 @@ console.log(
 );
 |}
 
-let todomvc_stub = dom ^ {|const host = await launched("Nothing");
+let todomvc_stub = dom ^ {|const host = await launched(null);
 const listed = () => tagged(host, "li").slice(0, 2).map(shown).join(" / ");
 const field = tagged(host, "input").find((node) => node.className === "new-todo");
 const typed = (into, written) => {

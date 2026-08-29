@@ -27,5 +27,12 @@
   interface
   ir
   project
-  codegen_js
-  eio_main))
+  packages
+  registry
+  tar
+  tar.gz
+  tar-unix
+  decompress.gz
+  digestif
+  base64
+  codegen_js))

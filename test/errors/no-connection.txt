@@ -1,0 +1,7 @@
+-- NO CONNECTION --------------------------------------------------- dartea.json
+
+I could not reach the package registry.
+
+    the name resolution failed
+
+I was asking `https://registry.npmjs.org/@dartea%2frouter`.

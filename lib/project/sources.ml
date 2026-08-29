@@ -1,15 +1,34 @@
-let elm_files ~root ~directory =
+open Packages
+
+let elm_files ~origin ~root ~directory =
   let folder = Files.Dir.at root directory in
   Files.Dir.under ~suffix:Elm_file.extension folder
   |> List.map (fun path ->
-         Elm_file.under ~directory ~path (Files.Dir.load folder path))
+         Elm_file.under ~origin ~directory ~path (Files.Dir.load folder path))
 
 let inside root ~file written =
   let directory = Files.Relative.of_string written in
-  if Files.Dir.is_directory root directory then elm_files ~root ~directory
+  if Files.Dir.is_directory root directory then
+    elm_files ~origin:Elm_file.Written ~root ~directory
   else
     Reporting.Error.raise_project
       (Missing_source_directory { file; folder = written })
+
+let package root ~file ~provided (pick : Pick.t) =
+  if List.mem pick.package provided then []
+  else
+    let directory = Vendor.inside pick in
+    if Files.Dir.is_directory root directory then
+      elm_files ~origin:Elm_file.Package ~root ~directory
+    else
+      Reporting.Error.raise_project
+        (Missing_package
+           {
+             file;
+             package = pick.package;
+             version = Version.show pick.version;
+             looked = Files.Relative.shown directory;
+           })
 
 let by_name (one : Elm_file.t) (other : Elm_file.t) =
   match String.compare one.name other.name with
@@ -28,14 +47,17 @@ let one_per_name sources =
   in
   scanned (List.sort by_name sources)
 
-let gathered root =
+let gathered ~provided root =
   if not (Files.Dir.is_directory root Files.Relative.root) then
     Reporting.Error.raise_project
       (Unknown_folder { folder = Files.Dir.shown root });
   let outline = Outline.of_folder root in
-  match
-    List.concat_map (inside root ~file:outline.file) outline.source_directories
-  with
+  let file = outline.file in
+  let packages =
+    List.concat_map (package root ~file ~provided) outline.dependencies
+  in
+  let own = List.concat_map (inside root ~file) outline.source_directories in
+  match packages @ own with
   | [] ->
       Reporting.Error.raise_project
         (No_sources { folder = Files.Dir.shown root })
@@ -43,7 +65,7 @@ let gathered root =
       one_per_name sources;
       sources
 
-let load (root : _ Eio.Path.t) =
-  match gathered root with
+let load ~provided root =
+  match gathered ~provided root with
   | sources -> Ok sources
   | exception Reporting.Error.Found error -> Error error

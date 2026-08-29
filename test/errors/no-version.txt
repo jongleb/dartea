@@ -1,0 +1,8 @@
+-- NO VERSION ------------------------------------------------------ dartea.json
+
+I cannot find one version of `@dartea/ui` that everyone agrees on.
+
+    `your dependencies` wants `^1.0.0`
+    `@dartea/router` wants `^2.0.0`
+
+Widen one of these ranges, or ask for a version that works with the rest.

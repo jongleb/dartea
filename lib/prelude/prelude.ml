@@ -49,6 +49,12 @@ let name = function
   | Tuple -> "Tuple"
   | VirtualDom -> "VirtualDom"
 
+let packages =
+  [
+    "elm/core"; "elm/json"; "elm/html"; "elm/browser"; "elm/time";
+    "elm/virtual-dom";
+  ]
+
 let compiled_by =
   [
     "Compiled by dartea, an independent compiler. Not affiliated with or";

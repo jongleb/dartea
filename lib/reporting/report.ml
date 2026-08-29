@@ -57,6 +57,15 @@ let title_of_project (problem : Project_error.t) =
   | No_entry _ -> "NO ENTRY POINT"
   | Entry_not_exposed _ -> "ENTRY NOT EXPOSED"
   | Bad_entry _ -> "BAD ENTRY POINT"
+  | Bad_flags _ -> "BAD FLAGS"
+  | Missing_lock _ -> "MISSING LOCK FILE"
+  | Missing_manifest _ -> "NO MANIFEST"
+  | Offline _ -> "NO CONNECTION"
+  | Unknown_package _ -> "UNKNOWN PACKAGE"
+  | No_version _ -> "NO VERSION"
+  | Bad_range _ -> "RANGE I DO NOT KNOW"
+  | Bad_tarball _ -> "BAD TARBALL"
+  | Missing_package _ -> "MISSING PACKAGE"
   | Delivery_needs_entry _ -> "NO ENTRY POINT"
 
 let title (problem : Error.problem) =
@@ -1105,6 +1114,97 @@ let of_project_problem source region (problem : Project_error.t) =
             (Printf.sprintf
                "The %s delivery only knows how to handle %s though. Modify %s to be one of those types of values, or pick a delivery that can take this one."
                (quoted delivery) expected (quoted declaration));
+        ]
+  | Missing_manifest { file } ->
+      Doc.stack
+        [
+          Doc.words
+            (Printf.sprintf "I do not see a %s file here." (quoted file));
+          Doc.words
+            "That file says what your project is called and which packages it needs, and I install from it.";
+        ]
+  | Offline { url; problem } ->
+      Doc.stack
+        [
+          Doc.words "I could not reach the package registry.";
+          indented (Doc.words problem);
+          Doc.words (Printf.sprintf "I was asking %s." (quoted url));
+        ]
+  | Unknown_package { package; asked_by; _ } ->
+      Doc.stack
+        [
+          Doc.words
+            (Printf.sprintf "%s asks for %s, and the registry has never heard of it."
+               (quoted asked_by) (quoted package));
+          Doc.words "Check the spelling, or publish it first.";
+        ]
+  | No_version { package; asked; _ } ->
+      Doc.stack
+        [
+          Doc.words
+            (Printf.sprintf "I cannot find one version of %s that everyone agrees on."
+               (quoted package));
+          indented
+            (Doc.above
+               (List.map
+                  (fun (who, range) ->
+                    Doc.words
+                      (Printf.sprintf "%s wants %s" (quoted who) (quoted range)))
+                  asked));
+          Doc.words
+            "Widen one of these ranges, or ask for a version that works with the rest.";
+        ]
+  | Bad_range { package; version; dependency; range; _ } ->
+      Doc.stack
+        [
+          Doc.words
+            (Printf.sprintf "%s %s asks for %s at %s, and I do not know that way of writing a range."
+               (quoted package) (quoted version) (quoted dependency)
+               (quoted range));
+          Doc.words
+            "I know an exact version like `1.2.0`, and a caret range like `^1.2.0`. I am not a full npm client, and packages written for npm may ask in ways I cannot follow.";
+        ]
+  | Bad_tarball { package; version; problem; _ } ->
+      Doc.stack
+        [
+          Doc.words
+            (Printf.sprintf "I downloaded %s %s, and something is wrong with it."
+               (quoted package) (quoted version));
+          indented (Doc.words problem);
+          Doc.words "I have not unpacked it, so your project is untouched.";
+        ]
+  | Missing_lock { file; lock } ->
+      Doc.stack
+        [
+          Doc.words
+            (Printf.sprintf
+               "The %s file lists dependencies, but I do not see a %s file next to it."
+               (quoted file) (quoted lock));
+          Doc.words
+            "I compile against exact versions, so I need the resolved ones written down.";
+          Doc.words "Run `dartea install`, and I will work them out and save them.";
+        ]
+  | Missing_package { package; version; looked; _ } ->
+      Doc.stack
+        [
+          Doc.words
+            (Printf.sprintf "I need %s at version %s, and I cannot find it."
+               (quoted package) (quoted version));
+          Doc.words (Printf.sprintf "I looked in %s." (quoted looked));
+          Doc.words
+            "Run `dartea install` to fetch it, or drop it from the dependencies.";
+        ]
+  | Bad_flags { delivery; module_name; declaration; found } ->
+      Doc.stack
+        [
+          Doc.words
+            (Printf.sprintf "The %s delivery cannot hand %s to %s."
+               (quoted delivery) (quoted found)
+               (quoted (module_name ^ "." ^ declaration)));
+          Doc.words
+            "Flags come in from JavaScript, so they have to be values I know how to check: numbers, strings, booleans, unit, lists, tuples, records, `Maybe`, and `Json.Decode.Value`.";
+          Doc.words
+            "Change the flags to one of those, or take a `Json.Decode.Value` and decode it yourself.";
         ]
   | Delivery_needs_entry { delivery } ->
       Doc.stack

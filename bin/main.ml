@@ -52,7 +52,7 @@ let entry_in sources path =
         [ Reporting.Error.project (Unknown_entry { path }) ]
 
 let loaded path =
-  match Project.Sources.load path with
+  match Project.Sources.load ~provided:Prelude.packages path with
   | Ok sources -> sources
   | Error error -> refused ~seen:Reporting.Sources.empty [ error ]
 
@@ -61,14 +61,24 @@ let folder_and_entry target =
     (Filename.current_dir_name, Some target)
   else (target, None)
 
-let ran env ~target ~output =
+let make target output =
   let folder, entry_file = folder_and_entry target in
-  let path = Eio.Path.(Eio.Stdenv.fs env / folder) in
-  let sources = loaded path in
+  let sources = loaded folder in
   let entry = Option.map (entry_in sources) entry_file in
-  compiled ~path ~output ~entry sources
+  compiled ~path:folder ~output ~entry sources
 
-let make target output = Eio_main.run @@ fun env -> ran env ~target ~output
+let counted picked =
+  let count = List.length picked in
+  Printf.sprintf "%d package%s" count (if count = 1 then "" else "s")
+
+let install folder =
+  match Registry.Install.run folder ~say:print_endline with
+  | picked ->
+      print_endline
+        (Printf.sprintf "I resolved %s and wrote %s." (counted picked)
+           Packages.Lock.file_name)
+  | exception Reporting.Error.Found error ->
+      refused ~seen:Reporting.Sources.empty [ error ]
 
 let target =
   let doc = "The source folder, or a single $(b,.elm) file to start from." in
@@ -87,6 +97,28 @@ let output =
   Cmdliner.Arg.(
     value & opt string "index.html" & info [ "output" ] ~docv:"FILE" ~doc)
 
+let folder =
+  let doc = "The project folder to install into." in
+  Cmdliner.Arg.(
+    value
+    & pos 0 string Filename.current_dir_name
+    & info [] ~docv:"FOLDER" ~doc)
+
+let install_command =
+  let doc = "Download the packages your project depends on." in
+  let man =
+    [
+      `S Cmdliner.Manpage.s_description;
+      `P
+        "Reads the dependencies from $(b,dartea.json), works out one \
+         version of every package that everyone agrees on, downloads them, \
+         and writes the versions it settled on into $(b,dartea.lock).";
+    ]
+  in
+  Cmdliner.Cmd.v
+    (Cmdliner.Cmd.info "install" ~doc ~man)
+    Cmdliner.Term.(const install $ folder)
+
 let make_command =
   let doc = "Compile Elm files into JavaScript." in
   Cmdliner.Cmd.v
@@ -96,6 +128,6 @@ let make_command =
 let dartea =
   let doc = "an independent compiler for the Elm language" in
   Cmdliner.Cmd.group (Cmdliner.Cmd.info "dartea" ~version:"0.1.0" ~doc)
-    [ make_command ]
+    [ make_command; install_command ]
 
 let () = exit (Cmdliner.Cmd.eval dartea)

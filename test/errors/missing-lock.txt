@@ -1,0 +1,8 @@
+-- MISSING LOCK FILE ----------------------------------------------- dartea.json
+
+The `dartea.json` file lists dependencies, but I do not see a `dartea.lock` file
+next to it.
+
+I compile against exact versions, so I need the resolved ones written down.
+
+Run `dartea install`, and I will work them out and save them.

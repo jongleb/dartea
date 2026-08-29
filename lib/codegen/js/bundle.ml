@@ -24,15 +24,15 @@ let wrapped { name; source } =
 
 let started = "Dartea"
 
-let of_modules ~entry_module ~declaration modules =
+let of_modules ~entry_module ~declaration ~flags modules =
   Printf.sprintf
-    "%s\n\n%s\nglobalThis.%s = {\n  %s: {\n    init: (config) =>\n      %s(%s.%s, config.node, config.flags),\n  },\n};\n"
+    "%s\n\n%s\nglobalThis.%s = {\n  %s: {\n    init: (config) =>\n      %s(%s.%s, config.node, (%s)(config.flags, \"flags\")),\n  },\n};\n"
     (String.concat "\n\n" (List.map wrapped modules))
     Runtime.engine_source started
     (Of_optimized.module_ident entry_module)
     Runtime.mount
     (Of_optimized.module_ident entry_module)
-    declaration
+    declaration flags
 
 let sandwich ~title ~entry_module script =
   Printf.sprintf

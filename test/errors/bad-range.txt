@@ -1,0 +1,7 @@
+-- RANGE I DO NOT KNOW --------------------------------------------- dartea.json
+
+`color-convert` `2.0.1` asks for `color-name` at `~1.1.4`, and I do not know
+that way of writing a range.
+
+I know an exact version like `1.2.0`, and a caret range like `^1.2.0`. I am not
+a full npm client, and packages written for npm may ask in ways I cannot follow.

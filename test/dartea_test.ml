@@ -16,6 +16,8 @@ let suite =
          "test_emitted" >::: Dartea_test_emitted.suite;
          "test_reachable" >::: Dartea_test_reachable.suite;
          "test_parity" >::: Dartea_test_parity.suite;
+         "test_packages" >::: Dartea_test_packages.suite;
+         "test_registry" >::: Dartea_test_registry.suite;
          "test_project" >::: Dartea_test_project.suite;
          "test_delivery" >::: Dartea_test_delivery.suite;
          "test_dead_code" >::: Dartea_test_dead_code.suite;

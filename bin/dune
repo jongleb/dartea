@@ -1,4 +1,12 @@
 (executable
  (public_name dartea)
  (name main)
- (libraries dartea reporting project files unix eio_main cmdliner))
+ (libraries
+  dartea
+  reporting
+  project
+  packages
+  registry
+  files
+  unix
+  cmdliner))

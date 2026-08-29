@@ -33,3 +33,5 @@ playgrounds/**/build/
 
 # macOS Finder
 .DS_Store
+
+.claude/

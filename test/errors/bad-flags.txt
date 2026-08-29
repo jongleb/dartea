@@ -1,0 +1,10 @@
+-- BAD FLAGS -------------------------------------------------------------- Main
+
+The `page` delivery cannot hand `Season` to `Main.main`.
+
+Flags come in from JavaScript, so they have to be values I know how to check:
+numbers, strings, booleans, unit, lists, tuples, records, `Maybe`, and
+`Json.Decode.Value`.
+
+Change the flags to one of those, or take a `Json.Decode.Value` and decode it
+yourself.

@@ -1,8 +1,6 @@
 open OUnit2
 
-let loaded folder =
-  Eio_main.run @@ fun env ->
-  Project.Sources.load Eio.Path.(Eio.Stdenv.fs env / folder)
+let loaded folder = Project.Sources.load ~provided:Prelude.packages folder
 
 let sources_of folder =
   match loaded folder with
@@ -63,6 +61,29 @@ let compiled sources =
 let application directories =
   Printf.sprintf {|{ "type": "application", "source-directories": [%s] }|}
     (String.concat ", " (List.map (Printf.sprintf {|"%s"|}) directories))
+
+let depending_on packages =
+  let entry (name, version) = Printf.sprintf {|"%s": "%s"|} name version in
+  Printf.sprintf
+    {|{ "type": "application"
+      , "source-directories": ["src"]
+      , "dependencies":
+          { "direct": {%s}, "indirect": {} }
+      }|}
+    (String.concat ", " (List.map entry packages))
+
+let vendored ~folder ~package ~path contents =
+  Sample.written ~folder
+    ~path:(Printf.sprintf ".dartea/packages/%s/src/%s" package path)
+    contents
+
+let roots_of sources =
+  let outcome = Dartea.Compiler.compile_modules ~entry:None sources in
+  match outcome.errors with
+  | [] -> Sample.sorted outcome.written
+  | error :: _ ->
+      assert_failure
+        (Sample.rendered (Reporting.Sources.of_list outcome.sources) error)
 
 let project_with elm_json =
   let folder = Sample.folder () in
@@ -182,6 +203,99 @@ let test_one_module_per_name _ =
         [ one; other ]
   | problem -> unexpected (Project problem)
 
+let test_dependency_is_taken_from_disk _ =
+  let folder = Sample.folder () in
+  Sample.written ~folder ~path:"elm.json"
+    (depending_on [ ("gleb/thing", "1.0.0") ]);
+  Sample.written ~folder ~path:"src/Main.elm" main;
+  vendored ~folder ~package:"gleb/thing/1.0.0" ~path:"Deep/Thing.elm" thing;
+  let sources = sources_of folder in
+  assert_equal ~printer:Sample.names [ "Deep.Thing"; "Main" ] (names sources);
+  assert_equal ~printer:Sample.names
+    [ ".dartea/packages/gleb/thing/1.0.0/src/Deep/Thing.elm"; "src/Main.elm" ]
+    (paths sources);
+  assert_bool "the project did not compile"
+    (List.mem "Deep.Thing" (compiled sources))
+
+let test_a_package_is_not_a_root _ =
+  let folder = Sample.folder () in
+  Sample.written ~folder ~path:"elm.json"
+    (depending_on [ ("gleb/thing", "1.0.0") ]);
+  Sample.written ~folder ~path:"src/Main.elm" main;
+  vendored ~folder ~package:"gleb/thing/1.0.0" ~path:"Deep/Thing.elm" thing;
+  assert_equal ~printer:Sample.names [ "Main" ] (roots_of (sources_of folder))
+
+let test_our_own_packages_are_skipped _ =
+  let folder = Sample.folder () in
+  Sample.written ~folder ~path:"elm.json"
+    (depending_on [ ("elm/core", "1.0.5"); ("elm/json", "1.1.3") ]);
+  Sample.written ~folder ~path:"src/Main.elm" Sample.starter;
+  assert_equal ~printer:Sample.names [ "Main" ] (names (sources_of folder))
+
+let test_a_missing_package_is_refused _ =
+  let folder = Sample.folder () in
+  Sample.written ~folder ~path:"elm.json"
+    (depending_on [ ("gleb/thing", "1.0.0") ]);
+  Sample.written ~folder ~path:"src/Main.elm" Sample.starter;
+  match refused folder with
+  | Missing_package { package; version; looked; _ } ->
+      assert_equal ~printer:Fun.id "gleb/thing" package;
+      assert_equal ~printer:Fun.id "1.0.0" version;
+      assert_equal ~printer:Fun.id ".dartea/packages/gleb/thing/1.0.0/src"
+        looked
+  | problem -> unexpected (Project problem)
+
+let manifest packages =
+  let entry (name, range) = Printf.sprintf {|"%s": "%s"|} name range in
+  Printf.sprintf {|{ "name": "app", "dependencies": {%s} }|}
+    (String.concat ", " (List.map entry packages))
+
+let lock packages =
+  let entry (name, version) = Printf.sprintf {|"%s": "%s"|} name version in
+  Printf.sprintf {|{ "packages": {%s} }|}
+    (String.concat ", " (List.map entry packages))
+
+let test_a_manifest_and_a_lock_bring_a_package_in _ =
+  let folder = Sample.folder () in
+  Sample.written ~folder ~path:Packages.Manifest.file_name
+    (manifest [ ("@dartea/thing", "^1.0.0") ]);
+  Sample.written ~folder ~path:Packages.Lock.file_name
+    (lock [ ("@dartea/thing", "1.2.0") ]);
+  Sample.written ~folder ~path:"src/Main.elm" main;
+  vendored ~folder ~package:"@dartea/thing/1.2.0" ~path:"Deep/Thing.elm" thing;
+  let sources = sources_of folder in
+  assert_equal ~printer:Sample.names [ "Deep.Thing"; "Main" ] (names sources);
+  assert_bool "the project did not compile"
+    (List.mem "Deep.Thing" (compiled sources))
+
+let test_a_manifest_without_a_lock_is_refused _ =
+  let folder = Sample.folder () in
+  Sample.written ~folder ~path:Packages.Manifest.file_name
+    (manifest [ ("@dartea/thing", "^1.0.0") ]);
+  Sample.written ~folder ~path:"src/Main.elm" Sample.starter;
+  match refused folder with
+  | Missing_lock { file; lock } ->
+      assert_equal ~printer:Fun.id Packages.Manifest.file_name
+        (Filename.basename file);
+      assert_equal ~printer:Fun.id Packages.Lock.file_name lock
+  | problem -> unexpected (Project problem)
+
+let test_a_manifest_without_dependencies_needs_no_lock _ =
+  let folder = Sample.folder () in
+  Sample.written ~folder ~path:Packages.Manifest.file_name (manifest []);
+  Sample.written ~folder ~path:"src/Main.elm" Sample.starter;
+  assert_equal ~printer:Sample.names [ "Main" ] (names (sources_of folder))
+
+let test_the_manifest_wins_over_elm_json _ =
+  let folder = Sample.folder () in
+  Sample.written ~folder ~path:"elm.json" (application [ "app" ]);
+  Sample.written ~folder ~path:Packages.Manifest.file_name
+    {|{ "name": "app", "source-directories": ["vendor"] }|};
+  Sample.written ~folder ~path:"app/Main.elm" Sample.starter;
+  Sample.written ~folder ~path:"vendor/Deep/Thing.elm" thing;
+  assert_equal ~printer:Sample.names [ "Deep.Thing" ]
+    (names (sources_of folder))
+
 let entry_of ~entry sources =
   let outcome = Dartea.Compiler.compile_modules ~entry:(Some entry) sources in
   match outcome.errors with
@@ -283,6 +397,17 @@ let suite =
     >:: test_source_directories_must_be_strings;
     "source_directory_must_exist" >:: test_source_directory_must_exist;
     "one_module_per_name" >:: test_one_module_per_name;
+    "dependency_is_taken_from_disk" >:: test_dependency_is_taken_from_disk;
+    "a_package_is_not_a_root" >:: test_a_package_is_not_a_root;
+    "our_own_packages_are_skipped" >:: test_our_own_packages_are_skipped;
+    "a_missing_package_is_refused" >:: test_a_missing_package_is_refused;
+    "a_manifest_and_a_lock_bring_a_package_in"
+    >:: test_a_manifest_and_a_lock_bring_a_package_in;
+    "a_manifest_without_a_lock_is_refused"
+    >:: test_a_manifest_without_a_lock_is_refused;
+    "a_manifest_without_dependencies_needs_no_lock"
+    >:: test_a_manifest_without_dependencies_needs_no_lock;
+    "the_manifest_wins_over_elm_json" >:: test_the_manifest_wins_over_elm_json;
     "entry_is_the_main_declaration" >:: test_entry_is_the_main_declaration;
     "entry_need_not_be_exposed" >:: test_entry_need_not_be_exposed;
     "module_without_main" >:: test_module_without_main;

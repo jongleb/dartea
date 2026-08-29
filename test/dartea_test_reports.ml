@@ -157,7 +157,9 @@ let sample_of_project (problem : Reporting.Project_error.t) =
         }
   | Unknown_folder _ | No_sources _ | Bad_json _ | Missing_field _ | Bad_field _
   | Missing_source_directory _ | Duplicate_module _ | Unknown_entry _
-  | No_entry _ | Delivery_needs_entry _ ->
+  | No_entry _ | Bad_flags _ | Missing_package _ | Missing_lock _
+  | Missing_manifest _ | Offline _ | Unknown_package _ | No_version _
+  | Bad_tarball _ | Bad_range _ | Delivery_needs_entry _ ->
       let file = Reporting.Project_error.file_of problem in
       Rendered { file; content = ""; region = { Data.Region.nowhere with file } }
 
@@ -272,6 +274,64 @@ let project_kinds : (string * Reporting.Project_error.t) list =
           found = "Int";
         } );
     ("delivery-needs-entry", Delivery_needs_entry { delivery = "page" });
+    ("no-manifest", Missing_manifest { file = "dartea.json" });
+    ( "no-connection",
+      Offline
+        {
+          file = "dartea.json";
+          url = "https://registry.npmjs.org/@dartea%2frouter";
+          problem = "the name resolution failed";
+        } );
+    ( "unknown-package",
+      Unknown_package
+        {
+          file = "dartea.json";
+          package = "@dartea/rooter";
+          asked_by = "your dependencies";
+        } );
+    ( "no-version",
+      No_version
+        {
+          file = "dartea.json";
+          package = "@dartea/ui";
+          asked =
+            [ ("your dependencies", "^1.0.0"); ("@dartea/router", "^2.0.0") ];
+        } );
+    ( "bad-range",
+      Bad_range
+        {
+          file = "dartea.json";
+          package = "color-convert";
+          version = "2.0.1";
+          dependency = "color-name";
+          range = "~1.1.4";
+        } );
+    ( "bad-tarball",
+      Bad_tarball
+        {
+          file = "dartea.json";
+          package = "@dartea/ui";
+          version = "1.0.0";
+          problem = "the tarball does not match the checksum in the registry";
+        } );
+    ( "missing-lock",
+      Missing_lock { file = "dartea.json"; lock = "dartea.lock" } );
+    ( "missing-package",
+      Missing_package
+        {
+          file = "elm.json";
+          package = "elm/url";
+          version = "1.0.0";
+          looked = ".dartea/packages/elm/url/1.0.0/src";
+        } );
+    ( "bad-flags",
+      Bad_flags
+        {
+          delivery = "page";
+          module_name = "Main";
+          declaration = "main";
+          found = "Season";
+        } );
     ( "duplicate-module",
       Duplicate_module
         {

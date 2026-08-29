@@ -222,6 +222,7 @@ const $$Browser$sandbox = (config) => ({
   page: (model) => ({ title: undefined, body: [config.view(model)] }),
   watch: () => "None",
   wiring: $$Port$wiring,
+  host: (node) => node,
 });
 
 const $$Browser$document = (config) => ({
@@ -234,6 +235,7 @@ const $$Browser$document = (config) => ({
   },
   watch: (model) => config.subscriptions(model),
   wiring: $$Port$wiring,
+  host: () => document.body,
 });
 
 export {

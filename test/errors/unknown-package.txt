@@ -1,0 +1,6 @@
+-- UNKNOWN PACKAGE ------------------------------------------------- dartea.json
+
+`your dependencies` asks for `@dartea/rooter`, and the registry has never heard
+of it.
+
+Check the spelling, or publish it first.

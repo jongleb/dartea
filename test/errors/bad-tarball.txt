@@ -1,0 +1,7 @@
+-- BAD TARBALL ----------------------------------------------------- dartea.json
+
+I downloaded `@dartea/ui` `1.0.0`, and something is wrong with it.
+
+    the tarball does not match the checksum in the registry
+
+I have not unpacked it, so your project is untouched.

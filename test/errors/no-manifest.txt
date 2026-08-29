@@ -1,0 +1,6 @@
+-- NO MANIFEST ----------------------------------------------------- dartea.json
+
+I do not see a `dartea.json` file here.
+
+That file says what your project is called and which packages it needs, and I
+install from it.

@@ -1,15 +1,18 @@
-let at folder path =
-  List.fold_left (fun folder segment -> Eio.Path.(folder / segment)) folder path
+let at folder path = List.fold_left Filename.concat folder path
 
-let kind folder path = Eio.Path.kind ~follow:false (at folder path)
+let kind folder path =
+  match Unix.lstat (at folder path) with
+  | stats -> Some stats.Unix.st_kind
+  | exception Unix.Unix_error _ -> None
 
 let is_directory folder path =
-  match kind folder path with `Directory -> true | _ -> false
+  match kind folder path with Some Unix.S_DIR -> true | _ -> false
 
 let is_file folder path =
-  match kind folder path with `Regular_file -> true | _ -> false
+  match kind folder path with Some Unix.S_REG -> true | _ -> false
 
-let load folder path = Eio.Path.load (at folder path)
+let load folder path =
+  In_channel.with_open_bin (at folder path) In_channel.input_all
 
 let ensured folder path =
   let rec making made = function
@@ -17,23 +20,30 @@ let ensured folder path =
     | segment :: rest ->
         let next = Relative.extended made segment in
         if not (is_directory folder next) then
-          Eio.Path.mkdir ~perm:0o755 (at folder next);
+          Unix.mkdir (at folder next) 0o755;
         making next rest
   in
   making Relative.root path
 
 let saved folder path content =
   ensured folder (Relative.parent path);
-  Eio.Path.save ~create:(`Or_truncate 0o644) (at folder path) content
+  Out_channel.with_open_bin (at folder path) (fun out ->
+      Out_channel.output_string out content)
+
+let here = Filename.current_dir_name ^ Filename.dir_sep
 
 let shown folder =
-  Option.value (Eio.Path.native folder) ~default:Filename.current_dir_name
-
+  if String.starts_with ~prefix:here folder then
+    String.sub folder (String.length here)
+      (String.length folder - String.length here)
+  else folder
 let hidden entry = String.starts_with ~prefix:"." entry
 
+let entries folder path =
+  List.sort String.compare (Array.to_list (Sys.readdir (at folder path)))
+
 let rec walked ~suffix folder path =
-  Eio.Path.read_dir (at folder path)
-  |> List.sort String.compare
+  entries folder path
   |> List.concat_map (fun entry ->
          if hidden entry then []
          else
