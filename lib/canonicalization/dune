@@ -1,5 +1,5 @@
 (library
  (name canonicalization)
- (libraries base canonical data primitives reporting)
+ (libraries canonical data primitives reporting)
  (preprocess
   (pps ppx_jane ppx_deriving.show ppx_deriving.make)))

@@ -35,7 +35,6 @@ let float_to_string value =
     shortest
   else shortest ^ ".0"
 
-(* Convert literal to string - modern JS *)
 let literal_to_string = function
   | J.Int n -> string_of_int n
   | J.Float f -> float_to_string f
@@ -44,7 +43,6 @@ let literal_to_string = function
   | J.Bool false -> "false"
   | J.Null -> "null"
 
-(* Convert binary operator to string *)
 let binop_to_string = function
   | J.Plus -> "+"
   | J.Minus -> "-"
@@ -64,13 +62,11 @@ let binop_to_string = function
   | J.And -> "&&"
   | J.Or -> "||"
 
-(* Convert unary operator to string *)
 let unop_to_string = function
   | J.Not -> "!"
   | J.Negative -> "-"
   | J.Typeof -> "typeof "
 
-(* Convert expression to string *)
 let rec expr_to_string ?(parens = false) (e : J.expr) : string =
   let wrap_if_needed s = if parens then "(" ^ s ^ ")" else s in
   match e with
@@ -146,7 +142,6 @@ let rec expr_to_string ?(parens = false) (e : J.expr) : string =
   | J.Assignment { left; right } ->
       expr_to_string left ^ " = " ^ expr_to_string right
 
-(* Convert statement to string *)
 and stmt_to_string ?(indent_lvl = 0) (s : J.stmt) : string =
   let ind = indent indent_lvl in
   match s with
@@ -191,7 +186,6 @@ and stmt_to_string ?(indent_lvl = 0) (s : J.stmt) : string =
       ind ^ "export { " ^ String.concat ", " names ^ " };"
   | J.Comment text -> ind ^ "// " ^ text
 
-(* Convert case to string *)
 and case_to_string ?(indent_lvl = 0) (c : J.case) : string =
   let ind = indent indent_lvl in
   let case_label =
@@ -202,10 +196,8 @@ and case_to_string ?(indent_lvl = 0) (c : J.case) : string =
   let consequent_strs = List.map (stmt_to_string ~indent_lvl:(indent_lvl + 1)) c.consequent in
   case_label ^ "\n" ^ String.concat "\n" consequent_strs
 
-(* Convert list of statements to string *)
 and stmts_to_string ?(indent_lvl = 0) (stmts : J.stmt list) : string =
   String.concat "\n" (List.map (stmt_to_string ~indent_lvl) stmts) ^ "\n"
 
-(* Convert program to string *)
 let program_to_string (prog : J.program) : string =
   stmts_to_string ~indent_lvl:0 prog

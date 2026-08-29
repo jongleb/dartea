@@ -33,17 +33,20 @@ let in_dependency_order (modules : Canonical.Module.t list) :
       | None -> Ok traversal
       | Some (m : Canonical.Module.t) ->
           let importing = name :: importing in
-          Base.List.fold_result m.imports ~init:traversal
-            ~f:(fun traversal (import : Canonical.Import.t) ->
-              visit ~importing traversal import.module_name)
+          List.fold_left
+            (fun traversal (import : Canonical.Import.t) ->
+              Result.bind traversal (fun traversal ->
+                  visit ~importing traversal import.module_name))
+            (Ok traversal) m.imports
           |> Result.map (fun traversal ->
                  {
                    settled = Module_names.add name traversal.settled;
                    ordered = m :: traversal.ordered;
                  })
   in
-  Base.List.fold_result modules
-    ~init:{ settled = Module_names.empty; ordered = [] }
-    ~f:(fun traversal (m : Canonical.Module.t) ->
-      visit ~importing:[] traversal m.name)
+  List.fold_left
+    (fun traversal (m : Canonical.Module.t) ->
+      Result.bind traversal (fun traversal -> visit ~importing:[] traversal m.name))
+    (Ok { settled = Module_names.empty; ordered = [] })
+    modules
   |> Result.map (fun traversal -> List.rev traversal.ordered)

@@ -19,12 +19,10 @@ module Typedef = struct
   end = struct
     type t =
       | Tkind_concrete of string Located.t
-      (* A.Region Name [Type] *)
-      | Tkind_var of string Data.Located.t (* Name *)
+      | Tkind_var of string Data.Located.t
       | Tkind_record of Type_record.t
-      (* [(A.Located Name, Type)] (Maybe (A.Located Name)) *)
-      | Tkind_tuple of Impl.t list (* Type Type [Type] *)
-      | Tkind_function of Type_function.t (* TLambda Type Type *)
+      | Tkind_tuple of Impl.t list
+      | Tkind_function of Type_function.t
       | Tkind_unit
     [@@deriving show]
   end
@@ -299,7 +297,6 @@ module Declaration = struct
 
   and type_part = { name : string Data.Located.t; type_alias : Typedef.Impl.t }
   [@@deriving show]
-  (** fixme: rename it *)
 
   and body_part = {
     name : string Data.Located.t;
@@ -313,7 +310,7 @@ module Impl = struct
   type t =
     | Type_alias of Typealias.t
     | Type_dec of Typedecl.t
-    | Top_declaration of Declaration.t  (** fixme: rename it *)
+    | Top_declaration of Declaration.t
     | Import of Import_thing.t
     | ModuleName of string Data.Located.t
     | Export of Exposing.t

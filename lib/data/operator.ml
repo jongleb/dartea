@@ -33,7 +33,9 @@ let lexeme = function
   | Conjunction -> "&&"
   | Disjunction -> "||"
 
-let by_lexeme = Lookup.by ~key:lexeme all
+let by_lexeme =
+  Hashtbl.of_seq
+    (Seq.map (fun operator -> (lexeme operator, operator)) (List.to_seq all))
 
 let of_lexeme written = Hashtbl.find_opt by_lexeme written
 

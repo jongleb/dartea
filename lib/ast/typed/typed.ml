@@ -18,12 +18,6 @@ module Variable : sig
   val compare : ('a -> 'a -> int) -> 'a t -> 'a t -> int
   val equal : ('a -> 'a -> bool) -> 'a t -> 'a t -> bool
 
-  val hash_fold_t :
-    (Base.Hash.state -> 'a -> Base.Hash.state) ->
-    Base.Hash.state ->
-    'a t ->
-    Base.Hash.state
-
   val pp : (Format.formatter -> 'a -> unit) -> Format.formatter -> 'a t -> unit
 end = struct
   type 'a state =
@@ -65,7 +59,6 @@ end = struct
   let identity variable = variable.identity
   let compare _ left right = Stdlib.Int.compare left.identity right.identity
   let equal _ left right = Stdlib.Int.equal left.identity right.identity
-  let hash_fold_t _ state variable = Base.Hash.fold_int state variable.identity
 
   let pp inner formatter variable =
     match variable.state with
@@ -79,7 +72,6 @@ end
 
 module Type = struct
   open Ppx_compare_lib.Builtin
-  open Base.Export
 
   type t =
     | TVar of t Variable.t
@@ -95,10 +87,10 @@ module Type = struct
     | TRecord of t
     | TRowExtend of string * t * t
     | TRowEmpty
-  [@@deriving show, compare, equal, hash]
+  [@@deriving show, compare, equal]
 
   type scheme = Scheme of t Variable.t list * t
-  [@@deriving show, compare, equal, hash]
+  [@@deriving show, compare, equal]
 
   module Identity = struct
     type nonrec t = t Variable.t
@@ -188,10 +180,9 @@ end
 
 module Pattern = struct
   open Ppx_compare_lib.Builtin
-  open Base.Export
 
   type t = { typ : Type.t; pattern : kind }
-  [@@deriving show, compare, equal, hash]
+  [@@deriving show, compare, equal]
 
   and kind =
     | P_T_anything
@@ -206,7 +197,7 @@ module Pattern = struct
     | P_T_str of string
     | P_T_int of int
     | P_T_ctor of (Data.Name.t * t list)
-  [@@deriving show, compare, equal, hash]
+  [@@deriving show, compare, equal]
 
   let rec map_types on_type p =
     let inner = map_types on_type in
@@ -249,10 +240,10 @@ module Expr = struct
     | Expr_unit
     | Expr_kernel of Data.Kernel.t
     | Expr_lambda of expr_lambda
-    | Expr_char of string (* elm type: Chr ES.String, NEED IMPLEMENT *)
-    | Expr_string of string (* Chr ES.String *)
+    | Expr_char of string
+    | Expr_string of string
     | Expr_int of int
-    | Expr_float of float (* EF.Float *)
+    | Expr_float of float
     | Expr_list of t list
     | Expr_cons of expr_cons
     | Expr_tuple of t list
@@ -267,25 +258,21 @@ module Expr = struct
   and expr_cons = { head : t; tail : t } [@@deriving show]
 
   and expr_constr = { name : Data.Name.t; arguments : t list } [@@deriving show]
-  (*ConstructorValue { qualifiedness : PossiblyQualified, name : VarName }*)
 
   and expr_binop = { name : Data.Operator.t; operands : t * t } [@@deriving show]
-  (*  Binops [(Expr, A.Located Name)] Expr *)
 
-  and expr_let_binding_type = { name : string (* content : Typedef.Impl.t *) }
+  and expr_let_binding_type = { name : string }
   [@@deriving show]
 
   and expr_let_binding_body = { name : string Data.Located.t; body : t }
   [@@deriving show]
 
   and expr_let_binding = {
-    (* bind_type : expr_let_binding_type option; *)
     bind_body : expr_let_binding_body;
   }
   [@@deriving show]
 
   and expr_let = { binding : expr_let_binding; body : t } [@@deriving show]
-  (*Let [A.Located Def] Expr *)
 
   and expr_if_then_else = { if_exp : t; then_exp : t; else_exp : t }
   [@@deriving show]

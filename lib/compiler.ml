@@ -351,7 +351,8 @@ module Make (B : BACKEND) = struct
           (not (List.mem spelled owned)) || surviving spelled)
         module_.exports
     in
-    if declarations = [] && built = [] && exports = [] then None
+    if List.is_empty declarations && List.is_empty built && List.is_empty exports
+    then None
     else
       let source, runtimes =
         B.emit_module ~notice:module_.notice ~arities:module_.arities
@@ -436,7 +437,7 @@ module Make (B : BACKEND) = struct
                     :: depended.interfaces;
                 }
               in
-              if typed.errors <> [] then
+              if not (List.is_empty typed.errors) then
                 {
                   known with
                   errors = List.rev_append typed.errors known.errors;
@@ -542,7 +543,7 @@ module Make (B : BACKEND) = struct
           | _, _, errors -> List.rev errors
         in
         {
-          modules = (if errors = [] then compiled_modules else []);
+          modules = (if List.is_empty errors then compiled_modules else []);
           written = List.filter_map Project.Elm_file.written sources;
           errors;
           sources = written;

@@ -8,7 +8,8 @@ let origin = function
   | Minimum -> written_as "min"
   | Maximum -> written_as "max"
 
-let by_origin = Lookup.by ~key:origin all
+let by_origin =
+  Hashtbl.of_seq (Seq.map (fun method_ -> (origin method_, method_)) (List.to_seq all))
 let referred_to_by name = Hashtbl.find_opt by_origin name
 
 type ordering_result = { less : Name.t; equal : Name.t; greater : Name.t }

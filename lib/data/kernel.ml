@@ -103,7 +103,11 @@ let origin = function
   | Binary Basics_atan2 -> basics "atan2"
   | Binary Basics_xor -> basics "xor"
 
-let by_origin = Lookup.by ~key:origin all_of_language
+let by_origin =
+  Hashtbl.of_seq
+    (Seq.map
+       (fun kernel -> (origin kernel, kernel))
+       (List.to_seq all_of_language))
 
 type reference =
   | Not_kernel

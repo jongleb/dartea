@@ -1,11 +1,10 @@
 open Ppx_compare_lib.Builtin
-open Base.Export
 
 type global = { module_name : string; exported_name : string }
-[@@deriving show, compare, equal, hash]
+[@@deriving show, compare, equal]
 
 type t = Local of string | Global of global
-[@@deriving show, compare, equal, hash]
+[@@deriving show, compare, equal]
 
 let local name = Local name
 let global ~module_name ~exported_name = Global { module_name; exported_name }

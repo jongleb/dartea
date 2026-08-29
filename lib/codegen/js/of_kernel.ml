@@ -1,20 +1,13 @@
 module J = Ast
 
-let member object_ property =
-  J.Member { object_; property = J.Identifier property; computed = false }
-
-let call callee arguments =
-  J.Call { callee = J.Identifier callee; args = arguments }
-
-let method_call object_ method_ arguments =
-  J.Call { callee = member object_ method_; args = arguments }
-
+let member = J.member
+let call callee arguments = J.call (J.Identifier callee) arguments
+let method_call object_ method_ arguments = J.call (J.member object_ method_) arguments
 let math name arguments = method_call (J.Identifier "Math") name arguments
-let binary left op right = J.Binary { left; op; right }
+let binary left op right = J.binary op left right
 
 let runtime name arguments =
-  J.Call
-    { callee = member (J.Identifier Runtime.module_name) name; args = arguments }
+  J.call (J.member (J.Identifier Runtime.module_name) name) arguments
 
 let nullary_value (kernel : Data.Kernel.nullary) : J.expr =
   match kernel with

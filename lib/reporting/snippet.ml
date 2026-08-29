@@ -32,7 +32,7 @@ let of_region source (region : Data.Region.t) =
   in
   let rec without_trailing_blanks lines =
     match List.rev lines with
-    | (_, last) :: earlier when String.trim last = "" && earlier <> [] ->
+    | (_, last) :: earlier when String.equal (String.trim last) "" && not (List.is_empty earlier) ->
         without_trailing_blanks (List.rev earlier)
     | _ -> lines
   in

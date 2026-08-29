@@ -6,20 +6,20 @@ module Problem = Reporting.Name_error
 type error = Reporting.Error.t
 
 module Reported = struct
-  module Basic = struct
-    type 'a t = { value : 'a; problems : error list }
+  type 'a t = { value : 'a; problems : error list }
 
-    let return value = { value; problems = [] }
+  let return value = { value; problems = [] }
 
-    let bind reported ~f =
-      let next = f reported.value in
-      { value = next.value; problems = reported.problems @ next.problems }
+  let bind reported ~f =
+    let next = f reported.value in
+    { value = next.value; problems = reported.problems @ next.problems }
 
-    let map = `Define_using_bind
+  let map reported ~f = bind reported ~f:(fun value -> return (f value))
+
+  module Syntax = struct
+    let ( let* ) reported f = bind reported ~f
+    let ( let+ ) reported f = map reported ~f
   end
-
-  include Basic
-  include Base.Monad.Make (Basic)
 
   let rejected value ~region problem =
     { value; problems = [ Reporting.Error.name ~region problem ] }
@@ -423,32 +423,32 @@ let resolved_declarations map ~f =
 
 let in_module ~platform_kernel ~(dependencies : Canonical.Module.t list)
     (m : Canonical.Module.t) : (Canonical.Module.t, error list) result =
-  let open Reported.Let_syntax in
+  let open Reported.Syntax in
   let env, import_errors = environment_of ~dependencies m in
   let env = { env with platform_kernel } in
   let top_declarations, declaration_errors =
     resolved_values m.top_declarations
       ~f:(fun (d : Canonical.Declaration.t) ->
         Reported.collected
-          (let%bind declaration = Resolving.declaration env d in
+          (let* declaration = Resolving.declaration env d in
            agreeing_with_its_kernel declaration))
   in
   let type_declarations, type_errors =
     resolved_declarations m.type_declarations
       ~f:(fun name (td : Canonical.Typedecl.t) ->
         let ctor (ctor : Canonical.Typedecl.type_ctor) =
-          let%map data = Resolving.each ctor.data ~f:(Resolving.type_expression env) in
+          let+ data = Resolving.each ctor.data ~f:(Resolving.type_expression env) in
           { ctor with data }
         in
         Reported.collected
-          (let%map ctors = Resolving.each td.ctors ~f:ctor in
+          (let+ ctors = Resolving.each td.ctors ~f:ctor in
            { td with ctors }))
   in
   let type_aliases, alias_errors =
     resolved_declarations m.type_aliases
       ~f:(fun name (ta : Canonical.Typealias.t) ->
         Reported.collected
-          (let%map typedef = Resolving.type_expression env ta.typedef in
+          (let+ typedef = Resolving.type_expression env ta.typedef in
            { ta with typedef }))
   in
   let errors =

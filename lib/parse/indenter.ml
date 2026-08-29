@@ -88,7 +88,7 @@ let close_through stops token state =
 type reaction = Keep | Close | Unbracket | Realign | Unwind
 
 let react context ~indent ~column =
-  match (context, compare indent column) with
+  match (context, Int.compare indent column) with
   | Type_annotation, _ when indent = 0 -> Keep
   | Expression, -1 -> Close
   | Let, 1 -> Realign

@@ -1,5 +1,5 @@
 (library
  (name frontend)
- (libraries data ppx_hash.runtime-lib non_empty_list)
+ (libraries data non_empty_list)
  (preprocess
   (pps ppx_jane ppx_deriving.show ppx_deriving.make)))
