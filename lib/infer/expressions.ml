@@ -290,7 +290,7 @@ let rec infer_with_env (exp : Canonical.Expr.t) ctx (type_env : Type_env.t) :
         | Reporting.Category.Op_name operator, 1 ->
             Reporting.Context.Op_left operator
         | Op_name operator, 2 -> Op_right operator
-        | Func_name name, 1 when Data.Name.equal name (Data.Name.local "negate")
+        | Func_name name, 1 when Data.Name.equal name Primitives.negate
           ->
             Negate
         | (Op_name _ | Func_name _ | Ctor_name _ | No_name), _ ->

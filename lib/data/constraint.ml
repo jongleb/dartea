@@ -1,11 +1,11 @@
-type t = Number | Comparable | Appendable | Comp_appendable
-[@@deriving show, equal, enumerate]
+type t =
+  | Number [@rename "number"]
+  | Comparable [@rename "comparable"]
+  | Appendable [@rename "appendable"]
+  | Comp_appendable [@rename "compappend"]
+[@@deriving show, equal, enumerate, to_string]
 
-let name = function
-  | Number -> "number"
-  | Comparable -> "comparable"
-  | Appendable -> "appendable"
-  | Comp_appendable -> "compappend"
+let name = to_string
 
 let rec only_digits written index =
   if index >= String.length written then true

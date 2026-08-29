@@ -1,43 +1,25 @@
 type t =
-  | Add
-  | Subtract
-  | Multiply
-  | Divide
-  | Integer_divide
-  | Power
-  | Append
-  | Equal
-  | Not_equal
-  | Less
-  | Less_or_equal
-  | Greater
-  | Greater_or_equal
-  | Conjunction
-  | Disjunction
-[@@deriving show, enumerate]
+  | Add [@rename "+"]
+  | Subtract [@rename "-"]
+  | Multiply [@rename "*"]
+  | Divide [@rename "/"]
+  | Integer_divide [@rename "//"]
+  | Power [@rename "^"]
+  | Append [@rename "++"]
+  | Equal [@rename "=="]
+  | Not_equal [@rename "/="]
+  | Less [@rename "<"]
+  | Less_or_equal [@rename "<="]
+  | Greater [@rename ">"]
+  | Greater_or_equal [@rename ">="]
+  | Conjunction [@rename "&&"]
+  | Disjunction [@rename "||"]
+[@@deriving show, enumerate, to_string]
 
-let lexeme = function
-  | Add -> "+"
-  | Subtract -> "-"
-  | Multiply -> "*"
-  | Divide -> "/"
-  | Integer_divide -> "//"
-  | Power -> "^"
-  | Append -> "++"
-  | Equal -> "=="
-  | Not_equal -> "/="
-  | Less -> "<"
-  | Less_or_equal -> "<="
-  | Greater -> ">"
-  | Greater_or_equal -> ">="
-  | Conjunction -> "&&"
-  | Disjunction -> "||"
+let lexeme = to_string
 
-let by_lexeme =
-  Hashtbl.of_seq
-    (Seq.map (fun operator -> (lexeme operator, operator)) (List.to_seq all))
-
-let of_lexeme written = Hashtbl.find_opt by_lexeme written
+let of_lexeme written =
+  List.find_opt (fun operator -> String.equal (lexeme operator) written) all
 
 let referred_to_by (name : Name.t) =
   match name with

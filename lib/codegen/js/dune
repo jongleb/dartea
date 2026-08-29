@@ -17,6 +17,6 @@
 
 (library
  (name codegen_js)
- (libraries frontend optimized data typed after_typed)
+ (libraries frontend optimized data typed after_typed primitives)
  (preprocess
   (pps ppx_jane ppx_deriving.show)))

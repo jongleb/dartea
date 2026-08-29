@@ -116,6 +116,14 @@ type reference =
 
 let namespace = "Elm.Kernel."
 
+module Port = struct
+  type direction = Incoming [@rename "incoming"] | Outgoing [@rename "outgoing"]
+  [@@deriving to_string]
+
+  let module_name = "Port"
+  let home = namespace ^ module_name
+end
+
 let referred_to_by (name : Name.t) : reference =
   match name with
   | Name.Local _ -> Not_kernel

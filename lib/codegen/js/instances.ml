@@ -44,7 +44,7 @@ let sorted_fields row =
     (List.sort (fun (one, _) (other, _) -> String.compare one other))
     (row_fields row)
 
-let is_list_type name = String.equal (Data.Name.base name) "List"
+let is_list_type name = Data.Name.equal name Typed.Type.list_name
 
 let variant_of instances (name : Data.Name.t) arguments =
   Option.bind (Hashtbl.find_opt instances.types name) (fun decl ->
@@ -80,12 +80,9 @@ let rec key (ty : O.Type.t) : string option =
       (every_key (List.map key arguments))
   in
   match ty with
-  | O.Type.TInt -> Some "Int"
-  | O.Type.TFloat -> Some "Float"
-  | O.Type.TChar -> Some "Char"
-  | O.Type.TStr -> Some "String"
-  | O.Type.TBool -> Some "Bool"
-  | O.Type.TUnit -> Some "Unit"
+  | O.Type.TInt | O.Type.TFloat | O.Type.TChar | O.Type.TStr | O.Type.TBool
+  | O.Type.TUnit ->
+      Option.map Primitives.name_of_builtin (Primitives.builtin_of_scalar ty)
   | O.Type.TTup components -> applied_to "Tuple" components
   | O.Type.TCustom (name, arguments) ->
       applied_to (Names.type_ident name) arguments
@@ -169,7 +166,7 @@ let defined instances name body =
 let named instances tag ~keyed_by body =
   Option.map (fun found -> defined instances (tag ^ found) body) (key keyed_by)
 
-let head_of subject = J.member (J.Identifier subject) "hd"
+let head_of subject = J.member (J.Identifier subject) Runtime.head
 
 let walking_both_lists step =
   let is_cons subject = J.binary J.StrictNotEqual (J.Identifier subject) (J.int 0) in
@@ -182,8 +179,8 @@ let walking_both_lists step =
         body =
           step
           @ [
-              J.assigned "left" (J.member (J.Identifier "left") "tl");
-              J.assigned "right" (J.member (J.Identifier "right") "tl");
+              J.assigned "left" (J.member (J.Identifier "left") Runtime.tail);
+              J.assigned "right" (J.member (J.Identifier "right") Runtime.tail);
             ];
       };
   ]
@@ -197,7 +194,7 @@ let returning_first_difference name ordering =
   ]
 
 let list_append () =
-  let cell head tail = J.Object [ J.Field ("hd", head); J.Field ("tl", tail) ] in
+  let cell head tail = J.Object [ J.Field (Runtime.head, head); J.Field (Runtime.tail, tail) ] in
   let assign target value =
     J.ExprStmt (J.Assignment { left = target; right = value })
   in
@@ -210,7 +207,7 @@ let list_append () =
         { name = "root"; init = cell (head_of "xs") (J.Identifier "ys") };
       J.VarDecl { name = "last"; init = Some (J.Identifier "root") };
       J.VarDecl
-        { name = "rest"; init = Some (J.member (J.Identifier "xs") "tl") };
+        { name = "rest"; init = Some (J.member (J.Identifier "xs") Runtime.tail) };
       J.While
         {
           test = J.binary J.StrictNotEqual (J.Identifier "rest") (J.int 0);
@@ -221,9 +218,9 @@ let list_append () =
                   name = "copied";
                   init = cell (head_of "rest") (J.Identifier "ys");
                 };
-              assign (J.member (J.Identifier "last") "tl") (J.Identifier "copied");
+              assign (J.member (J.Identifier "last") Runtime.tail) (J.Identifier "copied");
               J.assigned "last" (J.Identifier "copied");
-              J.assigned "rest" (J.member (J.Identifier "rest") "tl");
+              J.assigned "rest" (J.member (J.Identifier "rest") Runtime.tail);
             ];
         };
       J.Return (Some (J.Identifier "root"));
@@ -390,7 +387,7 @@ and product_ordering instances parts () =
 and payload_equality instances (ctor : O.Typedecl.ctor) =
   let compared index part =
     let payload subject =
-      J.member (J.Identifier subject) ("_" ^ string_of_int index)
+      J.member (J.Identifier subject) (Runtime.payload index)
     in
     equality_of instances ~budget:expansion_budget part (payload "a")
       (payload "b")
@@ -408,7 +405,7 @@ and variant_equality instances ctors () =
       returning_unless (J.is_object (J.Identifier "b")) (J.bool false);
     ]
   in
-  let tag subject = J.member (J.Identifier subject) "TAG" in
+  let tag subject = J.member (J.Identifier subject) Runtime.tag in
   let case (ctor : O.Typedecl.ctor) =
     {
       J.test = Some (J.string (Data.Name.base ctor.id));

@@ -17,8 +17,7 @@ let apply_to (fn : O.Expr.t) (arguments : O.Expr.t list) : O.Expr.t =
     fn arguments
 
 let boolean_constructor value : O.Expr.expr =
-  let name = if value then "True" else "False" in
-  O.Expr.Expr_constr { name = Data.Name.local name; arguments = [] }
+  O.Expr.Expr_constr { name = Primitives.bool_constructor value; arguments = [] }
 
 let is_duplicable (e : O.Expr.t) : bool =
   match e.expr with
@@ -212,10 +211,10 @@ let propagate_constants (e : O.Expr.t) : O.Expr.t =
         let else_exp = propagate ~constants else_exp in
         match if_exp.expr with
         | Expr_constr { name; arguments = [] }
-          when Data.Name.base name = "True" ->
+          when Option.equal Bool.equal (Primitives.bool_of_constructor name) (Some true) ->
             then_exp
         | Expr_constr { name; arguments = [] }
-          when Data.Name.base name = "False" ->
+          when Option.equal Bool.equal (Primitives.bool_of_constructor name) (Some false) ->
             else_exp
         | Expr_constr _ | Expr_binop _ | Expr_let _ | Expr_if_then_else _
         | Expr_record _ | Expr_record_update _ | Expr_apply _ | Expr_ident _

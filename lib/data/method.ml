@@ -1,12 +1,13 @@
-type t = Compare | Minimum | Maximum [@@deriving show, enumerate]
+type t =
+  | Compare [@rename "compare"]
+  | Minimum [@rename "min"]
+  | Maximum [@rename "max"]
+[@@deriving show, enumerate, to_string]
 
 let written_as exported_name =
   Name.global ~module_name:"Basics" ~exported_name
 
-let origin = function
-  | Compare -> written_as "compare"
-  | Minimum -> written_as "min"
-  | Maximum -> written_as "max"
+let origin method_ = written_as (to_string method_)
 
 let by_origin =
   Hashtbl.of_seq (Seq.map (fun method_ -> (origin method_, method_)) (List.to_seq all))

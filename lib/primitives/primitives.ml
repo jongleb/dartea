@@ -32,22 +32,42 @@ let values : (string * scheme) list =
     Data.Operator.all
 
 type builtin_type = Int | Float | Char | Bool | String | Unit | List
+[@@deriving enumerate, to_string]
 
-let builtin_types = [ Int; Float; Char; Bool; String; Unit; List ]
-
-let name_of_builtin = function
-  | Int -> "Int"
-  | Float -> "Float"
-  | Char -> "Char"
-  | Bool -> "Bool"
-  | String -> "String"
-  | Unit -> "Unit"
-  | List -> "List"
+let builtin_types = all_of_builtin_type
+let name_of_builtin = string_of_builtin_type
+let builtin_of_scalar = function
+  | TInt -> Some Int
+  | TFloat -> Some Float
+  | TChar -> Some Char
+  | TBool -> Some Bool
+  | TStr -> Some String
+  | TUnit -> Some Unit
+  | TVar _ | TFun _ | TTup _ | TCustom _ | TRecord _ | TRowExtend _ | TRowEmpty
+    ->
+      None
 
 let builtin_named written =
   List.find_opt
     (fun builtin -> String.equal (name_of_builtin builtin) written)
     builtin_types
+let true_ = "True"
+let false_ = "False"
+let unit_ = "Unit"
+let unit_written = "()"
+let negate = Data.Name.local "negate"
+
+let bool_of_constructor name =
+  let written = Data.Name.base name in
+  if String.equal written true_ then Some true
+  else if String.equal written false_ then Some false
+  else None
+
+let bool_constructor value = Data.Name.local (if value then true_ else false_)
+
+let is_unit_constructor name =
+  let written = Data.Name.base name in
+  String.equal written unit_ || String.equal written unit_written
 
 let concrete_type name arguments =
   let builtin =
@@ -71,18 +91,18 @@ let types : Canonical.Typedecl.t list =
   Canonical.
     [
       {
-        Typedecl.name = Data.Name.local "Bool";
+        Typedecl.name = Data.Name.local (name_of_builtin Bool);
         params = [];
         region = Data.Region.nowhere;
         ctors =
           [
             {
-              Typedecl.id = Data.Name.local "True";
+              Typedecl.id = Data.Name.local true_;
               data = [];
               region = Data.Region.nowhere;
             };
             {
-              Typedecl.id = Data.Name.local "False";
+              Typedecl.id = Data.Name.local false_;
               data = [];
               region = Data.Region.nowhere;
             };

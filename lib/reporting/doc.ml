@@ -1,4 +1,9 @@
-type colour = Red | Yellow | Cyan | Green
+type colour =
+  | Red [@rename "\027[31m"]
+  | Yellow [@rename "\027[33m"]
+  | Cyan [@rename "\027[36m"]
+  | Green [@rename "\027[32m"]
+[@@deriving to_string]
 
 type t =
   | Empty
@@ -26,11 +31,7 @@ let stack parts =
   | first :: rest ->
       Above (first :: List.concat_map (fun part -> [ blank; part ]) rest)
 
-let escape = function
-  | Red -> "\027[31m"
-  | Yellow -> "\027[33m"
-  | Cyan -> "\027[36m"
-  | Green -> "\027[32m"
+let escape = string_of_colour
 
 let reset = "\027[0m"
 

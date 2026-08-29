@@ -24,21 +24,17 @@ let jid_env env src =
   | Some js -> J.Identifier js
   | None -> Names.expression_of src
 
-let is_bool_constructor name =
-  String.equal (Data.Name.base name) "True"
-  || String.equal (Data.Name.base name) "False"
+let is_bool_constructor name = Option.is_some (Primitives.bool_of_constructor name)
+let is_unit_constructor = Primitives.is_unit_constructor
 
-let is_unit_constructor name =
-  String.equal (Data.Name.base name) "Unit"
-  || String.equal (Data.Name.base name) "()"
-
-let bool_literal name = J.bool (String.equal (Data.Name.base name) "True")
+let bool_literal name =
+  J.bool (Option.equal Bool.equal (Primitives.bool_of_constructor name) (Some true))
 
 let is_inline_constructor name =
   is_bool_constructor name || is_unit_constructor name
 
 let payload_fields js_arguments =
-  List.mapi (fun i a -> J.Field ("_" ^ string_of_int i, a)) js_arguments
+  List.mapi (fun i a -> J.Field (Runtime.payload i, a)) js_arguments
 
 let constructor_to_object names name js_arguments =
   if is_bool_constructor name then bool_literal name
@@ -48,7 +44,7 @@ let constructor_to_object names name js_arguments =
     J.Object (payload_fields js_arguments)
   else
     J.Object
-      (J.Field ("TAG", J.string (Data.Name.base name))
+      (J.Field (Runtime.tag, J.string (Data.Name.base name))
       :: payload_fields js_arguments)
 
 let is_record_construction (expr_node : O.Expr.t) =
@@ -70,7 +66,7 @@ let applied_spine ~fn ~arg =
 let rec list_to_cons_cells = function
   | [] -> J.int 0
   | hd :: tl ->
-      J.Object [ J.Field ("hd", hd); J.Field ("tl", list_to_cons_cells tl) ]
+      J.Object [ J.Field (Runtime.head, hd); J.Field (Runtime.tail, list_to_cons_cells tl) ]
 
 let needs_temp_var = function
   | J.Identifier _ | J.Literal _ -> false
@@ -155,17 +151,17 @@ let occ_expr root (o : Occ.t) : J.expr =
   List.fold_left
     (fun e step ->
       match step with
-      | Occ.Payload i -> J.member e ("_" ^ string_of_int i)
+      | Occ.Payload i -> J.member e (Runtime.payload i)
       | Occ.Index i -> J.indexed e i
       | Occ.Field f -> J.member e f
-      | Occ.Hd -> J.member e "hd"
-      | Occ.Tl -> J.member e "tl")
+      | Occ.Hd -> J.member e Runtime.head
+      | Occ.Tl -> J.member e Runtime.tail)
     root o
 
 let ctor_literal name =
-  if is_bool_constructor name then
-    J.Bool (String.equal (Data.Name.base name) "True")
-  else J.String (Data.Name.base name)
+  match Primitives.bool_of_constructor name with
+  | Some truth -> J.Bool truth
+  | None -> J.String (Data.Name.base name)
 
 let js_eq left literal = J.binary J.StrictEqual left (J.Literal literal)
 
@@ -174,7 +170,7 @@ let test_expr env occ_e (test : DT.test) : J.expr =
   | DT.Test_ctor name -> js_eq occ_e (ctor_literal name)
   | DT.Test_tag name ->
       if Names.is_tag_omitted env.names name then J.is_object occ_e
-      else js_eq (J.member occ_e "TAG") (J.String (Data.Name.base name))
+      else js_eq (J.member occ_e Runtime.tag) (J.String (Data.Name.base name))
   | DT.Test_int n -> js_eq occ_e (J.Int n)
   | DT.Test_str s -> js_eq occ_e (J.String s)
   | DT.Test_chr c -> js_eq occ_e (J.String c)
@@ -217,7 +213,7 @@ let switch_plan env occ_e (branches : (DT.test * DT.t) list) :
       if List.for_all (fun (other, _, _) -> same_discriminant other kind) cases
       then
         let discriminant =
-          match kind with By_tag -> J.member occ_e "TAG" | By_value -> occ_e
+          match kind with By_tag -> J.member occ_e Runtime.tag | By_value -> occ_e
         in
         Some
           ( discriminant,
@@ -494,7 +490,7 @@ and emit_uncoerced env (e : O.Expr.t) : J.stmt list * J.expr =
   | O.Expr.Expr_cons { head; tail } ->
       let sh, eh = emit_value env head in
       let st, et = emit_value env tail in
-      (sh @ st, J.Object [ J.Field ("hd", eh); J.Field ("tl", et) ])
+      (sh @ st, J.Object [ J.Field (Runtime.head, eh); J.Field (Runtime.tail, et) ])
   | O.Expr.Expr_tuple items ->
       let ss, vs = emit_values env items in
       (ss, J.Array vs)
@@ -840,7 +836,7 @@ let constructor_decls names (constructors : (Data.Name.t * int) list) :
            J.ConstDecl
              { name = Names.of_name name; init = constructor_to_object names name [] }
          else
-           let params = List.init arity (fun i -> "_" ^ string_of_int i) in
+           let params = List.init arity Runtime.payload in
            let args = List.map (fun p -> J.Identifier p) params in
            J.ConstDecl
              {

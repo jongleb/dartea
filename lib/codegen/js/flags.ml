@@ -1,4 +1,5 @@
 module T = Typed.Type
+module J = Ast
 
 let rec named (ty : T.t) =
   match T.head ty with
@@ -23,42 +24,32 @@ let rec fields row =
   | T.TFun _ | T.TTup _ | T.TCustom _ | T.TRecord _ ->
       []
 
-let primitive ~fits ~wanted =
-  Printf.sprintf "(value, path) => $$flagPrim(value, path, %s, %S)" fits wanted
-
-let taking helper inside =
-  Printf.sprintf "(value, path) => %s(value, path, %s)" helper inside
-
-let grouped written =
-  Printf.sprintf "(value, path) => $$flagTuple(value, path, [%s])"
-    (String.concat ", " written)
-
-let held (name, _) code = Printf.sprintf "%s: %s" name code
+let arrow params body = J.Arrow { params; body = J.ArrowExpr body }
+let value = J.Identifier "value"
+let path = J.Identifier "path"
+let given = J.Identifier "given"
+let checking ~helper arguments = arrow [ "value"; "path" ] (J.call (J.Identifier helper) ([ value; path ] @ arguments))
+let primitive ~fits ~wanted = checking ~helper:"$$flagPrim" [ arrow [ "given" ] fits; J.string wanted ]
+let taking helper inside = checking ~helper [ inside ]
+let grouped written = checking ~helper:"$$flagTuple" [ J.Array written ]
 
 let fitted rows written =
-  Printf.sprintf "(value, path) => $$flagRecord(value, path, { %s })"
-    (String.concat ", " (List.map2 held rows written))
+  checking ~helper:"$$flagRecord"
+    [ J.Object (List.map2 (fun (name, _) code -> J.Field (name, code)) rows written) ]
+
+let typeof_is kind = J.binary J.StrictEqual (J.Unary { op = J.Typeof; arg = given }) (J.string kind)
 
 let rec decoder (ty : T.t) =
   match T.head ty with
   | T.TInt ->
-      Ok (primitive ~fits:"(given) => Number.isInteger(given)" ~wanted:"an INT")
-  | T.TFloat ->
       Ok
         (primitive
-           ~fits:"(given) => typeof given === \"number\""
-           ~wanted:"a FLOAT")
-  | T.TBool ->
-      Ok
-        (primitive
-           ~fits:"(given) => typeof given === \"boolean\""
-           ~wanted:"a BOOL")
-  | T.TStr ->
-      Ok
-        (primitive
-           ~fits:"(given) => typeof given === \"string\""
-           ~wanted:"a STRING")
-  | T.TUnit -> Ok "() => null"
+           ~fits:(J.call (J.member (J.Identifier "Number") "isInteger") [ given ])
+           ~wanted:"an INT")
+  | T.TFloat -> Ok (primitive ~fits:(typeof_is "number") ~wanted:"a FLOAT")
+  | T.TBool -> Ok (primitive ~fits:(typeof_is "boolean") ~wanted:"a BOOL")
+  | T.TStr -> Ok (primitive ~fits:(typeof_is "string") ~wanted:"a STRING")
+  | T.TUnit -> Ok (arrow [] (J.Literal J.Null))
   | T.TCustom (name, arguments) -> custom ty name arguments
   | T.TTup parts -> tuple ty parts
   | T.TRecord row -> record ty row
@@ -67,7 +58,7 @@ let rec decoder (ty : T.t) =
 
 and custom ty name arguments =
   match (Data.Name.base name, arguments) with
-  | "Value", _ -> Ok "(value) => value"
+  | "Value", _ -> Ok (arrow [ "value" ] value)
   | "Maybe", [ inside ] -> Result.map (taking "$$flagMaybe") (decoder inside)
   | "List", [ inside ] -> Result.map (taking "$$flagList") (decoder inside)
   | _, _ -> Error (named ty)

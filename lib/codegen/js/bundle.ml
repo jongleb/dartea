@@ -32,7 +32,7 @@ let of_modules ~entry_module ~declaration ~flags modules =
     (Of_optimized.module_ident entry_module)
     Runtime.mount
     (Of_optimized.module_ident entry_module)
-    declaration flags
+    declaration (To_string.expr_to_string flags)
 
 let sandwich ~title ~entry_module ~notice script =
   Printf.sprintf

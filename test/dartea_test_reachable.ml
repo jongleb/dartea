@@ -79,7 +79,9 @@ let test_every_declared_kernel_exists _ =
     Codegen_js.Runtime.all;
   List.iter
     (fun (home, module_name, exported_name, _) ->
-      let spelled = "$$" ^ module_name ^ "$" ^ exported_name in
+      let spelled =
+        "$$" ^ Codegen_js.Platform_kernel.Kernel_module.to_string module_name ^ "$" ^ exported_name
+      in
       assert_bool
         (spelled ^ " is in the kernel table but missing from its runtime file")
         (List.mem spelled

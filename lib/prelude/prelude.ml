@@ -1,53 +1,30 @@
 type t =
-  | Basics
-  | Browser
-  | Browser_dom
-  | Char
-  | Dict
-  | Html
-  | Html_attributes
-  | Html_events
-  | Html_keyed
-  | Html_lazy
-  | Json_decode
-  | Json_encode
-  | List
-  | Maybe
-  | Platform
-  | Platform_cmd
-  | Platform_sub
-  | Result
-  | String
-  | Task
-  | Time
-  | Tuple
-  | VirtualDom
-[@@deriving enumerate]
+  | Basics [@rename "Basics"]
+  | Browser [@rename "Browser"]
+  | Browser_dom [@rename "Browser.Dom"]
+  | Char [@rename "Char"]
+  | Dict [@rename "Dict"]
+  | Html [@rename "Html"]
+  | Html_attributes [@rename "Html.Attributes"]
+  | Html_events [@rename "Html.Events"]
+  | Html_keyed [@rename "Html.Keyed"]
+  | Html_lazy [@rename "Html.Lazy"]
+  | Json_decode [@rename "Json.Decode"]
+  | Json_encode [@rename "Json.Encode"]
+  | List [@rename "List"]
+  | Maybe [@rename "Maybe"]
+  | Platform [@rename "Platform"]
+  | Platform_cmd [@rename "Platform.Cmd"]
+  | Platform_sub [@rename "Platform.Sub"]
+  | Result [@rename "Result"]
+  | String [@rename "String"]
+  | Task [@rename "Task"]
+  | Time [@rename "Time"]
+  | Tuple [@rename "Tuple"]
+  | VirtualDom [@rename "VirtualDom"]
+[@@deriving enumerate, to_string]
 
-let name = function
-  | Basics -> "Basics"
-  | Browser -> "Browser"
-  | Browser_dom -> "Browser.Dom"
-  | Char -> "Char"
-  | Dict -> "Dict"
-  | Html -> "Html"
-  | Html_attributes -> "Html.Attributes"
-  | Html_events -> "Html.Events"
-  | Html_keyed -> "Html.Keyed"
-  | Html_lazy -> "Html.Lazy"
-  | Json_decode -> "Json.Decode"
-  | Json_encode -> "Json.Encode"
-  | List -> "List"
-  | Maybe -> "Maybe"
-  | Platform -> "Platform"
-  | Platform_cmd -> "Platform.Cmd"
-  | Platform_sub -> "Platform.Sub"
-  | Result -> "Result"
-  | String -> "String"
-  | Task -> "Task"
-  | Time -> "Time"
-  | Tuple -> "Tuple"
-  | VirtualDom -> "VirtualDom"
+let name = to_string
 
 let packages =
   [

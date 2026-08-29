@@ -330,23 +330,27 @@ module Module = struct
     name : string Data.Located.t option;
   }
 
-  let port_home = "Elm.Kernel.Port"
-
   let wiring (typedef : Typedef.Impl.t) =
-    let named name = Expr.Expr_qualified { qualifier = port_home; name } in
+    let named direction =
+      Expr.Expr_qualified
+        {
+          qualifier = Data.Kernel.Port.home;
+          name = Data.Kernel.Port.string_of_direction direction;
+        }
+    in
     match typedef.body with
     | Typedef.Kind.Tkind_function { arguments = taken :: _; _ } -> (
         match taken.body with
-        | Typedef.Kind.Tkind_function _ -> named "incoming"
+        | Typedef.Kind.Tkind_function _ -> named Data.Kernel.Port.Incoming
         | Typedef.Kind.Tkind_concrete _ | Typedef.Kind.Tkind_var _
         | Typedef.Kind.Tkind_record _ | Typedef.Kind.Tkind_tuple _
         | Typedef.Kind.Tkind_unit ->
-            named "outgoing")
+            named Data.Kernel.Port.Outgoing)
     | Typedef.Kind.Tkind_function { arguments = []; _ }
     | Typedef.Kind.Tkind_concrete _ | Typedef.Kind.Tkind_var _
     | Typedef.Kind.Tkind_record _ | Typedef.Kind.Tkind_tuple _
     | Typedef.Kind.Tkind_unit ->
-        named "outgoing"
+        named Data.Kernel.Port.Outgoing
 
   let wired (port : Port_thing.t) =
     let region = port.name.region in

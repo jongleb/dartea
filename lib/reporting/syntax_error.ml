@@ -1,5 +1,9 @@
-type unterminated = Character | Text | Block_text | Block_comment
-[@@deriving show]
+type unterminated =
+  | Character [@rename "character literal"]
+  | Text [@rename "string"]
+  | Block_text [@rename "multi-line string"]
+  | Block_comment [@rename "block comment"]
+[@@deriving show, to_string]
 
 type t =
   | Unexpected_input of { found : string }
@@ -12,8 +16,4 @@ type t =
   | Module_name_mismatch of { expected : string }
 [@@deriving show]
 
-let what_is_unterminated = function
-  | Character -> "character literal"
-  | Text -> "string"
-  | Block_text -> "multi-line string"
-  | Block_comment -> "block comment"
+let what_is_unterminated = string_of_unterminated

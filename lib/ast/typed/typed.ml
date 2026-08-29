@@ -103,7 +103,8 @@ module Type = struct
   module Variables = Stdlib.Set.Make (Identity)
 
   let fresh_variable constrained = TVar (Variable.fresh constrained)
-  let list_of element = TCustom (Data.Name.local "List", [ element ])
+  let list_name = Data.Name.local "List"
+  let list_of element = TCustom (list_name, [ element ])
 
   let rec head ty =
     match ty with

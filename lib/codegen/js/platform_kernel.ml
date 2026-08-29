@@ -1,58 +1,70 @@
 type home = Browser | Json
 
+module Kernel_module = struct
+  type t =
+    | Browser
+    | Dom
+    | Json
+    | Port
+    | Task
+    | Time
+    | VirtualDom
+  [@@deriving to_string]
+end
+
 let provided =
   [
-    (Browser, "VirtualDom", "node", 3);
-    (Browser, "VirtualDom", "keyedNode", 3);
-    (Browser, "VirtualDom", "nodeNS", 4);
-    (Browser, "VirtualDom", "keyedNodeNS", 4);
-    (Browser, "VirtualDom", "attributeNS", 3);
-    (Browser, "VirtualDom", "text", 1);
-    (Browser, "VirtualDom", "attribute", 2);
-    (Browser, "VirtualDom", "property", 2);
-    (Browser, "VirtualDom", "style", 2);
-    (Browser, "VirtualDom", "on", 2);
-    (Browser, "VirtualDom", "lazy", 2);
-    (Browser, "VirtualDom", "lazy2", 3);
-    (Browser, "VirtualDom", "lazy3", 4);
-    (Browser, "VirtualDom", "lazy4", 5);
-    (Browser, "VirtualDom", "lazy5", 6);
-    (Browser, "VirtualDom", "lazy6", 7);
-    (Browser, "VirtualDom", "lazy7", 8);
-    (Browser, "VirtualDom", "lazy8", 9);
-    (Browser, "VirtualDom", "map", 2);
-    (Browser, "VirtualDom", "mapAttribute", 2);
-    (Browser, "Browser", "sandbox", 1);
-    (Browser, "Browser", "document", 1);
-    (Browser, "Task", "succeed", 1);
-    (Browser, "Task", "fail", 1);
-    (Browser, "Task", "andThen", 2);
-    (Browser, "Task", "onError", 2);
-    (Browser, "Task", "perform", 2);
-    (Browser, "Task", "attempt", 2);
-    (Browser, "Dom", "focus", 1);
-    (Browser, "Time", "every", 2);
-    (Browser, "Port", "outgoing", 2);
-    (Browser, "Port", "incoming", 2);
-    (Json, "Json", "isString", 1);
-    (Json, "Json", "isBool", 1);
-    (Json, "Json", "isNumber", 1);
-    (Json, "Json", "isInt", 1);
-    (Json, "Json", "isNull", 1);
-    (Json, "Json", "isArray", 1);
-    (Json, "Json", "isObject", 1);
-    (Json, "Json", "hasField", 2);
-    (Json, "Json", "unsafeField", 2);
-    (Json, "Json", "length", 1);
-    (Json, "Json", "unsafeIndex", 2);
-    (Json, "Json", "identity", 1);
-    (Json, "Json", "stringify", 1);
-    (Json, "Json", "isValid", 1);
-    (Json, "Json", "unsafeParse", 1);
-    (Json, "Json", "emptyArray", 0);
-    (Json, "Json", "pushed", 2);
-    (Json, "Json", "emptyObject", 0);
-    (Json, "Json", "withField", 3);
+    (Browser, Kernel_module.VirtualDom, "node", 3);
+    (Browser, Kernel_module.VirtualDom, "keyedNode", 3);
+    (Browser, Kernel_module.VirtualDom, "nodeNS", 4);
+    (Browser, Kernel_module.VirtualDom, "keyedNodeNS", 4);
+    (Browser, Kernel_module.VirtualDom, "attributeNS", 3);
+    (Browser, Kernel_module.VirtualDom, "text", 1);
+    (Browser, Kernel_module.VirtualDom, "attribute", 2);
+    (Browser, Kernel_module.VirtualDom, "property", 2);
+    (Browser, Kernel_module.VirtualDom, "style", 2);
+    (Browser, Kernel_module.VirtualDom, "on", 2);
+    (Browser, Kernel_module.VirtualDom, "lazy", 2);
+    (Browser, Kernel_module.VirtualDom, "lazy2", 3);
+    (Browser, Kernel_module.VirtualDom, "lazy3", 4);
+    (Browser, Kernel_module.VirtualDom, "lazy4", 5);
+    (Browser, Kernel_module.VirtualDom, "lazy5", 6);
+    (Browser, Kernel_module.VirtualDom, "lazy6", 7);
+    (Browser, Kernel_module.VirtualDom, "lazy7", 8);
+    (Browser, Kernel_module.VirtualDom, "lazy8", 9);
+    (Browser, Kernel_module.VirtualDom, "map", 2);
+    (Browser, Kernel_module.VirtualDom, "mapAttribute", 2);
+    (Browser, Kernel_module.Browser, "sandbox", 1);
+    (Browser, Kernel_module.Browser, "document", 1);
+    (Browser, Kernel_module.Task, "succeed", 1);
+    (Browser, Kernel_module.Task, "fail", 1);
+    (Browser, Kernel_module.Task, "andThen", 2);
+    (Browser, Kernel_module.Task, "onError", 2);
+    (Browser, Kernel_module.Task, "perform", 2);
+    (Browser, Kernel_module.Task, "attempt", 2);
+    (Browser, Kernel_module.Dom, "focus", 1);
+    (Browser, Kernel_module.Time, "every", 2);
+    (Browser, Kernel_module.Port, Data.Kernel.Port.string_of_direction Outgoing, 2);
+    (Browser, Kernel_module.Port, Data.Kernel.Port.string_of_direction Incoming, 2);
+    (Json, Kernel_module.Json, "isString", 1);
+    (Json, Kernel_module.Json, "isBool", 1);
+    (Json, Kernel_module.Json, "isNumber", 1);
+    (Json, Kernel_module.Json, "isInt", 1);
+    (Json, Kernel_module.Json, "isNull", 1);
+    (Json, Kernel_module.Json, "isArray", 1);
+    (Json, Kernel_module.Json, "isObject", 1);
+    (Json, Kernel_module.Json, "hasField", 2);
+    (Json, Kernel_module.Json, "unsafeField", 2);
+    (Json, Kernel_module.Json, "length", 1);
+    (Json, Kernel_module.Json, "unsafeIndex", 2);
+    (Json, Kernel_module.Json, "identity", 1);
+    (Json, Kernel_module.Json, "stringify", 1);
+    (Json, Kernel_module.Json, "isValid", 1);
+    (Json, Kernel_module.Json, "unsafeParse", 1);
+    (Json, Kernel_module.Json, "emptyArray", 0);
+    (Json, Kernel_module.Json, "pushed", 2);
+    (Json, Kernel_module.Json, "emptyObject", 0);
+    (Json, Kernel_module.Json, "withField", 3);
   ]
 
 let found (name : Data.Name.t) =
@@ -61,7 +73,8 @@ let found (name : Data.Name.t) =
   | Data.Name.Global { module_name; exported_name } ->
       List.find_opt
         (fun (_, module_, exported, _) ->
-          String.equal module_ module_name && String.equal exported exported_name)
+          String.equal (Kernel_module.to_string module_) module_name
+          && String.equal exported exported_name)
         provided
 
 let arity name = Option.map (fun (_, _, _, arity) -> arity) (found name)

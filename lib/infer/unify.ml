@@ -9,7 +9,7 @@ exception Loops of Typed.Type.t
 
 let list_element_of name arguments =
   match arguments with
-  | [ element ] when Data.Name.equal name (Data.Name.local "List") ->
+  | [ element ] when Data.Name.equal name Type.list_name ->
       Some element
   | _ -> None
 
