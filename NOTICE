@@ -1,0 +1,50 @@
+Licences for the code that dartea compiled in
+
+This covers the runtime and the standard library only. It does not cover the
+program's own code, which is its author's to license as they like.
+
+
+dartea -- the runtime, the virtual DOM engine and the generated glue
+Copyright 2026-present Gleb
+
+
+Material derived from six projects by Evan Czaplicki, reproduced under the same
+licence. Which of them are present depends on what the program imports.
+
+    elm/core           Copyright 2014-present Evan Czaplicki
+    elm/json           Copyright 2014-present Evan Czaplicki
+    elm/html           Copyright (c) 2014-present, Evan Czaplicki
+    elm/virtual-dom    Copyright (c) 2016-present, Evan Czaplicki
+    elm/browser        Copyright 2017-present Evan Czaplicki
+    elm/time           Copyright 2018-present Evan Czaplicki
+
+dartea is an independent implementation. It is not affiliated with or endorsed
+by the Elm project or by Evan Czaplicki.
+
+
+All of the above are licensed under the BSD 3-Clause License:
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+3. Neither the name of the copyright holder nor the names of its contributors
+   may be used to endorse or promote products derived from this software
+   without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.

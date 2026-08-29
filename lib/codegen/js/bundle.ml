@@ -34,9 +34,11 @@ let of_modules ~entry_module ~declaration ~flags modules =
     (Of_optimized.module_ident entry_module)
     declaration flags
 
-let sandwich ~title ~entry_module script =
+let sandwich ~title ~entry_module ~notice script =
   Printf.sprintf
     {|<!DOCTYPE html>
+<!--
+%s-->
 <html lang="en">
   <head>
     <meta charset="utf-8" />
@@ -62,4 +64,4 @@ try {
   </body>
 </html>
 |}
-    title script started (Of_optimized.module_ident entry_module)
+    notice title script started (Of_optimized.module_ident entry_module)

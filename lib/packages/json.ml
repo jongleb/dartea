@@ -39,8 +39,5 @@ let range ~file ~field held =
 
 let loaded root path decoded =
   if Files.Dir.is_file root path then
-    Some
-      (decoded
-         ~file:(Files.Dir.shown (Files.Dir.at root path))
-         (Files.Dir.load root path))
+    Some (decoded ~file:(Files.Dir.at root path) (Files.Dir.load root path))
   else None

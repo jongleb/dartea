@@ -155,7 +155,7 @@ let test_an_unknown_package_is_named _ =
 let read_manifest written =
   let folder = Sample.folder () in
   Sample.written ~folder ~path:Manifest.file_name written;
-  Manifest.of_folder folder
+  Manifest.of_folder (Files.Dir.of_string folder)
 
 let manifest_of written =
   match read_manifest written with
@@ -202,7 +202,7 @@ let test_a_lock_round_trips _ =
   in
   let folder = Sample.folder () in
   Sample.written ~folder ~path:Lock.file_name (Lock.shown packages);
-  match Lock.of_folder folder with
+  match Lock.of_folder (Files.Dir.of_string folder) with
   | None -> assert_failure "the lock file was not found"
   | Some lock ->
       assert_equal ~printer:Sample.names

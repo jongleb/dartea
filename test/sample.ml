@@ -38,7 +38,10 @@ let delivered ~delivery outcome =
   shaken ~roots:(Delivery.roots outcome) outcome
 
 let compiled_in ~entry folder =
-  match Project.Sources.load ~provided:Prelude.packages folder with
+  match
+    Project.Sources.load ~provided:Prelude.packages
+      (Files.Dir.of_string folder)
+  with
   | Ok sources -> Dartea.Compiler.compile_modules ~entry sources
   | Error error -> refused Reporting.Sources.empty [ error ]
 

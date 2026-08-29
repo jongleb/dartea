@@ -1,6 +1,7 @@
 open OUnit2
 
-let loaded folder = Project.Sources.load ~provided:Prelude.packages folder
+let loaded folder =
+  Project.Sources.load ~provided:Prelude.packages (Files.Dir.of_string folder)
 
 let sources_of folder =
   match loaded folder with

@@ -1,4 +1,19 @@
-let at folder path = List.fold_left Filename.concat folder path
+type t = { native : string }
+
+let of_string native = { native }
+let here = Filename.current_dir_name ^ Filename.dir_sep
+
+let tidy written =
+  if String.starts_with ~prefix:here written then
+    String.sub written (String.length here)
+      (String.length written - String.length here)
+  else written
+
+let into folder path =
+  { native = List.fold_left Filename.concat folder.native path }
+
+let at folder path = tidy (into folder path).native
+let shown folder = tidy folder.native
 
 let kind folder path =
   match Unix.lstat (at folder path) with
@@ -30,13 +45,6 @@ let saved folder path content =
   Out_channel.with_open_bin (at folder path) (fun out ->
       Out_channel.output_string out content)
 
-let here = Filename.current_dir_name ^ Filename.dir_sep
-
-let shown folder =
-  if String.starts_with ~prefix:here folder then
-    String.sub folder (String.length here)
-      (String.length folder - String.length here)
-  else folder
 let hidden entry = String.starts_with ~prefix:"." entry
 
 let entries folder path =

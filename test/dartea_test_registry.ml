@@ -48,7 +48,8 @@ let pick = Pick.of_pair ("@dartea/ui", version "1.0.0")
 
 let unpacked ~integrity files =
   let folder = Sample.folder () in
-  Registry.Store.kept folder pick ~integrity (packed files);
+  Registry.Store.kept (Files.Dir.of_string folder) pick ~integrity
+    (packed files);
   folder
 
 let inside folder path =

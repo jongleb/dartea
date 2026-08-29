@@ -1,5 +1,7 @@
 let () =
-  let path = Filename.concat "playgrounds" "elm_code" in
+  let path =
+    Files.Dir.of_string (Filename.concat "playgrounds" "elm_code")
+  in
   let outcome =
     match Project.Sources.load ~provided:Prelude.packages path with
     | Ok sources -> Dartea.Compiler.compile_modules ~entry:None sources

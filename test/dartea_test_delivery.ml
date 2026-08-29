@@ -53,8 +53,7 @@ let test_esm_folder_is_one_file_per_module _ =
 
 let test_a_page_is_one_file _ =
   let outcome = outcome_of ~entry:(Some "Main") Sample.program in
-  assert_equal ~printer:Sample.names
-    [ "build/dartea.LICENSE.txt"; "build/index.html" ]
+  assert_equal ~printer:Sample.names [ "build/index.html" ]
     (paths (delivered ~delivery:page ~output:"build/index.html" outcome));
   assert_equal ~printer:Sample.names
     [ "build/dartea.LICENSE.txt"; "build/main.js" ]

@@ -63,16 +63,18 @@ let folder_and_entry target =
 
 let make target output =
   let folder, entry_file = folder_and_entry target in
-  let sources = loaded folder in
+  let path = Files.Dir.of_string folder in
+  let sources = loaded path in
   let entry = Option.map (entry_in sources) entry_file in
-  compiled ~path:folder ~output ~entry sources
+  compiled ~path ~output ~entry sources
 
 let counted picked =
   let count = List.length picked in
   Printf.sprintf "%d package%s" count (if count = 1 then "" else "s")
 
 let install folder =
-  match Registry.Install.run folder ~say:print_endline with
+  match Registry.Install.run (Files.Dir.of_string folder) ~say:print_endline
+  with
   | picked ->
       print_endline
         (Printf.sprintf "I resolved %s and wrote %s." (counted picked)

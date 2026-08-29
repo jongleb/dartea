@@ -1,7 +1,7 @@
 type file = { path : string; content : string }
 
 let licence_file = "dartea.LICENSE.txt"
-let licence path = { path; content = Licence_text.licence }
+let licence path = { path; content = Licence_text.notice }
 
 module type S = sig
   val name : string
@@ -121,33 +121,42 @@ module Browser_program = struct
       ~declaration:entry.declaration ~flags:(flags ~name entry)
       (bundled modules)
 
-  let files ~name ~output ~wrapped entry modules =
-    let found = wanted ~name entry in
-    [
-      licence (beside output);
-      { path = output; content = wrapped found (script ~name found modules) };
-    ]
 end
 
 module Script : S = struct
   let name = "script"
   let roots outcome = Browser_program.roots ~name outcome
-  let bare _ written = written
+
+  let banner =
+    "/*! Licences of the runtime and standard library compiled in: see "
+    ^ licence_file ^ " */\n"
 
   let files ~entry ~output modules =
-    Browser_program.files ~name ~output ~wrapped:bare entry modules
+    let entry = Browser_program.wanted ~name entry in
+    [
+      licence (beside output);
+      {
+        path = output;
+        content = banner ^ Browser_program.script ~name entry modules;
+      };
+    ]
 end
 
 module Sandwich : S = struct
   let name = "page"
   let roots outcome = Browser_program.roots ~name outcome
 
-  let page (entry : Entry.t) written =
-    Codegen_js.Bundle.sandwich ~title:entry.module_name
-      ~entry_module:entry.module_name written
-
   let files ~entry ~output modules =
-    Browser_program.files ~name ~output ~wrapped:page entry modules
+    let entry = Browser_program.wanted ~name entry in
+    [
+      {
+        path = output;
+        content =
+          Codegen_js.Bundle.sandwich ~title:entry.module_name
+            ~entry_module:entry.module_name ~notice:Licence_text.notice
+            (Browser_program.script ~name entry modules);
+      };
+    ]
 end
 
 let default : (module S) = (module Esm_folder)

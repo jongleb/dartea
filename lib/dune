@@ -5,14 +5,14 @@
 
 (rule
  (target licence_text.ml)
- (deps ../LICENSE)
+ (deps ../NOTICE)
  (action
   (with-stdout-to
    licence_text.ml
    (progn
-    (echo "let licence = {licence|")
-    (cat ../LICENSE)
-    (echo "|licence}\n")))))
+    (echo "let notice = {notice|")
+    (cat ../NOTICE)
+    (echo "|notice}\n")))))
 
 (library
  (name dartea)

@@ -14,18 +14,19 @@ let refuse (pick : Pick.t) problem =
 let digested content =
   Base64.encode_string Digestif.SHA512.(to_raw_string (digest_string content))
 
-let after prefix written =
-  String.sub written (String.length prefix)
-    (String.length written - String.length prefix)
-
-let matching pick ~integrity content =
-  if String.equal (after sha512 integrity) (digested content) then content
-  else refuse pick "the tarball does not match the checksum in the registry"
+let checksum integrity =
+  let width = String.length sha512 in
+  if String.starts_with ~prefix:sha512 integrity then
+    Some (String.sub integrity width (String.length integrity - width))
+  else None
 
 let verified pick ~integrity content =
-  if String.starts_with ~prefix:sha512 integrity then
-    matching pick ~integrity content
-  else refuse pick "the registry gave me no sha512 checksum for this tarball"
+  match checksum integrity with
+  | None ->
+      refuse pick "the registry gave me no sha512 checksum for this tarball"
+  | Some wanted when String.equal wanted (digested content) -> ()
+  | Some _ ->
+      refuse pick "the tarball does not match the checksum in the registry"
 
 let held ?global:_ header entries =
   let size = header.Tar.Header.file_size in
@@ -64,8 +65,9 @@ let placed root pick (name, content) =
 let cached root pick content =
   let path = Vendor.tarball pick in
   Files.Dir.saved root path content;
-  Files.Dir.shown (Files.Dir.at root path)
+  Files.Dir.at root path
 
 let kept root pick ~integrity content =
-  let native = cached root pick (verified pick ~integrity content) in
+  verified pick ~integrity content;
+  let native = cached root pick content in
   List.iter (placed root pick) (unpacked pick native)

@@ -1,7 +1,7 @@
 open Packages
 
 let elm_files ~origin ~root ~directory =
-  let folder = Files.Dir.at root directory in
+  let folder = Files.Dir.into root directory in
   Files.Dir.under ~suffix:Elm_file.extension folder
   |> List.map (fun path ->
          Elm_file.under ~origin ~directory ~path (Files.Dir.load folder path))
