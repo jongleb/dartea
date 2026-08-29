@@ -202,13 +202,13 @@ module Expr = struct
     { e with expr }
 
   let children (e : t) : t list =
-    let visited = ref [] in
+    let seen = ref [] in
     let collect child =
-      visited := child :: !visited;
+      seen := child :: !seen;
       child
     in
     let (_ : t) = map_children e ~f:collect in
-    List.rev !visited
+    List.rev !seen
 
   module Names = Data.Name.Set
 
@@ -256,8 +256,8 @@ module Expr = struct
     | Expr_cons _ | Expr_tuple _ ->
         union_map (free_variables ~bound) (children e)
 
-  let rec referenced (e : t) : Names.t =
-    let inside = union_map referenced (children e) in
+  let rec references (e : t) : Names.t =
+    let inside = union_map references (children e) in
     match e.expr with
     | Expr_ident name -> Names.add name inside
     | Expr_constr { name; _ } -> Names.add name inside
@@ -266,7 +266,7 @@ module Expr = struct
     | Expr_pattern { pattern_data_items; _ } ->
         List.fold_left
           (fun found (case : expr_pattern_case) ->
-            Names.union found (Pattern.referenced case.pattern))
+            Names.union found (Pattern.references case.pattern))
           inside pattern_data_items
     | Expr_let _ | Expr_if_then_else _ | Expr_record _ | Expr_record_update _
     | Expr_apply _ | Expr_accessor _ | Expr_access _ | Expr_record_extend _
@@ -397,11 +397,8 @@ module Expr = struct
       when Names.disjoint
              (bound_by_lambda params)
              (bound_by_lambda inner.params) ->
-        let merged =
-          Expr_lambda
-            { params = params @ inner.params; body = inner.body }
-        in
-        { e with expr = merged }
+        let flat = Expr_lambda { params = params @ inner.params; body = inner.body } in
+        { e with expr = flat }
     | Expr_constr _ | Expr_binop _ | Expr_let _ | Expr_if_then_else _
     | Expr_record _ | Expr_record_update _ | Expr_apply _ | Expr_ident _
     | Expr_pattern _ | Expr_accessor _ | Expr_access _ | Expr_record_extend _
@@ -422,7 +419,7 @@ module Declaration = struct
   }
   [@@deriving show]
 
-  let named (d : t) = Data.Name.local (Data.Located.unwrap d.name)
+  let name_of (d : t) = Data.Name.local (Data.Located.unwrap d.name)
 
   let bound (d : t) : Expr.Names.t =
     Expr.Names.of_list
@@ -430,8 +427,8 @@ module Declaration = struct
 
   let free (d : t) : Expr.Names.t = Expr.free_variables ~bound:(bound d) d.body
 
-  let referenced_in_all (decls : t list) : Expr.Names.t =
-    Expr.union_map (fun (d : t) -> Expr.referenced d.body) decls
+  let references_in_all (decls : t list) : Expr.Names.t =
+    Expr.union_map (fun (d : t) -> Expr.references d.body) decls
 
   let of_typed (d : Typed.Declaration.t) : t =
     let params =
@@ -453,17 +450,17 @@ module Declaration = struct
     |> Seq.map (fun index -> "eta" ^ string_of_int index)
     |> Seq.filter untaken
 
-  let merged (decl : t) : t =
-    let merged ({ params; body } : Expr.expr_lambda) =
+  let merge_lambdas (decl : t) : t =
+    let absorb ({ params; body } : Expr.expr_lambda) =
       let parameter (p : Expr.expr_lambda_param) =
         { name = p.name; typ = p.typ }
       in
       { decl with params = decl.params @ List.map parameter params; body }
     in
-    Expr.lambda_of decl.body |> Option.map merged |> Option.value ~default:decl
+    Expr.lambda_of decl.body |> Option.map absorb |> Option.value ~default:decl
 
   let arity (decl : t) =
-    let decl = merged decl in
+    let decl = merge_lambdas decl in
     let from_kernel =
       match (decl.params, decl.body.expr) with
       | [], Expr.Expr_kernel (Kernel_value kernel) -> Data.Kernel.arity kernel
@@ -480,21 +477,21 @@ module Declaration = struct
     in
     List.length decl.params + from_kernel
 
-  let saturated (decl : t) : t =
-    let decl = merged { decl with body = Expr.lambdas_merged decl.body } in
-    let provided = arity decl in
-    if Type.arrows decl.typ <= provided then decl
+  let saturate (decl : t) : t =
+    let decl = merge_lambdas { decl with body = Expr.lambdas_merged decl.body } in
+    let given = arity decl in
+    if Type.arrows decl.typ <= given then decl
     else
       let taken =
         Expr.Names.union
           (free decl)
           (bound decl)
       in
-      let missing =
-        Type.result_after ~applied:provided decl.typ
+      let gap =
+        Type.result_after ~applied:given decl.typ
         |> Type.parameters |> List.to_seq
       in
-      let added = Seq.zip (unused_names ~taken) missing |> List.of_seq in
+      let extra = Seq.zip (unused_names ~taken) gap |> List.of_seq in
       let parameter (name, typ) =
         { name = Data.Located.at decl.name.region name; typ }
       in
@@ -509,8 +506,8 @@ module Declaration = struct
       in
       {
         decl with
-        params = decl.params @ List.map parameter added;
-        body = List.fold_left applied_to decl.body added;
+        params = decl.params @ List.map parameter extra;
+        body = List.fold_left applied_to decl.body extra;
       }
 
   type error = Bad_recursion of Data.Name.t list
@@ -522,26 +519,26 @@ module Declaration = struct
   let alive ~roots declarations =
     let uses =
       List.map
-        (fun declaration -> (named declaration, free declaration))
+        (fun declaration -> (name_of declaration, free declaration))
         declarations
     in
-    let rec grown needed =
-      let reached =
+    let rec grown alive_names =
+      let next =
         List.fold_left
           (fun found (name, free) ->
             if Expr.Names.mem name found then Expr.Names.union found free else found)
-          needed uses
+          alive_names uses
       in
-      if Expr.Names.equal reached needed then needed else grown reached
+      if Expr.Names.equal next alive_names then alive_names else grown next
     in
-    let needed = grown (Expr.Names.of_list roots) in
+    let alive_names = grown (Expr.Names.of_list roots) in
     List.filter
-      (fun declaration -> Expr.Names.mem (named declaration) needed)
+      (fun declaration -> Expr.Names.mem (name_of declaration) alive_names)
       declarations
 
-  let sorted (decls : t list) : (t list, error) result =
-    let declared = Expr.Names.of_list (List.map named decls) in
-    let depends_on d = Expr.Names.inter (free d) declared in
+  let in_dependency_order (decls : t list) : (t list, error) result =
+    let own = Expr.Names.of_list (List.map name_of decls) in
+    let depends_on d = Expr.Names.inter (free d) own in
     let evaluated_before_use (d : t) =
       match d.params with
       | _ :: _ -> false
@@ -554,8 +551,8 @@ module Declaration = struct
       | Data.Components.Acyclic d :: rest -> go (d :: ordered) rest
       | Data.Components.Cyclic grouped :: rest ->
           if List.exists evaluated_before_use grouped then
-            Error (Bad_recursion (List.map named grouped))
+            Error (Bad_recursion (List.map name_of grouped))
           else go (List.rev_append grouped ordered) rest
     in
-    go [] (Data.Components.strongly_connected ~name:named ~depends_on decls)
+    go [] (Data.Components.strongly_connected ~name:name_of ~depends_on decls)
 end

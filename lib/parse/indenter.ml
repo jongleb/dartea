@@ -141,16 +141,16 @@ let offside state lexbuf =
   | Some LET, Let_inline -> bracket (retag ~context:Let state)
   | _ -> layout state ~indent
 
-let unaligned state = { state with aligned = false }
+let misalign state = { state with aligned = false }
 
 let starting_binding state lexbuf =
   let name_column = token_column state lexbuf in
   match context state with
   | Let ->
-      ([], unaligned (mark ~column:name_column ~context:Let_binding state))
+      ([], misalign (mark ~column:name_column ~context:Let_binding state))
   | Let_binding when state.aligned ->
       let* state = unbracket state in
-      ([], unaligned (move ~column:(name_column + 1) state))
+      ([], misalign (move ~column:(name_column + 1) state))
   | Top_level | Expression | Let_binding | Let_inline | If | Case | Case_head
   | Case_arm | Type_alias | Type_decl | Type_annotation | Delimited ->
       ([], state)
@@ -165,7 +165,7 @@ let closing_annotation state =
 let handle state lexbuf token =
   match token with
   | EQUAL ->
-      let state = unaligned state in
+      let state = misalign state in
       begin
         match context state with
         | Top_level -> EQUAL +> push ~column:1 ~context:Expression state
@@ -215,7 +215,7 @@ let handle state lexbuf token =
         | Case_arm | Type_alias | Type_decl | Type_annotation | Delimited ->
             starting_binding state lexbuf
       in
-      ([ token ], unaligned state)
+      ([ token ], misalign state)
   | token -> ([ token ], state)
 
 let rec next_token state lexbuf =
@@ -233,12 +233,12 @@ let rec next_token state lexbuf =
               | token -> token
             in
             let state = { state with after_space = false } in
-            let opening =
+            let opener =
               if state.after_line_break then
                 offside { state with after_line_break = false } lexbuf
               else ([], state)
             in
-            let* state = opening in
+            let* state = opener in
             handle state lexbuf token
       in
       next_token { state with pending } lexbuf

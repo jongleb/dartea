@@ -324,7 +324,7 @@ viaQualifiedAlias = (Shapes.Point 5 6).x + Shapes.origin.y
 let compiled_names modules =
   Dartea.Compiler.compile_modules ~entry:None (Project.Sources.of_list modules)
   |> Node_runner.output_of
-  |> List.map (fun (module_ : Dartea.Compiler.compiled) -> module_.module_name)
+  |> List.map (fun (module_ : Dartea.Compiler.artifact) -> module_.module_name)
 
 let test_an_alias_inside_a_constructor _ =
   assert_runs

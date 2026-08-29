@@ -57,7 +57,7 @@ module type VISITOR = sig
   val return : 'a -> 'a t
   val map : 'a t -> f:('a -> 'b) -> 'b t
   val both : 'a t -> 'b t -> ('a * 'b) t
-  val binding : scope -> binders -> (scope -> 'a t) -> 'a t
+  val bind_scope : scope -> binders -> (scope -> 'a t) -> 'a t
   val reference : scope -> Data.Name.t Data.Located.t -> Canonical.Expr.t t
   val constructor : scope -> Data.Name.t Data.Located.t -> Data.Name.t t
   val type_reference : scope -> Data.Name.t Data.Located.t -> Data.Name.t t
@@ -135,7 +135,7 @@ module Traversal (V : VISITOR) = struct
         same (Expr_apply { fn; arg })
     | Expr_let { binding; body } ->
         let { bind_type; bind_body = { name; body = bound_value } } = binding in
-        V.binding scope (bound_by_name ~region:name.region name.thing) (fun inner ->
+        V.bind_scope scope (bound_by_name ~region:name.region name.thing) (fun inner ->
             let+ bound_value = expression inner bound_value
             and+ body = expression inner body
             and+ bind_type =
@@ -159,7 +159,7 @@ module Traversal (V : VISITOR) = struct
         same (Expr_if_then_else { if_exp; then_exp; else_exp })
     | Expr_pattern { expr; pattern_data_items } ->
         let case (item : expr_pattern_case) =
-          V.binding scope (bound_by_pattern item.pattern) (fun inner ->
+          V.bind_scope scope (bound_by_pattern item.pattern) (fun inner ->
               let+ pattern = pattern scope item.pattern
               and+ expr = expression inner item.expr in
               { pattern; expr })
@@ -168,7 +168,7 @@ module Traversal (V : VISITOR) = struct
         and+ pattern_data_items = each pattern_data_items ~f:case in
         same (Expr_pattern { expr; pattern_data_items })
     | Expr_lambda { params; body } ->
-        V.binding scope (bound_by_parameters params) (fun inner ->
+        V.bind_scope scope (bound_by_parameters params) (fun inner ->
             let+ body = expression inner body in
             same (Expr_lambda { params; body }))
     | Expr_access { expr; field } ->
@@ -198,7 +198,7 @@ module Traversal (V : VISITOR) = struct
 
   let declaration scope (d : Canonical.Declaration.t) :
       Canonical.Declaration.t V.t =
-    V.binding scope (bound_by_parameters d.body_part.params) (fun inner ->
+    V.bind_scope scope (bound_by_parameters d.body_part.params) (fun inner ->
         let+ type_part_data =
           match d.type_part_data with
           | None -> V.return None
@@ -217,21 +217,21 @@ module Mentions = struct
   type scope = Names.t
 
   let return _ = Names.empty
-  let map mentioned ~f:_ = mentioned
+  let map mention ~f:_ = mention
   let both = Names.union
 
-  let binding scope binders inner =
+  let bind_scope scope binders inner =
     inner
       (Binders.fold
          (fun name _ known -> Names.add (Data.Name.local name) known)
          binders.names scope)
 
-  let mentioned scope (name : Data.Name.t Data.Located.t) =
+  let mention scope (name : Data.Name.t Data.Located.t) =
     if Names.mem name.thing scope then Names.empty
     else Names.singleton name.thing
 
-  let reference = mentioned
-  let constructor = mentioned
+  let reference = mention
+  let constructor = mention
   let type_reference _ _ = Names.empty
 end
 
@@ -246,9 +246,9 @@ let name_of (d : Canonical.Declaration.t) =
 let in_dependency_order ~(declaration : 'a -> Canonical.Declaration.t)
     (members : 'a list) : 'a list list =
   let name member = name_of (declaration member) in
-  let declared = Names.of_list (List.map name members) in
+  let own = Names.of_list (List.map name members) in
   let depends_on member =
-    Names.inter (free_in_declaration (declaration member)) declared
+    Names.inter (free_in_declaration (declaration member)) own
   in
   Data.Components.strongly_connected ~name ~depends_on members
   |> List.map Data.Components.members

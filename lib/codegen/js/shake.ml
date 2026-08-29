@@ -16,7 +16,7 @@ type token = Name of string | Field of string
 
 let tokens text =
   let word = Buffer.create 32 in
-  let ended (found, dotted) =
+  let flush (found, dotted) =
     let token = Buffer.contents word in
     Buffer.clear word;
     if String.equal token "" then found
@@ -28,9 +28,9 @@ let tokens text =
       Buffer.add_char word letter;
       (found, dotted)
     end
-    else (ended (found, dotted), Char.equal letter '.')
+    else (flush (found, dotted), Char.equal letter '.')
   in
-  List.rev (ended (String.fold_left letter ([], false) text))
+  List.rev (flush (String.fold_left letter ([], false) text))
 
 let plain text =
   List.filter_map
@@ -40,48 +40,48 @@ let plain text =
 let opens line ~keyword = String.starts_with ~prefix:keyword line
 let declares line = opens line ~keyword:"const "
 let publishes line = opens line ~keyword:"export "
-let named line = match plain line with _ :: name :: _ -> name | _ -> ""
+let name_of line = match plain line with _ :: name :: _ -> name | _ -> ""
 
 let rec body kept = function
   | line :: _ as left when declares line || publishes line -> (List.rev kept, left)
   | line :: rest -> body (line :: kept) rest
   | [] -> (List.rev kept, [])
 
-let rec gathered found = function
+let rec gather found = function
   | line :: _ as left when publishes line -> (List.rev found, left)
   | line :: rest when declares line ->
       let lines, remaining = body [ line ] rest in
-      gathered ({ name = named line; lines } :: found) remaining
-  | _ :: rest -> gathered found rest
+      gather ({ name = name_of line; lines } :: found) remaining
+  | _ :: rest -> gather found rest
   | [] -> (List.rev found, [])
 
-let parsed source =
-  let rec opening kept = function
+let parse source =
+  let rec preamble_of kept = function
     | line :: _ as left when declares line -> (List.rev kept, left)
-    | line :: rest -> opening (line :: kept) rest
+    | line :: rest -> preamble_of (line :: kept) rest
     | [] -> (List.rev kept, [])
   in
-  let listed = function
+  let unexport = function
     | [] -> []
-    | opening :: rest ->
+    | preamble_of :: rest ->
         let keyword = "export" in
         let unexported =
-          if String.starts_with ~prefix:keyword opening then
-            String.sub opening (String.length keyword)
-              (String.length opening - String.length keyword)
-          else opening
+          if String.starts_with ~prefix:keyword preamble_of then
+            String.sub preamble_of (String.length keyword)
+              (String.length preamble_of - String.length keyword)
+          else preamble_of
         in
         unexported :: rest
   in
-  let preamble, rest = opening [] (String.split_on_char '\n' source) in
-  let blocks, tail = gathered [] rest in
-  { preamble; blocks; exported = List.concat_map plain (listed tail) }
+  let preamble, rest = preamble_of [] (String.split_on_char '\n' source) in
+  let blocks, tail = gather [] rest in
+  { preamble; blocks; exported = List.concat_map plain (unexport tail) }
 
 let mentions block spoken =
   let inside = List.concat_map plain block.lines in
   List.filter (fun name -> List.mem name inside) spoken
 
-let reached file roots =
+let reach file roots =
   let spoken = List.map (fun block -> block.name) file.blocks in
   let rec grown seen = function
     | [] -> seen
@@ -94,16 +94,16 @@ let reached file roots =
   grown [] roots
 
 let alive ~roots source =
-  let file = parsed source in
-  let living = reached file roots in
-  let surviving name = List.mem name living in
+  let file = parse source in
+  let alive_names = reach file roots in
+  let survives name = List.mem name alive_names in
   String.concat "\n"
     (file.preamble
     @ List.concat_map
-        (fun block -> if surviving block.name then block.lines else [])
+        (fun block -> if survives block.name then block.lines else [])
         file.blocks
     @ ("export {"
       :: List.filter_map
-           (fun name -> if surviving name then Some ("  " ^ name ^ ",") else None)
+           (fun name -> if survives name then Some ("  " ^ name ^ ",") else None)
            file.exported)
     @ [ "};"; "" ])

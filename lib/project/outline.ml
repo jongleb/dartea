@@ -15,7 +15,7 @@ let a_kind = {|"application" or "package"|}
 let dependencies =
   Json.pairs "an object" (Json.pairs "direct and indirect" Json.version)
 
-let assumed root =
+let default root =
   let folder =
     if Files.is_directory root (Fpath.v Manifest.default_source_directory) then
       Manifest.default_source_directory
@@ -24,18 +24,18 @@ let assumed root =
   { file = Files.shown root; source_directories = [ folder ]; dependencies = [] }
 
 let application ~file rows =
-  let grouped = Json.optional ~file rows depends ~default:[] dependencies in
+  let groups = Json.optional ~file rows depends ~default:[] dependencies in
   {
     file;
     source_directories =
-      Json.required ~file rows Manifest.folders Manifest.source_directories;
+      Json.require ~file rows Manifest.folders Manifest.source_directories;
     dependencies =
-      List.concat_map (fun (_, picked) -> List.map Pick.of_pair picked) grouped;
+      List.concat_map (fun (_, picked) -> List.map Pick.of_pair picked) groups;
   }
 
-let decoded ~file content =
+let decode ~file content =
   let rows = Json.rows_of ~file content in
-  match Json.required ~file rows kind (Json.text a_kind) with
+  match Json.require ~file rows kind (Json.text a_kind) with
   | "package" ->
       {
         file;
@@ -46,9 +46,9 @@ let decoded ~file content =
   | _ -> Json.bad ~file ~field:kind a_kind
 
 let of_elm_json root =
-  match Json.loaded root path decoded with
+  match Json.load root path decode with
   | Some outline -> outline
-  | None -> assumed root
+  | None -> default root
 
 let from_lock ~file root =
   match Lock.of_folder root with
@@ -57,7 +57,7 @@ let from_lock ~file root =
       Diagnostic.Failure.raise_project
         (Missing_lock { file; lock = Lock.file_name })
 
-let locked root (manifest : Manifest.t) =
+let picks_of_lock root (manifest : Manifest.t) =
   match manifest.dependencies with
   | [] -> []
   | _ :: _ -> from_lock ~file:manifest.file root
@@ -66,7 +66,7 @@ let of_manifest root (manifest : Manifest.t) =
   {
     file = manifest.file;
     source_directories = manifest.source_directories;
-    dependencies = locked root manifest;
+    dependencies = picks_of_lock root manifest;
   }
 
 let of_folder root =

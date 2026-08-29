@@ -36,26 +36,26 @@ let by_name (one : Elm_file.t) (other : Elm_file.t) =
   | ordering -> ordering
 
 let one_per_name sources =
-  let rec scanned = function
+  let rec scan = function
     | (one : Elm_file.t) :: (other :: _ as rest) ->
         if String.equal one.name other.name then
           Diagnostic.Failure.raise_project
             (Duplicate_module
                { name = one.name; one = one.path; other = other.path })
-        else scanned rest
+        else scan rest
     | [ _ ] | [] -> ()
   in
-  scanned (List.sort by_name sources)
+  scan (List.sort by_name sources)
 
 type t = Elm_file.t list
 
 let files sources = sources
 
-let checked sources =
+let check sources =
   one_per_name sources;
   sources
 
-let gathered ~provided root =
+let gather ~provided root =
   if not (Files.is_directory root (Fpath.v Filename.current_dir_name)) then
     Diagnostic.Failure.raise_project
       (Unknown_folder { folder = Files.shown root });
@@ -69,11 +69,11 @@ let gathered ~provided root =
   | [] ->
       Diagnostic.Failure.raise_project
         (No_sources { folder = Files.shown root })
-  | sources -> checked sources
+  | sources -> check sources
 
-let of_list = checked
+let of_list = check
 
 let load ~provided root =
-  match gathered ~provided root with
+  match gather ~provided root with
   | sources -> Ok sources
   | exception Diagnostic.Failure.Found failure -> Error failure

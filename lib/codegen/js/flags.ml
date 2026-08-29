@@ -1,7 +1,7 @@
 module T = Typed.Type
 module J = Ast
 
-let rec named (ty : T.t) =
+let rec describe (ty : T.t) =
   match T.head ty with
   | T.TInt -> "Int"
   | T.TFloat -> "Float"
@@ -10,7 +10,7 @@ let rec named (ty : T.t) =
   | T.TStr -> "String"
   | T.TUnit -> "()"
   | T.TFun _ -> "a function"
-  | T.TTup parts -> "( " ^ String.concat ", " (List.map named parts) ^ " )"
+  | T.TTup parts -> "( " ^ String.concat ", " (List.map describe parts) ^ " )"
   | T.TCustom (name, _) -> Data.Name.base name
   | T.TRecord _ -> "a record"
   | T.TVar _ -> "a type variable"
@@ -28,13 +28,13 @@ let arrow params body = J.Arrow { params; body = J.ArrowExpr body }
 let value = J.Identifier "value"
 let path = J.Identifier "path"
 let given = J.Identifier "given"
-let checking ~helper arguments = arrow [ "value"; "path" ] (J.call (J.Identifier helper) ([ value; path ] @ arguments))
-let primitive ~fits ~wanted = checking ~helper:"$$flagPrim" [ arrow [ "given" ] fits; J.string wanted ]
-let taking helper inside = checking ~helper [ inside ]
-let grouped written = checking ~helper:"$$flagTuple" [ J.Array written ]
+let check_with ~helper arguments = arrow [ "value"; "path" ] (J.call (J.Identifier helper) ([ value; path ] @ arguments))
+let primitive ~fits ~wanted = check_with ~helper:"$$flagPrim" [ arrow [ "given" ] fits; J.string wanted ]
+let take_with helper inside = check_with ~helper [ inside ]
+let tuple_of written = check_with ~helper:"$$flagTuple" [ J.Array written ]
 
-let fitted rows written =
-  checking ~helper:"$$flagRecord"
+let record_of rows written =
+  check_with ~helper:"$$flagRecord"
     [ J.Object (List.map2 (fun (name, _) code -> J.Field (name, code)) rows written) ]
 
 let typeof_is kind = J.binary J.StrictEqual (J.Unary { op = J.Typeof; arg = given }) (J.string kind)
@@ -54,31 +54,31 @@ let rec decoder (ty : T.t) =
   | T.TTup parts -> tuple ty parts
   | T.TRecord row -> record ty row
   | T.TVar _ | T.TChar | T.TFun _ | T.TRowExtend _ | T.TRowEmpty ->
-      Error (named ty)
+      Error (describe ty)
 
 and custom ty name arguments =
   match (Data.Name.base name, arguments) with
   | "Value", _ -> Ok (arrow [ "value" ] value)
-  | "Maybe", [ inside ] -> Result.map (taking "$$flagMaybe") (decoder inside)
-  | "List", [ inside ] -> Result.map (taking "$$flagList") (decoder inside)
-  | _, _ -> Error (named ty)
+  | "Maybe", [ inside ] -> Result.map (take_with "$$flagMaybe") (decoder inside)
+  | "List", [ inside ] -> Result.map (take_with "$$flagList") (decoder inside)
+  | _, _ -> Error (describe ty)
 
-and gathered wanted =
-  let joined ty found =
+and gather wanted =
+  let join ty found =
     match (decoder ty, found) with
     | Ok one, Ok rest -> Ok (one :: rest)
     | Error refused, _ -> Error refused
     | Ok _, Error refused -> Error refused
   in
-  List.fold_right joined wanted (Ok [])
+  List.fold_right join wanted (Ok [])
 
 and tuple ty parts =
-  match gathered parts with
+  match gather parts with
   | Error refused -> Error refused
-  | Ok [] -> Error (named ty)
-  | Ok written -> Ok (grouped written)
+  | Ok [] -> Error (describe ty)
+  | Ok written -> Ok (tuple_of written)
 
 and record ty row =
   match fields row with
-  | [] -> Error (named ty)
-  | rows -> Result.map (fitted rows) (gathered (List.map snd rows))
+  | [] -> Error (describe ty)
+  | rows -> Result.map (record_of rows) (gather (List.map snd rows))

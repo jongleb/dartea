@@ -226,15 +226,15 @@ let propagate_constants (e : O.Expr.t) : O.Expr.t =
             { e with expr = Expr_if_then_else { if_exp; then_exp; else_exp } }
       end
     | Expr_apply _ -> begin
-        let folded = O.Expr.map_children e ~f:(propagate ~constants) in
-        match O.Expr.spine folded with
+        let inner = O.Expr.map_children e ~f:(propagate ~constants) in
+        match O.Expr.spine inner with
         | { expr = Expr_ident name; _ }, ([ _; _ ] as arguments) ->
             Data.Operator.referred_to_by name
             |> Fun.flip Option.bind (fun operator ->
                    fold_primitive operator arguments)
-            |> Option.map (fun expr -> { folded with expr })
-            |> Option.value ~default:folded
-        | _ -> folded
+            |> Option.map (fun expr -> { inner with expr })
+            |> Option.value ~default:inner
+        | _ -> inner
       end
     | Expr_constr _ | Expr_binop _ | Expr_record _ | Expr_record_update _
     | Expr_accessor _ | Expr_access _ | Expr_record_extend _
@@ -272,7 +272,7 @@ let rec reduce_beta (e : O.Expr.t) : O.Expr.t =
                (bind_arguments bindings applied_body)
                (List.drop taken arguments))
   in
-  let reduced =
+  let reduction =
     match e.expr with
     | Expr_apply _ -> begin
         match O.Expr.spine e with
@@ -303,7 +303,7 @@ let rec reduce_beta (e : O.Expr.t) : O.Expr.t =
     | Expr_list _ | Expr_cons _ | Expr_tuple _ ->
         None
   in
-  match reduced with
+  match reduction with
   | Some result -> result
   | None -> O.Expr.map_children e ~f:reduce_beta
 
@@ -333,24 +333,24 @@ type inlinable = {
   free_names : Names.t;
 }
 
-let rec matched bindings (parameter : O.Type.t) (argument : O.Type.t) =
+let rec match_types bindings (parameter : O.Type.t) (argument : O.Type.t) =
   match (parameter, argument) with
   | TVar variable, _ ->
       if O.Type.By_variable.mem variable bindings then bindings
       else O.Type.By_variable.add variable argument bindings
   | TFun (from_parameter, to_parameter), TFun (from_argument, to_argument) ->
-      matched
-        (matched bindings from_parameter from_argument)
+      match_types
+        (match_types bindings from_parameter from_argument)
         to_parameter to_argument
   | TTup parameters, TTup arguments -> matched_all bindings parameters arguments
   | TCustom (_, parameters), TCustom (_, arguments) ->
       matched_all bindings parameters arguments
   | TRecord parameter_row, TRecord argument_row ->
-      matched bindings parameter_row argument_row
+      match_types bindings parameter_row argument_row
   | ( TRowExtend (_, parameter_field, parameter_rest),
       TRowExtend (_, argument_field, argument_rest) ) ->
-      matched
-        (matched bindings parameter_field argument_field)
+      match_types
+        (match_types bindings parameter_field argument_field)
         parameter_rest argument_rest
   | ( ( TInt | TFloat | TChar | TBool | TStr | TUnit | TRowEmpty | TFun _
       | TTup _ | TCustom _ | TRecord _ | TRowExtend _ ),
@@ -360,11 +360,11 @@ let rec matched bindings (parameter : O.Type.t) (argument : O.Type.t) =
 and matched_all bindings parameters arguments =
   match (parameters, arguments) with
   | parameter :: parameters, argument :: arguments ->
-      matched_all (matched bindings parameter argument) parameters arguments
+      matched_all (match_types bindings parameter argument) parameters arguments
   | [], _ | _, [] -> bindings
 
-let rec specialised bindings (e : O.Expr.t) : O.Expr.t =
-  let e = O.Expr.map_children e ~f:(specialised bindings) in
+let rec specialise bindings (e : O.Expr.t) : O.Expr.t =
+  let e = O.Expr.map_children e ~f:(specialise bindings) in
   let expr =
     match e.expr with
     | Expr_lambda { params; body } ->
@@ -448,7 +448,7 @@ let rec inline_calls ~(table : inlinable By_name.t) ~(bound : Names.t)
                    (fun collected
                         ((parameter : O.Declaration.param),
                          (argument : O.Expr.t)) ->
-                     matched collected parameter.typ argument.typ)
+                     match_types collected parameter.typ argument.typ)
                    O.Type.By_variable.empty bindings
                in
                let bound =
@@ -459,7 +459,7 @@ let rec inline_calls ~(table : inlinable By_name.t) ~(bound : Names.t)
                in
                apply_to
                  (bind_arguments bound
-                    (specialised specialisation candidate.body))
+                    (specialise specialisation candidate.body))
                  (List.drop arity arguments))
       else None
     in
@@ -537,5 +537,5 @@ let optimize (decls : T.Declaration.t list) : O.Declaration.t list =
     if remaining <= 0 then decls
     else rounds ~remaining:(remaining - 1) (round decls)
   in
-  List.map O.Declaration.of_typed decls |> List.map O.Declaration.saturated
+  List.map O.Declaration.of_typed decls |> List.map O.Declaration.saturate
   |> rounds ~remaining:optimization_rounds

@@ -245,12 +245,12 @@ module Pattern = struct
     | P_T_ctor (_, arguments) -> union_map bound arguments
     | P_T_anything | P_T_unit | P_T_chr _ | P_T_str _ | P_T_int _ -> Names.empty
 
-  let rec referenced p =
+  let rec references p =
     match p.pattern with
-    | P_T_ctor (name, arguments) -> Names.add name (union_map referenced arguments)
-    | P_T_tuple items | P_T_list items -> union_map referenced items
-    | P_T_alias (inner, _) -> referenced inner
-    | P_T_cons (head, tail) -> Names.union (referenced head) (referenced tail)
+    | P_T_ctor (name, arguments) -> Names.add name (union_map references arguments)
+    | P_T_tuple items | P_T_list items -> union_map references items
+    | P_T_alias (inner, _) -> references inner
+    | P_T_cons (head, tail) -> Names.union (references head) (references tail)
     | P_T_var _ | P_T_record _ | P_T_anything | P_T_unit | P_T_chr _ | P_T_str _
     | P_T_int _ ->
         Names.empty
@@ -334,7 +334,7 @@ module Expr = struct
 
   let rec zonk (e : t) =
     let inner = zonk in
-    let settled =
+    let expr =
       match e.expr with
       | Expr_constr constr ->
           Expr_constr { constr with arguments = List.map inner constr.arguments }
@@ -394,7 +394,7 @@ module Expr = struct
         | Expr_char _ | Expr_string _ | Expr_int _ | Expr_float _ ) as leaf ->
           leaf
     in
-    { typ = Type.zonk e.typ; expr = settled; region = e.region }
+    { typ = Type.zonk e.typ; expr = expr; region = e.region }
 
 
   let spine expression =

@@ -75,15 +75,15 @@ let title (problem : Error.problem) =
   | Error.Type problem -> title_of_type problem
   | Error.Project problem -> title_of_project problem
 
-let quoted written = "`" ^ written ^ "`"
-let indented inner = Doc.indent 4 inner
+let quote written = "`" ^ written ^ "`"
+let indent inner = Doc.indent 4 inner
 
 let args count =
   let noun = if count = 1 then "argument" else "arguments" in
   Printf.sprintf "%d %s" count noun
 
 let ordinal index =
-  let ending =
+  let suffix =
     match (index mod 100, index mod 10) with
     | (11 | 12 | 13), _ -> "th"
     | _, 1 -> "st"
@@ -91,23 +91,23 @@ let ordinal index =
     | _, 3 -> "rd"
     | _, _ -> "th"
   in
-  string_of_int index ^ ending
+  string_of_int index ^ suffix
 
-let listed written =
+let bullet_list written =
   match List.rev written with
   | [] -> ""
-  | [ only ] -> quoted only
+  | [ only ] -> quote only
   | last :: rest ->
-      String.concat ", " (List.rev_map quoted rest) ^ " and " ^ quoted last
+      String.concat ", " (List.rev_map quote rest) ^ " and " ^ quote last
 
 let simple_hint written = Doc.words ("Hint: " ^ written)
 let note written = Doc.words ("Note: " ^ written)
 
-let showing ~snippet headline body =
+let show ~snippet headline body =
   Doc.stack [ Doc.words headline; snippet; body ]
 
-let explaining ~snippet headline explanation =
-  showing ~snippet headline (Doc.words explanation)
+let explain ~snippet headline explanation =
+  show ~snippet headline (Doc.words explanation)
 
 let mixing_hint =
   simple_hint
@@ -184,7 +184,7 @@ let hint_of (problem : Hint.t) =
                 simple_hint
                   (Printf.sprintf
                      "I do not know how to compare %s values. I can only compare ints, floats, chars, strings, lists of comparable values, and tuples of comparable values."
-                     (quoted (Data.Name.base name)));
+                     (quote (Data.Name.base name)));
                 Doc.words
                   "Check out <https://elm-lang.org/0.19.1/comparing-custom-types> for ideas on how to proceed.";
               ]
@@ -216,12 +216,12 @@ let hint_of (problem : Hint.t) =
       | [ only ] ->
           [
             simple_hint
-              (Printf.sprintf "Looks like the %s field is missing." (quoted only));
+              (Printf.sprintf "Looks like the %s field is missing." (quote only));
           ]
       | _ ->
           [
             simple_hint
-              (Printf.sprintf "Looks like fields %s are missing." (listed fields));
+              (Printf.sprintf "Looks like fields %s are missing." (bullet_list fields));
           ]
     end
   | Field_typo { typo; possibilities } -> begin
@@ -232,39 +232,39 @@ let hint_of (problem : Hint.t) =
             simple_hint
               (Printf.sprintf
                  "Seems like a record field typo. Maybe %s should be %s?"
-                 (quoted typo) (quoted nearest));
+                 (quote typo) (quote nearest));
           ]
     end
 
 let hints problems =
   match problems with [] -> [] | problem :: _ -> hint_of problem
 
-let named (callee : Category.maybe_name) =
+let name_of_callee (callee : Category.maybe_name) =
   match callee with
   | No_name -> "this function"
-  | Func_name name | Ctor_name name -> quoted (Data.Name.base name)
+  | Func_name name | Ctor_name name -> quote (Data.Name.base name)
   | Op_name name -> "(" ^ Data.Name.base name ^ ")"
 
 let this_value (callee : Category.maybe_name) =
   match callee with
   | No_name -> "This value"
   | Func_name name | Ctor_name name ->
-      Printf.sprintf "The %s value" (quoted (Data.Name.base name))
+      Printf.sprintf "The %s value" (quote (Data.Name.base name))
   | Op_name name -> Printf.sprintf "The (%s) operator" (Data.Name.base name)
 
 let this_function (callee : Category.maybe_name) =
   match callee with
   | No_name -> "This function"
   | Func_name name ->
-      Printf.sprintf "The %s function" (quoted (Data.Name.base name))
+      Printf.sprintf "The %s function" (quote (Data.Name.base name))
   | Ctor_name name ->
-      Printf.sprintf "The %s constructor" (quoted (Data.Name.base name))
+      Printf.sprintf "The %s constructor" (quote (Data.Name.base name))
   | Op_name name -> Printf.sprintf "The (%s) operator" (Data.Name.base name)
 
 let with_category this_is (category : Category.t) =
   match category with
   | Local name | Foreign name ->
-      Printf.sprintf "This %s value is a:" (quoted (Data.Name.base name))
+      Printf.sprintf "This %s value is a:" (quote (Data.Name.base name))
   | Access field -> Printf.sprintf "The value at .%s is a:" field
   | Accessor field ->
       Printf.sprintf "This .%s field access function has type:" field
@@ -283,7 +283,7 @@ let with_category this_is (category : Category.t) =
       match callee with
       | No_name | Op_name _ -> this_is ^ ":"
       | Func_name name | Ctor_name name ->
-          Printf.sprintf "This %s call produces:" (quoted (Data.Name.base name))
+          Printf.sprintf "This %s call produces:" (quote (Data.Name.base name))
     end
 
 let with_pattern_category trying_to_match (category : Category.pattern) =
@@ -295,33 +295,33 @@ let with_pattern_category trying_to_match (category : Category.pattern) =
   | P_tuple -> " tuples of type:"
   | P_list -> " lists of type:"
   | P_ctor name ->
-      Printf.sprintf " %s values of type:" (quoted (Data.Name.base name))
+      Printf.sprintf " %s values of type:" (quote (Data.Name.base name))
   | P_int -> " integers:"
   | P_str -> " strings:"
   | P_chr -> " characters:"
 
-let comparison naming ~found ~expected ~i_am_seeing ~instead_of ~details =
+let comparison namer ~found ~expected ~i_am_seeing ~instead_of ~details =
   let found_doc, expected_doc, problems =
-    Message.comparison naming ~found ~expected
+    Message.comparison namer ~found ~expected
   in
   Doc.stack
     ([
        Doc.words i_am_seeing;
-       indented found_doc;
+       indent found_doc;
        Doc.words instead_of;
-       indented expected_doc;
+       indent expected_doc;
      ]
     @ details @ hints problems)
 
-let lone naming ~found ~expected ~i_am_seeing ~details =
-  let found_doc, _, problems = Message.comparison naming ~found ~expected in
+let lone namer ~found ~expected ~i_am_seeing ~details =
+  let found_doc, _, problems = Message.comparison namer ~found ~expected in
   Doc.stack
-    ([ Doc.words i_am_seeing; indented found_doc ] @ details @ hints problems)
+    ([ Doc.words i_am_seeing; indent found_doc ] @ details @ hints problems)
 
-let mismatching naming ~snippet ~found ~seeing ~problem ~this_is ~instead_of
+let mismatch namer ~snippet ~found ~see ~problem ~this_is ~instead_of
     ~details expected =
-  showing ~snippet problem
-    (comparison naming ~found ~expected ~i_am_seeing:(seeing this_is)
+  show ~snippet problem
+    (comparison namer ~found ~expected ~i_am_seeing:(see this_is)
        ~instead_of ~details)
 
 let is_string ty =
@@ -343,11 +343,11 @@ let number_named ty =
   | TRowExtend _ | TRowEmpty ->
       None
 
-let of_operator naming ~snippet ~category ~found ~expected ~side ~operator =
+let of_operator namer ~snippet ~category ~found ~expected ~side ~operator =
   let written = Data.Name.base operator in
-  let problem_and_body = showing ~snippet in
+  let problem_and_body = show ~snippet in
   let lone_with ~i_am_seeing ~details =
-    lone naming ~found ~expected ~i_am_seeing ~details
+    lone namer ~found ~expected ~i_am_seeing ~details
   in
   let this_side =
     with_category
@@ -393,14 +393,14 @@ let of_operator naming ~snippet ~category ~found ~expected ~side ~operator =
         Doc.stack
           [
             Doc.words advice;
-            Doc.above (List.map (fun line -> indented (Doc.text line)) examples);
+            Doc.above (List.map (fun line -> indent (Doc.text line)) examples);
             no_implicit_casts;
           ]
       else
         lone_with
           ~i_am_seeing:
             (Printf.sprintf
-               "The %s side of (%s) must be %s, but instead I am seeing:" side
+               "The %s side of (%s) must be %s, but instead I am see:" side
                written needs)
           ~details:[]
     in
@@ -414,7 +414,7 @@ let of_operator naming ~snippet ~category ~found ~expected ~side ~operator =
       ~mistaken:(is_int found)
       ~advice:
         (Printf.sprintf
-           "The %s side of (/) must be a Float, but I am seeing an Int. I recommend:"
+           "The %s side of (/) must be a Float, but I am see an Int. I recommend:"
            side)
       ~examples:
         [
@@ -426,7 +426,7 @@ let of_operator naming ~snippet ~category ~found ~expected ~side ~operator =
     bad_division ~kind:"integer" ~needs:"an Int" ~mistaken:(is_float found)
       ~advice:
         (Printf.sprintf
-           "The %s side of (//) must be an Int, but I am seeing a Float. I recommend doing the conversion explicitly with one of these functions:"
+           "The %s side of (//) must be an Int, but I am see a Float. I recommend doing the conversion explicitly with one of these functions:"
            side)
       ~examples:
         [
@@ -452,7 +452,7 @@ let of_operator naming ~snippet ~category ~found ~expected ~side ~operator =
     | None ->
         problem_and_body "The (++) operator cannot append this type of value:"
           (lone_with
-             ~i_am_seeing:(with_category "I am seeing" category)
+             ~i_am_seeing:(with_category "I am see" category)
              ~details:
                [
                  Doc.words
@@ -464,7 +464,7 @@ let of_operator naming ~snippet ~category ~found ~expected ~side ~operator =
   let both_sides ~note_about =
     problem_and_body
       (Printf.sprintf "I need both sides of (%s) to be the same type:" written)
-      (comparison naming ~found:expected ~expected:found
+      (comparison namer ~found:expected ~expected:found
          ~i_am_seeing:(Printf.sprintf "The left side of (%s) is:" written)
          ~instead_of:"But the right side is:" ~details:[ Doc.words note_about ])
   in
@@ -508,7 +508,7 @@ let of_operator naming ~snippet ~category ~found ~expected ~side ~operator =
       problem_and_body
         (Printf.sprintf "The %s argument of (%s) is causing problems:" side
            written)
-        (comparison naming ~found ~expected
+        (comparison namer ~found ~expected
            ~i_am_seeing:
              (with_category (Printf.sprintf "The %s argument is" side) category)
            ~instead_of:
@@ -517,13 +517,13 @@ let of_operator naming ~snippet ~category ~found ~expected ~side ~operator =
            ~details:[])
 
 let of_expression source region category found (expected : Expectation.t) =
-  let naming = Message.naming () in
+  let namer = Message.namer () in
   let snippet = Snippet.of_region source region in
-  let seeing this_is = with_category this_is category in
-  let mismatch = mismatching naming ~snippet ~found ~seeing in
+  let see this_is = with_category this_is category in
+  let mismatch = mismatch namer ~snippet ~found ~see in
   let bad_type ~problem ~this_is ~details expected =
-    showing ~snippet problem
-      (lone naming ~found ~expected ~i_am_seeing:(seeing this_is) ~details)
+    show ~snippet problem
+      (lone namer ~found ~expected ~i_am_seeing:(see this_is) ~details)
   in
   match expected with
   | No_expectation expected ->
@@ -534,7 +534,7 @@ let of_expression source region category found (expected : Expectation.t) =
   | From_annotation { name; sub; expected } ->
       let thing =
         match sub with
-        | Typed_body -> Printf.sprintf "body of the %s definition:" (quoted name)
+        | Typed_body -> Printf.sprintf "body of the %s definition:" (quote name)
       in
       let this_is = match sub with Typed_body -> "The body is" in
       mismatch expected
@@ -542,7 +542,7 @@ let of_expression source region category found (expected : Expectation.t) =
         ~this_is
         ~instead_of:
           (Printf.sprintf "But the type annotation on %s says it should be:"
-             (quoted name))
+             (quote name))
         ~details:[]
   | From_context { context; expected } -> begin
       match context with
@@ -562,10 +562,10 @@ let of_expression source region category found (expected : Expectation.t) =
             ~details:
               [ Doc.words "But I only now how to negate Int and Float values." ]
       | Op_left operator ->
-          of_operator naming ~snippet ~category ~found ~expected ~side:"left"
+          of_operator namer ~snippet ~category ~found ~expected ~side:"left"
             ~operator
       | Op_right operator ->
-          of_operator naming ~snippet ~category ~found ~expected ~side:"right"
+          of_operator namer ~snippet ~category ~found ~expected ~side:"right"
             ~operator
       | If_condition ->
           bad_type expected
@@ -629,11 +629,11 @@ let of_expression source region category found (expected : Expectation.t) =
           mismatch expected
             ~problem:
               (Printf.sprintf "The %s argument to %s is not what I expect:" ith
-                 (named callee))
+                 (name_of_callee callee))
             ~this_is:"This argument is"
             ~instead_of:
               (Printf.sprintf "But %s needs the %s argument to be:"
-                 (named callee) ith)
+                 (name_of_callee callee) ith)
             ~details:earlier_arguments
       | Record_access { field } ->
           bad_type expected
@@ -648,16 +648,16 @@ let of_expression source region category found (expected : Expectation.t) =
           mismatch expected
             ~problem:
               (Printf.sprintf "I cannot update the %s field like this:"
-                 (quoted field))
+                 (quote field))
             ~this_is:"You are trying to update it to be"
             ~instead_of:"But it should be:" ~details:[]
     end
 
 let of_pattern source region category found (expected : Expectation.pattern) =
-  let naming = Message.naming () in
+  let namer = Message.namer () in
   let snippet = Snippet.of_region source region in
-  let seeing this_is = with_pattern_category this_is category in
-  let mismatch = mismatching naming ~snippet ~found ~seeing in
+  let see this_is = with_pattern_category this_is category in
+  let mismatch = mismatch namer ~snippet ~found ~see in
   match expected with
   | Pattern_no_expectation expected ->
       mismatch expected
@@ -695,11 +695,11 @@ let of_pattern source region category found (expected : Expectation.pattern) =
           mismatch expected
             ~problem:
               (Printf.sprintf "The %s argument to %s is weird." ith
-                 (quoted (Data.Name.base name)))
+                 (quote (Data.Name.base name)))
             ~this_is:"It is trying to match"
             ~instead_of:
               (Printf.sprintf "But %s needs its %s argument to be:"
-                 (quoted (Data.Name.base name))
+                 (quote (Data.Name.base name))
                  ith)
             ~details:[]
       | P_list_entry index ->
@@ -720,14 +720,14 @@ let of_pattern source region category found (expected : Expectation.pattern) =
 
 let of_type_problem source region (problem : Type_error.t) =
   let snippet = Snippet.of_region source region in
-  let explaining = explaining ~snippet in
+  let explain = explain ~snippet in
   match problem with
   | Bad_expression { category; found; expected } ->
       of_expression source region category found expected
   | Bad_pattern { category; found; expected } ->
       of_pattern source region category found expected
   | Infinite_type { category; found } ->
-      let naming = Message.naming () in
+      let namer = Message.namer () in
       Doc.stack
         [
           Doc.words
@@ -736,7 +736,7 @@ let of_type_problem source region (problem : Type_error.t) =
               | Category.Local name | Category.Foreign name ->
                   Printf.sprintf
                     "I am inferring a weird self-referential type for %s:"
-                    (quoted (Data.Name.base name))
+                    (quote (Data.Name.base name))
               | List | Number | Float | String | Char | If | Case
               | Call_result _ | Lambda | Accessor _ | Access _ | Record | Tuple
               | Unit ->
@@ -745,7 +745,7 @@ let of_type_problem source region (problem : Type_error.t) =
           snippet;
           Doc.words
             "Here is my best effort at writing down the type. You will see ? for parts of the type that repeat something already printed out infinitely.";
-          indented (Message.alone naming found);
+          indent (Message.alone namer found);
           simple_hint
             "The problem is often in the most recently added pattern or function. Try commenting out that code to see if it helps.";
         ]
@@ -758,24 +758,24 @@ let of_type_problem source region (problem : Type_error.t) =
           "Which is the extra one? Maybe some parentheses are missing?"
         else "Which are the extra ones? Maybe some parentheses are missing?"
       in
-      explaining
+      explain
         (Printf.sprintf "The %s %s needs %s, but I see %d instead:"
-           (quoted (Data.Name.base name))
+           (quote (Data.Name.base name))
            what (args expects) given)
         question
   | Case_without_branches ->
-      explaining "This `case` does not have any branches:"
+      explain "This `case` does not have any branches:"
         "A `case` needs at least one branch, so I know what to do with the value it is given."
 
-let highlighted written =
+let highlight written =
   Doc.above
-    (List.map (fun text -> indented (Doc.yellow (Doc.text text))) written)
+    (List.map (fun text -> indent (Doc.yellow (Doc.text text))) written)
 
 let closest heading written =
-  Doc.above [ Doc.words heading; Doc.blank; highlighted written ]
+  Doc.above [ Doc.words heading; Doc.blank; highlight written ]
 
 let cycle written =
-  indented (Doc.text (String.concat " -> " (written @ [ List.hd written ])))
+  indent (Doc.text (String.concat " -> " (written @ [ List.hd written ])))
 
 let cannot_find ~snippet ~what ~name ~bare ~prefix ~near =
   let without, with_names =
@@ -785,20 +785,20 @@ let cannot_find ~snippet ~what ~name ~bare ~prefix ~near =
           "These names seem close though:" )
     | Unknown_prefix qualifier ->
         ( Printf.sprintf "I cannot find a %s module. Is there an `import` for it?"
-            (quoted qualifier),
+            (quote qualifier),
           Printf.sprintf
             "I cannot find a %s import. These names seem close though:"
-            (quoted qualifier) )
+            (quote qualifier) )
     | Known_prefix qualifier ->
-        let missing =
+        let absent =
           Printf.sprintf "The %s module does not expose a %s %s."
-            (quoted qualifier) (quoted bare) what
+            (quote qualifier) (quote bare) what
         in
-        (missing, missing ^ " These names seem close though:")
+        (absent, absent ^ " These names seem close though:")
   in
   Doc.stack
     ([
-       Doc.words (Printf.sprintf "I cannot find a %s %s:" (quoted name) what);
+       Doc.words (Printf.sprintf "I cannot find a %s %s:" (quote name) what);
        snippet;
      ]
     @ begin
@@ -810,15 +810,15 @@ let cannot_find ~snippet ~what ~name ~bare ~prefix ~near =
 
 let of_name_problem source region (problem : Name_error.t) =
   let snippet = Snippet.of_region source region in
-  let explaining = explaining ~snippet in
-  let showing = showing ~snippet in
+  let explain = explain ~snippet in
+  let show = show ~snippet in
   match problem with
   | Unknown_module { qualifier; near } ->
       Doc.stack
         [
           Doc.words
             (Printf.sprintf "You are trying to import a %s module:"
-               (quoted qualifier));
+               (quote qualifier));
           snippet;
           begin
             match near with
@@ -831,9 +831,9 @@ let of_name_problem source region (problem : Name_error.t) =
           imports_link;
         ]
   | Not_exposed { module_name; name; near } ->
-      showing
+      show
         (Printf.sprintf "The %s module does not expose %s:"
-           (quoted module_name) (quoted name))
+           (quote module_name) (quote name))
         begin
           match near with
           | [] ->
@@ -841,13 +841,13 @@ let of_name_problem source region (problem : Name_error.t) =
                 "I cannot find any super similar exposed names. Maybe it is private?"
           | [ only ] ->
               Doc.words
-                (Printf.sprintf "Maybe you want %s instead?" (quoted only))
+                (Printf.sprintf "Maybe you want %s instead?" (quote only))
           | _ -> closest "These names seem close though:" near
         end
   | Ctors_not_exposed { module_name; type_name } ->
-      explaining
+      explain
         (Printf.sprintf "The %s module does not expose the constructors of %s:"
-           (quoted module_name) (quoted type_name))
+           (quote module_name) (quote type_name))
         (Printf.sprintf
            "It would have to say `exposing (%s(..))` for them to be available here."
            type_name)
@@ -855,38 +855,38 @@ let of_name_problem source region (problem : Name_error.t) =
       Doc.stack
         [
           Doc.words
-            (Printf.sprintf "This usage of %s is ambiguous:" (quoted name));
+            (Printf.sprintf "This usage of %s is ambiguous:" (quote name));
           snippet;
           Doc.words
             (Printf.sprintf "It could refer to a value from %s."
-               (listed modules));
+               (bullet_list modules));
           Doc.words
             "Whatever it is, use a qualified name to say which one you want.";
         ]
   | Unknown_kernel { module_name; exported_name } ->
-      explaining
+      explain
         (Printf.sprintf "There is no %s kernel value:"
-           (quoted (module_name ^ "." ^ exported_name)))
+           (quote (module_name ^ "." ^ exported_name)))
         "Kernel values are the primitives the compiler knows about, and this is not one of them."
   | Kernel_needs_annotation { name } ->
-      explaining
+      explain
         (Printf.sprintf
            "The %s definition has a kernel body, so it needs a type annotation:"
-           (quoted name))
+           (quote name))
         "A kernel value takes its type from the annotation alone, so I cannot work it out without one."
   | Kernel_arity_mismatch { declared; kernel } ->
-      explaining
+      explain
         (Printf.sprintf
            "This annotation takes %s, but the kernel value it names takes %s:"
            (args declared) (args kernel))
         "The two have to agree."
   | Duplicate_declaration { name } ->
-      explaining
-        (Printf.sprintf "This file has multiple %s declarations." (quoted name))
+      explain
+        (Printf.sprintf "This file has multiple %s declarations." (quote name))
         "How can I know which one you want? Rename one of them!"
   | Duplicate_binder { name } ->
-      showing
-        (Printf.sprintf "This pattern uses %s more than once:" (quoted name))
+      show
+        (Printf.sprintf "This pattern uses %s more than once:" (quote name))
         (simple_hint
            "Rename one of them to make it clear which one you want. Elm does not allow a name to be defined twice.")
   | Unbound_value { name; prefix; near } ->
@@ -919,42 +919,42 @@ let of_name_problem source region (problem : Name_error.t) =
 
 let of_syntax_problem source region (problem : Syntax_error.t) =
   let snippet = Snippet.of_region source region in
-  let explaining = explaining ~snippet in
+  let explain = explain ~snippet in
   match problem with
   | Unexpected_input { found } ->
-      explaining "I got stuck here:"
-        (Printf.sprintf "I was not expecting %s at this point." (quoted found))
+      explain "I got stuck here:"
+        (Printf.sprintf "I was not expecting %s at this point." (quote found))
   | Unknown_character { found } ->
-      explaining
-        (Printf.sprintf "I do not know what %s means here:" (quoted found))
+      explain
+        (Printf.sprintf "I do not know what %s means here:" (quote found))
         "This character cannot start anything I know of."
   | Unterminated { what } ->
-      explaining
+      explain
         (Printf.sprintf
-           "I got to the end of the file without seeing the end of this %s:"
+           "I got to the end of the file without see the end of this %s:"
            (Syntax_error.what_is_unterminated what))
         "Add the closing mark, or delete it and start again."
   | Empty_character ->
-      explaining "I thought I was parsing a character, but I got stuck here:"
+      explain "I thought I was parsing a character, but I got stuck here:"
         "Characters look like 'c' and hold exactly one character. For text, use double quotes instead."
   | Crowded_character ->
-      explaining "This character literal holds more than one character:"
+      explain "This character literal holds more than one character:"
         "Characters hold exactly one character. Use double quotes for text of any length."
   | Unknown_escape { found } ->
-      explaining
-        (Printf.sprintf "I do not know the escape %s:" (quoted ("\\" ^ found)))
+      explain
+        (Printf.sprintf "I do not know the escape %s:" (quote ("\\" ^ found)))
         "The escapes I know are \\n, \\t, \\r, \\b, \\\", \\', \\\\ and \\u{...}."
   | Too_many_tuple_parts { given } ->
-      explaining
+      explain
         (Printf.sprintf
            "I only accept tuples of two or three parts, but this one has %d:"
            given)
         "Switch to a record. Records can hold as many values as you need, and each one has a name."
   | Module_name_mismatch { expected } ->
-      explaining "It looks like this module name is out of sync:"
+      explain "It looks like this module name is out of sync:"
         (Printf.sprintf
            "I need it to match the file path, so I was expecting to see %s here. Usually a mismatch like this means the file was moved or renamed. Change the name to match the path, or move the file to match the name."
-           (quoted expected))
+           (quote expected))
 
 let suggestions_of (problem : Error.problem) =
   match problem with
@@ -1000,12 +1000,12 @@ let rec drawn ~inside (pattern : Typed.Pattern.t) =
 
 let of_warning source (warning : Warning.t) =
   let snippet = Snippet.of_region source warning.region in
-  let reported title message =
+  let report title message =
     { title; region = warning.region; suggestions = []; message }
   in
   match warning.problem with
   | Missing_patterns { unhandled } ->
-      reported "MISSING PATTERNS"
+      report "MISSING PATTERNS"
         (Doc.stack
            [
              Doc.words
@@ -1017,8 +1017,8 @@ let of_warning source (warning : Warning.t) =
                "I would have to crash if I saw one of those. Add branches for them!";
            ])
   | Redundant_pattern { index } ->
-      reported "REDUNDANT PATTERN"
-        (explaining ~snippet
+      report "REDUNDANT PATTERN"
+        (explain ~snippet
            (Printf.sprintf "The %s pattern is redundant:" (ordinal index))
            "Any value with this shape will be handled by a previous pattern, so it should be removed.")
 
@@ -1029,7 +1029,7 @@ let of_project_problem source region (problem : Diagnostic.Project_error.t) =
       Doc.stack
         [
           Doc.words
-            (Printf.sprintf "I cannot find the folder %s." (quoted folder));
+            (Printf.sprintf "I cannot find the folder %s." (quote folder));
           Doc.words
             "Point me at a folder that exists, and I will look for source files there.";
         ]
@@ -1039,7 +1039,7 @@ let of_project_problem source region (problem : Diagnostic.Project_error.t) =
           Doc.words
             (Printf.sprintf
                "I looked for source files in %s and every folder inside it, but I found none."
-               (quoted folder));
+               (quote folder));
           Doc.words
             "Point me at the folder that holds your source files, and I will start from there.";
         ]
@@ -1047,7 +1047,7 @@ let of_project_problem source region (problem : Diagnostic.Project_error.t) =
       Doc.stack
         [
           Doc.words "I got stuck while reading this file as JSON:";
-          indented (Doc.words problem);
+          indent (Doc.words problem);
           Doc.words
             "JSON wants commas between fields, double quotes around every name, and no trailing comma before a closing brace.";
         ]
@@ -1056,14 +1056,14 @@ let of_project_problem source region (problem : Diagnostic.Project_error.t) =
         [
           Doc.words
             (Printf.sprintf "I need a %s field in this file, but I do not see one."
-               (quoted field));
+               (quote field));
           Doc.words "Add it, and I will know where to look for your code.";
         ]
   | Bad_field { field; expected; _ } ->
       Doc.stack
         [
           Doc.words
-            (Printf.sprintf "The %s field is not what I expected." (quoted field));
+            (Printf.sprintf "The %s field is not what I expected." (quote field));
           Doc.words (Printf.sprintf "I need %s there." expected);
         ]
   | Missing_source_directory { folder; _ } ->
@@ -1072,7 +1072,7 @@ let of_project_problem source region (problem : Diagnostic.Project_error.t) =
           Doc.words
             (Printf.sprintf
                "One of the source directories is %s, but there is no such folder."
-               (quoted folder));
+               (quote folder));
           Doc.words
             "Create it, or take it out of the `source-directories` field.";
         ]
@@ -1082,7 +1082,7 @@ let of_project_problem source region (problem : Diagnostic.Project_error.t) =
           Doc.words
             (Printf.sprintf
                "I was told to start from %s, but there is no such file in this project."
-               (quoted path));
+               (quote path));
           Doc.words
             "Check the spelling, or put the file in one of the source directories.";
         ]
@@ -1092,44 +1092,44 @@ let of_project_problem source region (problem : Diagnostic.Project_error.t) =
           Doc.words
             (Printf.sprintf
                "I was told to start from %s, but it has no %s declaration."
-               (quoted module_name) (quoted declaration));
+               (quote module_name) (quote declaration));
           Doc.words
             (Printf.sprintf "A program starts from %s. Add it, and I will know what to run."
-               (quoted declaration));
+               (quote declaration));
         ]
   | Entry_not_exposed { delivery; module_name; declaration } ->
       Doc.stack
         [
           Doc.words
             (Printf.sprintf "I start from this %s value, but %s keeps it to itself:"
-               (quoted declaration) (quoted module_name));
+               (quote declaration) (quote module_name));
           snippet ();
           Doc.words
             (Printf.sprintf
                "The %s delivery reaches the entry point through the exports of its module. Put %s in the exposing list of %s."
-               (quoted delivery) (quoted declaration) (quoted module_name));
+               (quote delivery) (quote declaration) (quote module_name));
         ]
   | Bad_entry { delivery; declaration; expected; found; _ } ->
       Doc.stack
         [
           Doc.words
             (Printf.sprintf "I cannot handle this type of %s value:"
-               (quoted declaration));
+               (quote declaration));
           snippet ();
           Doc.words
-            (Printf.sprintf "The type of %s value I am seeing is:"
-               (quoted declaration));
-          indented (Doc.text found);
+            (Printf.sprintf "The type of %s value I am see is:"
+               (quote declaration));
+          indent (Doc.text found);
           Doc.words
             (Printf.sprintf
                "The %s delivery only knows how to handle %s though. Modify %s to be one of those types of values, or pick a delivery that can take this one."
-               (quoted delivery) expected (quoted declaration));
+               (quote delivery) expected (quote declaration));
         ]
   | Missing_manifest { file } ->
       Doc.stack
         [
           Doc.words
-            (Printf.sprintf "I do not see a %s file here." (quoted file));
+            (Printf.sprintf "I do not see a %s file here." (quote file));
           Doc.words
             "That file says what your project is called and which packages it needs, and I install from it.";
         ]
@@ -1137,15 +1137,15 @@ let of_project_problem source region (problem : Diagnostic.Project_error.t) =
       Doc.stack
         [
           Doc.words "I could not reach the package registry.";
-          indented (Doc.words problem);
-          Doc.words (Printf.sprintf "I was asking %s." (quoted url));
+          indent (Doc.words problem);
+          Doc.words (Printf.sprintf "I was asking %s." (quote url));
         ]
   | Unknown_package { package; asked_by; _ } ->
       Doc.stack
         [
           Doc.words
             (Printf.sprintf "%s asks for %s, and the registry has never heard of it."
-               (quoted asked_by) (quoted package));
+               (quote asked_by) (quote package));
           Doc.words "Check the spelling, or publish it first.";
         ]
   | No_version { package; asked; _ } ->
@@ -1153,13 +1153,13 @@ let of_project_problem source region (problem : Diagnostic.Project_error.t) =
         [
           Doc.words
             (Printf.sprintf "I cannot find one version of %s that everyone agrees on."
-               (quoted package));
-          indented
+               (quote package));
+          indent
             (Doc.above
                (List.map
                   (fun (who, range) ->
                     Doc.words
-                      (Printf.sprintf "%s wants %s" (quoted who) (quoted range)))
+                      (Printf.sprintf "%s wants %s" (quote who) (quote range)))
                   asked));
           Doc.words
             "Widen one of these ranges, or ask for a version that works with the rest.";
@@ -1169,8 +1169,8 @@ let of_project_problem source region (problem : Diagnostic.Project_error.t) =
         [
           Doc.words
             (Printf.sprintf "%s %s asks for %s at %s, and I do not know that way of writing a range."
-               (quoted package) (quoted version) (quoted dependency)
-               (quoted range));
+               (quote package) (quote version) (quote dependency)
+               (quote range));
           Doc.words
             "I know an exact version like `1.2.0`, and a caret range like `^1.2.0`. I am not a full npm client, and packages written for npm may ask in ways I cannot follow.";
         ]
@@ -1179,8 +1179,8 @@ let of_project_problem source region (problem : Diagnostic.Project_error.t) =
         [
           Doc.words
             (Printf.sprintf "I downloaded %s %s, and something is wrong with it."
-               (quoted package) (quoted version));
-          indented (Doc.words problem);
+               (quote package) (quote version));
+          indent (Doc.words problem);
           Doc.words "I have not unpacked it, so your project is untouched.";
         ]
   | Missing_lock { file; lock } ->
@@ -1189,7 +1189,7 @@ let of_project_problem source region (problem : Diagnostic.Project_error.t) =
           Doc.words
             (Printf.sprintf
                "The %s file lists dependencies, but I do not see a %s file next to it."
-               (quoted file) (quoted lock));
+               (quote file) (quote lock));
           Doc.words
             "I compile against exact versions, so I need the resolved ones written down.";
           Doc.words "Run `dartea install`, and I will work them out and save them.";
@@ -1199,8 +1199,8 @@ let of_project_problem source region (problem : Diagnostic.Project_error.t) =
         [
           Doc.words
             (Printf.sprintf "I need %s at version %s, and I cannot find it."
-               (quoted package) (quoted version));
-          Doc.words (Printf.sprintf "I looked in %s." (quoted looked));
+               (quote package) (quote version));
+          Doc.words (Printf.sprintf "I looked in %s." (quote looked));
           Doc.words
             "Run `dartea install` to fetch it, or drop it from the dependencies.";
         ]
@@ -1209,8 +1209,8 @@ let of_project_problem source region (problem : Diagnostic.Project_error.t) =
         [
           Doc.words
             (Printf.sprintf "The %s delivery cannot hand %s to %s."
-               (quoted delivery) (quoted found)
-               (quoted (module_name ^ "." ^ declaration)));
+               (quote delivery) (quote found)
+               (quote (module_name ^ "." ^ declaration)));
           Doc.words
             "Flags come in from JavaScript, so they have to be values I know how to check: numbers, strings, booleans, unit, lists, tuples, records, `Maybe`, and `Json.Decode.Value`.";
           Doc.words
@@ -1221,7 +1221,7 @@ let of_project_problem source region (problem : Diagnostic.Project_error.t) =
         [
           Doc.words
             (Printf.sprintf "The %s delivery needs to know where the program starts."
-               (quoted delivery));
+               (quote delivery));
           Doc.words
             "Name the file it lives in, and I will start from there.";
         ]
@@ -1230,8 +1230,8 @@ let of_project_problem source region (problem : Diagnostic.Project_error.t) =
         [
           Doc.words
             (Printf.sprintf "I found more than one file for the module %s:"
-               (quoted name));
-          indented (Doc.above [ Doc.text one; Doc.text other ]);
+               (quote name));
+          indent (Doc.above [ Doc.text one; Doc.text other ]);
           Doc.words
             "I cannot tell which one you mean. Delete one of them, or move it out of the source directories.";
         ]

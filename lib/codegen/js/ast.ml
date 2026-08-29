@@ -165,10 +165,10 @@ let call callee args = Call { callee; args }
 let member object_ property =
   Member { object_; property = Identifier property; computed = false }
 
-let indexed object_ index =
+let at_index object_ index =
   Member { object_; property = Literal (Int index); computed = true }
 
-let assigned name value =
+let assign name value =
   ExprStmt (Assignment { left = Identifier name; right = value })
 
 let returning_when test result =

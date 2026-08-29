@@ -5,31 +5,31 @@ let indent_level = 2
 let indent n = String.make (n * indent_level) ' '
 
 let escaped_string text =
-  let escaped = Buffer.create (String.length text + 2) in
+  let buffer = Buffer.create (String.length text + 2) in
   String.iter
     (fun character ->
       match character with
-      | '"' -> Buffer.add_string escaped "\\\""
-      | '\\' -> Buffer.add_string escaped "\\\\"
-      | '\n' -> Buffer.add_string escaped "\\n"
-      | '\r' -> Buffer.add_string escaped "\\r"
-      | '\t' -> Buffer.add_string escaped "\\t"
-      | '\b' -> Buffer.add_string escaped "\\b"
-      | '\012' -> Buffer.add_string escaped "\\f"
+      | '"' -> Buffer.add_string buffer "\\\""
+      | '\\' -> Buffer.add_string buffer "\\\\"
+      | '\n' -> Buffer.add_string buffer "\\n"
+      | '\r' -> Buffer.add_string buffer "\\r"
+      | '\t' -> Buffer.add_string buffer "\\t"
+      | '\b' -> Buffer.add_string buffer "\\b"
+      | '\012' -> Buffer.add_string buffer "\\f"
       | character when Char.code character < 0x20 ->
-          Buffer.add_string escaped
+          Buffer.add_string buffer
             (Printf.sprintf "\\u%04x" (Char.code character))
-      | character -> Buffer.add_char escaped character)
+      | character -> Buffer.add_char buffer character)
     text;
-  Buffer.contents escaped
+  Buffer.contents buffer
 
 let float_to_string value =
-  let rendered precision = Printf.sprintf "%.*g" precision value in
-  let round_trips precision = float_of_string (rendered precision) = value in
+  let render precision = Printf.sprintf "%.*g" precision value in
+  let round_trips precision = float_of_string (render precision) = value in
   let shortest =
-    if round_trips 15 then rendered 15
-    else if round_trips 16 then rendered 16
-    else rendered 17
+    if round_trips 15 then render 15
+    else if round_trips 16 then render 16
+    else render 17
   in
   if String.exists (fun c -> c = '.' || c = 'e' || c = 'E') shortest then
     shortest

@@ -20,7 +20,7 @@ let names written candidate =
 
 let of_written written = List.find_opt (names written) all
 
-let combined left right =
+let combine left right =
   match (left, right) with
   | Number, Number -> Some Number
   | Number, Comparable | Comparable, Number -> Some Number

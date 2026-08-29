@@ -35,7 +35,7 @@ let escape = string_of_colour
 
 let reset = "\027[0m"
 
-let wrapped ~width written =
+let wrap ~width written =
   let words = String.split_on_char ' ' written |> List.filter (( <> ) "") in
   let lines, last =
     List.fold_left
@@ -47,22 +47,22 @@ let wrapped ~width written =
         | _ -> (current :: lines, word))
       ([], "") words
   in
-  let completed = if String.equal last "" then lines else last :: lines in
-  List.rev completed
+  let complete = if String.equal last "" then lines else last :: lines in
+  List.rev complete
 
-let glued left right =
+let glue left right =
   match (left, right) with
   | [], lines | lines, [] -> lines
   | _ ->
       let start = List.filteri (fun index _ -> index < List.length left - 1) left in
-      let joined = List.nth left (List.length left - 1) ^ List.hd right in
-      start @ (joined :: List.tl right)
+      let seam = List.nth left (List.length left - 1) ^ List.hd right in
+      start @ (seam :: List.tl right)
 
 let rec lines_of ~width ~colours doc =
   match doc with
   | Empty -> []
   | Text written -> [ written ]
-  | Paragraph written -> wrapped ~width written
+  | Paragraph written -> wrap ~width written
   | Coloured (colour, inner) ->
       if colours then
         List.map
@@ -71,7 +71,7 @@ let rec lines_of ~width ~colours doc =
       else lines_of ~width ~colours inner
   | Beside parts ->
       List.fold_left
-        (fun collected part -> glued collected (lines_of ~width ~colours part))
+        (fun collected part -> glue collected (lines_of ~width ~colours part))
         [] parts
   | Above parts ->
       List.concat_map (fun part -> lines_of ~width ~colours part) parts

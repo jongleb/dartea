@@ -14,7 +14,7 @@ let list_element_of name arguments =
   | _ -> None
 
 let combine left right =
-  match Data.Constraint.combined left right with
+  match Data.Constraint.combine left right with
   | Some together -> together
   | None -> raise Cannot
 
@@ -143,18 +143,22 @@ let rec fit left right =
       _ ) ->
       raise Cannot
 
+let check ~region ~mismatch ~looping found expected =
+  try fit found expected with
+  | Cannot -> Error.raise_type ~region mismatch
+  | Loops found -> Error.raise_type ~region (looping found)
+
 let types ~region ~category ~expected found =
-  try fit found (Expectation.expected_type expected) with
-  | Cannot ->
-      Error.raise_type ~region (Problem.Bad_expression { category; found; expected })
-  | Loops looping ->
-      Error.raise_type ~region (Problem.Infinite_type { category; found = looping })
+  check ~region
+    ~mismatch:(Problem.Bad_expression { category; found; expected })
+    ~looping:(fun found -> Problem.Infinite_type { category; found })
+    found
+    (Expectation.expected_type expected)
 
 let pattern ~region ~category ~expected found =
-  try fit found (Expectation.expected_pattern_type expected) with
-  | Cannot ->
-      Error.raise_type ~region (Problem.Bad_pattern { category; found; expected })
-  | Loops looping ->
-      Error.raise_type ~region
-        (Problem.Infinite_type
-           { category = Reporting.Category.Record; found = looping })
+  check ~region
+    ~mismatch:(Problem.Bad_pattern { category; found; expected })
+    ~looping:(fun found ->
+      Problem.Infinite_type { category = Reporting.Category.Record; found })
+    found
+    (Expectation.expected_pattern_type expected)

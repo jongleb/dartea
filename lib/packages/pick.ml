@@ -8,8 +8,8 @@ let path pick = Fpath.v (pick.package ^ "/" ^ Version.show pick.version)
 let found package picks =
   List.find_opt (fun pick -> String.equal pick.package package) picks
 
-let vendored = Fpath.v ".dartea/packages"
-let cached = Fpath.v ".dartea/cache"
-let folder pick = Fpath.append vendored (path pick)
+let vendor_folder = Fpath.v ".dartea/packages"
+let cache_folder = Fpath.v ".dartea/cache"
+let folder pick = Fpath.append vendor_folder (path pick)
 let sources pick = Fpath.add_seg (folder pick) "src"
-let tarball pick = Fpath.add_ext ".tgz" (Fpath.append cached (path pick))
+let tarball pick = Fpath.add_ext ".tgz" (Fpath.append cache_folder (path pick))

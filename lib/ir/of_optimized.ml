@@ -299,7 +299,7 @@ let of_declaration context (source : O.Declaration.t) : declaration =
   and extension_closure field =
     let value = fresh "v" in
     let record = fresh "r" in
-    let extended = fresh "e" in
+    let extension = fresh "e" in
     B_closure
       {
         parameters = [ value; record ];
@@ -307,11 +307,11 @@ let of_declaration context (source : O.Declaration.t) : declaration =
         body =
           T_let
             {
-              name = extended;
+              name = extension;
               bind =
                 B_record_update
                   { base = A_var record; fields = [ (field, A_var value) ] };
-              body = T_return (A_var extended);
+              body = T_return (A_var extension);
             };
       }
 
@@ -335,32 +335,32 @@ let of_declaration context (source : O.Declaration.t) : declaration =
     normalize_atoms ~locals
       (List.map (fun (row : O.Expr.expr_record_row) -> row.value) rows)
       ~k:(fun atoms ->
-        let named =
+        let name =
           List.map2
             (fun (row : O.Expr.expr_record_row) atom -> (row.name, atom))
             rows atoms
         in
-        emit k (B_record { fields = named }))
+        emit k (B_record { fields = name }))
 
   and lower_record ~locals ~k ~base fields =
     normalize_atoms ~locals (List.map snd fields) ~k:(fun atoms ->
-        let named =
+        let name =
           List.map2 (fun (label, _) atom -> (label, atom)) fields atoms
         in
         match base with
-        | None -> emit k (B_record { fields = named })
+        | None -> emit k (B_record { fields = name })
         | Some expression ->
             normalize_atom ~locals expression ~k:(fun subject ->
-                emit k (B_record_update { base = subject; fields = named })))
+                emit k (B_record_update { base = subject; fields = name })))
 
   and lower_construct ~locals ~k ~name arguments =
     normalize_atoms ~locals arguments ~k:(fun atoms ->
-        let wanted = wanted_by_constructor context name in
+        let expect = wanted_by_constructor context name in
         let given = List.length atoms in
-        if given >= wanted then emit k (B_construct { name; arguments = atoms })
+        if given >= expect then emit k (B_construct { name; arguments = atoms })
         else
           emit k
-            (missing_arguments_closure ~missing:(wanted - given)
+            (missing_arguments_closure ~missing:(expect - given)
                ~build:(fun all -> B_construct { name; arguments = all })
                atoms))
 
@@ -397,7 +397,7 @@ let of_declaration context (source : O.Declaration.t) : declaration =
     | None, O.Expr.Expr_ident name ->
         normalize_atoms ~locals arguments ~k:(fun atoms ->
             match By_name.find_opt name context.toplevel_arity with
-            | Some arity -> saturated ~k ~callee:name ~arity atoms
+            | Some arity -> saturate ~k ~callee:name ~arity atoms
             | None ->
                 emit k
                   (B_call_closure { callee = A_global name; arguments = atoms }))
@@ -416,7 +416,7 @@ let of_declaration context (source : O.Declaration.t) : declaration =
                ~build:(fun all -> B_primitive { operator; arguments = all })
                atoms))
 
-  and saturated ~k ~callee ~arity atoms =
+  and saturate ~k ~callee ~arity atoms =
     let given = List.length atoms in
     if arity = 0 then
       emit k (B_call_closure { callee = A_global callee; arguments = atoms })

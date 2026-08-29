@@ -95,13 +95,13 @@ let binary_lowering env ~(operand : O.Type.t) (operator : Data.Operator.t) left
         (Instances.reads_operands_twice env.instances operand operator)
       left right
   in
-  (bindings, Instances.lowering env.instances ~operand operator left right)
+  (bindings, Instances.lower env.instances ~operand operator left right)
 
 let method_lowering env (method_ : Data.Method.t) ~operand left right =
   let bindings, left, right =
     shared_operands env ~when_duplicated:true left right
   in
-  let picking test =
+  let pick test =
     J.Conditional { test; consequent = left; alternate = right }
   in
   let extreme operator =
@@ -109,11 +109,11 @@ let method_lowering env (method_ : Data.Method.t) ~operand left right =
       ~operator operand left right
   in
   match method_ with
-  | Minimum -> (bindings, picking (extreme J.LessThan))
-  | Maximum -> (bindings, picking (extreme J.GreaterThan))
+  | Minimum -> (bindings, pick (extreme J.LessThan))
+  | Maximum -> (bindings, pick (extreme J.GreaterThan))
   | Compare ->
       let name = temp env in
-      let ordering = J.Identifier name in
+      let sign = J.Identifier name in
       let result = Data.Method.ordering_result in
       let nullary ctor = constructor_to_object env.names ctor [] in
       ( bindings
@@ -126,12 +126,12 @@ let method_lowering env (method_ : Data.Method.t) ~operand left right =
           ],
         J.Conditional
           {
-            test = J.binary J.LessThan ordering (J.int 0);
+            test = J.binary J.LessThan sign (J.int 0);
             consequent = nullary result.less;
             alternate =
               J.Conditional
                 {
-                  test = J.binary J.StrictEqual ordering (J.int 0);
+                  test = J.binary J.StrictEqual sign (J.int 0);
                   consequent = nullary result.equal;
                   alternate = nullary result.greater;
                 };
@@ -152,7 +152,7 @@ let occ_expr root (o : Occ.t) : J.expr =
     (fun e step ->
       match step with
       | Occ.Payload i -> J.member e (Runtime.payload i)
-      | Occ.Index i -> J.indexed e i
+      | Occ.Index i -> J.at_index e i
       | Occ.Field f -> J.member e f
       | Occ.Hd -> J.member e Runtime.head
       | Occ.Tl -> J.member e Runtime.tail)
@@ -198,7 +198,7 @@ let switch_key env (test : DT.test) : (discriminant * J.literal) option =
 
 let switch_plan env occ_e (branches : (DT.test * DT.t) list) :
     (J.expr * (J.literal * DT.t) list) option =
-  let keyed =
+  let keys =
     List.fold_right
       (fun (test, subtree) collected ->
         match (collected, switch_key env test) with
@@ -207,7 +207,7 @@ let switch_plan env occ_e (branches : (DT.test * DT.t) list) :
         | _ -> None)
       branches (Some [])
   in
-  match keyed with
+  match keys with
   | None | Some [] -> None
   | Some ((kind, _, _) :: _ as cases) ->
       if List.for_all (fun (other, _, _) -> same_discriminant other kind) cases
@@ -309,7 +309,7 @@ let arrow_of_body params stmts =
 let thunk_names env plan =
   List.map
     (fun (id, _) -> (id, Names.fresh env.names ("$dt" ^ string_of_int id)))
-    (DS.shared plan)
+    (DS.nodes plan)
 
 let rec lower env root ~terminating ~leaf ~fail ~sink ~plan ~tnames
     (tree : DT.t) : J.stmt list =
@@ -335,10 +335,10 @@ and lower_node env root ~terminating ~leaf ~fail ~sink ~plan ~tnames
       let many_cases (disc, cases) =
         if List.length cases >= 2 then Some (disc, cases) else None
       in
-      let planned =
+      let switch_of =
         if terminating then switch_plan env occ_e branches else None
       in
-      match Option.bind planned many_cases with
+      match Option.bind switch_of many_cases with
       | Some (disc, cases) ->
           let default_case =
             default
@@ -382,24 +382,24 @@ let shared_thunks env root ~plan ~tnames clause_expr =
           ~plan ~tnames sub
       in
       J.ConstDecl { name = List.assoc id tnames; init = arrow_of_body [] body })
-    (DS.shared plan)
+    (DS.nodes plan)
 
 let rec emit_value env (e : O.Expr.t) : J.stmt list * J.expr =
   let statements, expression = emit_uncoerced env e in
   ( statements,
-    coerced env expression
+    coerce env expression
       ~expected:(arity_of_type e.O.Expr.typ)
       ~actual:(emitted_arity env e) )
 
-and coerced env expression ~expected ~actual =
+and coerce env expression ~expected ~actual =
   match (expected, actual) with
   | Exactly wanted, Exactly given
     when wanted <> given && wanted >= 1 && given >= 1 ->
       let params = List.init wanted (fun _ -> temp env) in
       let arguments = List.map (fun p -> J.Identifier p) params in
       let call_in_two_steps () =
-        let saturating, extra = split_at given arguments in
-        J.call (J.call expression saturating) extra
+        let first, extra = split_at given arguments in
+        J.call (J.call expression first) extra
       in
       let body =
         if given < wanted then call_in_two_steps ()
@@ -414,20 +414,20 @@ and emitted_arity env (e : O.Expr.t) : arity =
   | O.Expr.Expr_kernel (Kernel_value kernel) ->
       Exactly (Data.Kernel.arity kernel)
   | O.Expr.Expr_constr { name; arguments } ->
-      let supplied = List.length arguments in
+      let given_count = List.length arguments in
       begin
         match declared_arity env name with
-        | Some n when n > supplied -> Exactly (n - supplied)
+        | Some n when n > given_count -> Exactly (n - given_count)
         | Some _ | None -> arity_of_type e.typ
       end
   | O.Expr.Expr_ident _ -> callee_arity env e
   | O.Expr.Expr_apply { fn; _ } when is_record_construction fn -> Exactly 0
   | O.Expr.Expr_apply { fn; arg } ->
       let callee, args = applied_spine ~fn ~arg in
-      let supplied = List.length args in
+      let given_count = List.length args in
       begin
         match callee_arity env callee with
-        | Exactly n when n > supplied -> Exactly (n - supplied)
+        | Exactly n when n > given_count -> Exactly (n - given_count)
         | Exactly n when n >= 1 -> arity_of_type e.typ
         | Exactly _ | At_least _ -> At_least 0
       end
@@ -514,8 +514,8 @@ and emit_uncoerced env (e : O.Expr.t) : J.stmt list * J.expr =
               J.If
                 {
                   test = ec;
-                  consequent = st @ [ J.assigned r et ];
-                  alternate = Some (se @ [ J.assigned r ee ]);
+                  consequent = st @ [ J.assign r et ];
+                  alternate = Some (se @ [ J.assign r ee ]);
                 };
             ],
           J.Identifier r )
@@ -562,10 +562,10 @@ and emit_apply env fn arg =
     let saturated_operator =
       match args with
       | [ left; right ] ->
-          let lowering op =
+          let lower_op op =
             saturated_lowering env op ~operand:left.O.Expr.typ
           in
-          Option.bind (O.Expr.ident_of callee) lowering
+          Option.bind (O.Expr.ident_of callee) lower_op
           |> Option.map (fun lower -> (lower, left, right))
       | _ -> None
     in
@@ -609,22 +609,22 @@ and emit_apply env fn arg =
 
 and emit_known_call env callee ~arity ~result_type args =
   let statements, arguments = emit_values env args in
-  applied env callee ~arity ~result_type ~statements ~arguments
+  apply env callee ~arity ~result_type ~statements ~arguments
 
-and applied env callee ~arity ~result_type ~statements ~arguments =
-  let supplied = List.length arguments in
-  if supplied = arity then (statements, J.call callee arguments)
-  else if supplied < arity then
-    (statements, closure_partial env callee arguments (arity - supplied))
+and apply env callee ~arity ~result_type ~statements ~arguments =
+  let given_count = List.length arguments in
+  if given_count = arity then (statements, J.call callee arguments)
+  else if given_count < arity then
+    (statements, closure_partial env callee arguments (arity - given_count))
   else
-    let saturating, extra = split_at arity arguments in
-    let saturated = J.call callee saturating in
+    let first, extra = split_at arity arguments in
+    let head_call = J.call callee first in
     match arity_of_type result_type with
     | Exactly n when n >= 1 ->
-        applied env saturated ~arity:n
+        apply env head_call ~arity:n
           ~result_type:(O.Type.result_after ~applied:n result_type)
           ~statements ~arguments:extra
-    | Exactly _ | At_least _ -> (statements, curry_call saturated extra)
+    | Exactly _ | At_least _ -> (statements, curry_call head_call extra)
 
 and emit_generic env callee args =
   let sc, ec = emit_value env callee in
@@ -638,7 +638,7 @@ and emit_generic env callee args =
         else ([], ec)
       in
       let statements, expression =
-        applied env target ~arity
+        apply env target ~arity
           ~result_type:(O.Type.result_after ~applied:arity callee.O.Expr.typ)
           ~statements:ss ~arguments:es
       in
@@ -692,7 +692,7 @@ and loop_step env tc args =
   let ss, es = emit_values env args in
   let temps = List.map (fun _ -> temp env) es in
   let bind = List.map2 (fun t v -> J.ConstDecl { name = t; init = v }) temps es in
-  let step = List.map2 (fun p t -> J.assigned p (J.Identifier t)) tc.params temps in
+  let step = List.map2 (fun p t -> J.assign p (J.Identifier t)) tc.params temps in
   ss @ bind @ step @ [ J.Continue ]
 
 and tail_self_call env tc (e : O.Expr.t) : J.stmt list option =
@@ -792,12 +792,12 @@ and emit_match_assign env (r : string) (occ : J.expr)
   emit_match env occ clauses ~terminating:false
     ~taken:(fun env chosen ->
       let sa, ea = emit_value env chosen in
-      sa @ [ J.assigned r ea ])
-    ~sink:(fun e -> [ J.assigned r e ])
+      sa @ [ J.assign r ea ])
+    ~sink:(fun e -> [ J.assign r e ])
 
 let decl_stmts env (decl : O.Declaration.t) : J.stmt list =
-  let name = Names.located decl.name in
-  let decl = O.Declaration.merged decl in
+  let name = Names.of_loc decl.name in
+  let decl = O.Declaration.merge_lambdas decl in
   match decl.params with
   | [] ->
       let s, e = emit_value env decl.body in
@@ -849,7 +849,7 @@ let constructor_decls names (constructors : (Data.Name.t * int) list) :
                    };
              })
 
-let prepared ~arities ~constructors ~siblings ~typedecls decls =
+let prepare ~arities ~constructors ~siblings ~typedecls decls =
   let names = Names.create () in
   List.iter (fun (name, arity) -> Names.note_arity names name arity) arities;
   List.iter
@@ -868,8 +868,8 @@ let prepared ~arities ~constructors ~siblings ~typedecls decls =
 
 let program_with_helpers ~arities ~constructors ~built ~siblings ~typedecls
     ~exports (decls : O.Declaration.t list) : J.program =
-  let env = prepared ~arities ~constructors ~siblings ~typedecls decls in
-  let exported =
+  let env = prepare ~arities ~constructors ~siblings ~typedecls decls in
+  let export_stmts =
     match exports with
     | [] -> []
     | names -> [ J.Export (List.map Names.of_name names) ]
@@ -877,7 +877,7 @@ let program_with_helpers ~arities ~constructors ~built ~siblings ~typedecls
   let body = List.concat_map (decl_stmts env) decls in
   constructor_decls env.names built
   @ Instances.declarations env.instances
-  @ body @ exported
+  @ body @ export_stmts
 
 let import_lines imports =
   match imports with

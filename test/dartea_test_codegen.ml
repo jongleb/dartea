@@ -990,7 +990,7 @@ let test_prelude_is_emitted_as_modules _ =
   let src = "y : Int\ny = String.length \"hello\"" in
   let emitted =
     List.map
-      (fun (c : Dartea.Compiler.compiled) -> c.module_name)
+      (fun (c : Dartea.Compiler.artifact) -> c.module_name)
       (compiled_of src)
   in
   List.iter
@@ -1386,7 +1386,7 @@ counted = 1 + 2
   in
   assert_js ~src ~expr:"Main.mixed" ~expected:"2.5";
   assert_js ~src ~expr:"Main.scaled" ~expected:"2.5";
-  assert_js ~src ~expr:"Main.counted" ~expected:"3"
+  assert_js ~src ~expr:"Main.count_of" ~expected:"3"
 
 let test_append_is_one_function_over_strings_and_lists _ =
   let src =
@@ -1514,7 +1514,7 @@ lettered c = c == 'a'
   assert_bool "a primitive equality does not reach the runtime"
     (not (contains ~needle:"$$eq" js));
   assert_bool "a primitive equality is still ===" (contains ~needle:"===" js);
-  assert_js ~src ~expr:"Main.counted(1)" ~expected:"true";
+  assert_js ~src ~expr:"Main.count_of(1)" ~expected:"true";
   assert_js ~src ~expr:{|Main.lettered("a")|} ~expected:"true"
 
 let test_equality_over_a_deeply_nested_value _ =
@@ -2029,7 +2029,7 @@ doubled =
   assert_js ~src ~expr:"Main.shown" ~expected:{|"1.5"|};
   assert_js ~src ~expr:"Main.whole" ~expected:{|"2"|};
   assert_js ~src ~expr:"Main.read" ~expected:{|{"_0":1.5}|};
-  assert_js ~src ~expr:"Main.refused" ~expected:{|"Nothing"|};
+  assert_js ~src ~expr:"Main.refuse" ~expected:{|"Nothing"|};
   assert_js ~src ~expr:"Main.doubled" ~expected:"2.5"
 
 let test_the_type_system_chapter_holds_together _ =
@@ -2716,7 +2716,7 @@ mixed =
 |}
   in
   assert_js ~src ~expr:"Main.summed" ~expected:"7";
-  assert_js ~src ~expr:"Main.counted" ~expected:"7";
+  assert_js ~src ~expr:"Main.count_of" ~expected:"7";
   assert_js ~src ~expr:"Main.mixed" ~expected:"15"
 
 let test_alias_patterns _ =
@@ -2990,7 +2990,7 @@ sum = ints.first + ints.second
   in
   assert_js ~src ~expr:"Main.start.count" ~expected:"0";
   assert_js ~src ~expr:"Main.renamed.name" ~expected:{|"b"|};
-  assert_js ~src ~expr:"Main.counted" ~expected:"9";
+  assert_js ~src ~expr:"Main.count_of" ~expected:"9";
   assert_js ~src ~expr:"Main.named" ~expected:{|"b"|};
   assert_js ~src ~expr:"Main.sum" ~expected:"3"
 

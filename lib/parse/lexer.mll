@@ -166,7 +166,7 @@ rule token = parse
 
   and block_string start acc = parse
   | "\"\"\""            { acc }
-  | '\\'                { let esc = escaped lexbuf in block_string start (acc ^ esc) lexbuf }
+  | '\\'                { let esc = escape lexbuf in block_string start (acc ^ esc) lexbuf }
   | [^'"' '\\']+        { advance_lines lexbuf (Lexing.lexeme lexbuf);
                           block_string start (acc ^ (Lexing.lexeme lexbuf)) lexbuf }
   | '"'                 { block_string start (acc ^ "\"") lexbuf }
@@ -174,7 +174,7 @@ rule token = parse
 
   and character start = parse
   | '\''                { reject_from start lexbuf Reporting.Syntax_error.Empty_character }
-  | '\\'                { let esc = escaped lexbuf in closing_quote start esc lexbuf }
+  | '\\'                { let esc = escape lexbuf in closing_quote start esc lexbuf }
   | [^'\'' '\\' '\x80'-'\xff']
                         { closing_quote start (Lexing.lexeme lexbuf) lexbuf }
   | utf8_character      { closing_quote start (Lexing.lexeme lexbuf) lexbuf }
@@ -188,12 +188,12 @@ rule token = parse
 
   and string start acc = parse
   | '"'                 { acc }
-  | '\\'                { let esc = escaped lexbuf in string start (acc ^ esc) lexbuf }
+  | '\\'                { let esc = escape lexbuf in string start (acc ^ esc) lexbuf }
   | [^'"' '\\']*        { advance_lines lexbuf (Lexing.lexeme lexbuf);
                           string start (acc ^ (Lexing.lexeme lexbuf)) lexbuf }
   | eof                 { reject_from start lexbuf (Reporting.Syntax_error.Unterminated { what = Text }) }
   
-  and escaped = parse
+  and escape = parse
   | 'u' '{' (hex_digit+ as code) '}'
                         { utf_8_encoded (int_of_string ("0x" ^ code)) }
   | _                   { let str = Lexing.lexeme lexbuf in

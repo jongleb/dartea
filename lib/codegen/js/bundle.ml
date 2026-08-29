@@ -17,18 +17,18 @@ let body source =
            else Some line)
   |> String.concat "\n" |> String.trim
 
-let wrapped { name; source } =
+let wrap { name; source } =
   Printf.sprintf "const %s = (() => {\n%s\n})();"
     (Of_optimized.module_ident name)
     (body source)
 
-let started = "Dartea"
+let global_name = "Dartea"
 
 let of_modules ~entry_module ~declaration ~flags modules =
   Printf.sprintf
     "%s\n\n%s\nglobalThis.%s = {\n  %s: {\n    init: (config) =>\n      %s(%s.%s, config.node, (%s)(config.flags, \"flags\")),\n  },\n};\n"
-    (String.concat "\n\n" (List.map wrapped modules))
-    Runtime.engine_source started
+    (String.concat "\n\n" (List.map wrap modules))
+    Runtime.engine_source global_name
     (Of_optimized.module_ident entry_module)
     Runtime.mount
     (Of_optimized.module_ident entry_module)
@@ -64,4 +64,4 @@ try {
   </body>
 </html>
 |}
-    notice title script started (Of_optimized.module_ident entry_module)
+    notice title script global_name (Of_optimized.module_ident entry_module)

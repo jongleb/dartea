@@ -388,12 +388,12 @@ let law_a_constraint_meets_another_the_same_way_round =
       Data.Constraint.name one ^ " & " ^ Data.Constraint.name other)
     (Gen.pair constraint_gen constraint_gen)
     (fun (one, other) ->
-      Data.Constraint.combined one other = Data.Constraint.combined other one)
+      Data.Constraint.combine one other = Data.Constraint.combine other one)
 
 let law_a_constraint_meets_itself =
   Test.make ~count:100 ~name:"a constraint met with itself is unchanged"
     ~print:Data.Constraint.name constraint_gen
-    (fun carried -> Data.Constraint.combined carried carried = Some carried)
+    (fun carried -> Data.Constraint.combine carried carried = Some carried)
 
 let law_two_constrained_variables_keep_both_constraints =
   Test.make ~count:2000
@@ -404,7 +404,7 @@ let law_two_constrained_variables_keep_both_constraints =
     (fun (one, other) ->
       let left = V.fresh (Some one) and right = V.fresh (Some other) in
       match
-        (unifies (T.TVar left) (T.TVar right), Data.Constraint.combined one other)
+        (unifies (T.TVar left) (T.TVar right), Data.Constraint.combine one other)
       with
       | false, None -> true
       | false, Some _ | true, None -> false

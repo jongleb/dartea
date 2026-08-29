@@ -52,10 +52,10 @@ module Interval = struct
   let holds bounds version =
     compare version bounds.least >= 0 && compare version bounds.below < 0
 
-  let holding bounds =
+  let nonempty bounds =
     if compare bounds.least bounds.below < 0 then Some bounds else None
 
   let meet one other =
-    holding
+    nonempty
       (upto (later one.least other.least) (earlier one.below other.below))
 end

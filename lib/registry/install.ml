@@ -16,24 +16,24 @@ let unusable registry ~file package asked =
   | refusal :: _ -> unreadable ~file package refusal
   | [] -> Diagnostic.Failure.raise_project (No_version { file; package; asked })
 
-let solved registry ~file (manifest : Manifest.t) =
-  match Solver.solved (Npm.view registry) manifest.dependencies with
-  | Ok picked -> picked
+let solve registry ~file (manifest : Manifest.t) =
+  match Solver.solve (Npm.view registry) manifest.dependencies with
+  | Ok picks -> picks
   | Error (Solver.Unknown_package { package; asked_by }) ->
       Diagnostic.Failure.raise_project
         (Unknown_package { file; package; asked_by })
   | Error (Solver.No_version { package; asked }) ->
       unusable registry ~file package asked
 
-let stored registry root pick (release : Npm.release) =
+let store registry root pick (release : Npm.release) =
   match Npm.payload registry release.tarball with
   | Some content -> Store.kept root pick ~integrity:release.integrity content
   | None -> Store.refuse pick "the registry no longer serves this tarball"
 
-let installing registry root ~file ~say pick =
+let install registry root ~file ~say pick =
   say ("  downloading " ^ Pick.shown pick);
   match Npm.at registry pick with
-  | Some release -> stored registry root pick release
+  | Some release -> store registry root pick release
   | None ->
       Diagnostic.Failure.raise_project
         (Unknown_package
@@ -42,7 +42,7 @@ let installing registry root ~file ~say pick =
 let taken registry root ~file ~say pick =
   if Files.is_directory root (Pick.folder pick) then
     say ("  keeping " ^ Pick.shown pick)
-  else installing registry root ~file ~say pick
+  else install registry root ~file ~say pick
 
 let agrees picks (package, range) =
   match Pick.found package picks with
@@ -50,32 +50,32 @@ let agrees picks (package, range) =
       Version.Interval.holds (Version.Interval.of_range range) pick.version
   | None -> false
 
-let covering (manifest : Manifest.t) (lock : Lock.t) =
+let valid_picks (manifest : Manifest.t) (lock : Lock.t) =
   if List.for_all (agrees lock.packages) manifest.dependencies then
     Some lock.packages
   else None
 
-let pinned root manifest =
-  Option.bind (Lock.of_folder root) (covering manifest)
+let picks_from_lock root manifest =
+  Option.bind (Lock.of_folder root) (valid_picks manifest)
 
-let performed registry root ~say manifest =
+let perform registry root ~say manifest =
   let file = manifest.Manifest.file in
-  let picked =
-    match pinned root manifest with
+  let picks =
+    match picks_from_lock root manifest with
     | Some packages -> packages
-    | None -> solved registry ~file manifest
+    | None -> solve registry ~file manifest
   in
-  List.iter (taken registry root ~file ~say) picked;
-  Lock.saved root picked;
-  picked
+  List.iter (taken registry root ~file ~say) picks;
+  Lock.save root picks;
+  picks
 
-let carried root ~say manifest =
+let with_registry root ~say manifest =
   Ezcurl.with_client (fun client ->
-      performed (Npm.opened client) root ~say manifest)
+      perform (Npm.open_ client) root ~say manifest)
 
-let resolved root ~say (manifest : Manifest.t) =
-  match carried root ~say manifest with
-  | picked -> picked
+let resolve root ~say (manifest : Manifest.t) =
+  match with_registry root ~say manifest with
+  | picks -> picks
   | exception Npm.Offline { url; problem } ->
       Diagnostic.Failure.raise_project
         (Offline { file = manifest.file; url; problem })
@@ -85,7 +85,7 @@ let resolved root ~say (manifest : Manifest.t) =
 
 let run root ~say =
   match Manifest.of_folder root with
-  | Some manifest -> resolved root ~say manifest
+  | Some manifest -> resolve root ~say manifest
   | None ->
       Diagnostic.Failure.raise_project
         (Missing_manifest { file = Manifest.file_name })

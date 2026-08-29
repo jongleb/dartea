@@ -1,15 +1,15 @@
 let width_of_numbers last = String.length (string_of_int last)
 
-let numbered ~width number line =
+let line_with_number ~width number line =
   let written = string_of_int number in
   Doc.text (String.make (width - String.length written) ' ' ^ written ^ "| " ^ line)
 
 let underline ~width (region : Data.Region.t) =
-  let leading = String.make (width + 2 + (region.start.column - 1)) ' ' in
+  let lead = String.make (width + 2 + (region.start.column - 1)) ' ' in
   let marks = max 1 (region.stop.column - region.start.column) in
-  Doc.beside [ Doc.text leading; Doc.red (Doc.text (String.make marks '^')) ]
+  Doc.beside [ Doc.text lead; Doc.red (Doc.text (String.make marks '^')) ]
 
-let pointed ~width number line =
+let point ~width number line =
   let written = string_of_int number in
   Doc.beside
     [
@@ -40,6 +40,6 @@ let of_region source (region : Data.Region.t) =
   if List.length shown = 0 then Doc.empty
   else if Data.Region.spans_one_line region then
     Doc.above
-      (List.map (fun (number, line) -> numbered ~width number line) shown
+      (List.map (fun (number, line) -> line_with_number ~width number line) shown
       @ [ underline ~width region ])
-  else Doc.above (List.map (fun (number, line) -> pointed ~width number line) shown)
+  else Doc.above (List.map (fun (number, line) -> point ~width number line) shown)

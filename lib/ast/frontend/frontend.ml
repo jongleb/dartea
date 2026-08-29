@@ -191,7 +191,7 @@ module Expr = struct
   and expr_access = { expr : t; field : string Data.Located.t } [@@deriving show]
 
   let at region expr = Data.Located.at region expr
-  let spanning first last = Data.Region.merge first.Data.Located.region last.Data.Located.region
+  let span first last = Data.Region.merge first.Data.Located.region last.Data.Located.region
 
   let make_qualified ~region lexeme =
     match String.rindex_opt lexeme '.' with
@@ -255,12 +255,12 @@ module Expr = struct
   let make_parameters ~params body =
     let bind (index, names, wrap) parameter =
       let region = parameter.Data.Located.region in
-      let renamed name = Data.Located.at region name in
+      let rename name = Data.Located.at region name in
       let taken names wrap = (index + 1, names, wrap) in
       match parameter.Data.Located.thing with
-      | Pattern.P_var written -> taken (renamed written :: names) wrap
+      | Pattern.P_var written -> taken (rename written :: names) wrap
       | Pattern.P_anything ->
-          taken (renamed (unwritable_parameter index) :: names) wrap
+          taken (rename (unwritable_parameter index) :: names) wrap
       | destructured ->
           let subject = unwritable_parameter index in
           let wrap body =
@@ -279,7 +279,7 @@ module Expr = struct
                         ];
                     }))
           in
-          taken (renamed subject :: names) wrap
+          taken (rename subject :: names) wrap
     in
     let start = (0, [], fun body -> body) in
     let _, reversed, wrap = List.fold_left bind start params in
@@ -287,7 +287,7 @@ module Expr = struct
 
   let make_expr_apply ~args fn =
     Non_empty_list.reduce
-      ~f:(fun fn arg -> at (spanning fn arg) (Expr_apply { fn; arg }))
+      ~f:(fun fn arg -> at (span fn arg) (Expr_apply { fn; arg }))
       Non_empty_list.(fn :: args)
 end
 
@@ -330,8 +330,8 @@ module Module = struct
     name : string Data.Located.t option;
   }
 
-  let wiring (typedef : Typedef.Impl.t) =
-    let named direction =
+  let wire (typedef : Typedef.Impl.t) =
+    let port_call direction =
       Expr.Expr_qualified
         {
           qualifier = Data.Kernel.Port.home;
@@ -341,18 +341,18 @@ module Module = struct
     match typedef.body with
     | Typedef.Kind.Tkind_function { arguments = taken :: _; _ } -> (
         match taken.body with
-        | Typedef.Kind.Tkind_function _ -> named Data.Kernel.Port.Incoming
+        | Typedef.Kind.Tkind_function _ -> port_call Data.Kernel.Port.Incoming
         | Typedef.Kind.Tkind_concrete _ | Typedef.Kind.Tkind_var _
         | Typedef.Kind.Tkind_record _ | Typedef.Kind.Tkind_tuple _
         | Typedef.Kind.Tkind_unit ->
-            named Data.Kernel.Port.Outgoing)
+            port_call Data.Kernel.Port.Outgoing)
     | Typedef.Kind.Tkind_function { arguments = []; _ }
     | Typedef.Kind.Tkind_concrete _ | Typedef.Kind.Tkind_var _
     | Typedef.Kind.Tkind_record _ | Typedef.Kind.Tkind_tuple _
     | Typedef.Kind.Tkind_unit ->
-        named Data.Kernel.Port.Outgoing
+        port_call Data.Kernel.Port.Outgoing
 
-  let wired (port : Port_thing.t) =
+  let wire_port (port : Port_thing.t) =
     let region = port.name.region in
     let at thing = { Data.Located.thing; region } in
     let given = "given" in
@@ -367,14 +367,14 @@ module Module = struct
           expr =
             call
               (call
-                 (at (wiring port.typedef))
+                 (at (wire port.typedef))
                  (at (Expr.Expr_string (Data.Located.unwrap port.name))))
               (at (Expr.Expr_ident given));
         };
     }
 
   let of_impl impl_list =
-    let collected =
+    let collection =
       List.fold_left
         (fun acc next ->
           match next with
@@ -400,7 +400,7 @@ module Module = struct
           | Impl.Port port ->
               {
                 acc with
-                top_declarations = wired port :: acc.top_declarations;
+                top_declarations = wire_port port :: acc.top_declarations;
               })
         {
           imports = [];
@@ -413,8 +413,8 @@ module Module = struct
         impl_list
     in
     {
-      collected with
-      imports = List.rev collected.imports;
-      top_declarations = List.rev collected.top_declarations;
+      collection with
+      imports = List.rev collection.imports;
+      top_declarations = List.rev collection.top_declarations;
     }
 end

@@ -52,7 +52,7 @@ let pattern_category_of (pattern : Canonical.Pattern.t) :
   | P_chr _ -> P_chr
   | P_var _ | P_anything | P_alias _ -> P_record
 
-let pattern_matching_in ~(context : Reporting.Context.pattern) ~expected
+let expect_pattern_in ~(context : Reporting.Context.pattern) ~expected
     (written : Canonical.Pattern.t) found =
   Unify.pattern ~region:written.region
     ~category:(pattern_category_of written)
@@ -65,14 +65,14 @@ let rec infer_pattern (type_env : Type_env.t) (pattern : Canonical.Pattern.t) :
   let go = infer_pattern type_env in
   let both here there = Value_env.binders_of_both ~region here there in
   let in_order patterns =
-    let reversed, bound =
+    let backwards, bound =
       List.fold_left
-        (fun (inferred, bound) pattern ->
-          let typed, bound_here = go pattern in
-          (typed :: inferred, both bound bound_here))
+        (fun (typed_patterns, bound) pattern ->
+          let typed_pattern, bound_here = go pattern in
+          (typed_pattern :: typed_patterns, both bound bound_here))
         ([], Value_env.empty) patterns
     in
-    (List.rev reversed, bound)
+    (List.rev backwards, bound)
   in
   match pattern.thing with
   | Canonical.Pattern.P_var name ->
@@ -86,32 +86,32 @@ let rec infer_pattern (type_env : Type_env.t) (pattern : Canonical.Pattern.t) :
   | P_chr letter -> ({ typ = TChar; pattern = P_T_chr letter }, Value_env.empty)
   | P_unit -> ({ typ = TUnit; pattern = P_T_unit }, Value_env.empty)
   | P_tuple items ->
-      let inferred, bound = in_order items in
+      let patterns, bound = in_order items in
       ( {
-          typ = TTup (List.map (fun typed -> typed.Pattern.typ) inferred);
-          pattern = P_T_tuple inferred;
+          typ = TTup (List.map (fun (item : Pattern.t) -> item.typ) patterns);
+          pattern = P_T_tuple patterns;
         },
         bound )
   | P_list items ->
       let element = fresh_variable None in
-      let inferred, bound = in_order items in
+      let patterns, bound = in_order items in
       List.iteri
         (fun index (item, (typed : Typed.Pattern.t)) ->
-          pattern_matching_in
+          expect_pattern_in
             ~context:(P_list_entry (index + 1))
             ~expected:element item typed.typ)
-        (List.combine items inferred);
-      ({ typ = list_of element; pattern = P_T_list inferred }, bound)
+        (List.combine items patterns);
+      ({ typ = list_of element; pattern = P_T_list patterns }, bound)
   | P_alias (inner, name) ->
-      let aliased, bound = go inner in
-      let typ = aliased.Pattern.typ in
-      ( { typ; pattern = P_T_alias (aliased, name) },
+      let inner_pattern, bound = go inner in
+      let typ = inner_pattern.Pattern.typ in
+      ( { typ; pattern = P_T_alias (inner_pattern, name) },
         Value_env.bind_one name typ bound )
   | P_cons (head, tail) ->
       let typed_head, head_bound = go head in
       let typed_tail, tail_bound = go tail in
       let list_type = list_of typed_head.Pattern.typ in
-      pattern_matching_in ~context:P_tail ~expected:list_type tail
+      expect_pattern_in ~context:P_tail ~expected:list_type tail
         typed_tail.typ;
       ( { typ = list_type; pattern = P_T_cons (typed_head, typed_tail) },
         both head_bound tail_bound )
@@ -132,25 +132,25 @@ let rec infer_pattern (type_env : Type_env.t) (pattern : Canonical.Pattern.t) :
                    given = List.length arguments;
                  })
           in
-          let rec against_payloads (inferred, bound) arguments carried =
+          let rec against_payloads (patterns, bound) arguments carried =
             match (arguments, carried) with
             | argument :: rest, TFun (payload, remaining) ->
-                let typed, bound_here = go argument in
-                pattern_matching_in
+                let typed_argument, bound_here = go argument in
+                expect_pattern_in
                   ~context:
-                    (P_ctor_arg { name; index = List.length inferred + 1 })
-                  ~expected:payload argument typed.Pattern.typ;
+                    (P_ctor_arg { name; index = List.length patterns + 1 })
+                  ~expected:payload argument typed_argument.Pattern.typ;
                 against_payloads
-                  (typed :: inferred, both bound bound_here)
+                  (typed_argument :: patterns, both bound bound_here)
                   rest remaining
             | [], TFun _ | _ :: _, _ -> wrong_arity ()
-            | [], matched -> (inferred, bound, matched)
+            | [], result -> (patterns, bound, result)
           in
-          let inferred, bound, matched =
+          let patterns, bound, result =
             against_payloads ([], Value_env.empty) arguments
               (instantiate (Type_env.constructor_scheme type_env declared ctor))
           in
-          ({ typ = matched; pattern = P_T_ctor (name, List.rev inferred) }, bound)
+          ({ typ = result; pattern = P_T_ctor (name, List.rev patterns) }, bound)
     end
   | P_record fields ->
       let row_var = fresh_variable None in
@@ -165,29 +165,21 @@ let rec infer_pattern (type_env : Type_env.t) (pattern : Canonical.Pattern.t) :
       ({ typ = TRecord row; pattern = P_T_record fields }, bound)
 
 let assume_parameters ctx params =
-  let assumed = List.map (fun _ -> fresh_variable None) params in
+  let param_types = List.map (fun _ -> fresh_variable None) params in
   let visible =
     List.fold_left2
       (fun visible param typ ->
         Value_env.bind_one param.Data.Located.thing typ visible)
-      ctx params assumed
+      ctx params param_types
   in
-  (assumed, visible)
+  (param_types, visible)
 
-let against_the_annotation ~region ~name ~category ~expected subject =
+let annotate ~region ~name ~category ~expected subject =
   Unify.types ~region ~category
     ~expected:
       (Reporting.Expectation.From_annotation
          { name; sub = Typed_body; expected })
     subject
-
-let matching_the_annotation ~region ~name ~category type_env subject annotated =
-  Option.iter
-    (fun written ->
-      against_the_annotation ~region ~name ~category
-        ~expected:(Type_env.expand_written ~region type_env written)
-        subject)
-    annotated
 
 type matched_so_far = {
   result_type : Type.t;
@@ -244,11 +236,11 @@ let rec category_of (exp : Canonical.Expr.t) : Reporting.Category.t =
   | Expr_let { body; _ } -> category_of body
   | Expr_kernel _ -> Call_result No_name
 
-let matching ~expected (written : Canonical.Expr.t) found =
+let expect ~expected (written : Canonical.Expr.t) found =
   Unify.types ~region:written.region ~category:(category_of written)
     ~expected:(No_expectation expected) found
 
-let matching_in ~(context : Reporting.Context.t) ~expected
+let expect_in ~(context : Reporting.Context.t) ~expected
     (written : Canonical.Expr.t) found =
   Unify.types ~region:written.region ~category:(category_of written)
     ~expected:(From_context { context; expected })
@@ -281,11 +273,11 @@ let rec infer_with_env (exp : Canonical.Expr.t) ctx (type_env : Type_env.t) :
       let parameter = fresh_variable None in
       let result = fresh_variable None in
       let callee, index = applied_to fn in
-      matching_in
+      expect_in
         ~context:(Call_arity { callee; given = index })
         ~expected:(TFun (parameter, result))
         fn typed_callee.typ;
-      let blamed =
+      let blame =
         match (callee, index) with
         | Reporting.Category.Op_name operator, 1 ->
             Reporting.Context.Op_left operator
@@ -296,15 +288,15 @@ let rec infer_with_env (exp : Canonical.Expr.t) ctx (type_env : Type_env.t) :
         | (Op_name _ | Func_name _ | Ctor_name _ | No_name), _ ->
             Call_arg { callee; index }
       in
-      matching_in ~context:blamed ~expected:parameter arg typed_argument.typ;
+      expect_in ~context:blame ~expected:parameter arg typed_argument.typ;
       node (Expr_apply { fn = typed_callee; arg = typed_argument }) result
   | Expr_if_then_else { if_exp; then_exp; else_exp } ->
       let typed_condition = go if_exp in
-      matching_in ~context:If_condition ~expected:TBool if_exp
+      expect_in ~context:If_condition ~expected:TBool if_exp
         typed_condition.typ;
       let typed_then = go then_exp in
       let typed_else = go else_exp in
-      matching_in ~context:(If_branch 2) ~expected:typed_then.typ else_exp
+      expect_in ~context:(If_branch 2) ~expected:typed_then.typ else_exp
         typed_else.typ;
       node
         (Expr_if_then_else
@@ -316,20 +308,20 @@ let rec infer_with_env (exp : Canonical.Expr.t) ctx (type_env : Type_env.t) :
         typed_else.typ
   | Expr_list items ->
       let element = fresh_variable None in
-      let inferred =
+      let items =
         List.mapi
           (fun position item ->
-            let typed = go item in
-            matching_in
+            let typed_item = go item in
+            expect_in
               ~context:(List_entry (position + 1))
-              ~expected:element item typed.Typed.Expr.typ;
-            typed)
+              ~expected:element item typed_item.Typed.Expr.typ;
+            typed_item)
           items
       in
-      node (Expr_list inferred) (list_of element)
+      node (Expr_list items) (list_of element)
   | Expr_record_update { record; fields } ->
       let typed_record = go record in
-      let inferred =
+      let rows =
         List.map
           (fun (row : Canonical.Expr.expr_record_row) ->
             let typed_value = go row.value in
@@ -347,28 +339,34 @@ let rec infer_with_env (exp : Canonical.Expr.t) ctx (type_env : Type_env.t) :
           fields
       in
       node
-        (Expr_record_update { record = typed_record; fields = inferred })
+        (Expr_record_update { record = typed_record; fields = rows })
         typed_record.typ
   | Expr_tuple items ->
-      let inferred = List.map go items in
-      node (Expr_tuple inferred)
-        (TTup (List.map (fun (item : Typed.Expr.t) -> item.typ) inferred))
+      let typed_items = List.map go items in
+      node (Expr_tuple typed_items)
+        (TTup (List.map (fun (item : Typed.Expr.t) -> item.typ) typed_items))
   | Expr_cons { head; tail } ->
       let typed_head = go head in
       let typed_tail = go tail in
-      matching ~expected:(list_of typed_head.typ) tail typed_tail.typ;
+      expect ~expected:(list_of typed_head.typ) tail typed_tail.typ;
       node (Expr_cons { head = typed_head; tail = typed_tail }) typed_tail.typ
   | Expr_let { binding = { bind_type; bind_body = { name; body = rhs } }; body }
     ->
       let typed_bound =
         infer_deeper (fun () ->
-            let assumed = fresh_variable None in
-            let visible_to_itself = Value_env.bind_one name.thing assumed ctx in
+            let own_type = fresh_variable None in
+            let visible_to_itself = Value_env.bind_one name.thing own_type ctx in
             let typed_bound = infer rhs visible_to_itself in
-            matching ~expected:assumed rhs typed_bound.typ;
-            matching_the_annotation ~region:rhs.region ~name:name.thing
-              ~category:(category_of rhs) type_env typed_bound.typ
-              (Option.map (fun annotation -> annotation.content) bind_type);
+            expect ~expected:own_type rhs typed_bound.typ;
+            Option.iter
+              (fun annotation ->
+                annotate ~region:rhs.region ~name:name.thing
+                  ~category:(category_of rhs)
+                  ~expected:
+                    (Type_env.expand_written ~region:rhs.region type_env
+                       annotation.content)
+                  typed_bound.typ)
+              bind_type;
             typed_bound)
       in
       let visible_to_the_body =
@@ -385,26 +383,26 @@ let rec infer_with_env (exp : Canonical.Expr.t) ctx (type_env : Type_env.t) :
            })
         typed_body.typ
   | Expr_pattern { expr; pattern_data_items } -> begin
-      let branch scrutinee matched
+      let branch scrutinee cases
           ({ pattern; expr = branch_expr } : Canonical.Expr.expr_pattern_case) =
         let typed_pattern, bound = infer_pattern type_env pattern in
-        pattern_matching_in
-          ~context:(P_case_match (List.length matched.branches + 1))
+        expect_pattern_in
+          ~context:(P_case_match (List.length cases.branches + 1))
           ~expected:scrutinee pattern typed_pattern.Pattern.typ;
         let visible_in_the_branch = Value_env.shadow ~by:bound ctx in
         let typed_branch = infer branch_expr visible_in_the_branch in
-        matching_in
-          ~context:(Case_branch (List.length matched.branches + 1))
-          ~expected:matched.result_type branch_expr typed_branch.typ;
+        expect_in
+          ~context:(Case_branch (List.length cases.branches + 1))
+          ~expected:cases.result_type branch_expr typed_branch.typ;
         {
-          result_type = matched.result_type;
+          result_type = cases.result_type;
           branches =
             {
               Typed.Expr.pattern = typed_pattern;
               expr = typed_branch;
               pattern_region = pattern.region;
             }
-            :: matched.branches;
+            :: cases.branches;
         }
       in
       match pattern_data_items with
@@ -414,14 +412,14 @@ let rec infer_with_env (exp : Canonical.Expr.t) ctx (type_env : Type_env.t) :
       | written ->
           let scrutinee = go expr in
           let start = { result_type = fresh_variable None; branches = [] } in
-          let matched = List.fold_left (branch scrutinee.typ) start written in
+          let cases = List.fold_left (branch scrutinee.typ) start written in
           node
             (Expr_pattern
                {
                  expr = scrutinee;
-                 pattern_data_items = List.rev matched.branches;
+                 pattern_data_items = List.rev cases.branches;
                })
-            matched.result_type
+            cases.result_type
     end
   | Expr_record_extend label ->
       let field = fresh_variable None in
@@ -445,15 +443,15 @@ let rec infer_with_env (exp : Canonical.Expr.t) ctx (type_env : Type_env.t) :
         (TFun (TRecord (TRowExtend (label, field, row)), field))
   | Expr_access { expr; field } ->
       let typed_record = go expr in
-      let selected = fresh_variable None in
+      let field_type = fresh_variable None in
       let row = fresh_variable None in
-      matching_in
+      expect_in
         ~context:(Record_access { field = field.thing })
-        ~expected:(TRecord (TRowExtend (field.thing, selected, row)))
+        ~expected:(TRecord (TRowExtend (field.thing, field_type, row)))
         expr typed_record.typ;
-      node (Expr_access { expr = typed_record; field }) selected
+      node (Expr_access { expr = typed_record; field }) field_type
   | Expr_lambda { params; body } ->
-      let assumed, visible_in_the_body = assume_parameters ctx params in
+      let param_types, visible_in_the_body = assume_parameters ctx params in
       let typed_body = infer body visible_in_the_body in
       node
         (Expr_lambda
@@ -461,8 +459,8 @@ let rec infer_with_env (exp : Canonical.Expr.t) ctx (type_env : Type_env.t) :
              params =
                List.map2
                  (fun name typ -> { Typed.Expr.name; typ })
-                 params assumed;
+                 params param_types;
              body = typed_body;
            })
-        (function_of assumed ~result:typed_body.typ)
+        (function_of param_types ~result:typed_body.typ)
 

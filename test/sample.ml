@@ -26,7 +26,7 @@ let shaken ~roots (outcome : Dartea.Compiler.outcome) =
   match outcome.errors with
   | [] ->
       List.map
-        (fun (compiled : Dartea.Compiler.compiled) ->
+        (fun (compiled : Dartea.Compiler.artifact) ->
           (compiled.module_name, compiled.source))
         (Dartea.Compiler.link ~roots outcome)
   | errors -> refused (Reporting.Sources.of_list outcome.sources) errors

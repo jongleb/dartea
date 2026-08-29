@@ -1,6 +1,6 @@
 type t
 
-val naming : unit -> t
+val namer : unit -> t
 val alone : t -> Typed.Type.t -> Doc.t
 val within : t -> Typed.Type.t -> string
 val of_type : Typed.Type.t -> string

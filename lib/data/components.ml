@@ -16,10 +16,10 @@ let strongly_connected ~(name : 'a -> Name.t) ~(depends_on : 'a -> Name.Set.t)
   in
   let neighbours member =
     Name.Set.fold
-      (fun dependency reached ->
+      (fun dependency next ->
         match Name.Map.find_opt dependency known with
-        | None -> reached
-        | Some neighbour -> neighbour :: reached)
+        | None -> next
+        | Some neighbour -> neighbour :: next)
       (depends_on member) []
     |> List.rev
   in
@@ -57,10 +57,10 @@ let strongly_connected ~(name : 'a -> Name.t) ~(depends_on : 'a -> Name.Set.t)
         state.self_recursive <- true;
       match Hashtbl.find_opt states (name neighbour) with
       | None ->
-          let reached = visit neighbour in
-          state.lowlink <- Int.min state.lowlink reached.lowlink
-      | Some reached when reached.on_stack ->
-          state.lowlink <- Int.min state.lowlink reached.index
+          let next = visit neighbour in
+          state.lowlink <- Int.min state.lowlink next.lowlink
+      | Some next when next.on_stack ->
+          state.lowlink <- Int.min state.lowlink next.index
       | Some _ -> ()
     in
     List.iter follow (neighbours member);

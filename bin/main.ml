@@ -1,44 +1,44 @@
-let colours_wanted () =
+let use_colours () =
   match Sys.getenv_opt "NO_COLOR" with
   | Some _ -> false
   | None -> Unix.isatty Unix.stderr
 
-let printed reports =
-  let colours = colours_wanted () in
+let print_reports reports =
+  let colours = use_colours () in
   List.iter
     (fun report -> prerr_endline (Reporting.Report.to_string ~colours report))
     reports
 
-let refused ~seen errors =
-  printed (List.map (Reporting.Sources.report seen) errors);
+let refuse ~seen errors =
+  print_reports (List.map (Reporting.Sources.report seen) errors);
   exit 1
 
-let saved ~path (file : Dartea.Delivery.file) =
-  Files.saved path (Fpath.v file.path) file.content
+let save ~path (file : Dartea.Delivery.file) =
+  Files.save path (Fpath.v file.path) file.content
 
-let warned ~seen (outcome : Dartea.Compiler.outcome) =
+let warn ~seen (outcome : Dartea.Compiler.outcome) =
   List.iter
     (fun (module_ : Dartea.Compiler.linkable) ->
-      printed (List.map (Reporting.Sources.warning seen) module_.warnings))
+      print_reports (List.map (Reporting.Sources.warning seen) module_.warnings))
     outcome.modules
 
-let discarded = "/dev/null"
+let dev_null = "/dev/null"
 
-let delivered ~path ~seen ~output (outcome : Dartea.Compiler.outcome) =
-  if String.equal output discarded then ()
+let deliver ~path ~seen ~output (outcome : Dartea.Compiler.outcome) =
+  if String.equal output dev_null then ()
   else
     let delivery = Dartea.Delivery.for_output output in
-    match Dartea.Delivery.produced ~delivery ~output outcome with
-    | files -> List.iter (saved ~path) files
-    | exception Reporting.Error.Found error -> refused ~seen [ error ]
+    match Dartea.Delivery.produce ~delivery ~output outcome with
+    | files -> List.iter (save ~path) files
+    | exception Reporting.Error.Found error -> refuse ~seen [ error ]
 
-let compiled ~path ~output ~entry sources =
+let compile ~path ~output ~entry sources =
   let outcome = Dartea.Compiler.compile_modules ~entry sources in
   let seen = Reporting.Sources.of_list outcome.sources in
-  warned ~seen outcome;
+  warn ~seen outcome;
   match outcome.errors with
-  | [] -> delivered ~path ~seen ~output outcome
-  | errors -> refused ~seen errors
+  | [] -> deliver ~path ~seen ~output outcome
+  | errors -> refuse ~seen errors
 
 let entry_in sources path =
   match
@@ -48,17 +48,17 @@ let entry_in sources path =
   with
   | Some source -> source.name
   | None ->
-      refused ~seen:Reporting.Sources.empty
+      refuse ~seen:Reporting.Sources.empty
         [
           Reporting.Error.of_failure
             (Diagnostic.Failure.about (Unknown_entry { path }));
         ]
 
-let loaded path =
+let load path =
   match Project.Sources.load ~provided:Prelude.packages path with
   | Ok sources -> sources
   | Error failure ->
-      refused ~seen:Reporting.Sources.empty
+      refuse ~seen:Reporting.Sources.empty
         [ Reporting.Error.of_failure failure ]
 
 let folder_and_entry target =
@@ -69,11 +69,11 @@ let folder_and_entry target =
 let make target output =
   let folder, entry_file = folder_and_entry target in
   let path = Fpath.v folder in
-  let sources = loaded path in
+  let sources = load path in
   let entry = Option.map (entry_in (Project.Sources.files sources)) entry_file in
-  compiled ~path ~output ~entry sources
+  compile ~path ~output ~entry sources
 
-let counted picked =
+let count_of picked =
   let count = List.length picked in
   Printf.sprintf "%d package%s" count (if count = 1 then "" else "s")
 
@@ -82,10 +82,10 @@ let install folder =
   with
   | picked ->
       print_endline
-        (Printf.sprintf "I resolved %s and wrote %s." (counted picked)
+        (Printf.sprintf "I resolved %s and wrote %s." (count_of picked)
            Packages.Lock.file_name)
   | exception Reporting.Error.Found error ->
-      refused ~seen:Reporting.Sources.empty [ error ]
+      refuse ~seen:Reporting.Sources.empty [ error ]
 
 let target =
   let doc = "The source folder, or a single $(b,.elm) file to start from." in

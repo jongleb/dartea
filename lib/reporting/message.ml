@@ -9,35 +9,35 @@ type t = {
 
 let letters = "abcdefghijklmnopqrstuvwxyz"
 
-let numbering text round =
+let number text round =
   if round = 0 then text else text ^ string_of_int (round + 1)
 
-let naming () =
+let namer () =
   { given = Hashtbl.create 16; rounds = Hashtbl.create 4; plain = 0 }
 
-let round_of naming carried =
-  let taken = Option.value ~default:0 (Hashtbl.find_opt naming.rounds carried) in
-  Hashtbl.replace naming.rounds carried (taken + 1);
+let round_of namer carried =
+  let taken = Option.value ~default:0 (Hashtbl.find_opt namer.rounds carried) in
+  Hashtbl.replace namer.rounds carried (taken + 1);
   taken
 
-let letter naming =
-  let taken = naming.plain in
-  naming.plain <- taken + 1;
-  numbering
+let letter namer =
+  let taken = namer.plain in
+  namer.plain <- taken + 1;
+  number
     (String.make 1 letters.[taken mod String.length letters])
     (taken / String.length letters)
 
-let name_of naming variable =
-  match Hashtbl.find_opt naming.given (Variable.identity variable) with
+let name_of namer variable =
+  match Hashtbl.find_opt namer.given (Variable.identity variable) with
   | Some name -> name
   | None ->
       let name =
         match Variable.constraint_of variable with
         | Some carried ->
-            numbering (Data.Constraint.name carried) (round_of naming carried)
-        | None -> letter naming
+            number (Data.Constraint.name carried) (round_of namer carried)
+        | None -> letter namer
       in
-      Hashtbl.add naming.given (Variable.identity variable) name;
+      Hashtbl.add namer.given (Variable.identity variable) name;
       name
 
 let same_shape left right =
@@ -68,7 +68,7 @@ let arrow_length ty =
   in
   count 0 ty
 
-let constrained ty =
+let constraint_of ty =
   match Type.head ty with
   | TVar variable -> Variable.constraint_of variable
   | TInt | TFloat | TChar | TBool | TStr | TUnit | TFun _ | TTup _ | TCustom _
@@ -98,7 +98,7 @@ let told_apart left right =
           { found = arrow_length left; expected = arrow_length right };
       ]
   | _, _ -> (
-      match (constrained left, constrained right) with
+      match (constraint_of left, constraint_of right) with
       | Some required, None ->
           [ Hint.Bad_flex_super { direction = Have; required; found = right } ]
       | None, Some required ->
@@ -113,7 +113,7 @@ let rec fields_of row =
   | TRecord inner -> fields_of inner
   | settled -> ([], settled)
 
-let separated separator parts =
+let separate separator parts =
   match parts with
   | [] -> Doc.empty
   | first :: rest ->
@@ -130,11 +130,11 @@ let children_of ty =
   | TRecord _ | TRowExtend _ ->
       []
 
-let rec written naming ~against ty =
+let rec written namer ~against ty =
   let head = Type.head ty in
   match against with
   | Some other when not (same_shape (Type.head other) head) ->
-      (Doc.yellow (plain naming ty), told_apart ty other)
+      (Doc.yellow (plain namer ty), told_apart ty other)
   | Some _ | None ->
     let theirs =
       match against with
@@ -143,11 +143,11 @@ let rec written naming ~against ty =
     in
     let seen = ref [] in
     let child index inner =
-      let doc, problems = written naming ~against:(List.nth_opt theirs index) inner in
+      let doc, problems = written namer ~against:(List.nth_opt theirs index) inner in
       seen := !seen @ problems;
       doc
     in
-    let nested index inner =
+    let nest index inner =
       match Type.head inner with
       | TFun _ | TCustom (_, _ :: _) ->
           Doc.beside [ Doc.text "("; child index inner; Doc.text ")" ]
@@ -157,7 +157,7 @@ let rec written naming ~against ty =
     in
     let doc =
       match head with
-      | TVar variable -> Doc.text (name_of naming variable)
+      | TVar variable -> Doc.text (name_of namer variable)
       | TInt -> Doc.text "Int"
       | TFloat -> Doc.text "Float"
       | TChar -> Doc.text "Char"
@@ -165,12 +165,12 @@ let rec written naming ~against ty =
       | TUnit -> Doc.text "()"
       | TStr -> Doc.text "String"
       | TFun (parameter, result) ->
-          Doc.beside [ nested 0 parameter; Doc.text " -> "; child 1 result ]
+          Doc.beside [ nest 0 parameter; Doc.text " -> "; child 1 result ]
       | TTup items ->
           Doc.beside
             [
               Doc.text "( ";
-              separated ", " (List.mapi (fun index item -> child index item) items);
+              separate ", " (List.mapi (fun index item -> child index item) items);
               Doc.text " )";
             ]
       | TCustom (name, []) -> Doc.text (Data.Name.base name)
@@ -178,39 +178,39 @@ let rec written naming ~against ty =
           Doc.beside
             (Doc.text (Data.Name.base name)
             :: List.concat_map
-                 (fun (index, argument) -> [ Doc.text " "; nested index argument ])
+                 (fun (index, argument) -> [ Doc.text " "; nest index argument ])
                  (List.mapi (fun index argument -> (index, argument)) arguments))
       | TRecord _ | TRowExtend _ | TRowEmpty ->
-          let doc, problems = record naming ~against ty in
+          let doc, problems = record namer ~against ty in
           seen := !seen @ problems;
           doc
     in
     (doc, !seen)
 
-and plain naming ty = fst (written naming ~against:None ty)
+and plain namer ty = fst (written namer ~against:None ty)
 
-and record naming ~against ty =
+and record namer ~against ty =
   let ours, tail = fields_of ty in
   let theirs =
     match against with Some other -> fst (fields_of other) | None -> []
   in
-  let matching label = List.assoc_opt label theirs in
+  let theirs_of label = List.assoc_opt label theirs in
   let problems = ref [] in
   let field (label, typ) =
     let doc, found =
       match against with
-      | None -> (plain naming typ, [])
-      | Some _ -> written naming ~against:(matching label) typ
+      | None -> (plain namer typ, [])
+      | Some _ -> written namer ~against:(theirs_of label) typ
     in
     problems := !problems @ found;
-    let coloured =
-      match (against, matching label) with
+    let colour =
+      match (against, theirs_of label) with
       | Some _, None -> Doc.yellow (Doc.text (label ^ " : "))
       | Some _, Some _ | None, _ -> Doc.text (label ^ " : ")
     in
-    Doc.beside [ coloured; doc ]
+    Doc.beside [ colour; doc ]
   in
-  let missing =
+  let absent =
     match against with
     | None -> []
     | Some _ ->
@@ -224,33 +224,33 @@ and record naming ~against ty =
     | None -> []
     | Some _ ->
         List.filter
-          (fun (label, _) -> Option.is_none (matching label))
+          (fun (label, _) -> Option.is_none (theirs_of label))
           ours
         |> List.map fst
   in
   let about =
-    match (missing, extra) with
+    match (absent, extra) with
     | [], [] -> []
-    | _ :: _, _ -> [ Hint.Fields_missing missing ]
+    | _ :: _, _ -> [ Hint.Fields_missing absent ]
     | [], typo :: _ ->
         [ Hint.Field_typo { typo; possibilities = List.map fst theirs } ]
   in
   let entries = List.map field ours in
   let entries =
     match Type.head tail with
-    | TVar variable -> entries @ [ Doc.text (name_of naming variable) ]
+    | TVar variable -> entries @ [ Doc.text (name_of namer variable) ]
     | TRowEmpty | TInt | TFloat | TChar | TBool | TStr | TUnit | TFun _
     | TTup _ | TCustom _ | TRecord _ | TRowExtend _ ->
         entries
   in
-  ( Doc.beside [ Doc.text "{ "; separated ", " entries; Doc.text " }" ],
+  ( Doc.beside [ Doc.text "{ "; separate ", " entries; Doc.text " }" ],
     !problems @ about )
 
-let alone naming ty = plain naming ty
-let within naming ty = Doc.to_string ~colours:false (alone naming ty)
-let of_type ty = within (naming ()) ty
+let alone namer ty = plain namer ty
+let within namer ty = Doc.to_string ~colours:false (alone namer ty)
+let of_type ty = within (namer ()) ty
 
-let comparison naming ~found ~expected =
-  let found_doc, these = written naming ~against:(Some expected) found in
-  let expected_doc, those = written naming ~against:(Some found) expected in
+let comparison namer ~found ~expected =
+  let found_doc, these = written namer ~against:(Some expected) found in
+  let expected_doc, those = written namer ~against:(Some found) expected in
   (found_doc, expected_doc, these @ those)

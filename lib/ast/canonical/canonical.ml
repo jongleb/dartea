@@ -38,7 +38,7 @@ module Typedef = struct
 
     let of_frontend = function
       | Frontend.Typedef.Kind.Tkind_concrete written ->
-          Tkind_concrete (Located.map Name.of_dotted written)
+          Tkind_concrete (Located.map Name.of_lexeme written)
       | Tkind_var name -> Tkind_var name
       | Tkind_record record -> Tkind_record (Type_record.of_frontend record)
       | Tkind_tuple types -> Tkind_tuple (List.map Impl.of_frontend types)
@@ -155,7 +155,7 @@ module Pattern = struct
     | P_str text -> same (P_str text)
     | P_int value -> same (P_int value)
     | P_ctor (ctor, arguments) ->
-        same (P_ctor (Data.Name.of_dotted ctor, List.map of_frontend arguments))
+        same (P_ctor (Data.Name.of_lexeme ctor, List.map of_frontend arguments))
     | P_alias (inner, name) -> same (P_alias (of_frontend inner, name))
     | P_unit -> same P_unit
     | P_var name -> same (P_var name)
@@ -482,7 +482,7 @@ module Module = struct
                     })
                   rows params))
         in
-        let aliased =
+        let impl =
           {
             Typedef.Impl.parameters =
               List.map
@@ -497,7 +497,7 @@ module Module = struct
         in
         let signature =
           match rows with
-          | [] -> aliased
+          | [] -> impl
           | rows ->
               {
                 Typedef.Impl.parameters = [];
@@ -508,7 +508,7 @@ module Module = struct
                         List.map
                           (fun (row : Typedef.Type_record_row.t) -> row.body)
                           rows;
-                      result = aliased;
+                      result = impl;
                     };
               }
         in
@@ -582,28 +582,28 @@ module Module = struct
         (fun acc (m : t) -> String_map.add m.name m acc)
         String_map.empty modules
     in
-    let cycle_through ~importing name =
+    let cycle_through ~chain name =
       let rec until_start = function
         | [] -> []
         | current :: outer ->
             if String.equal current name then [ current ]
             else current :: until_start outer
       in
-      List.rev (until_start importing)
+      List.rev (until_start chain)
     in
-    let rec visit ~importing traversal name =
+    let rec visit ~chain traversal name =
       if String_set.mem name traversal.settled then Ok traversal
-      else if List.exists (String.equal name) importing then
-        Error (Import_cycle (cycle_through ~importing name))
+      else if List.exists (String.equal name) chain then
+        Error (Import_cycle (cycle_through ~chain name))
       else
         match String_map.find_opt name known with
         | None -> Ok traversal
         | Some (m : t) ->
-            let importing = name :: importing in
+            let chain = name :: chain in
             List.fold_left
               (fun traversal (import : Import.t) ->
                 Result.bind traversal (fun traversal ->
-                    visit ~importing traversal import.module_name))
+                    visit ~chain traversal import.module_name))
               (Ok traversal) m.imports
             |> Result.map (fun traversal ->
                    {
@@ -613,7 +613,7 @@ module Module = struct
     in
     List.fold_left
       (fun traversal (m : t) ->
-        Result.bind traversal (fun traversal -> visit ~importing:[] traversal m.name))
+        Result.bind traversal (fun traversal -> visit ~chain:[] traversal m.name))
       (Ok { settled = String_set.empty; ordered = [] })
       modules
     |> Result.map (fun traversal -> List.rev traversal.ordered)
@@ -685,15 +685,15 @@ module Exports = struct
           match item with
           | Value name -> { acc with terms = Names.add name acc.terms }
           | Type { name; ctors_exposed } ->
-              let exported = exported_type ~ctors_exposed name in
+              let visible = exported_type ~ctors_exposed name in
               let terms =
-                match exported with
+                match visible with
                 | Ctors_exposed ctors -> Names.union acc.terms ctors
                 | Alias when Names.mem name (declared_values m) ->
                     Names.add name acc.terms
                 | Alias | Ctors_hidden -> acc.terms
               in
-              { terms; types = By_name.add name exported acc.types }
+              { terms; types = By_name.add name visible acc.types }
         in
         List.fold_left add { terms = Names.empty; types = By_name.empty } items
 end

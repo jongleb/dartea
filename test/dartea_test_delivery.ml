@@ -17,7 +17,7 @@ let outcome_of ~entry content =
               error))
 
 let delivered ~delivery ~output outcome =
-  Dartea.Delivery.produced ~delivery ~output outcome
+  Dartea.Delivery.produce ~delivery ~output outcome
 
 let refused ~delivery ~output outcome =
   match delivered ~delivery ~output outcome with

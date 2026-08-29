@@ -37,7 +37,7 @@ module Js_backend : BACKEND = struct
       ~siblings ~typedecls ~imports ~exports decls
 end
 
-type compiled = {
+type artifact = {
   module_name : string;
   source : string;
   exports : string list;
@@ -82,13 +82,13 @@ module Bodies = Map.Make (struct
     | ordering -> ordering
 end)
 
-let addressed ~home (name : Data.Name.t) =
+let address ~home (name : Data.Name.t) =
   match name with
   | Data.Name.Local own -> (home, own)
   | Data.Name.Global { module_name; exported_name } ->
       (module_name, exported_name)
 
-let declared (declaration : Optimized.Declaration.t) =
+let name_of_declaration (declaration : Optimized.Declaration.t) =
   Data.Located.unwrap declaration.name
 
 let entry_root (entry : Entry.t) =
@@ -114,23 +114,23 @@ let imported_by (module_ : Canonical.Module.t) =
   List.map (fun (import : Canonical.Import.t) -> import.module_name)
     module_.imports
 
-let reachable ~wanted prelude =
-  let rec grown needed =
-    let reached =
+let reachable ~demand prelude =
+  let rec grown closure =
+    let next =
       List.fold_left
         (fun found (module_ : Canonical.Module.t) ->
           if Module_names.mem module_.name found then
             Module_names.union found
               (Module_names.of_list (imported_by module_))
           else found)
-        needed prelude
+        closure prelude
     in
-    if Module_names.equal reached needed then needed else grown reached
+    if Module_names.equal next closure then closure else grown next
   in
-  let needed = grown wanted in
+  let closure = grown demand in
   List.filter
     (fun (module_ : Canonical.Module.t) ->
-      Module_names.mem module_.name needed)
+      Module_names.mem module_.name closure)
     prelude
 
 let frontend_module ~file content =
@@ -160,7 +160,7 @@ module Make (B : BACKEND) = struct
   }
 
   let providing_modules declarations =
-    Optimized.Declaration.referenced_in_all declarations
+    Optimized.Declaration.references_in_all declarations
     |> Data.Name.Set.elements
     |> List.filter_map (fun (name : Data.Name.t) ->
            match name with
@@ -168,11 +168,11 @@ module Make (B : BACKEND) = struct
            | Data.Name.Local _ -> None)
     |> List.sort_uniq String.compare
 
-  let prepared (typed : Infer.Declarations.infer_result) =
+  let prepare (typed : Infer.Declarations.infer_result) =
     let declarations =
       match
         After_typed.Optimize.optimize typed.declarations
-        |> Optimized.Declaration.sorted
+        |> Optimized.Declaration.in_dependency_order
       with
       | Ok declarations -> declarations
       | Error (Optimized.Declaration.Bad_recursion names) ->
@@ -233,7 +233,7 @@ module Make (B : BACKEND) = struct
       (typed : Infer.Declarations.infer_result) =
     let open Canonical.Exports in
     let exports = of_module module_ in
-    let declared =
+    let own_names =
       List.fold_left
         (fun acc (d : Typed.Declaration.t) ->
           Names.add (Data.Located.unwrap d.name) acc)
@@ -248,7 +248,7 @@ module Make (B : BACKEND) = struct
         Names.empty
         (List.concat_map Canonical.Typedecl.arities typed.typedecls)
     in
-    Names.inter exports.terms (Names.union declared own_constructors)
+    Names.inter exports.terms (Names.union own_names own_constructors)
     |> Names.elements |> List.map Data.Name.local
 
   let imported_arities (imports : Interface.t list) =
@@ -269,11 +269,11 @@ module Make (B : BACKEND) = struct
       interfaces
 
   let cycle_region ~modules sources =
-    let importing = List.nth_opt modules 0 in
+    let importer = List.nth_opt modules 0 in
     List.find_map
       (fun (source : Project.Elm_file.t) ->
         let module_ = module_of source in
-        match importing with
+        match importer with
         | Some name when String.equal module_.name name ->
             List.find_map
               (fun (import : Canonical.Import.t) ->
@@ -290,13 +290,13 @@ module Make (B : BACKEND) = struct
         List.fold_left
           (fun found declaration ->
             Bodies.add
-              (module_.module_name, declared declaration)
+              (module_.module_name, name_of_declaration declaration)
               (Optimized.Declaration.free declaration)
               found)
           found module_.declarations)
       Bodies.empty modules
 
-  let reached ~roots modules =
+  let reach ~roots modules =
     let bodies = bodies_of modules in
     let rec grown seen = function
       | [] -> seen
@@ -307,44 +307,44 @@ module Make (B : BACKEND) = struct
           | None -> grown seen rest
           | Some free ->
               grown seen
-                (List.map (addressed ~home:(fst key))
+                (List.map (address ~home:(fst key))
                    (Data.Name.Set.elements free)
                 @ rest))
     in
-    grown Reached.empty (List.map (addressed ~home:"") roots)
+    grown Reached.empty (List.map (address ~home:"") roots)
 
   let own_constructors module_ =
     List.filter_map
       (fun (name, arity) ->
         match name with
-        | Data.Name.Local spelled -> Some (spelled, arity)
+        | Data.Name.Local base -> Some (base, arity)
         | Data.Name.Global _ -> None)
       module_.constructors
 
-  let linked ~alive module_ =
-    let surviving name = Reached.mem (module_.module_name, name) alive in
-    let owned =
-      List.map declared module_.declarations
+  let link_module ~alive module_ =
+    let survives name = Reached.mem (module_.module_name, name) alive in
+    let own =
+      List.map name_of_declaration module_.declarations
       @ List.map fst (own_constructors module_)
     in
     let declarations =
       List.filter
-        (fun declaration -> surviving (declared declaration))
+        (fun declaration -> survives (name_of_declaration declaration))
         module_.declarations
     in
     let built =
       List.filter
         (fun (name, _) ->
           match name with
-          | Data.Name.Local spelled -> surviving spelled
+          | Data.Name.Local base -> survives base
           | Data.Name.Global _ -> false)
         module_.constructors
     in
     let exports =
       List.filter
         (fun name ->
-          let spelled = Data.Name.base name in
-          (not (List.mem spelled owned)) || surviving spelled)
+          let base = Data.Name.base name in
+          (not (List.mem base own)) || survives base)
         module_.exports
     in
     if List.is_empty declarations && List.is_empty built && List.is_empty exports
@@ -366,7 +366,7 @@ module Make (B : BACKEND) = struct
           },
           runtimes )
 
-  let merged found used =
+  let merge found used =
     List.fold_left
       (fun found (module_name, helpers) ->
         let known =
@@ -382,10 +382,10 @@ module Make (B : BACKEND) = struct
       found used
 
   let link ~roots outcome =
-    let alive = reached ~roots outcome.modules in
-    let pieces = List.filter_map (linked ~alive) outcome.modules in
-    let gathering found (_, used) = merged found used in
-    let usage = List.fold_left gathering [] pieces in
+    let alive = reach ~roots outcome.modules in
+    let pieces = List.filter_map (link_module ~alive) outcome.modules in
+    let gather found (_, used) = merge found used in
+    let usage = List.fold_left gather [] pieces in
     List.map
       (fun (module_name, source) ->
         { module_name; source; exports = []; warnings = [] })
@@ -412,25 +412,25 @@ module Make (B : BACKEND) = struct
       |> Option.value ~default:[]
     in
     let platform_kernel = B.platform_kernel in
-    let compiling progress module_ =
+    let compile_one progress module_ =
       match resolved_against ~platform_kernel progress.dependencies module_ with
       | Error found ->
           { progress with errors = List.rev_append found progress.errors }
       | Ok resolved -> (
           let imports = imported_interfaces resolved progress.interfaces in
-          let depended =
+          let deps =
             { progress with dependencies = resolved :: progress.dependencies }
           in
           match Infer.Declarations.infer_toplevel ~imports resolved with
           | exception Reporting.Error.Found error ->
-              { depended with errors = error :: depended.errors }
+              { deps with errors = error :: deps.errors }
           | typed ->
               let known =
                 {
-                  depended with
+                  deps with
                   interfaces =
                     Infer.Declarations.interface_of resolved typed
-                    :: depended.interfaces;
+                    :: deps.interfaces;
                 }
               in
               if not (List.is_empty typed.errors) then
@@ -439,18 +439,18 @@ module Make (B : BACKEND) = struct
                   errors = List.rev_append typed.errors known.errors;
                 }
               else
-                let declarations, constructors, siblings = prepared typed in
+                let declarations, constructors, siblings = prepare typed in
                 let exports = exported_names resolved typed in
                 let roots =
                   match entry with
-                  | Some wanted when String.equal wanted resolved.name ->
+                  | Some demand when String.equal demand resolved.name ->
                       Data.Name.local Entry.declaration :: exports
                   | Some _ | None -> exports
                 in
                 let declarations =
                   Optimized.Declaration.alive ~roots declarations
                 in
-                let compiled =
+                let linkable_module =
                   {
                     module_name = resolved.name;
                     notice = notice_for resolved.name;
@@ -467,32 +467,32 @@ module Make (B : BACKEND) = struct
                         typed.declarations;
                   }
                 in
-                let started =
+                let entry_now =
                   match entry with
-                  | Some wanted when String.equal wanted resolved.name ->
+                  | Some demand when String.equal demand resolved.name ->
                       Entry.of_declarations ~module_name:resolved.name
                         typed.declarations
                   | Some _ | None -> known.entry
                 in
                 {
                   known with
-                  output = compiled :: known.output;
-                  entry = started;
+                  output = linkable_module :: known.output;
+                  entry = entry_now;
                 })
     in
     let compile_module progress module_ =
-      match compiling progress module_ with
+      match compile_one progress module_ with
       | outcome -> outcome
       | exception Reporting.Error.Found error ->
           { progress with errors = error :: progress.errors }
     in
     let ordered_modules () =
       let written_modules = List.map module_of sources in
-      let wanted =
+      let demand =
         Module_names.of_list (List.concat_map imported_by written_modules)
       in
       Canonical.Module.in_dependency_order
-        (reachable ~wanted (Lazy.force prelude_modules) @ written_modules)
+        (reachable ~demand (Lazy.force prelude_modules) @ written_modules)
     in
     match ordered_modules () with
     | exception Reporting.Error.Found error ->
@@ -516,7 +516,7 @@ module Make (B : BACKEND) = struct
             ];
         }
     | Ok ordered ->
-        let finished =
+        let final =
           List.fold_left compile_module
             {
               dependencies = [];
@@ -527,9 +527,9 @@ module Make (B : BACKEND) = struct
             }
             ordered
         in
-        let compiled_modules = List.rev finished.output in
+        let compiled_modules = List.rev final.output in
         let errors =
-          match (entry, finished.entry, finished.errors) with
+          match (entry, final.entry, final.errors) with
           | Some module_name, None, [] ->
               [
                 Reporting.Error.of_failure
@@ -545,7 +545,7 @@ module Make (B : BACKEND) = struct
           written = List.filter_map Project.Elm_file.written sources;
           errors;
           sources = written;
-          entry = finished.entry;
+          entry = final.entry;
         }
 
   let compile_source (content : string) : outcome =

@@ -4,7 +4,7 @@ module O = Optimized
 type t = {
   types : (Data.Name.t, O.Typedecl.t) Hashtbl.t;
   claimed : (string, unit) Hashtbl.t;
-  mutable defined : J.stmt list;
+  mutable define : J.stmt list;
 }
 
 let create typedecls =
@@ -12,15 +12,15 @@ let create typedecls =
   List.iter
     (fun (decl : O.Typedecl.t) -> Hashtbl.replace types decl.name decl)
     typedecls;
-  { types; claimed = Hashtbl.create 16; defined = [] }
+  { types; claimed = Hashtbl.create 16; define = [] }
 
-let declarations instances = List.rev instances.defined
+let declarations instances = List.rev instances.define
 
 let instance instances name define =
   if not (Hashtbl.mem instances.claimed name) then begin
     Hashtbl.replace instances.claimed name ();
     let definition = define () in
-    instances.defined <- definition :: instances.defined
+    instances.define <- definition :: instances.define
   end;
   J.Identifier name
 
@@ -88,12 +88,12 @@ let rec key (ty : O.Type.t) : string option =
       applied_to (Names.type_ident name) arguments
   | O.Type.TRecord row ->
       Option.bind (sorted_fields row) (fun fields ->
-          let labelled (label, part) =
+          let label (label, part) =
             Option.map (fun found -> label ^ "$" ^ found) (key part)
           in
           Option.map
             (fun keys -> String.concat "$" ("Record" :: keys))
-            (every_key (List.map labelled fields)))
+            (every_key (List.map label fields)))
   | O.Type.TVar variable ->
       if is_numeric_variable variable then
         Some (Data.Constraint.name Data.Constraint.Number)
@@ -114,7 +114,7 @@ let compared_in_place instances (operand : O.Type.t) =
       false
 
 let product_parts (ty : O.Type.t) =
-  let at index subject = J.indexed subject index in
+  let at index subject = J.at_index subject index in
   let field label subject = J.member subject label in
   match ty with
   | O.Type.TTup components ->
@@ -160,11 +160,11 @@ let arrow_declaration name (parameters, body) =
   J.ConstDecl
     { name; init = J.Arrow { params = parameters; body = J.ArrowBlock body } }
 
-let defined instances name body =
+let define instances name body =
   instance instances name (fun () -> arrow_declaration name (body ()))
 
-let named instances tag ~keyed_by body =
-  Option.map (fun found -> defined instances (tag ^ found) body) (key keyed_by)
+let define_for instances tag ~keyed_by body =
+  Option.map (fun found -> define instances (tag ^ found) body) (key keyed_by)
 
 let head_of subject = J.member (J.Identifier subject) Runtime.head
 
@@ -179,15 +179,15 @@ let walking_both_lists step =
         body =
           step
           @ [
-              J.assigned "left" (J.member (J.Identifier "left") Runtime.tail);
-              J.assigned "right" (J.member (J.Identifier "right") Runtime.tail);
+              J.assign "left" (J.member (J.Identifier "left") Runtime.tail);
+              J.assign "right" (J.member (J.Identifier "right") Runtime.tail);
             ];
       };
   ]
 
-let returning_first_difference name ordering =
+let returning_first_difference name order =
   [
-    J.ConstDecl { name; init = ordering };
+    J.ConstDecl { name; init = order };
     J.returning_when
       (J.binary J.StrictNotEqual (J.Identifier name) (J.int 0))
       (J.Identifier name);
@@ -219,8 +219,8 @@ let list_append () =
                   init = cell (head_of "rest") (J.Identifier "ys");
                 };
               assign (J.member (J.Identifier "last") Runtime.tail) (J.Identifier "copied");
-              J.assigned "last" (J.Identifier "copied");
-              J.assigned "rest" (J.member (J.Identifier "rest") Runtime.tail);
+              J.assign "last" (J.Identifier "copied");
+              J.assign "rest" (J.member (J.Identifier "rest") Runtime.tail);
             ];
         };
       J.Return (Some (J.Identifier "root"));
@@ -230,10 +230,10 @@ let rec equality_of instances ~budget (operand : O.Type.t) left right =
   structurally instances ~budget operand
     ~in_place:(fun () -> J.binary J.StrictEqual left right)
     ~combining:(fun ~budget parts ->
-      let compared (read, part) =
+      let compare (read, part) =
         equality_of instances ~budget part (read left) (read right)
       in
-      conjunction (List.map compared parts))
+      conjunction (List.map compare parts))
     ~otherwise:(fun () ->
       J.call
         (Option.value
@@ -294,15 +294,15 @@ and ordering_of instances ~budget ~operator (operand : O.Type.t) left right =
 and equality_instance instances (operand : O.Type.t) =
   match operand with
   | O.Type.TCustom (name, [ element ]) when is_list_type name ->
-      named instances "$eq$List$" ~keyed_by:element
+      define_for instances "$eq$List$" ~keyed_by:element
         (list_equality instances element)
   | O.Type.TCustom (name, arguments) ->
       Option.bind (variant_of instances name arguments) (fun ctors ->
-          named instances "$eq$" ~keyed_by:operand
+          define_for instances "$eq$" ~keyed_by:operand
             (variant_equality instances ctors))
   | O.Type.TTup _ | O.Type.TRecord _ ->
       Option.bind (product_parts operand) (fun parts ->
-          named instances "$eq$" ~keyed_by:operand
+          define_for instances "$eq$" ~keyed_by:operand
             (product_equality instances parts))
   | O.Type.TVar _ | O.Type.TInt | O.Type.TFloat | O.Type.TChar | O.Type.TStr
   | O.Type.TBool | O.Type.TUnit | O.Type.TFun _ | O.Type.TRowExtend _
@@ -312,12 +312,12 @@ and equality_instance instances (operand : O.Type.t) =
 and ordering_instance instances (operand : O.Type.t) =
   match operand with
   | O.Type.TCustom (name, [ element ]) when is_list_type name ->
-      named instances "$cmp$List$" ~keyed_by:element
-        (list_ordering instances element)
+      define_for instances "$cmp$List$" ~keyed_by:element
+        (list_order instances element)
   | O.Type.TTup _ ->
       Option.bind (product_parts operand) (fun parts ->
-          named instances "$cmp$" ~keyed_by:operand
-            (product_ordering instances parts))
+          define_for instances "$cmp$" ~keyed_by:operand
+            (product_order instances parts))
   | O.Type.TVar _ | O.Type.TInt | O.Type.TFloat | O.Type.TChar | O.Type.TStr
   | O.Type.TBool | O.Type.TUnit | O.Type.TFun _ | O.Type.TCustom _
   | O.Type.TRecord _ | O.Type.TRowExtend _ | O.Type.TRowEmpty ->
@@ -344,8 +344,8 @@ and list_equality instances element () =
                 (J.Identifier "right")));
       ] )
 
-and list_ordering instances element () =
-  let exhausted subject other =
+and list_order instances element () =
+  let exhaustion subject other =
     J.Conditional
       {
         test = J.binary J.StrictNotEqual (J.Identifier subject) (J.int 0);
@@ -363,18 +363,18 @@ and list_ordering instances element () =
     walking_both_lists
       (returning_first_difference "ordering"
          (three_way_of instances element (head_of "left") (head_of "right")))
-    @ [ J.Return (Some (exhausted "left" "right")) ] )
+    @ [ J.Return (Some (exhaustion "left" "right")) ] )
 
 and product_equality instances parts () =
-  let compared (read, part) =
+  let compare (read, part) =
     equality_of instances ~budget:max_int part
       (read (J.Identifier "a"))
       (read (J.Identifier "b"))
   in
-  ([ "a"; "b" ], [ J.Return (Some (conjunction (List.map compared parts))) ])
+  ([ "a"; "b" ], [ J.Return (Some (conjunction (List.map compare parts))) ])
 
-and product_ordering instances parts () =
-  let compared index (read, part) =
+and product_order instances parts () =
+  let compare index (read, part) =
     returning_first_difference
       (Printf.sprintf "ordering%d" index)
       (three_way_of instances part
@@ -382,17 +382,17 @@ and product_ordering instances parts () =
          (read (J.Identifier "b")))
   in
   ( [ "a"; "b" ],
-    List.concat (List.mapi compared parts) @ [ J.Return (Some (J.int 0)) ] )
+    List.concat (List.mapi compare parts) @ [ J.Return (Some (J.int 0)) ] )
 
 and payload_equality instances (ctor : O.Typedecl.ctor) =
-  let compared index part =
+  let compare index part =
     let payload subject =
       J.member (J.Identifier subject) (Runtime.payload index)
     in
     equality_of instances ~budget:expansion_budget part (payload "a")
       (payload "b")
   in
-  conjunction (List.mapi compared ctor.payload)
+  conjunction (List.mapi compare ctor.payload)
 
 and variant_equality instances ctors () =
   let identical = J.binary J.StrictEqual (J.Identifier "a") (J.Identifier "b") in
@@ -435,14 +435,14 @@ and variant_equality instances ctors () =
 let append_instance instances (operand : O.Type.t) =
   match operand with
   | O.Type.TCustom (name, [ _ ]) when is_list_type name ->
-      Some (defined instances "$append$List" list_append)
+      Some (define instances "$append$List" list_append)
   | O.Type.TVar _ | O.Type.TInt | O.Type.TFloat | O.Type.TChar | O.Type.TStr
   | O.Type.TBool | O.Type.TUnit | O.Type.TFun _ | O.Type.TTup _
   | O.Type.TCustom _ | O.Type.TRecord _ | O.Type.TRowExtend _
   | O.Type.TRowEmpty ->
       None
 
-let appending instances (operand : O.Type.t) left right =
+let append instances (operand : O.Type.t) left right =
   match operand with
   | O.Type.TStr -> J.binary J.Plus left right
   | O.Type.TVar _ | O.Type.TInt | O.Type.TFloat | O.Type.TChar | O.Type.TBool
@@ -461,13 +461,13 @@ let inequality instances operand left right =
   if compared_in_place instances operand then J.binary J.StrictNotEqual left right
   else J.Unary { op = J.Not; arg = equality instances operand left right }
 
-let ordering instances operand operator left right =
+let order instances operand operator left right =
   ordering_of instances ~budget:expansion_budget ~operator operand left right
 
 let integer_division left right =
   J.binary J.BitOr (J.binary J.Divide left right) (J.int 0)
 
-let lowering instances ~(operand : O.Type.t) :
+let lower instances ~(operand : O.Type.t) :
     Data.Operator.t -> J.expr -> J.expr -> J.expr = function
   | Add -> J.binary J.Plus
   | Subtract -> J.binary J.Minus
@@ -475,25 +475,25 @@ let lowering instances ~(operand : O.Type.t) :
   | Divide -> J.binary J.Divide
   | Integer_divide -> integer_division
   | Power -> J.binary J.Exponent
-  | Append -> appending instances operand
+  | Append -> append instances operand
   | Equal -> equality instances operand
   | Not_equal -> inequality instances operand
-  | Less -> ordering instances operand J.LessThan
-  | Less_or_equal -> ordering instances operand J.LessThanOrEqual
-  | Greater -> ordering instances operand J.GreaterThan
-  | Greater_or_equal -> ordering instances operand J.GreaterThanOrEqual
+  | Less -> order instances operand J.LessThan
+  | Less_or_equal -> order instances operand J.LessThanOrEqual
+  | Greater -> order instances operand J.GreaterThan
+  | Greater_or_equal -> order instances operand J.GreaterThanOrEqual
   | Conjunction -> J.binary J.And
   | Disjunction -> J.binary J.Or
 
 let reads_operands_twice instances (operand : O.Type.t)
     (operator : Data.Operator.t) =
-  let expanded () =
+  let expands () =
     (not (compared_in_place instances operand))
     && Option.is_some (parts_within_budget ~budget:expansion_budget operand)
   in
   match operator with
   | Equal | Not_equal | Less | Less_or_equal | Greater | Greater_or_equal ->
-      expanded ()
+      expands ()
   | Add | Subtract | Multiply | Divide | Integer_divide | Power | Append
   | Conjunction | Disjunction ->
       false

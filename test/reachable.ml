@@ -26,7 +26,7 @@ let parsed source =
     List.map
       (fun (block : Codegen_js.Shake.block) ->
         (block.name, String.concat "\n" block.lines))
-      (Codegen_js.Shake.parsed source).blocks
+      (Codegen_js.Shake.parse source).blocks
   in
   { aliases; declarations }
 

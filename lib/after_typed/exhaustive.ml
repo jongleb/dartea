@@ -46,9 +46,9 @@ type shape =
   | Record of string list
   | Head of head * P.t list
 
-let rec peeled p =
+let rec peel p =
   match p.P.pattern with
-  | P.P_T_alias (inner, _) -> peeled inner
+  | P.P_T_alias (inner, _) -> peel inner
   | P.P_T_anything | P.P_T_var _ | P.P_T_record _ | P.P_T_unit
   | P.P_T_tuple _ | P.P_T_list _ | P.P_T_cons _ | P.P_T_chr _ | P.P_T_str _
   | P.P_T_int _ | P.P_T_ctor _ ->
@@ -63,7 +63,7 @@ let rec alias_names p =
       []
 
 let shape_of p =
-  match (peeled p).P.pattern with
+  match (peel p).P.pattern with
   | P.P_T_anything | P.P_T_unit -> Wild
   | P.P_T_var x -> Var x
   | P.P_T_tuple ps -> Tuple ps
@@ -246,9 +246,9 @@ let rec useful siblings rows q =
                       ~fields:(wildcards (List.length subs)))
                   sigs
               else
-                let missing = Option.value (missing_witness siblings sigs) ~default:wildcard in
+                let witness = Option.value (missing_witness siblings sigs) ~default:wildcard in
                 useful siblings (default_pats rows) qrest
-                |> Option.map (fun w -> missing :: w)
+                |> Option.map (fun w -> witness :: w)
         end
     end
 
@@ -375,22 +375,22 @@ let best_column siblings m =
   let column_pats i = List.map (fun row -> List.nth row.pats i) m.rows in
   let score_ba i =
     let sigs = signatures (column_pats i) in
-    let branching = List.length sigs + if complete siblings sigs then 0 else 1 in
+    let branch_count = List.length sigs + if complete siblings sigs then 0 else 1 in
     let arity =
       List.fold_left (fun acc (_, subs) -> acc + List.length subs) 0 sigs
     in
-    (-branching, -arity)
+    (-branch_count, -arity)
   in
   let score_p i =
     let rec prefix j above = function
       | [] -> j
       | row :: rest ->
           let cell = List.nth row.pats i in
-          let deleted = List.filteri (fun k _ -> k <> i) row.pats in
-          let needed =
-            head_of cell <> None || useful siblings above deleted = None
+          let without_column = List.filteri (fun k _ -> k <> i) row.pats in
+          let is_useful =
+            head_of cell <> None || useful siblings above without_column = None
           in
-          if needed then prefix (j + 1) (deleted :: above) rest else j
+          if is_useful then prefix (j + 1) (without_column :: above) rest else j
     in
     prefix 0 [] m.rows
   in
@@ -439,7 +439,7 @@ let specialization ~head ~arity m =
   in
   { occs = suboccs @ rest_occs; rows }
 
-let defaulting m =
+let default_matrix m =
   let occ0 = List.hd m.occs and rest_occs = List.tl m.occs in
   let rows =
     List.filter_map
@@ -473,12 +473,12 @@ let rec compile siblings m =
       match find_product m with
       | Some (i, tuple_arity) ->
           let m = if i <> 0 then swap m i else m in
-          let expanded =
+          let expansion =
             match tuple_arity with
             | Some n -> expand_tuple m n
             | None -> expand_record m
           in
-          compile siblings expanded
+          compile siblings expansion
       | None ->
           let i = best_column siblings m in
           let m = if i <> 0 then swap m i else m in
@@ -492,7 +492,7 @@ let rec compile siblings m =
           in
           let default =
             if complete siblings sigs then None
-            else Some (compile siblings (defaulting m))
+            else Some (compile siblings (default_matrix m))
           in
           Switch { occurrence = List.hd m.occs; branches; default }
     end
@@ -514,7 +514,7 @@ let warnings
     | Expr_pattern pattern_match ->
         let branches = pattern_match.pattern_data_items in
         let patterns = List.map (fun (case : expr_pattern_case) -> case.pattern) branches in
-        let missing =
+        let unhandled_warnings =
           match counterexample siblings_env patterns with
           | None -> []
           | Some unhandled ->
@@ -528,7 +528,7 @@ let warnings
                 (index + 1))
             (redundant_clauses siblings_env patterns)
         in
-        missing @ redundant
+        unhandled_warnings @ redundant
         @ in_expression pattern_match.expr
         @ List.concat_map
             (fun (case : expr_pattern_case) -> in_expression case.expr)
@@ -607,5 +607,5 @@ module Share = struct
     { ids; order = List.rev !order }
 
   let id_of (plan : t) (tree : DT.t) : int option = Hashtbl.find_opt plan.ids tree
-  let shared (plan : t) : (int * DT.t) list = plan.order
+  let nodes (plan : t) : (int * DT.t) list = plan.order
 end

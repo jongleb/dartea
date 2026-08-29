@@ -21,17 +21,17 @@ module Reported = struct
     let ( let+ ) reported f = map reported ~f
   end
 
-  let rejected value ~region problem =
+  let reject value ~region problem =
     { value; problems = [ Reporting.Error.name ~region problem ] }
 
   let both left right =
     bind left ~f:(fun left -> map right ~f:(fun right -> (left, right)))
 
-  let recovered ~fallback ~region = function
+  let recover ~fallback ~region = function
     | Ok value -> return value
-    | Error problem -> rejected fallback ~region problem
+    | Error problem -> reject fallback ~region problem
 
-  let collected reported = (reported.value, reported.problems)
+  let collect reported = (reported.value, reported.problems)
 end
 
 type namespace = Terms | Types
@@ -84,14 +84,14 @@ let brings_into_scope env brought ~from =
     (fun env (namespace, names) -> Names.fold (expose namespace) names env)
     env brought
 
-let repeated (declarations : (Data.Region.t * string) list) : error list =
+let duplicates (declarations : (Data.Region.t * string) list) : error list =
   List.fold_left
-    (fun (declared, errors) (region, name) ->
-      if Names.mem name declared then
-        ( declared,
+    (fun (written_arity, errors) (region, name) ->
+      if Names.mem name written_arity then
+        ( written_arity,
           Reporting.Error.name ~region (Problem.Duplicate_declaration { name })
           :: errors )
-      else (Names.add name declared, errors))
+      else (Names.add name written_arity, errors))
     (Names.empty, []) declarations
   |> snd |> List.rev
 
@@ -116,7 +116,7 @@ let duplicate_declarations (m : Canonical.Module.t) : error list =
     @ (Canonical.Module.String_map.bindings m.type_aliases
       |> List.map (fun (name, (ta : Canonical.Typealias.t)) -> (ta.region, name)))
   in
-  repeated values @ repeated constructors @ repeated type_names
+  duplicates values @ duplicates constructors @ duplicates type_names
 
 let exposed_names (exports : Exports.t) =
   Names.elements exports.terms @ Names.elements (Exports.type_names exports)
@@ -172,7 +172,7 @@ let environment_of ~(dependencies : Canonical.Module.t list)
     let region = import.region in
     match By_name.find_opt module_name known with
     | None ->
-        Reported.rejected env ~region
+        Reported.reject env ~region
           (Problem.Unknown_module
              {
                qualifier = module_name;
@@ -182,7 +182,7 @@ let environment_of ~(dependencies : Canonical.Module.t list)
                  |> List.filteri (fun index _ -> index < 4);
              })
     | Some dependency ->
-        let qualified =
+        let with_qualifier =
           {
             env with
             qualifiers =
@@ -198,14 +198,14 @@ let environment_of ~(dependencies : Canonical.Module.t list)
           match import.exposed with
           | Canonical.Exposed.All ->
               Reported.return
-                (bring qualified (everything_exported dependency.exports))
+                (bring with_qualifier (everything_exported dependency.exports))
           | Only items ->
               let take reported item =
                 Reported.bind reported ~f:(fun env ->
-                    Reported.recovered ~fallback:env ~region
+                    Reported.recover ~fallback:env ~region
                       (Result.map (bring env) (brought_in_by dependency item)))
               in
-              List.fold_left take (Reported.return qualified) items
+              List.fold_left take (Reported.return with_qualifier) items
         end
   in
   let start =
@@ -233,7 +233,7 @@ let environment_of ~(dependencies : Canonical.Module.t list)
   let env, errors =
     List.fold_left
       (fun (env, errors) (import : Canonical.Import.t) ->
-        let env, problems = Reported.collected (from_import env import) in
+        let env, problems = Reported.collect (from_import env import) in
         (env, List.rev_append problems errors))
       (start, []) m.imports
   in
@@ -247,23 +247,23 @@ let visible_names env namespace =
   let scope = scope_of env namespace in
   let locals = Names.elements scope.visible in
   let brought = By_name.fold (fun name _ found -> name :: found) scope.sources [] in
-  let qualified =
+  let qualified_names =
     By_name.fold
       (fun qualifier (dependency : dependency) found ->
-        let exported =
+        let names =
           match namespace with
           | Terms -> dependency.exports.terms
           | Types -> Exports.type_names dependency.exports
         in
-        Names.fold (fun name found -> (qualifier ^ "." ^ name) :: found) exported found)
+        Names.fold (fun name found -> (qualifier ^ "." ^ name) :: found) names found)
       env.qualifiers []
   in
-  locals @ brought @ qualified
+  locals @ brought @ qualified_names
 
 let starts_with_an_upper_case text =
   String.length text > 0 && Char.equal (Char.uppercase_ascii text.[0]) text.[0]
 
-let missing env namespace ?(prefix = Reporting.Name_error.No_prefix) name =
+let unknown env namespace ?(prefix = Reporting.Name_error.No_prefix) name =
   let near = nearest ~target:(Data.Name.base name) (visible_names env namespace) in
   match (namespace, Data.Name.base name) with
   | Types, _ -> Problem.Unknown_type { name; prefix; near }
@@ -280,7 +280,7 @@ let refers_to env namespace (name : Data.Name.t) :
         (Names.mem text scope.visible, By_name.find_opt text scope.sources)
       with
       | true, _ -> Ok name
-      | false, None -> Error (missing env namespace name)
+      | false, None -> Error (unknown env namespace name)
       | false, Some { nearest; earlier = [] } ->
           Ok (Data.Name.global ~module_name:nearest ~exported_name:text)
       | false, Some { nearest; earlier } ->
@@ -289,7 +289,7 @@ let refers_to env namespace (name : Data.Name.t) :
     end
   | Global { module_name = qualifier; exported_name } -> begin
       match By_name.find_opt qualifier env.qualifiers with
-      | None -> Error (missing env namespace ~prefix:(Unknown_prefix qualifier) name)
+      | None -> Error (unknown env namespace ~prefix:(Unknown_prefix qualifier) name)
       | Some { module_name; exports }
         when exports_include exports namespace exported_name ->
           Ok (Data.Name.global ~module_name ~exported_name)
@@ -315,8 +315,8 @@ let refers_to env namespace (name : Data.Name.t) :
             end
     end
 
-let resolved env namespace (name : Data.Name.t Data.Located.t) =
-  Reported.recovered ~fallback:name.thing ~region:name.region
+let resolve env namespace (name : Data.Name.t Data.Located.t) =
+  Reported.recover ~fallback:name.thing ~region:name.region
     (refers_to env namespace name.thing)
 
 module Resolution = struct
@@ -326,7 +326,7 @@ module Resolution = struct
   let return = Reported.return
   let map = Reported.map
   let both = Reported.both
-  let binding env (binders : Scope.binders) inner =
+  let bind_scope env (binders : Scope.binders) inner =
     let scope = env.term_scope in
     let visible =
       Scope.Binders.fold
@@ -336,7 +336,7 @@ module Resolution = struct
     Scope.Binders.fold
       (fun name region reported ->
         Reported.bind reported ~f:(fun value ->
-            Reported.rejected value ~region (Problem.Duplicate_binder { name })))
+            Reported.reject value ~region (Problem.Duplicate_binder { name })))
       binders.repeated
       (inner { env with term_scope = { scope with visible } })
 
@@ -352,17 +352,17 @@ module Resolution = struct
                  (Canonical.Expr.Expr_kernel
                     (Platform { name = inside; arity })))
         | None ->
-            Reported.rejected
+            Reported.reject
               (same (Canonical.Expr.Expr_ident name.thing))
               ~region:name.region
               (Problem.Unknown_kernel { module_name; exported_name })
       end
     | Not_kernel ->
-        Reported.map (resolved env Terms name) ~f:(fun resolved ->
-            same (Canonical.Expr.Expr_ident resolved))
+        Reported.map (resolve env Terms name) ~f:(fun resolve ->
+            same (Canonical.Expr.Expr_ident resolve))
 
-  let constructor env name = resolved env Terms name
-  let type_reference env name = resolved env Types name
+  let constructor env name = resolve env Terms name
+  let type_reference env name = resolve env Types name
 end
 
 module Resolving = Scope.Traversal (Resolution)
@@ -381,16 +381,16 @@ let agreeing_with_its_kernel (declaration : Canonical.Declaration.t) =
   | Canonical.Expr.Expr_kernel kernel -> begin
       match declaration.type_part_data with
       | None ->
-          Reported.rejected declaration ~region
+          Reported.reject declaration ~region
             (Problem.Kernel_needs_annotation
                { name = declaration.body_part.name.thing })
       | Some type_part ->
-          let declared = declared_arity type_part.type_alias in
+          let written_arity = declared_arity type_part.type_alias in
           let kernel = Data.Kernel.arity kernel in
-          if declared = kernel then Reported.return declaration
+          if written_arity = kernel then Reported.return declaration
           else
-            Reported.rejected declaration ~region
-              (Problem.Kernel_arity_mismatch { declared; kernel })
+            Reported.reject declaration ~region
+              (Problem.Kernel_arity_mismatch { declared = written_arity; kernel })
     end
   | Expr_char _ | Expr_string _ | Expr_int _ | Expr_float _ | Expr_list _
   | Expr_cons _ | Expr_tuple _ | Expr_let _ | Expr_if_then_else _
@@ -399,18 +399,18 @@ let agreeing_with_its_kernel (declaration : Canonical.Declaration.t) =
   | Expr_record_select _ | Expr_record_empty | Expr_unit | Expr_lambda _ ->
       Reported.return declaration
 
-let resolved_values declarations ~f =
-  let resolved, errors =
+let resolve_values declarations ~f =
+  let outcome, errors =
     List.fold_left
-      (fun (resolved, errors) declaration ->
+      (fun (values, errors) declaration ->
         let value, problems = f declaration in
-        (value :: resolved, List.rev_append problems errors))
+        (value :: values, List.rev_append problems errors))
       ([], []) declarations
   in
-  (List.rev resolved, List.rev errors)
+  (List.rev outcome, List.rev errors)
 
-let resolved_declarations map ~f =
-  let resolved, errors =
+let resolve_declarations map ~f =
+  let outcome, errors =
     Canonical.Module.String_map.fold
       (fun name value (acc, errors) ->
         let value, problems = f name value in
@@ -419,7 +419,7 @@ let resolved_declarations map ~f =
       map
       (Canonical.Module.String_map.empty, [])
   in
-  (resolved, List.rev errors)
+  (outcome, List.rev errors)
 
 let in_module ~platform_kernel ~(dependencies : Canonical.Module.t list)
     (m : Canonical.Module.t) : (Canonical.Module.t, error list) result =
@@ -427,27 +427,27 @@ let in_module ~platform_kernel ~(dependencies : Canonical.Module.t list)
   let env, import_errors = environment_of ~dependencies m in
   let env = { env with platform_kernel } in
   let top_declarations, declaration_errors =
-    resolved_values m.top_declarations
+    resolve_values m.top_declarations
       ~f:(fun (d : Canonical.Declaration.t) ->
-        Reported.collected
+        Reported.collect
           (let* declaration = Resolving.declaration env d in
            agreeing_with_its_kernel declaration))
   in
   let type_declarations, type_errors =
-    resolved_declarations m.type_declarations
+    resolve_declarations m.type_declarations
       ~f:(fun name (td : Canonical.Typedecl.t) ->
         let ctor (ctor : Canonical.Typedecl.type_ctor) =
           let+ data = Resolving.each ctor.data ~f:(Resolving.type_expression env) in
           { ctor with data }
         in
-        Reported.collected
+        Reported.collect
           (let+ ctors = Resolving.each td.ctors ~f:ctor in
            { td with ctors }))
   in
   let type_aliases, alias_errors =
-    resolved_declarations m.type_aliases
+    resolve_declarations m.type_aliases
       ~f:(fun name (ta : Canonical.Typealias.t) ->
-        Reported.collected
+        Reported.collect
           (let+ typedef = Resolving.type_expression env ta.typedef in
            { ta with typedef }))
   in

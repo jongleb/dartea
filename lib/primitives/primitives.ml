@@ -1,15 +1,15 @@
 open Typed.Type
 
 let over carried result =
-  let quantified = Typed.Variable.fresh carried in
-  let variable = TVar quantified in
-  Scheme ([ quantified ], TFun (variable, TFun (variable, result variable)))
+  let alpha = Typed.Variable.fresh carried in
+  let variable = TVar alpha in
+  Scheme ([ alpha ], TFun (variable, TFun (variable, result variable)))
 
 let scheme_of : Data.Operator.t -> scheme =
   let arithmetic =
     over (Some Data.Constraint.Number) (fun variable -> variable)
   in
-  let ordering = over (Some Data.Constraint.Comparable) (fun _ -> TBool) in
+  let comparison = over (Some Data.Constraint.Comparable) (fun _ -> TBool) in
   let concatenation =
     over (Some Data.Constraint.Appendable) (fun variable -> variable)
   in
@@ -23,7 +23,7 @@ let scheme_of : Data.Operator.t -> scheme =
   | Integer_divide -> integer_division
   | Append -> concatenation
   | Equal | Not_equal -> equality
-  | Less | Less_or_equal | Greater | Greater_or_equal -> ordering
+  | Less | Less_or_equal | Greater | Greater_or_equal -> comparison
   | Conjunction | Disjunction -> logical
 
 let values : (string * scheme) list =

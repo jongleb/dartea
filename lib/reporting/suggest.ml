@@ -1,7 +1,7 @@
-let lowered written = String.lowercase_ascii written
+let lowercase written = String.lowercase_ascii written
 
 let distance one other =
-  let one = lowered one and other = lowered other in
+  let one = lowercase one and other = lowercase other in
   let these = String.length one and those = String.length other in
   let table = Array.make_matrix (these + 1) (those + 1) 0 in
   for index = 0 to these do
@@ -18,7 +18,7 @@ let distance one other =
           (min (table.(row - 1).(column) + 1) (table.(row).(column - 1) + 1))
           (table.(row - 1).(column - 1) + cost)
       in
-      let swapped =
+      let with_swap =
         if
           row > 1 && column > 1
           && Char.equal one.[row - 1] other.[column - 2]
@@ -26,14 +26,14 @@ let distance one other =
         then min step (table.(row - 2).(column - 2) + 1)
         else step
       in
-      table.(row).(column) <- swapped
+      table.(row).(column) <- with_swap
     done
   done;
   table.(these).(those)
 
-let sorted ~target written =
+let sort ~target written =
   List.stable_sort
     (fun one other -> Int.compare (distance target one) (distance target other))
     written
 
-let nearest ~target written = sorted ~target written
+let nearest ~target written = sort ~target written

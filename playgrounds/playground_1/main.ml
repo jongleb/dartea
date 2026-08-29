@@ -20,7 +20,7 @@ let () =
            (Reporting.Sources.report sources error)))
     outcome.errors;
   List.iter
-    (fun (module_ : Dartea.Compiler.compiled) ->
+    (fun (module_ : Dartea.Compiler.artifact) ->
       List.iter
         (fun found ->
           prerr_endline

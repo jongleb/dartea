@@ -12,7 +12,7 @@ module Kernel_module = struct
   [@@deriving to_string]
 end
 
-let provided =
+let table =
   [
     (Browser, Kernel_module.VirtualDom, "node", 3);
     (Browser, Kernel_module.VirtualDom, "keyedNode", 3);
@@ -75,7 +75,7 @@ let found (name : Data.Name.t) =
         (fun (_, module_, exported, _) ->
           String.equal (Kernel_module.to_string module_) module_name
           && String.equal exported exported_name)
-        provided
+        table
 
 let arity name = Option.map (fun (_, _, _, arity) -> arity) (found name)
 

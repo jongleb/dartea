@@ -17,7 +17,7 @@ let source_directories =
 
 let dependencies = Json.pairs "an object of packages and versions" Json.range
 
-let decoded ~file content =
+let decode ~file content =
   let rows = Json.rows_of ~file content in
   {
     file;
@@ -28,4 +28,4 @@ let decoded ~file content =
     dependencies = Json.optional ~file rows field ~default:[] dependencies;
   }
 
-let of_folder root = Json.loaded root path decoded
+let of_folder root = Json.load root path decode

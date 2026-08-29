@@ -13,7 +13,7 @@ let arity (value : value) =
   let (Typed.Type.Scheme (_, ty)) = value.scheme in
   Typed.Type.arrows ty
 
-let qualifying ~module_name ~declared_types name =
+let qualify ~module_name ~declared_types name =
   match name with
   | Data.Name.Local text when Exports.Names.mem text declared_types ->
       Data.Name.global ~module_name ~exported_name:text
@@ -59,9 +59,9 @@ let rec written_type ~qualify (t : Canonical.Typedef.Impl.t) :
 let of_module ~(values : (string * Typed.Type.scheme) list)
     (m : Canonical.Module.t) : t =
   let module_name = m.name in
-  let exported name = Data.Name.global ~module_name ~exported_name:name in
+  let global name = Data.Name.global ~module_name ~exported_name:name in
   let qualify =
-    qualifying ~module_name ~declared_types:(Exports.declared_types m)
+    qualify ~module_name ~declared_types:(Exports.declared_types m)
   in
   let exports = Exports.of_module m in
   let exported_typedecl name exposure (td : Canonical.Typedecl.t) =
@@ -73,19 +73,19 @@ let of_module ~(values : (string * Typed.Type.scheme) list)
             (fun (ctor : Canonical.Typedecl.type_ctor) ->
               {
                 ctor with
-                Canonical.Typedecl.id = exported (Data.Name.base ctor.id);
+                Canonical.Typedecl.id = global (Data.Name.base ctor.id);
                 data = List.map (written_type ~qualify) ctor.data;
               })
             td.ctors
     in
-    { td with name = exported name; ctors }
+    { td with name = global name; ctors }
   in
   let exported_alias name (ta : Canonical.Typealias.t) =
-    { ta with name = exported name; typedef = written_type ~qualify ta.typedef }
+    { ta with name = global name; typedef = written_type ~qualify ta.typedef }
   in
   let exported_value (name, Typed.Type.Scheme (parameters, ty)) =
     {
-      name = exported name;
+      name = global name;
       scheme = Typed.Type.Scheme (parameters, inferred_type ~qualify ty);
     }
   in

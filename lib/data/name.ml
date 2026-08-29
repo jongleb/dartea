@@ -9,7 +9,7 @@ type t = Local of string | Global of global
 let local name = Local name
 let global ~module_name ~exported_name = Global { module_name; exported_name }
 
-let of_dotted lexeme =
+let of_lexeme lexeme =
   Stdlib.String.rindex_opt lexeme '.'
   |> Stdlib.Option.map (fun dot ->
          global

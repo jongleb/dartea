@@ -38,7 +38,7 @@ let opening = [ "let "; "var "; "function "; "class " ]
 let test_runtimes_survive_a_total_shake _ =
   List.iter
     (fun (module_name, source) ->
-      let file = Codegen_js.Shake.parsed source in
+      let file = Codegen_js.Shake.parse source in
       List.iter
         (fun line ->
           List.iter
@@ -56,7 +56,7 @@ let test_runtimes_survive_a_total_shake _ =
         ~msg:(module_name ^ " lost helpers when everything is a root")
         (names file.blocks)
         (names
-           (Codegen_js.Shake.parsed
+           (Codegen_js.Shake.parse
               (Codegen_js.Shake.alive ~roots:(names file.blocks) source))
            .blocks);
       List.iter
@@ -67,7 +67,7 @@ let test_runtimes_survive_a_total_shake _ =
         file.exported)
     Codegen_js.Runtime.files
 
-let helpers source = names (Codegen_js.Shake.parsed source).blocks
+let helpers source = names (Codegen_js.Shake.parse source).blocks
 
 let test_every_declared_kernel_exists _ =
   let language = helpers Codegen_js.Runtime.source in
@@ -86,7 +86,7 @@ let test_every_declared_kernel_exists _ =
         (spelled ^ " is in the kernel table but missing from its runtime file")
         (List.mem spelled
            (helpers (snd (Codegen_js.Platform_kernel.module_of home)))))
-    Codegen_js.Platform_kernel.provided
+    Codegen_js.Platform_kernel.table
 
 let suite =
   [

@@ -1,6 +1,6 @@
 module J = Ast
 
-let reserved =
+let reserved_words =
   [
     "abstract"; "arguments"; "await"; "boolean"; "break"; "byte"; "case";
     "catch"; "char"; "class"; "const"; "continue"; "debugger"; "default";
@@ -16,7 +16,7 @@ let reserved =
     "Infinity"; "parseInt"; "parseFloat"; "isNaN"; "isFinite";
   ]
 
-let is_reserved name = List.mem name reserved
+let is_reserved name = List.mem name reserved_words
 
 let starts_an_identifier = function
   | 'A' .. 'Z' | 'a' .. 'z' | '_' | '$' -> true
@@ -79,7 +79,7 @@ let expression_of (name : Data.Name.t) : J.expr =
   | Data.Name.Global { module_name; exported_name } ->
       J.member (J.Identifier (module_ident module_name)) (sanitize exported_name)
 
-let located loc = sanitize (Data.Located.unwrap loc)
+let of_loc loc = sanitize (Data.Located.unwrap loc)
 
 type t = {
   counts : (string, int) Hashtbl.t;

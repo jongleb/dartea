@@ -14,14 +14,14 @@ let output_of (outcome : Dartea.Compiler.outcome) =
   | [] -> Dartea.Compiler.link ~roots:(Dartea.Compiler.everything outcome) outcome
   | error :: _ -> raise (Reporting.Error.Found error)
 
-let source_of ~module_name (compiled : Dartea.Compiler.compiled list) =
+let source_of ~module_name (compiled : Dartea.Compiler.artifact list) =
   List.filter_map
-    (fun (c : Dartea.Compiler.compiled) ->
+    (fun (c : Dartea.Compiler.artifact) ->
       if String.equal c.module_name module_name then Some c.source else None)
     compiled
   |> String.concat ""
 
-let evaluate ~(compiled : Dartea.Compiler.compiled list) ~expr =
+let evaluate ~(compiled : Dartea.Compiler.artifact list) ~expr =
   let directory = Filename.temp_dir "dartea" "" in
   List.iter
     (fun (file : Dartea.Delivery.file) ->

@@ -66,8 +66,8 @@ let build ~(imports : Interface.t list) (module_ : Canonical.Module.t) : t =
       (fun _ typedecl collected -> typedecl :: collected)
       module_.type_declarations []
   in
-  let imported = List.concat_map (fun (i : Interface.t) -> i.types) imports in
-  let visible = Primitives.types @ imported @ declared_here in
+  let from_imports = List.concat_map (fun (i : Interface.t) -> i.types) imports in
+  let visible = Primitives.types @ from_imports @ declared_here in
   let add_type collected (typedecl : Canonical.Typedecl.t) =
     Name_map.add typedecl.name typedecl collected
   in

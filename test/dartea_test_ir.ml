@@ -172,7 +172,7 @@ let lowered source =
 
 let ir_of source =
   lowered source
-  |> List.filter_map (fun (unit : Dartea.Compiler.compiled) ->
+  |> List.filter_map (fun (unit : Dartea.Compiler.artifact) ->
          if String.equal unit.module_name "Main" then Some unit.source else None)
   |> String.concat ""
 
@@ -183,7 +183,7 @@ let well_scoped source =
     | [] -> Checker.link ~roots:(Dartea.Compiler.everything outcome) outcome
     | error :: _ -> raise (Reporting.Error.Found error)
   end
-  |> List.concat_map (fun (unit : Dartea.Compiler.compiled) ->
+  |> List.concat_map (fun (unit : Dartea.Compiler.artifact) ->
          if String.equal unit.source "" then []
          else [ unit.module_name ^ " -> " ^ unit.source ])
   |> String.concat "\n"

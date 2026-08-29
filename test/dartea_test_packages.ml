@@ -93,7 +93,7 @@ let shown_problem = function
 let wanted written = List.map (fun (name, text) -> (name, range text)) written
 
 let solved needs written =
-  match Solver.solved (view needs) (wanted written) with
+  match Solver.solve (view needs) (wanted written) with
   | Ok picked ->
       let named (pick : Pick.t) =
         pick.package ^ "@" ^ Version.show pick.version
@@ -105,7 +105,7 @@ let solved needs written =
       assert_failure ("no version of " ^ package)
 
 let refused needs written =
-  match Solver.solved (view needs) (wanted written) with
+  match Solver.solve (view needs) (wanted written) with
   | Ok _ -> assert_failure "the dependencies resolved"
   | Error problem -> problem
 
