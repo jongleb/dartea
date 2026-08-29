@@ -6,7 +6,6 @@
 import * as Dartea_json from "./Dartea_json.mjs";
 import * as List from "./List.mjs";
 import * as Tuple from "./Tuple.mjs";
-const Value = "Value";
 const string = Dartea_json.$$Json$identity;
 const $$int = Dartea_json.$$Json$identity;
 const $$float = Dartea_json.$$Json$identity;

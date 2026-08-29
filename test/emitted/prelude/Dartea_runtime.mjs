@@ -8,17 +8,6 @@ const $$curry = (f, args) => {
   return $$curry(f(...args.slice(0, n)), args.slice(n));
 };
 
-const $$append = (xs, ys) => {
-  if (typeof xs === "string") return xs + ys;
-  if (xs === 0) return ys;
-  const root = { hd: xs.hd, tl: ys };
-  let last = root;
-  for (let rest = xs.tl; rest !== 0; rest = rest.tl) {
-    last = last.tl = { hd: rest.hd, tl: ys };
-  }
-  return root;
-};
-
 const $$eqHelp = (x, y, depth, stack) => {
   if (x === y) return true;
   if (typeof x !== "object" || x === null || y === null) {
@@ -125,7 +114,6 @@ const $$charFromCode = (code) => {
 
 export {
   $$curry,
-  $$append,
   $$eq,
   $$cmp,
   $$modBy,

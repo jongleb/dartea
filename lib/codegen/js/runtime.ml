@@ -17,6 +17,13 @@ let string_to_list = "$$stringToList"
 let string_from_list = "$$stringFromList"
 let string_split = "$$stringSplit"
 
+let files =
+  [
+    (module_name, source);
+    (browser_module_name, browser_source);
+    (json_module_name, json_source);
+  ]
+
 let all =
   [
     curry; append; equal; compare; mod_by; char_to_code; char_from_code;

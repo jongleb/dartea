@@ -78,52 +78,82 @@ and case = { test : expr option; consequent : stmt list } [@@deriving show]
 
 type program = stmt list [@@deriving show]
 
-let rec expression_references (wanted : identifier) (e : expr) : bool =
-  let references = expression_references wanted in
-  let any = List.exists references in
+let rec fold_expression (visit : 'a -> expr -> 'a) (found : 'a) (e : expr) : 'a
+    =
+  let inside = fold_expression visit in
+  let all = List.fold_left inside in
+  let found = visit found e in
   match e with
-  | Identifier name -> String.equal name wanted
-  | Literal _ -> false
-  | Binary { left; right; _ } -> references left || references right
-  | Unary { arg; _ } -> references arg
+  | Identifier _ | Literal _ -> found
+  | Binary { left; right; _ } -> inside (inside found left) right
+  | Unary { arg; _ } -> inside found arg
   | Call { callee; args } | New { callee; args } ->
-      references callee || any args
-  | Function { body; _ } -> List.exists (statement_references wanted) body
-  | Arrow { body = ArrowExpr result; _ } -> references result
+      all (inside found callee) args
+  | Function { body; _ } -> List.fold_left (fold_statement visit) found body
+  | Arrow { body = ArrowExpr result; _ } -> inside found result
   | Arrow { body = ArrowBlock body; _ } ->
-      List.exists (statement_references wanted) body
+      List.fold_left (fold_statement visit) found body
   | Member { object_; property; computed } ->
-      references object_ || (computed && references property)
+      if computed then inside (inside found object_) property
+      else inside found object_
   | Conditional { test; consequent; alternate } ->
-      references test || references consequent || references alternate
+      inside (inside (inside found test) consequent) alternate
   | Object members ->
-      List.exists
-        (function Field (_, value) | Spread value -> references value)
-        members
-  | Array items -> any items
-  | Assignment { left; right } -> references left || references right
+      List.fold_left
+        (fun found -> function Field (_, value) | Spread value ->
+          inside found value)
+        found members
+  | Array items -> all found items
+  | Assignment { left; right } -> inside (inside found left) right
 
-and statement_references (wanted : identifier) (s : stmt) : bool =
-  let references = expression_references wanted in
-  let block = List.exists (statement_references wanted) in
+and fold_statement (visit : 'a -> expr -> 'a) (found : 'a) (s : stmt) : 'a =
+  let inside = fold_expression visit in
+  let block = List.fold_left (fold_statement visit) in
   match s with
   | ExprStmt e | Throw e | ConstDecl { init = e; _ }
   | VarDecl { init = Some e; _ }
   | Return (Some e) ->
-      references e
+      inside found e
   | Return None | VarDecl { init = None; _ } | Continue | Import_namespace _
   | Export _ | Comment _ ->
-      false
-  | FunctionDecl { body; _ } | Block body | While { body; _ } -> block body
+      found
+  | FunctionDecl { body; _ } | Block body | While { body; _ } -> block found body
   | If { test; consequent; alternate } ->
-      references test || block consequent
-      || Option.fold ~none:false ~some:block alternate
+      let found = block (inside found test) consequent in
+      Option.fold ~none:found ~some:(block found) alternate
   | Switch { discriminant; cases } ->
-      references discriminant
-      || List.exists
-           (fun { test; consequent } ->
-             Option.fold ~none:false ~some:references test || block consequent)
-           cases
+      List.fold_left
+        (fun found { test; consequent } ->
+          let found = Option.fold ~none:found ~some:(inside found) test in
+          block found consequent)
+        (inside found discriminant)
+        cases
+
+let fold (visit : 'a -> expr -> 'a) (found : 'a) (p : program) : 'a =
+  List.fold_left (fold_statement visit) found p
 
 let references (wanted : identifier) (p : program) : bool =
-  List.exists (statement_references wanted) p
+  fold
+    (fun found expression ->
+      found
+      ||
+      match expression with
+      | Identifier name -> String.equal name wanted
+      | _ -> false)
+    false p
+
+let members_of ~(object_ : identifier) (p : program) : identifier list =
+  List.rev
+    (fold
+       (fun found expression ->
+         match expression with
+         | Member
+             {
+               object_ = Identifier owner;
+               property = Identifier name;
+               computed = false;
+             }
+           when String.equal owner object_ ->
+             if List.mem name found then found else name :: found
+         | _ -> found)
+       [] p)

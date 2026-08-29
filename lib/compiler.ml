@@ -1,6 +1,6 @@
 module type BACKEND = sig
   val extension : string
-  val runtime_modules : Data.Name.t list -> (string * string) list
+  val runtime_modules : (string * string list) list -> (string * string) list
 
   val platform_kernel : Data.Name.t -> int option
 
@@ -8,28 +8,33 @@ module type BACKEND = sig
     notice:string list ->
     arities:(Data.Name.t * int) list ->
     constructors:(Data.Name.t * int) list ->
+    built:(Data.Name.t * int) list ->
     siblings:(Data.Name.t * (Data.Name.t * int) list) list ->
     typedecls:Optimized.Typedecl.t list ->
     imports:string list ->
     exports:Data.Name.t list ->
     Optimized.Declaration.t list ->
-    string
+    string * (string * string list) list
 end
 
 module Js_backend : BACKEND = struct
   let extension = Codegen_js.Of_optimized.extension
 
   let runtime_modules used =
-    ( Codegen_js.Of_optimized.runtime_module_name,
-      Codegen_js.Of_optimized.runtime_module_source () )
-    :: Codegen_js.Platform_kernel.runtimes used
+    List.filter_map
+      (fun (module_name, source) ->
+        match List.assoc_opt module_name used with
+        | None -> None
+        | Some helpers ->
+            Some (module_name, Codegen_js.Shake.alive ~roots:helpers source))
+      Codegen_js.Runtime.files
 
   let platform_kernel = Codegen_js.Platform_kernel.arity
 
-  let emit_module ~notice ~arities ~constructors ~siblings ~typedecls ~imports
-      ~exports decls =
-    Codegen_js.Of_optimized.emit_module ~notice ~arities ~constructors ~siblings
-      ~typedecls ~imports ~exports decls
+  let emit_module ~notice ~arities ~constructors ~built ~siblings ~typedecls
+      ~imports ~exports decls =
+    Codegen_js.Of_optimized.emit_module ~notice ~arities ~constructors ~built
+      ~siblings ~typedecls ~imports ~exports decls
 end
 
 type compiled = {
@@ -53,7 +58,6 @@ type linkable = {
 
 type outcome = {
   modules : linkable list;
-  runtime : compiled list;
   written : string list;
   errors : Reporting.Error.t list;
   sources : (string * string) list;
@@ -313,13 +317,32 @@ module Make (B : BACKEND) = struct
     in
     grown Reached.empty (List.map (addressed ~home:"") roots)
 
+  let own_constructors module_ =
+    List.filter_map
+      (fun (name, arity) ->
+        match name with
+        | Data.Name.Local spelled -> Some (spelled, arity)
+        | Data.Name.Global _ -> None)
+      module_.constructors
+
   let linked ~alive module_ =
-    let owned = List.map declared module_.declarations in
     let surviving name = Reached.mem (module_.module_name, name) alive in
+    let owned =
+      List.map declared module_.declarations
+      @ List.map fst (own_constructors module_)
+    in
     let declarations =
       List.filter
         (fun declaration -> surviving (declared declaration))
         module_.declarations
+    in
+    let built =
+      List.filter
+        (fun (name, _) ->
+          match name with
+          | Data.Name.Local spelled -> surviving spelled
+          | Data.Name.Global _ -> false)
+        module_.constructors
     in
     let exports =
       List.filter
@@ -328,24 +351,46 @@ module Make (B : BACKEND) = struct
           (not (List.mem spelled owned)) || surviving spelled)
         module_.exports
     in
-    if declarations = [] && exports = [] then None
+    if declarations = [] && built = [] && exports = [] then None
     else
+      let source, runtimes =
+        B.emit_module ~notice:module_.notice ~arities:module_.arities
+          ~constructors:module_.constructors ~built ~siblings:module_.siblings
+          ~typedecls:module_.typedecls
+          ~imports:(providing_modules declarations)
+          ~exports declarations
+      in
       Some
-        {
-          module_name = module_.module_name;
-          exports = List.map Data.Name.base exports;
-          warnings = module_.warnings;
-          source =
-            B.emit_module ~notice:module_.notice ~arities:module_.arities
-              ~constructors:module_.constructors ~siblings:module_.siblings
-              ~typedecls:module_.typedecls
-              ~imports:(providing_modules declarations)
-              ~exports declarations;
-        }
+        ( {
+            module_name = module_.module_name;
+            exports = List.map Data.Name.base exports;
+            warnings = module_.warnings;
+            source;
+          },
+          runtimes )
+
+  let merged found used =
+    List.fold_left
+      (fun found (module_name, helpers) ->
+        let known = Option.value (List.assoc_opt module_name found) ~default:[] in
+        let grown =
+          List.fold_left
+            (fun kept helper ->
+              if List.mem helper kept then kept else helper :: kept)
+            known helpers
+        in
+        (module_name, grown) :: List.remove_assoc module_name found)
+      found used
 
   let link ~roots outcome =
     let alive = reached ~roots outcome.modules in
-    outcome.runtime @ List.filter_map (linked ~alive) outcome.modules
+    let pieces = List.filter_map (linked ~alive) outcome.modules in
+    let usage = List.fold_left (fun found (_, used) -> merged found used) [] pieces in
+    List.map
+      (fun (module_name, source) ->
+        { module_name; source; exports = []; warnings = [] })
+      (B.runtime_modules usage)
+    @ List.map fst pieces
 
   let compile_modules ~entry (sources : Project.Elm_file.t list) :
       outcome =
@@ -366,15 +411,7 @@ module Make (B : BACKEND) = struct
       |> Option.map Prelude.notice
       |> Option.value ~default:[]
     in
-    let used_kernels = ref [] in
-    let platform_kernel name =
-      match B.platform_kernel name with
-      | Some arity ->
-          if not (List.exists (Data.Name.equal name) !used_kernels) then
-            used_kernels := name :: !used_kernels;
-          Some arity
-      | None -> None
-    in
+    let platform_kernel = B.platform_kernel in
     let compiling progress module_ =
       match resolved_against ~platform_kernel progress.dependencies module_ with
       | Error found ->
@@ -456,7 +493,6 @@ module Make (B : BACKEND) = struct
     | exception Reporting.Error.Found error ->
         {
           modules = [];
-          runtime = [];
           written = [];
           errors = [ error ];
           sources = written;
@@ -465,7 +501,6 @@ module Make (B : BACKEND) = struct
     | Error (Canonicalization.Module_graph.Import_cycle modules) ->
         {
           modules = [];
-          runtime = [];
           written = [];
           sources = written;
           entry = None;
@@ -488,12 +523,6 @@ module Make (B : BACKEND) = struct
             ordered
         in
         let compiled_modules = List.rev finished.output in
-        let runtime =
-          List.map
-            (fun (module_name, source) ->
-              { module_name; source; exports = []; warnings = [] })
-            (B.runtime_modules !used_kernels)
-        in
         let errors =
           match (entry, finished.entry, finished.errors) with
           | Some module_name, None, [] ->
@@ -505,7 +534,6 @@ module Make (B : BACKEND) = struct
         in
         {
           modules = (if errors = [] then compiled_modules else []);
-          runtime = (if errors = [] then runtime else []);
           written =
             List.map (fun (source : Project.Elm_file.t) -> source.name) sources;
           errors;

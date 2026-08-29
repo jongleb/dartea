@@ -8,7 +8,6 @@ const Line = (_0, _1) => ({ TAG: "Line", _0: _0, _1: _1 });
 const Named = _0 => ({ TAG: "Named", _0: _0 });
 const Red = "Red";
 const Green = "Green";
-const Blue = "Blue";
 const Boxed = _0 => ({ _0: _0 });
 const $eq$List$number = (xs, ys) => {
   let left = xs;

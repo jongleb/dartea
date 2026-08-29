@@ -9,13 +9,13 @@ let measured folder =
 
 let expected =
   [
-    "browser 2/20 declarations, 92/3509 bytes";
-    "comparison 97/114 declarations, 9120/12739 bytes";
-    "counter 72/128 declarations, 7384/13446 bytes";
-    "crossmod 10/28 declarations, 951/4368 bytes";
-    "currying 25/42 declarations, 1582/4967 bytes";
-    "elm_code 135/149 declarations, 22248/24775 bytes";
-    "fib 4/22 declarations, 530/3947 bytes";
+    "browser 2/2 declarations, 92/92 bytes";
+    "comparison 96/102 declarations, 9100/10195 bytes";
+    "counter 72/72 declarations, 7384/7384 bytes";
+    "crossmod 10/10 declarations, 951/951 bytes";
+    "currying 25/25 declarations, 1582/1582 bytes";
+    "elm_code 135/135 declarations, 22248/22248 bytes";
+    "fib 4/4 declarations, 530/530 bytes";
   ]
 
 let test_playgrounds _ =
@@ -23,4 +23,59 @@ let test_playgrounds _ =
     (List.sort String.compare expected)
     (List.sort String.compare (List.map measured Sample.playgrounds))
 
-let suite = [ "playgrounds" >:: test_playgrounds ]
+let names (blocks : Codegen_js.Shake.block list) =
+  List.map (fun (block : Codegen_js.Shake.block) -> block.name) blocks
+
+let counted source =
+  List.length
+    (List.filter
+       (fun line -> String.starts_with ~prefix:"const " line)
+       (String.split_on_char '\n' source))
+
+let test_runtimes_survive_a_total_shake _ =
+  List.iter
+    (fun (module_name, source) ->
+      let file = Codegen_js.Shake.parsed source in
+      assert_equal ~printer:string_of_int
+        ~msg:(module_name ^ " has helpers the split did not find")
+        (counted source) (List.length file.blocks);
+      assert_equal ~printer:Sample.names
+        ~msg:(module_name ^ " lost helpers when everything is a root")
+        (names file.blocks)
+        (names
+           (Codegen_js.Shake.parsed
+              (Codegen_js.Shake.alive ~roots:(names file.blocks) source))
+           .blocks);
+      List.iter
+        (fun exported ->
+          assert_bool
+            (module_name ^ " exports " ^ exported ^ ", which is not a helper")
+            (List.mem exported (names file.blocks)))
+        file.exported)
+    Codegen_js.Runtime.files
+
+let helpers source = names (Codegen_js.Shake.parsed source).blocks
+
+let test_every_declared_kernel_exists _ =
+  let language = helpers Codegen_js.Runtime.source in
+  List.iter
+    (fun helper ->
+      assert_bool
+        (helper ^ " is declared in Runtime but missing from the runtime file")
+        (List.mem helper language))
+    Codegen_js.Runtime.all;
+  List.iter
+    (fun (home, module_name, exported_name, _) ->
+      let spelled = "$$" ^ module_name ^ "$" ^ exported_name in
+      assert_bool
+        (spelled ^ " is in the kernel table but missing from its runtime file")
+        (List.mem spelled
+           (helpers (snd (Codegen_js.Platform_kernel.module_of home)))))
+    Codegen_js.Platform_kernel.provided
+
+let suite =
+  [
+    "playgrounds" >:: test_playgrounds;
+    "every_declared_kernel_exists" >:: test_every_declared_kernel_exists;
+    "runtimes_survive_a_total_shake" >:: test_runtimes_survive_a_total_shake;
+  ]

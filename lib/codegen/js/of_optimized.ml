@@ -1504,8 +1504,8 @@ let constructor_decls (constructors : (Data.Name.t * int) list) : J.stmt list =
                    };
              })
 
-let program_with_helpers ~arities ~constructors ~siblings ~typedecls ~exports
-    (decls : O.Declaration.t list) : J.program =
+let program_with_helpers ~arities ~constructors ~built ~siblings ~typedecls
+    ~exports (decls : O.Declaration.t list) : J.program =
   reset_names ();
   reset_instances ();
   Hashtbl.reset visible_types;
@@ -1534,7 +1534,7 @@ let program_with_helpers ~arities ~constructors ~siblings ~typedecls ~exports
     | names -> [ J.Export (List.map js_of_name names) ]
   in
   let body = program_of_declarations decls in
-  constructor_decls constructors @ instance_declarations () @ body @ exported
+  constructor_decls built @ instance_declarations () @ body @ exported
 
 let runtime_module_source () = Runtime.source
 
@@ -1564,17 +1564,22 @@ let comment_lines lines =
   | spoken ->
       To_string.program_to_string (List.map (fun line -> J.Comment line) spoken)
 
-let emit_module ~notice ~arities ~constructors ~siblings ~typedecls ~imports
-    ~exports (decls : O.Declaration.t list) : string =
+let emit_module ~notice ~arities ~constructors ~built ~siblings ~typedecls
+    ~imports ~exports (decls : O.Declaration.t list) :
+    string * (string * string list) list =
   let program =
-    program_with_helpers ~arities ~constructors ~siblings ~typedecls ~exports
-      decls
+    program_with_helpers ~arities ~constructors ~built ~siblings ~typedecls
+      ~exports decls
   in
-  let runtime_import =
-    List.filter
-      (fun name -> J.references name program)
+  let runtimes =
+    List.filter_map
+      (fun name ->
+        match J.members_of ~object_:name program with
+        | [] -> None
+        | members -> Some (name, members))
       (runtime_module_name :: Platform_kernel.module_names)
   in
-  comment_lines notice
-  ^ import_lines (runtime_import @ imports)
-  ^ To_string.program_to_string program
+  ( comment_lines notice
+    ^ import_lines (List.map fst runtimes @ imports)
+    ^ To_string.program_to_string program,
+    runtimes )

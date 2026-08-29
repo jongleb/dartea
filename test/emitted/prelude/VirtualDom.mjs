@@ -9,12 +9,10 @@ import * as Json$Decode from "./Json.Decode.mjs";
 import * as Json$Encode from "./Json.Encode.mjs";
 import * as Result from "./Result.mjs";
 import * as $$String from "./String.mjs";
-const Node = "Node";
 const Normal = _0 => ({ TAG: "Normal", _0: _0 });
 const MayStopPropagation = _0 => ({ TAG: "MayStopPropagation", _0: _0 });
 const MayPreventDefault = _0 => ({ TAG: "MayPreventDefault", _0: _0 });
 const Custom = _0 => ({ TAG: "Custom", _0: _0 });
-const Attribute = "Attribute";
 const noScript = tag => {
   if (tag === "script") {
     return "p";

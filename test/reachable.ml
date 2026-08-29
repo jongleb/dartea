@@ -10,85 +10,38 @@ type module_ = {
   declarations : (string * string) list;
 }
 
-let identifier_char letter =
-  (letter >= 'a' && letter <= 'z')
-  || (letter >= 'A' && letter <= 'Z')
-  || (letter >= '0' && letter <= '9')
-  || letter = '_' || letter = '$'
-
-let words text =
-  let length = String.length text in
-  let rec gathered index found =
-    if index >= length then List.rev found
-    else if identifier_char text.[index] then begin
-      let stop = ref index in
-      while !stop < length && identifier_char text.[!stop] do
-        incr stop
-      done;
-      let dotted = index > 0 && text.[index - 1] = '.' in
-      let word = String.sub text index (!stop - index) in
-      gathered !stop ((word, dotted) :: found)
-    end
-    else gathered (index + 1) found
-  in
-  gathered 0 []
-
-let starts_with ~prefix line =
-  String.length line >= String.length prefix
-  && String.equal (String.sub line 0 (String.length prefix)) prefix
-
 let import_line =
   Str.regexp {|import \* as \([A-Za-z0-9_$]+\) from "\./\(.+\)\.mjs";|}
 
-let named line =
-  let start = String.length "const " in
-  let stop = ref start in
-  while !stop < String.length line && identifier_char line.[!stop] do
-    incr stop
-  done;
-  String.sub line start (!stop - start)
-
 let parsed source =
-  let lines = String.split_on_char '\n' source in
   let aliases =
     List.filter_map
       (fun line ->
         if Str.string_match import_line line 0 then
           Some (Str.matched_group 1 line, Str.matched_group 2 line)
         else None)
-      lines
+      (String.split_on_char '\n' source)
   in
-  let rec gathered found = function
-    | [] -> List.rev found
-    | line :: rest when starts_with ~prefix:"const " line ->
-        let body, remaining =
-          let rec taken kept = function
-            | next :: _ as left
-              when starts_with ~prefix:"const " next
-                   || starts_with ~prefix:"export " next ->
-                (List.rev kept, left)
-            | next :: left -> taken (next :: kept) left
-            | [] -> (List.rev kept, [])
-          in
-          taken [ line ] rest
-        in
-        gathered ((named line, String.concat "\n" body) :: found) remaining
-    | _ :: rest -> gathered found rest
+  let declarations =
+    List.map
+      (fun (block : Codegen_js.Shake.block) ->
+        (block.name, String.concat "\n" block.lines))
+      (Codegen_js.Shake.parsed source).blocks
   in
-  { aliases; declarations = gathered [] lines }
+  { aliases; declarations }
 
 let references ~home module_ body =
   let own = List.map fst module_.declarations in
   let rec walked found = function
-    | (word, _) :: (member, true) :: rest
+    | Codegen_js.Shake.Name word :: Codegen_js.Shake.Field member :: rest
       when List.mem_assoc word module_.aliases ->
         walked ((List.assoc word module_.aliases, member) :: found) rest
-    | (word, false) :: rest when List.mem word own ->
+    | Codegen_js.Shake.Name word :: rest when List.mem word own ->
         walked ((home, word) :: found) rest
     | _ :: rest -> walked found rest
     | [] -> found
   in
-  walked [] (words body)
+  walked [] (Codegen_js.Shake.tokens body)
 
 let library =
   List.map Prelude.name Prelude.all

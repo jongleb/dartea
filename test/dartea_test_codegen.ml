@@ -1003,31 +1003,6 @@ let test_prelude_is_emitted_as_modules _ =
        (main_source src));
   assert_js ~src ~expr:"Main.y" ~expected:"5"
 
-let test_runtime_module_ships_every_declared_helper _ =
-  let runtime = module_source ~name:"Dartea_runtime" "x : Int\nx = 1" in
-  let exported =
-    let opening =
-      match Node_runner.index_of ~needle:"export {" runtime with
-      | Some at -> at
-      | None -> assert_failure "the runtime module exports nothing"
-    in
-    match String.index_from_opt runtime opening '}' with
-    | Some closing -> String.sub runtime opening (closing - opening)
-    | None -> assert_failure "the export list is never closed"
-  in
-  List.iter
-    (fun helper ->
-      assert_bool (helper ^ " is declared but not defined in the runtime file")
-        (contains ~needle:("const " ^ helper ^ " =") runtime);
-      assert_bool (helper ^ " is declared but not exported")
-        (contains ~needle:helper exported))
-    Codegen_js.Runtime.all;
-  List.iter
-    (fun leftover ->
-      assert_bool (leftover ^ " no longer lives in the runtime module")
-        (not (contains ~needle:leftover runtime)))
-    [ "const length"; "const fromInt"; "const pair"; "const Just" ]
-
 let test_saturated_primitive_lowers_to_an_operation _ =
   let string_module = module_source ~name:"String" "x : Int\nx = 1" in
   assert_bool "a saturated primitive becomes the JS operation itself"
@@ -3583,8 +3558,6 @@ let suite =
     "function_survives_a_generic_slot" >:: test_function_survives_a_generic_slot;
     "polymorphic_higher_order_still_curries"
     >:: test_polymorphic_higher_order_still_curries;
-    "runtime_module_ships_every_declared_helper"
-    >:: test_runtime_module_ships_every_declared_helper;
     "saturated_primitive_lowers_to_an_operation"
     >:: test_saturated_primitive_lowers_to_an_operation;
     "prelude_value_is_shadowed_by_a_local_declaration"
