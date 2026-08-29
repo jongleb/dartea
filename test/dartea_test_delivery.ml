@@ -57,8 +57,7 @@ let test_browser_writes_a_page_and_a_bundle _ =
 let written directory (file : Dartea.Delivery.file) =
   Sample.written ~folder:directory ~path:file.path file.content
 
-let printed_by ~program ~stub =
-  let outcome = outcome_of ~entry:(Some "Main") program in
+let printed ~outcome ~stub =
   let directory = Sample.folder () in
   List.iter (written directory) (delivered ~delivery:browser outcome);
   Sample.written
@@ -72,6 +71,22 @@ let printed_by ~program ~stub =
   let printed = Node_runner.read_all channel in
   let (_ : Unix.process_status) = Unix.close_process_in channel in
   String.trim printed
+
+let printed_by ~program ~stub =
+  printed ~outcome:(outcome_of ~entry:(Some "Main") program) ~stub
+
+let printed_from ~folder ~stub =
+  printed
+    ~outcome:
+      (Sample.compiled_in ~entry:(Some "Main")
+         (Filename.concat Sample.playground_root folder))
+    ~stub
+
+let test_the_real_todomvc_runs _ =
+  assert_equal ~printer:Fun.id
+    "Elm • TodoMVC | added молоко / кот | edited кефир / кот | left кот / All \
+     | 1 item left"
+    (printed_from ~folder:"todomvc" ~stub:Sample.todomvc_stub)
 
 let test_typing_reaches_the_model _ =
   assert_equal ~printer:Fun.id
@@ -149,7 +164,7 @@ let test_browser_needs_a_program _ =
     refused ~delivery:browser (outcome_of ~entry:(Some "Main") Sample.starter)
   with
   | Bad_entry { expected; found; _ } ->
-      assert_equal ~printer:Fun.id "Browser.Program" expected;
+      assert_equal ~printer:Fun.id "Platform.Program" expected;
       assert_equal ~printer:Fun.id "String" found
   | problem -> assert_failure (Reporting.Project_error.show problem)
 
@@ -177,6 +192,8 @@ let suite =
     "mapped_messages_reach_the_model" >:: test_mapped_messages_reach_the_model;
     "a_point_change_writes_once" >:: test_a_point_change_writes_once;
     "guards_stay_silent_like_elm" >:: test_guards_stay_silent_like_elm;
+    "the_real_todomvc_runs" >:: test_the_real_todomvc_runs;
+    "the_real_todomvc_runs" >:: test_the_real_todomvc_runs;
     "lazy_skips_an_unchanged_subtree" >:: test_lazy_skips_an_unchanged_subtree;
     "a_mapped_subtree_survives_being_replaced"
     >:: test_a_mapped_subtree_survives_being_replaced;

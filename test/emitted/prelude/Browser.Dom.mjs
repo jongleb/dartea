@@ -4,7 +4,6 @@
 // Copyright 2017-present Evan Czaplicki, under the BSD 3-Clause License.
 // dartea's LICENSE carries the full text.
 import * as Dartea_browser from "./Dartea_browser.mjs";
-const sandbox = Dartea_browser.$$Browser$sandbox;
-const document = Dartea_browser.$$Browser$document;
-const Document = ($a0, $a1) => ({ title: $a0, body: $a1 });
-export { Document, document, sandbox };
+const NotFound = _0 => ({ _0: _0 });
+const focus = Dartea_browser.$$Dom$focus;
+export { NotFound, focus };

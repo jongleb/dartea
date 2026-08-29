@@ -46,8 +46,12 @@ Copyright 2014-present Evan Czaplicki
     lib/prelude/Dict.elm
     lib/prelude/List.elm
     lib/prelude/Maybe.elm
+    lib/prelude/Platform.elm
+    lib/prelude/Platform.Cmd.elm
+    lib/prelude/Platform.Sub.elm
     lib/prelude/Result.elm
     lib/prelude/String.elm
+    lib/prelude/Task.elm
     lib/prelude/Tuple.elm
     lib/prelude/prelude.ml
     lib/data/kernel.ml
@@ -93,6 +97,7 @@ elm/browser -- https://github.com/elm/browser
 Copyright 2017-present Evan Czaplicki
 
     lib/prelude/packages/browser/Browser.elm
+    lib/prelude/packages/browser/Browser.Dom.elm
 
 The module name, the `Program` type and the shape of `Browser.sandbox` are
 reproduced; the update loop is dartea's own and is written against dartea's
@@ -112,6 +117,17 @@ dartea's own, written in Elm over a small set of primitives rather than in
 JavaScript over Elm's value representation. A program that imports Json.Decode
 is compiled alongside Json.Decode.mjs, and redistributing that output
 redistributes material derived from elm/json.
+
+
+evancz/elm-todomvc -- https://github.com/evancz/elm-todomvc
+Copyright (c) 2014-2016, Evan Czaplicki
+
+    playgrounds/todomvc/Main.elm
+
+The file is the upstream TodoMVC application, kept as a test that dartea
+compiles a real Elm program. The `port module` header, the `setStorage` port and
+`updateWithStorage` are removed; nothing else is changed. It is a test fixture,
+not part of the compiler, and is not redistributed in compiled output.
 
 
 elm/compiler -- https://github.com/elm/compiler

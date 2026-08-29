@@ -30,6 +30,6 @@ view model =
         ]
 
 
-main : Browser.Program () Int Msg
+main : Program () Int Msg
 main =
     Browser.sandbox { init = 0, update = update, view = view }

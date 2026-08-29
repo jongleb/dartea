@@ -24,7 +24,7 @@ let wrapped { name; source } =
 
 let of_modules ~entry_module ~declaration modules =
   Printf.sprintf
-    "%s\n\n%s\nexport const %s = %s.%s;\n\nexport const mount = (host) =>\n  %s(%s, host);\n"
+    "%s\n\n%s\nexport const %s = %s.%s;\n\nexport const mount = (host, flags) =>\n  %s(%s, host, flags);\n"
     (String.concat "\n\n" (List.map wrapped modules))
     Runtime.engine_source declaration
     (Of_optimized.module_ident entry_module)

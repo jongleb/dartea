@@ -37,10 +37,10 @@ let delivered ~delivery outcome =
   let module Delivery = (val delivery : Dartea.Delivery.S) in
   shaken ~roots:(Delivery.roots outcome) outcome
 
-let compiled_in folder =
+let compiled_in ~entry folder =
   Eio_main.run @@ fun env ->
   match Project.Sources.load Eio.Path.(Eio.Stdenv.fs env / folder) with
-  | Ok sources -> Dartea.Compiler.compile_modules ~entry:None sources
+  | Ok sources -> Dartea.Compiler.compile_modules ~entry sources
   | Error error -> refused Reporting.Sources.empty [ error ]
 
 let folder () = Filename.temp_dir "dartea" ""
@@ -99,7 +99,7 @@ view model =
         ]
 
 
-main : Browser.Program () Int Msg
+main : Program () Int Msg
 main =
     Browser.sandbox { init = 0, update = update, view = view }
 |}
@@ -150,6 +150,7 @@ const make = (tag) => ({
 });
 
 globalThis.document = {
+  getElementById: () => undefined,
   createElement: (tag) => { created += 1; return make(tag); },
   createElementNS: (namespace, tag) => {
     created += 1;
@@ -267,7 +268,7 @@ view model =
         ]
 
 
-main : Browser.Program () String Msg
+main : Program () String Msg
 main =
     Browser.sandbox { init = "", update = update, view = view }
 |}
@@ -349,7 +350,7 @@ view model =
         ]
 
 
-main : Browser.Program () String Msg
+main : Program () String Msg
 main =
     Browser.sandbox { init = "", update = update, view = view }
 |}
@@ -390,7 +391,7 @@ view model =
         [ input [ type_ "text", value (String.fromInt model) ] [] ]
 
 
-main : Browser.Program () Int Msg
+main : Program () Int Msg
 main =
     Browser.sandbox { init = 3, update = update, view = view }
 |}
@@ -476,7 +477,7 @@ view model =
         ]
 
 
-main : Browser.Program () Model Msg
+main : Program () Model Msg
 main =
     Browser.sandbox
         { init = { count = 0, colour = "red", marked = True }
@@ -555,7 +556,7 @@ view _ =
         ]
 
 
-main : Browser.Program () Int Msg
+main : Program () Int Msg
 main =
     Browser.sandbox { init = 0, update = update, view = view }
 |}
@@ -666,7 +667,7 @@ view model =
         ]
 
 
-main : Browser.Program () Model Msg
+main : Program () Model Msg
 main =
     Browser.sandbox
         { init = { count = 0, label = "-" }, update = update, view = view }
@@ -737,7 +738,7 @@ view model =
         ]
 
 
-main : Browser.Program () Model Msg
+main : Program () Model Msg
 main =
     Browser.sandbox
         { init = { flipped = False, log = "" }, update = update, view = view }
@@ -792,7 +793,7 @@ view model =
         ]
 
 
-main : Browser.Program () (List Int) Msg
+main : Program () (List Int) Msg
 main =
     Browser.sandbox { init = List.range 1 10, update = update, view = view }
 |}
@@ -816,5 +817,44 @@ console.log(
     ", kept " +
     (list.childNodes[9] === kept) +
     ")",
+);
+|}
+
+let todomvc_stub = dom ^ {|const host = make("body");
+const { mount } = await import("./main.js");
+mount(host, "Nothing");
+const listed = () => tagged(host, "li").slice(0, 2).map(shown).join(" / ");
+const field = tagged(host, "input").find((node) => node.className === "new-todo");
+const typed = (into, written) => {
+  into.listeners.input(happening({ target: { value: written } }));
+};
+typed(field, "молоко");
+field.listeners.keydown(happening({ keyCode: 13 }));
+typed(field, "кот");
+field.listeners.keydown(happening({ keyCode: 13 }));
+const added = listed();
+tagged(host, "label")
+  .find((node) => node.listeners.dblclick !== undefined)
+  .listeners.dblclick(happening({}));
+const editing = tagged(host, "input").find((node) => node.className === "edit");
+typed(editing, "кефир");
+editing.listeners.blur(happening({}));
+const edited = listed();
+tagged(host, "input")
+  .filter((node) => node.className === "toggle")[0]
+  .listeners.click(happening({}));
+tagged(host, "button")
+  .filter((node) => node.className === "destroy")[0]
+  .listeners.click(happening({}));
+console.log(
+  document.title +
+    " | added " +
+    added +
+    " | edited " +
+    edited +
+    " | left " +
+    listed() +
+    " | " +
+    tagged(host, "span").map(shown).join(" "),
 );
 |}

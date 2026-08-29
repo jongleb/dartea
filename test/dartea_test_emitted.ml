@@ -74,10 +74,16 @@ let test_prelude _ =
 
 let playgrounds = Sample.playgrounds
 
+let runtimes =
+  Codegen_js.Of_optimized.runtime_module_name
+  :: Codegen_js.Platform_kernel.module_names
+
 let unchanged_prelude ~folder produced =
   List.iter
     (fun (module_name, source) ->
-      match List.assoc_opt module_name (Lazy.force prelude_emitted) with
+      if List.mem module_name runtimes then ()
+      else
+        match List.assoc_opt module_name (Lazy.force prelude_emitted) with
       | None -> ()
       | Some expected ->
           assert_equal ~printer:Fun.id
@@ -95,7 +101,7 @@ let own produced =
 
 let test_playground folder =
   folder >:: fun _ ->
-  let produced = emitted (compiled_in (Filename.concat Sample.playground_root folder)) in
+  let produced = emitted (compiled_in ~entry:None (Filename.concat Sample.playground_root folder)) in
   unchanged_prelude ~folder produced;
   same_as_goldens ~folder (own produced)
 

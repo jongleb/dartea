@@ -7,13 +7,12 @@
 -}
 
 
-module Browser exposing (Program, sandbox)
+module Browser exposing (Document, document, sandbox)
 
+import Platform exposing (Program)
+import Platform.Cmd exposing (Cmd)
+import Platform.Sub exposing (Sub)
 import VirtualDom
-
-
-type Program flags model msg
-    = Program
 
 
 type alias Sandbox model msg =
@@ -26,3 +25,20 @@ type alias Sandbox model msg =
 sandbox : Sandbox model msg -> Program () model msg
 sandbox =
     Elm.Kernel.Browser.sandbox
+
+
+type alias Document msg =
+    { title : String
+    , body : List (VirtualDom.Node msg)
+    }
+
+
+document :
+    { init : flags -> ( model, Cmd msg )
+    , view : model -> Document msg
+    , update : msg -> model -> ( model, Cmd msg )
+    , subscriptions : model -> Sub msg
+    }
+    -> Program flags model msg
+document =
+    Elm.Kernel.Browser.document

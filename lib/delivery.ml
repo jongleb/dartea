@@ -38,10 +38,10 @@ end
 module Classic_js_browser : S = struct
   let name = "classic_js_browser"
   let folder = "build"
-  let handled = "Browser.Program"
+  let handled = "Platform.Program"
 
   let program =
-    Data.Name.global ~module_name:"Browser" ~exported_name:"Program"
+    Data.Name.global ~module_name:"Platform" ~exported_name:"Program"
 
   let wanted = function
     | None ->

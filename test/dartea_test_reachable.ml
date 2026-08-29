@@ -4,18 +4,19 @@ let measured folder =
   Reachable.shown folder
     (Reachable.measure
        (Sample.delivered ~delivery:Dartea.Delivery.default
-          (Sample.compiled_in
+          (Sample.compiled_in ~entry:None
              (Filename.concat Sample.playground_root folder))))
 
 let expected =
   [
     "browser 2/2 declarations, 92/92 bytes";
     "comparison 96/102 declarations, 9100/10195 bytes";
-    "counter 72/72 declarations, 7384/7384 bytes";
+    "counter 72/72 declarations, 7549/7549 bytes";
     "crossmod 10/10 declarations, 951/951 bytes";
     "currying 25/25 declarations, 1582/1582 bytes";
     "elm_code 135/135 declarations, 22248/22248 bytes";
     "fib 4/4 declarations, 530/530 bytes";
+    "todomvc 179/179 declarations, 24506/24506 bytes";
   ]
 
 let test_playgrounds _ =

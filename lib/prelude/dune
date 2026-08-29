@@ -3,6 +3,7 @@
  (deps
   Basics.elm
   packages/browser/Browser.elm
+  packages/browser/Browser.Dom.elm
   Char.elm
   Dict.elm
   packages/html/Html.elm
@@ -14,8 +15,12 @@
   packages/json/Json.Encode.elm
   List.elm
   Maybe.elm
+  Platform.elm
+  Platform.Cmd.elm
+  Platform.Sub.elm
   Result.elm
   String.elm
+  Task.elm
   Tuple.elm
   packages/virtual-dom/VirtualDom.elm)
  (action
@@ -48,10 +53,20 @@
     (cat List.elm)
     (echo "|elm}\n\nlet maybe = {elm|")
     (cat Maybe.elm)
+    (echo "|elm}\n\nlet platform = {elm|")
+    (cat Platform.elm)
+    (echo "|elm}\n\nlet platform_cmd = {elm|")
+    (cat Platform.Cmd.elm)
+    (echo "|elm}\n\nlet platform_sub = {elm|")
+    (cat Platform.Sub.elm)
     (echo "|elm}\n\nlet result = {elm|")
     (cat Result.elm)
     (echo "|elm}\n\nlet string = {elm|")
     (cat String.elm)
+    (echo "|elm}\n\nlet task = {elm|")
+    (cat Task.elm)
+    (echo "|elm}\n\nlet browser_dom = {elm|")
+    (cat packages/browser/Browser.Dom.elm)
     (echo "|elm}\n\nlet tuple = {elm|")
     (cat Tuple.elm)
     (echo "|elm}\n\nlet virtual_dom = {elm|")
