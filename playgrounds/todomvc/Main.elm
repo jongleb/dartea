@@ -5,13 +5,12 @@
    Copyright (c) 2014-2016, Evan Czaplicki, BSD 3-Clause License.
    dartea's LICENSE carries the full text and the file-by-file list.
 
-   Changed from the original: the `port module` header, the `setStorage` port
-   and `updateWithStorage` are removed, so this copy keeps nothing in
-   localStorage. Everything else is the upstream file.
+   Unchanged from the original: this is the upstream file, kept as a test that
+   dartea compiles a real Elm program.
 -}
 
 
-module Main exposing (..)
+port module Main exposing (..)
 
 {-| TodoMVC implemented in Elm, using plain HTML and CSS for rendering.
 
@@ -41,9 +40,27 @@ main =
     Browser.document
         { init = init
         , view = \model -> { title = "Elm • TodoMVC", body = [view model] }
-        , update = update
+        , update = updateWithStorage
         , subscriptions = \_ -> Sub.none
         }
+
+
+port setStorage : Model -> Cmd msg
+
+
+{-| We want to `setStorage` on every update. This function adds the setStorage
+command for every step of the update function.
+-}
+updateWithStorage : Msg -> Model -> ( Model, Cmd Msg )
+updateWithStorage msg model =
+    let
+        ( newModel, cmds ) =
+            update msg model
+    in
+        ( newModel
+        , Cmd.batch [ setStorage newModel, cmds ]
+        )
+
 
 
 -- MODEL

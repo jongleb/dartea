@@ -5,4 +5,5 @@ type t =
   | Import of Import_thing.t
   | ModuleName of string Data.Located.t
   | Export of Exposing.t
+  | Port of Port_thing.t
 [@@deriving show]

@@ -402,7 +402,7 @@ problem =
 let test_a_syntax_error_is_reported_not_raised _ =
   let outcome =
     Dartea.Compiler.compile_modules ~entry:None
-      [ source "Main.elm" "port module Main exposing (..)\n" ]
+      [ source "Main.elm" "module Main exposing (..)\n\nmain = (\n" ]
   in
   assert_bool "a syntax error produced no report" (outcome.errors <> [])
 

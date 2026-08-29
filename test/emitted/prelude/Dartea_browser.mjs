@@ -168,6 +168,32 @@ const $$Task$perform = (toMsg, task) => ({
     }),
 });
 
+const $$ports = { outgoing: new Map(), incoming: new Map() };
+
+const $$subscribers = (name) => {
+  const found = $$ports.outgoing.get(name);
+  if (found !== undefined) return found;
+  const made = [];
+  $$ports.outgoing.set(name, made);
+  return made;
+};
+
+const $$Port$named = (name) => ({
+  subscribe: (listener) => $$subscribers(name).push(listener),
+  unsubscribe: (listener) => {
+    const listeners = $$subscribers(name);
+    const at = listeners.indexOf(listener);
+    if (at >= 0) listeners.splice(at, 1);
+  },
+  send: (value) => {
+    const deliver = $$ports.incoming.get(name);
+    if (deliver !== undefined) deliver(value);
+  },
+});
+
+const $$Port$wiring = () =>
+  new Proxy({}, { get: (_holder, name) => $$Port$named(name) });
+
 const $$Time$every = (interval, tagger) => ({
   TAG: "Listen",
   _0: "Time.every:" + interval,
@@ -195,6 +221,7 @@ const $$Browser$sandbox = (config) => ({
   step: (msg, model) => [config.update(msg, model), "None"],
   page: (model) => ({ title: undefined, body: [config.view(model)] }),
   watch: () => "None",
+  wiring: $$Port$wiring,
 });
 
 const $$Browser$document = (config) => ({
@@ -206,6 +233,7 @@ const $$Browser$document = (config) => ({
     return { title: shown.title, body: $$toArray(shown.body) };
   },
   watch: (model) => config.subscriptions(model),
+  wiring: $$Port$wiring,
 });
 
 export {
@@ -219,6 +247,7 @@ export {
   $$Task$perform,
   $$Dom$focus,
   $$Time$every,
+  $$Port$wiring,
   $$VirtualDom$on,
   $$VirtualDom$map,
   $$VirtualDom$mapAttribute,

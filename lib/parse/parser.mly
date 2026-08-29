@@ -46,6 +46,7 @@
 %token AS
 %token EQ_EQ GT LT NOT_EQ GT_EQ LT_EQ AND OR
 %token MODULE
+%token PORT
 %token INDENT DEDENT
 %token PIPE_GT
 %token APPLY_L
@@ -98,6 +99,7 @@ top_decls: l=list(top_decl) { l }
 
 top_decl:
     | d=value_decl_with_type { d }
+    | d=port_decl { d }
     | d=type_alias_decl { d }
     | d=type_decl { d }
 
@@ -226,6 +228,10 @@ type_record_fields_rest:
 type_record_field:
     | name=LCNAME COLON body=type_expr
         { { Typedef.Type_record_row.name = located $loc(name) name; body } }
+
+port_decl:
+    | PORT name=loc(LCNAME) COLON INDENT typedef=type_expr DEDENT
+        { Impl.Port { Port_thing.name; typedef } }
 
 value_decl_with_type:
     | name1=loc(LCNAME) COLON INDENT type_alias=type_expr DEDENT

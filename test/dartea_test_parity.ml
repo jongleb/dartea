@@ -26,10 +26,10 @@ let expected =
     "Html.Events 20/20";
     "Html.Keyed 3/3";
     "Html.Lazy 8/8";
-    "Json.Decode 25/35";
+    "Json.Decode 32/35";
     "Json.Encode 9/12";
     "List 37/37";
-    "Maybe 4/8";
+    "Maybe 8/8";
     "Platform 1/7";
     "Platform.Cmd 4/4";
     "Platform.Sub 4/4";
@@ -37,7 +37,7 @@ let expected =
     "String 44/45";
     "Task 14/14";
     "Time 4/21";
-    "Tuple 3/6";
+    "Tuple 6/6";
     "VirtualDom 23/23";
   ]
 

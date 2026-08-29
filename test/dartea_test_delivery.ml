@@ -84,7 +84,7 @@ let printed_from ~folder ~stub =
 
 let test_the_real_todomvc_runs _ =
   assert_equal ~printer:Fun.id
-    "Elm • TodoMVC | added молоко / кот | edited кефир / кот | left кот / All \
+    "Elm • TodoMVC | added milk / cat | edited kefir / cat | left cat / All \
      | 1 item left"
     (printed_from ~folder:"todomvc" ~stub:Sample.todomvc_stub)
 
@@ -120,6 +120,11 @@ let test_a_subscription_outlives_updates _ =
   assert_equal ~printer:Fun.id
     "timers 1 | ticks 2 | still 1 | after stop 0 | silent 2"
     (printed_by ~program:Sample.ticking_program ~stub:Sample.ticking_stub)
+
+let test_ports_carry_both_ways _ =
+  assert_equal ~printer:Fun.id
+    {|sendfromJsmore | outgoing ["out:fromJs"]|}
+    (printed_by ~program:Sample.port_program ~stub:Sample.port_stub)
 
 let test_guards_stay_silent_like_elm _ =
   assert_equal ~printer:Fun.id
@@ -205,6 +210,7 @@ let suite =
     "mapped_messages_reach_the_model" >:: test_mapped_messages_reach_the_model;
     "a_point_change_writes_once" >:: test_a_point_change_writes_once;
     "tasks_run_in_order" >:: test_tasks_run_in_order;
+    "ports_carry_both_ways" >:: test_ports_carry_both_ways;
     "a_subscription_outlives_updates" >:: test_a_subscription_outlives_updates;
     "a_mapped_command_keeps_its_tagger"
     >:: test_a_mapped_command_keeps_its_tagger;

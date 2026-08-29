@@ -10,8 +10,8 @@
 module Json.Decode exposing
     ( Decoder, Error(..), Value
     , andThen, at, bool, decodeString, decodeValue, errorToString, fail, field
-    , float, index, int, list, map, map2, map3, maybe, null, nullable, oneOf
-    , string, succeed, value
+    , float, index, int, lazy, list, map, map2, map3, map4, map5, map6, map7
+    , map8, maybe, null, nullable, oneOf, oneOrMore, string, succeed, value
     )
 
 import Basics exposing (..)
@@ -371,3 +371,89 @@ errorToString error =
 
         Failure message given ->
             message ++ ", but instead got: " ++ shown given
+
+
+map4 :
+    (a -> b -> c -> d -> value)
+    -> Decoder a
+    -> Decoder b
+    -> Decoder c
+    -> Decoder d
+    -> Decoder value
+map4 func one other third fourth =
+    andThen (\a -> map3 (func a) other third fourth) one
+
+
+map5 :
+    (a -> b -> c -> d -> e -> value)
+    -> Decoder a
+    -> Decoder b
+    -> Decoder c
+    -> Decoder d
+    -> Decoder e
+    -> Decoder value
+map5 func one other third fourth fifth =
+    andThen (\a -> map4 (func a) other third fourth fifth) one
+
+
+map6 :
+    (a -> b -> c -> d -> e -> f -> value)
+    -> Decoder a
+    -> Decoder b
+    -> Decoder c
+    -> Decoder d
+    -> Decoder e
+    -> Decoder f
+    -> Decoder value
+map6 func one other third fourth fifth sixth =
+    andThen (\a -> map5 (func a) other third fourth fifth sixth) one
+
+
+map7 :
+    (a -> b -> c -> d -> e -> f -> g -> value)
+    -> Decoder a
+    -> Decoder b
+    -> Decoder c
+    -> Decoder d
+    -> Decoder e
+    -> Decoder f
+    -> Decoder g
+    -> Decoder value
+map7 func one other third fourth fifth sixth seventh =
+    andThen (\a -> map6 (func a) other third fourth fifth sixth seventh) one
+
+
+map8 :
+    (a -> b -> c -> d -> e -> f -> g -> h -> value)
+    -> Decoder a
+    -> Decoder b
+    -> Decoder c
+    -> Decoder d
+    -> Decoder e
+    -> Decoder f
+    -> Decoder g
+    -> Decoder h
+    -> Decoder value
+map8 func one other third fourth fifth sixth seventh eighth =
+    andThen (\a -> map7 (func a) other third fourth fifth sixth seventh eighth)
+        one
+
+
+lazy : (() -> Decoder a) -> Decoder a
+lazy thunk =
+    andThen thunk (succeed ())
+
+
+oneOrMore : (a -> List a -> value) -> Decoder a -> Decoder value
+oneOrMore func decoder =
+    andThen (oneOrMoreHelp func) (list decoder)
+
+
+oneOrMoreHelp : (a -> List a -> value) -> List a -> Decoder value
+oneOrMoreHelp func values =
+    case values of
+        [] ->
+            fail "a ARRAY with at least ONE element"
+
+        first :: rest ->
+            succeed (func first rest)

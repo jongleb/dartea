@@ -1081,7 +1081,7 @@ let test_runtime_is_imported_only_when_curried _ =
     (contains ~needle:{|import * as Dartea_runtime|}
        (module_source ~name:"Maybe" plain));
   assert_bool "a module that does not curry leaves the runtime alone"
-    (not (contains ~needle:"Dartea_runtime" (module_source ~name:"Tuple" plain)));
+    (not (contains ~needle:"Dartea_runtime" (main_source plain)));
   assert_bool "a string literal naming the runtime is not a reference"
     (not
        (contains ~needle:{|import * as Dartea_runtime|}

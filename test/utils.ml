@@ -240,6 +240,8 @@ let map_regions ~f = function
       Impl.Top_declaration (Top_declaration_util.map_regions ~f declaration)
   | Impl.ModuleName name -> Impl.ModuleName (named ~f name)
   | Impl.Export exposed -> Impl.Export (Exposing_util.map_regions ~f exposed)
+  | Impl.Port port ->
+      Impl.Port { port with Port_thing.name = named ~f port.Port_thing.name }
 
 let dummify_all_locs = map_regions ~f:(fun _ -> Data.Region.nowhere)
 

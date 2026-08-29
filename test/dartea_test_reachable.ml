@@ -11,12 +11,12 @@ let expected =
   [
     "browser 2/2 declarations, 92/92 bytes";
     "comparison 96/102 declarations, 9100/10195 bytes";
-    "counter 72/72 declarations, 7572/7572 bytes";
+    "counter 76/76 declarations, 8331/8331 bytes";
     "crossmod 10/10 declarations, 951/951 bytes";
     "currying 25/25 declarations, 1582/1582 bytes";
     "elm_code 135/135 declarations, 22248/22248 bytes";
     "fib 4/4 declarations, 530/530 bytes";
-    "todomvc 186/186 declarations, 26581/26581 bytes";
+    "todomvc 195/195 declarations, 27927/27927 bytes";
   ]
 
 let test_playgrounds _ =

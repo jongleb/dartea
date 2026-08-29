@@ -155,6 +155,13 @@ let starting_binding state lexbuf =
   | Case_arm | Type_alias | Type_decl | Type_annotation | Delimited ->
       ([], state)
 
+let closing_annotation state =
+  match context state with
+  | Type_annotation -> pop state
+  | Top_level | Expression | Let | Let_binding | Let_inline | If | Case
+  | Case_head | Case_arm | Type_alias | Type_decl | Delimited ->
+      ([], state)
+
 let handle state lexbuf token =
   match token with
   | EQUAL ->
@@ -181,7 +188,12 @@ let handle state lexbuf token =
   | LET -> ([ LET ], mark ~column:(token_column state lexbuf) ~context:Let_inline state)
   | IF -> ([ IF ], mark ~column:(column state) ~context:If state)
   | ELSE -> ELSE +> pop state
-  | TYPE -> ([ TYPE ], mark ~column:0 ~context:Type_decl state)
+  | TYPE ->
+      let* state = closing_annotation state in
+      ([ TYPE ], mark ~column:0 ~context:Type_decl state)
+  | PORT ->
+      let* state = closing_annotation state in
+      ([ PORT ], mark ~column:0 ~context:Top_level state)
   | ALIAS when context state = Type_decl ->
       ([ ALIAS ], retag ~context:Type_alias state)
   | LPAREN ->

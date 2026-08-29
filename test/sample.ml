@@ -735,6 +735,63 @@ console.log(
 );
 |}
 
+let port_program = {|port module Main exposing (main)
+
+import Browser
+import Html exposing (Html, button, div, text)
+import Html.Events exposing (onClick)
+import Json.Decode exposing (Value)
+
+
+port saved : String -> Cmd msg
+
+
+port arrived : (String -> msg) -> Sub msg
+
+
+type Msg
+    = Sent
+    | Got String
+
+
+update : Msg -> String -> ( String, Cmd Msg )
+update msg model =
+    case msg of
+        Sent ->
+            ( model, saved ("out:" ++ model) )
+
+        Got written ->
+            ( model ++ written, Cmd.none )
+
+
+view : String -> Browser.Document Msg
+view model =
+    { title = "ports"
+    , body = [ div [] [ button [ onClick Sent ] [ text "send" ], text model ] ]
+    }
+
+
+main : Program () String Msg
+main =
+    Browser.document
+        { init = \_ -> ( "", Cmd.none )
+        , view = view
+        , update = update
+        , subscriptions = \_ -> arrived Got
+        }
+|}
+
+let port_stub = dom ^ {|const host = make("body");
+const { mount } = await import("./main.js");
+const app = mount(host, null);
+const heard = [];
+app.ports.saved.subscribe((value) => heard.push(value));
+app.ports.arrived.send("fromJs");
+tagged(host, "button")[0].listeners.click(happening({}));
+app.ports.arrived.send("more");
+console.log(shown(host) + " | outgoing " + JSON.stringify(heard));
+|}
+
 let guarded_program = {|module Main exposing (main)
 
 import Browser
@@ -1055,16 +1112,16 @@ const field = tagged(host, "input").find((node) => node.className === "new-todo"
 const typed = (into, written) => {
   into.listeners.input(happening({ target: { value: written } }));
 };
-typed(field, "молоко");
+typed(field, "milk");
 field.listeners.keydown(happening({ keyCode: 13 }));
-typed(field, "кот");
+typed(field, "cat");
 field.listeners.keydown(happening({ keyCode: 13 }));
 const added = listed();
 tagged(host, "label")
   .find((node) => node.listeners.dblclick !== undefined)
   .listeners.dblclick(happening({}));
 const editing = tagged(host, "input").find((node) => node.className === "edit");
-typed(editing, "кефир");
+typed(editing, "kefir");
 editing.listeners.blur(happening({}));
 const edited = listed();
 tagged(host, "input")

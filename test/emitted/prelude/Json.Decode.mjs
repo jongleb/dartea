@@ -220,4 +220,24 @@ const errorToString = error$6 => {
       return message$1 + (", but instead got: " + shown(given$9));
   }
 };
-export { Failure, Field, Index, OneOf, andThen, at, bool, decodeString, decodeValue, errorToString, fail, field, $$float, index, $$int, list, map, map2, map3, maybe, $$null, nullable, oneOf, string, succeed, value };
+const map4 = (func, one$1, other, third$1, fourth) => andThen(a => map3(Dartea_runtime.$$curry(func, [a]), other, third$1, fourth), one$1);
+const map5 = (func$1, one$2, other$1, third$2, fourth$1, fifth) => andThen(a$1 => map4(Dartea_runtime.$$curry(func$1, [a$1]), other$1, third$2, fourth$1, fifth), one$2);
+const map6 = (func$2, one$3, other$2, third$3, fourth$2, fifth$1, sixth) => andThen(a$2 => map5(Dartea_runtime.$$curry(func$2, [a$2]), other$2, third$3, fourth$2, fifth$1, sixth), one$3);
+const map7 = (func$3, one$4, other$3, third$4, fourth$3, fifth$2, sixth$1, seventh) => andThen(a$3 => map6(Dartea_runtime.$$curry(func$3, [a$3]), other$3, third$4, fourth$3, fifth$2, sixth$1, seventh), one$4);
+const map8 = (func$4, one$5, other$4, third$5, fourth$4, fifth$3, sixth$2, seventh$1, eighth) => andThen(a$4 => map7(Dartea_runtime.$$curry(func$4, [a$4]), other$4, third$5, fourth$4, fifth$3, sixth$2, seventh$1, eighth), one$5);
+const lazy = thunk => {
+  const given$10 = null;
+  return andThen(thunk, Decoder($p0$1 => Result.Ok(given$10)));
+};
+const oneOrMoreHelp = (func$5, values) => {
+  if (values === 0) {
+    return Decoder(input$16 => Result.Err(Failure("a ARRAY with at least ONE element", input$16)));
+  } else {
+    const first$2 = values.hd;
+    const rest$1 = values.tl;
+    const given$11 = Dartea_runtime.$$curry(func$5, [first$2, rest$1]);
+    return Decoder($p0$2 => Result.Ok(given$11));
+  }
+};
+const oneOrMore = (func$6, decoder$12) => andThen($s15 => oneOrMoreHelp(func$6, $s15), list(decoder$12));
+export { Failure, Field, Index, OneOf, andThen, at, bool, decodeString, decodeValue, errorToString, fail, field, $$float, index, $$int, lazy, list, map, map2, map3, map4, map5, map6, map7, map8, maybe, $$null, nullable, oneOf, oneOrMore, string, succeed, value };

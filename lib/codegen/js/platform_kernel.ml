@@ -32,6 +32,8 @@ let provided =
     (Browser, "Task", "attempt", 2);
     (Browser, "Dom", "focus", 1);
     (Browser, "Time", "every", 2);
+    (Browser, "Port", "outgoing", 2);
+    (Browser, "Port", "incoming", 2);
     (Json, "Json", "isString", 1);
     (Json, "Json", "isBool", 1);
     (Json, "Json", "isNumber", 1);

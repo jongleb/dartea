@@ -1,3 +1,4 @@
+import * as Dartea_browser from "./Dartea_browser.mjs";
 import * as Basics from "./Basics.mjs";
 import * as Browser from "./Browser.mjs";
 import * as Browser$Dom from "./Browser.Dom.mjs";
@@ -113,6 +114,12 @@ const update = (msg, model) => {
     }
   }
 };
+const updateWithStorage = (msg$1, model$1) => {
+  const $s2 = update(msg$1, model$1);
+  const newModel = $s2[0];
+  const cmds = $s2[1];
+  return [newModel, Platform$Cmd.batch({ hd: Dartea_browser.$$Port$outgoing("setStorage", newModel), tl: { hd: cmds, tl: 0 } })];
+};
 const infoFooter = Html.footer({ hd: Html$Attributes.$$class("info"), tl: 0 }, { hd: Html.p(0, { hd: Html.text("Double-click to edit a todo"), tl: 0 }), tl: { hd: Html.p(0, { hd: Html.text("Written by "), tl: { hd: Html.a({ hd: Html$Attributes.href("https://github.com/evancz"), tl: 0 }, { hd: Html.text("Evan Czaplicki"), tl: 0 }), tl: 0 } }), tl: { hd: Html.p(0, { hd: Html.text("Part of "), tl: { hd: Html.a({ hd: Html$Attributes.href("http://todomvc.com"), tl: 0 }, { hd: Html.text("TodoMVC"), tl: 0 }), tl: 0 } }), tl: 0 } } });
 const viewControlsClear = entriesCompleted => Html.button({ hd: Html$Attributes.$$class("clear-completed"), tl: { hd: Html$Attributes.hidden(entriesCompleted === 0), tl: { hd: Html$Events.onClick(DeleteComplete), tl: 0 } } }, { hd: Html.text("Clear completed (" + ($$String.fromInt(entriesCompleted) + ")")), tl: 0 });
 const viewControlsCount = entriesLeft => {
@@ -126,17 +133,17 @@ const viewControls = (visibility$3, entries) => {
   const entriesLeft$1 = List.length(entries) - entriesCompleted$1;
   return Html.footer({ hd: Html$Attributes.$$class("footer"), tl: { hd: Html$Attributes.hidden(List.isEmpty(entries)), tl: 0 } }, { hd: Html$Lazy.lazy(viewControlsCount, entriesLeft$1), tl: { hd: Html$Lazy.lazy(viewControlsFilters, visibility$3), tl: { hd: Html$Lazy.lazy(viewControlsClear, entriesCompleted$1), tl: 0 } } });
 };
-const onEnter = msg$1 => {
+const onEnter = msg$2 => {
   const isEnter = code => {
   if (code === 13) {
-    return Json$Decode.succeed(msg$1);
+    return Json$Decode.succeed(msg$2);
   } else {
     return Json$Decode.fail("not ENTER");
   }
 };
   return Html$Events.on("keydown", Json$Decode.andThen(isEnter, Html$Events.keyCode));
 };
-const viewEntry = todo => Html.li({ hd: Html$Attributes.classList({ hd: ["completed", todo.completed], tl: { hd: ["editing", todo.editing], tl: 0 } }), tl: 0 }, { hd: Html.div({ hd: Html$Attributes.$$class("view"), tl: 0 }, { hd: Html.input({ hd: Html$Attributes.$$class("toggle"), tl: { hd: Html$Attributes.type_("checkbox"), tl: { hd: Html$Attributes.checked(todo.completed), tl: { hd: Html$Events.onClick(Check(todo.id, Basics.not(todo.completed))), tl: 0 } } } }, 0), tl: { hd: Html.label({ hd: Html$Events.onDoubleClick(EditingEntry(todo.id, true)), tl: 0 }, { hd: Html.text(todo.description), tl: 0 }), tl: { hd: Html.button({ hd: Html$Attributes.$$class("destroy"), tl: { hd: Html$Events.onClick(Delete(todo.id)), tl: 0 } }, 0), tl: 0 } } }), tl: { hd: Html.input({ hd: Html$Attributes.$$class("edit"), tl: { hd: Html$Attributes.value(todo.description), tl: { hd: Html$Attributes.name("title"), tl: { hd: Html$Attributes.id("todo-" + $$String.fromInt(todo.id)), tl: { hd: Html$Events.onInput($s2 => UpdateEntry(todo.id, $s2)), tl: { hd: Html$Events.onBlur(EditingEntry(todo.id, false)), tl: { hd: onEnter(EditingEntry(todo.id, false)), tl: 0 } } } } } } }, 0), tl: 0 } });
+const viewEntry = todo => Html.li({ hd: Html$Attributes.classList({ hd: ["completed", todo.completed], tl: { hd: ["editing", todo.editing], tl: 0 } }), tl: 0 }, { hd: Html.div({ hd: Html$Attributes.$$class("view"), tl: 0 }, { hd: Html.input({ hd: Html$Attributes.$$class("toggle"), tl: { hd: Html$Attributes.type_("checkbox"), tl: { hd: Html$Attributes.checked(todo.completed), tl: { hd: Html$Events.onClick(Check(todo.id, Basics.not(todo.completed))), tl: 0 } } } }, 0), tl: { hd: Html.label({ hd: Html$Events.onDoubleClick(EditingEntry(todo.id, true)), tl: 0 }, { hd: Html.text(todo.description), tl: 0 }), tl: { hd: Html.button({ hd: Html$Attributes.$$class("destroy"), tl: { hd: Html$Events.onClick(Delete(todo.id)), tl: 0 } }, 0), tl: 0 } } }), tl: { hd: Html.input({ hd: Html$Attributes.$$class("edit"), tl: { hd: Html$Attributes.value(todo.description), tl: { hd: Html$Attributes.name("title"), tl: { hd: Html$Attributes.id("todo-" + $$String.fromInt(todo.id)), tl: { hd: Html$Events.onInput($s3 => UpdateEntry(todo.id, $s3)), tl: { hd: Html$Events.onBlur(EditingEntry(todo.id, false)), tl: { hd: onEnter(EditingEntry(todo.id, false)), tl: 0 } } } } } } }, 0), tl: 0 } });
 const viewKeyedEntry = todo$1 => [$$String.fromInt(todo$1.id), Html$Lazy.lazy(viewEntry, todo$1)];
 const viewEntries = (visibility$4, entries$1) => {
   const isVisible = todo$2 => {
@@ -154,8 +161,9 @@ const viewEntries = (visibility$4, entries$1) => {
   return Html.section({ hd: Html$Attributes.$$class("main"), tl: { hd: Html$Attributes.style("visibility", cssVisibility), tl: 0 } }, { hd: Html.input({ hd: Html$Attributes.$$class("toggle-all"), tl: { hd: Html$Attributes.type_("checkbox"), tl: { hd: Html$Attributes.name("toggle"), tl: { hd: Html$Attributes.checked(allCompleted), tl: { hd: Html$Events.onClick(CheckAll(Basics.not(allCompleted))), tl: 0 } } } } }, 0), tl: { hd: Html.label({ hd: Html$Attributes.$$for("toggle-all"), tl: 0 }, { hd: Html.text("Mark all as complete"), tl: 0 }), tl: { hd: Html$Keyed.ul({ hd: Html$Attributes.$$class("todo-list"), tl: 0 }, List.map(viewKeyedEntry, List.filter(isVisible, entries$1))), tl: 0 } } });
 };
 const viewInput = task$1 => Html.header({ hd: Html$Attributes.$$class("header"), tl: 0 }, { hd: Html.h1(0, { hd: Html.text("todos"), tl: 0 }), tl: { hd: Html.input({ hd: Html$Attributes.$$class("new-todo"), tl: { hd: Html$Attributes.placeholder("What needs to be done?"), tl: { hd: Html$Attributes.autofocus(true), tl: { hd: Html$Attributes.value(task$1), tl: { hd: Html$Attributes.name("newTodo"), tl: { hd: Html$Events.onInput(UpdateField), tl: { hd: onEnter(Add), tl: 0 } } } } } } }, 0), tl: 0 } });
-const view = model$1 => Html.div({ hd: Html$Attributes.$$class("todomvc-wrapper"), tl: { hd: Html$Attributes.style("visibility", "hidden"), tl: 0 } }, { hd: Html.section({ hd: Html$Attributes.$$class("todoapp"), tl: 0 }, { hd: Html$Lazy.lazy(viewInput, model$1.field), tl: { hd: Html$Lazy.lazy2(viewEntries, model$1.visibility, model$1.entries), tl: { hd: Html$Lazy.lazy2(viewControls, model$1.visibility, model$1.entries), tl: 0 } } }), tl: { hd: infoFooter, tl: 0 } });
-const main = Browser.document({ init: init, view: model$2 => ({ title: "Elm • TodoMVC", body: { hd: view(model$2), tl: 0 } }), update: update, subscriptions: $p0$1 => Platform$Sub.none });
+const view = model$2 => Html.div({ hd: Html$Attributes.$$class("todomvc-wrapper"), tl: { hd: Html$Attributes.style("visibility", "hidden"), tl: 0 } }, { hd: Html.section({ hd: Html$Attributes.$$class("todoapp"), tl: 0 }, { hd: Html$Lazy.lazy(viewInput, model$2.field), tl: { hd: Html$Lazy.lazy2(viewEntries, model$2.visibility, model$2.entries), tl: { hd: Html$Lazy.lazy2(viewControls, model$2.visibility, model$2.entries), tl: 0 } } }), tl: { hd: infoFooter, tl: 0 } });
+const main = Browser.document({ init: init, view: model$3 => ({ title: "Elm • TodoMVC", body: { hd: view(model$3), tl: 0 } }), update: updateWithStorage, subscriptions: $p0$1 => Platform$Sub.none });
+const setStorage = given => Dartea_browser.$$Port$outgoing("setStorage", given);
 const Entry = ($a0, $a1, $a2, $a3) => ({ description: $a0, completed: $a1, editing: $a2, id: $a3 });
 const Model = ($a0$1, $a1$1, $a2$1, $a3$1) => ({ entries: $a0$1, field: $a1$1, uid: $a2$1, visibility: $a3$1 });
-export { Add, ChangeVisibility, Check, CheckAll, Delete, DeleteComplete, EditingEntry, Entry, Model, NoOp, UpdateEntry, UpdateField, emptyModel, infoFooter, init, main, newEntry, onEnter, update, view, viewControls, viewControlsClear, viewControlsCount, viewControlsFilters, viewEntries, viewEntry, viewInput, viewKeyedEntry, visibilitySwap };
+export { Add, ChangeVisibility, Check, CheckAll, Delete, DeleteComplete, EditingEntry, Entry, Model, NoOp, UpdateEntry, UpdateField, emptyModel, infoFooter, init, main, newEntry, onEnter, setStorage, update, updateWithStorage, view, viewControls, viewControlsClear, viewControlsCount, viewControlsFilters, viewEntries, viewEntry, viewInput, viewKeyedEntry, visibilitySwap };

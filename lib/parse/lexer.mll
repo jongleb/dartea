@@ -93,7 +93,9 @@ rule token = parse
   | "else"          { Token ELSE }
   | "in"            { Token IN }
   | "exposing"      { Token (EXPOSING) }
+  | "port" [' ' '\t']+ "module" { Token (MODULE) }
   | "module"        { Token (MODULE) }
+  | "port"          { Token (PORT) }
   | "import"        { Token (IMPORT) }
   | "as"            { Token (AS) }
   | lcname          { Token (LCNAME (Lexing.lexeme lexbuf)) }
