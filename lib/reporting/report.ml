@@ -330,7 +330,7 @@ let is_string ty =
 let is_int ty = match Typed.Type.head ty with TInt -> true | _ -> false
 let is_float ty = match Typed.Type.head ty with TFloat -> true | _ -> false
 
-let number_named ty =
+let number_name ty =
   match Typed.Type.head ty with
   | TInt -> Some ("Int", "String.fromInt")
   | TFloat -> Some ("Float", "String.fromFloat")
@@ -400,7 +400,7 @@ let of_operator namer ~snippet ~category ~found ~expected ~side ~operator =
         lone_with
           ~i_am_seeing:
             (Printf.sprintf
-               "The %s side of (%s) must be %s, but instead I am see:" side
+               "The %s side of (%s) must be %s, but instead I am seeing:" side
                written needs)
           ~details:[]
     in
@@ -414,7 +414,7 @@ let of_operator namer ~snippet ~category ~found ~expected ~side ~operator =
       ~mistaken:(is_int found)
       ~advice:
         (Printf.sprintf
-           "The %s side of (/) must be a Float, but I am see an Int. I recommend:"
+           "The %s side of (/) must be a Float, but I am seeing an Int. I recommend:"
            side)
       ~examples:
         [
@@ -426,7 +426,7 @@ let of_operator namer ~snippet ~category ~found ~expected ~side ~operator =
     bad_division ~kind:"integer" ~needs:"an Int" ~mistaken:(is_float found)
       ~advice:
         (Printf.sprintf
-           "The %s side of (//) must be an Int, but I am see a Float. I recommend doing the conversion explicitly with one of these functions:"
+           "The %s side of (//) must be an Int, but I am seeing a Float. I recommend doing the conversion explicitly with one of these functions:"
            side)
       ~examples:
         [
@@ -437,7 +437,7 @@ let of_operator namer ~snippet ~category ~found ~expected ~side ~operator =
         ]
   in
   let bad_append () =
-    match number_named found with
+    match number_name found with
     | Some (thing, conversion) ->
         problem_and_body
           (Printf.sprintf
@@ -452,7 +452,7 @@ let of_operator namer ~snippet ~category ~found ~expected ~side ~operator =
     | None ->
         problem_and_body "The (++) operator cannot append this type of value:"
           (lone_with
-             ~i_am_seeing:(with_category "I am see" category)
+             ~i_am_seeing:(with_category "I am seeing" category)
              ~details:
                [
                  Doc.words
@@ -931,8 +931,8 @@ let of_syntax_problem source region (problem : Syntax_error.t) =
   | Unterminated { what } ->
       explain
         (Printf.sprintf
-           "I got to the end of the file without see the end of this %s:"
-           (Syntax_error.what_is_unterminated what))
+           "I got to the end of the file without seeing the end of this %s:"
+           (Syntax_error.describe_open what))
         "Add the closing mark, or delete it and start again."
   | Empty_character ->
       explain "I thought I was parsing a character, but I got stuck here:"
@@ -1117,7 +1117,7 @@ let of_project_problem source region (problem : Diagnostic.Project_error.t) =
                (quote declaration));
           snippet ();
           Doc.words
-            (Printf.sprintf "The type of %s value I am see is:"
+            (Printf.sprintf "The type of %s value I am seeing is:"
                (quote declaration));
           indent (Doc.text found);
           Doc.words

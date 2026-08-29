@@ -40,7 +40,7 @@ let constructor_to_object names name js_arguments =
   if is_bool_constructor name then bool_literal name
   else if is_unit_constructor name then J.Literal J.Null
   else if List.is_empty js_arguments then J.string (Data.Name.base name)
-  else if Names.is_tag_omitted names name then
+  else if Names.omits_tag names name then
     J.Object (payload_fields js_arguments)
   else
     J.Object
@@ -87,7 +87,7 @@ let shared_operands env ~when_duplicated left right =
     (left_bindings @ right_bindings, left, right)
   else ([], left, right)
 
-let binary_lowering env ~(operand : O.Type.t) (operator : Data.Operator.t) left
+let lower_binary env ~(operand : O.Type.t) (operator : Data.Operator.t) left
     right : J.stmt list * J.expr =
   let bindings, left, right =
     shared_operands env
@@ -97,7 +97,7 @@ let binary_lowering env ~(operand : O.Type.t) (operator : Data.Operator.t) left
   in
   (bindings, Instances.lower env.instances ~operand operator left right)
 
-let method_lowering env (method_ : Data.Method.t) ~operand left right =
+let lower_method env (method_ : Data.Method.t) ~operand left right =
   let bindings, left, right =
     shared_operands env ~when_duplicated:true left right
   in
@@ -137,14 +137,14 @@ let method_lowering env (method_ : Data.Method.t) ~operand left right =
                 };
           } )
 
-let saturated_lowering env name ~operand =
+let lower_full_call env name ~operand =
   if Scope.mem name env.scope then None
   else
     match Data.Operator.referred_to_by name with
-    | Some operator -> Some (binary_lowering env ~operand operator)
+    | Some operator -> Some (lower_binary env ~operand operator)
     | None ->
         Option.map
-          (fun method_ -> method_lowering env method_ ~operand)
+          (fun method_ -> lower_method env method_ ~operand)
           (Data.Method.referred_to_by name)
 
 let occ_expr root (o : Occ.t) : J.expr =
@@ -169,7 +169,7 @@ let test_expr env occ_e (test : DT.test) : J.expr =
   match test with
   | DT.Test_ctor name -> js_eq occ_e (ctor_literal name)
   | DT.Test_tag name ->
-      if Names.is_tag_omitted env.names name then J.is_object occ_e
+      if Names.omits_tag env.names name then J.is_object occ_e
       else js_eq (J.member occ_e Runtime.tag) (J.String (Data.Name.base name))
   | DT.Test_int n -> js_eq occ_e (J.Int n)
   | DT.Test_str s -> js_eq occ_e (J.String s)
@@ -186,7 +186,7 @@ let same_discriminant one other =
 
 let switch_key env (test : DT.test) : (discriminant * J.literal) option =
   match test with
-  | DT.Test_tag n when not (Names.is_tag_omitted env.names n) ->
+  | DT.Test_tag n when not (Names.omits_tag env.names n) ->
       Some (By_tag, J.String (Data.Name.base n))
   | DT.Test_tag _ -> None
   | DT.Test_ctor n when not (is_bool_constructor n) ->
@@ -385,7 +385,7 @@ let shared_thunks env root ~plan ~tnames clause_expr =
     (DS.nodes plan)
 
 let rec emit_value env (e : O.Expr.t) : J.stmt list * J.expr =
-  let statements, expression = emit_uncoerced env e in
+  let statements, expression = emit_raw env e in
   ( statements,
     coerce env expression
       ~expected:(arity_of_type e.O.Expr.typ)
@@ -445,7 +445,7 @@ and callee_arity env (callee : O.Expr.t) : arity =
   Option.bind (O.Expr.ident_of callee) (declared_arity env)
   |> Option.fold ~none:(arity_of_type callee.typ) ~some:(fun n -> Exactly n)
 
-and emit_uncoerced env (e : O.Expr.t) : J.stmt list * J.expr =
+and emit_raw env (e : O.Expr.t) : J.stmt list * J.expr =
   match e.expr with
   | O.Expr.Expr_int n -> ([], J.int n)
   | O.Expr.Expr_float f -> ([], J.Literal (J.Float f))
@@ -475,7 +475,7 @@ and emit_uncoerced env (e : O.Expr.t) : J.stmt list * J.expr =
       let sa, ea = emit_value env a in
       let sb, eb = emit_value env b in
       let bindings, lowered =
-        binary_lowering env ~operand:a.O.Expr.typ name ea eb
+        lower_binary env ~operand:a.O.Expr.typ name ea eb
       in
       (sa @ sb @ bindings, lowered)
   | O.Expr.Expr_constr { name; arguments } ->
@@ -563,7 +563,7 @@ and emit_apply env fn arg =
       match args with
       | [ left; right ] ->
           let lower_op op =
-            saturated_lowering env op ~operand:left.O.Expr.typ
+            lower_full_call env op ~operand:left.O.Expr.typ
           in
           Option.bind (O.Expr.ident_of callee) lower_op
           |> Option.map (fun lower -> (lower, left, right))

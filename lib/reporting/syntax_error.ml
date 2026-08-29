@@ -16,4 +16,4 @@ type t =
   | Module_name_mismatch of { expected : string }
 [@@deriving show]
 
-let what_is_unterminated = string_of_unterminated
+let describe_open = string_of_unterminated

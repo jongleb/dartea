@@ -51,7 +51,7 @@ let exports_include (exports : Exports.t) namespace name =
   | Terms -> Names.mem name exports.terms
   | Types -> By_name.mem name exports.types
 
-let everything_exported (exports : Exports.t) =
+let all_exports (exports : Exports.t) =
   [ (Terms, exports.terms); (Types, Exports.type_names exports) ]
 
 let scope_of env = function
@@ -124,7 +124,7 @@ let exposed_names (exports : Exports.t) =
 let brought_in_by dependency (item : Canonical.Exposed.item) :
     ((namespace * Names.t) list, Problem.t) result =
   let module_name = dependency.module_name in
-  let not_exposed name =
+  let hidden name =
     Problem.Not_exposed
       {
         module_name;
@@ -137,7 +137,7 @@ let brought_in_by dependency (item : Canonical.Exposed.item) :
   match item with
   | Value name when Names.mem name dependency.exports.terms ->
       Ok [ (Terms, Names.singleton name) ]
-  | Value name -> Error (not_exposed name)
+  | Value name -> Error (hidden name)
   | Type { name; ctors_exposed } -> begin
       let same_named_term =
         if Names.mem name dependency.exports.terms then
@@ -147,7 +147,7 @@ let brought_in_by dependency (item : Canonical.Exposed.item) :
       match
         (By_name.find_opt name dependency.exports.types, ctors_exposed)
       with
-      | None, _ -> Error (not_exposed name)
+      | None, _ -> Error (hidden name)
       | Some Exports.Ctors_hidden, true ->
           Error (Problem.Ctors_not_exposed { module_name; type_name = name })
       | Some (Exports.Ctors_exposed ctors), true ->
@@ -198,7 +198,7 @@ let environment_of ~(dependencies : Canonical.Module.t list)
           match import.exposed with
           | Canonical.Exposed.All ->
               Reported.return
-                (bring with_qualifier (everything_exported dependency.exports))
+                (bring with_qualifier (all_exports dependency.exports))
           | Only items ->
               let take reported item =
                 Reported.bind reported ~f:(fun env ->

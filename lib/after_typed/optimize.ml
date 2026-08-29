@@ -398,13 +398,13 @@ let inlinable_declarations (decls : O.Declaration.t list) :
     inlinable By_name.t =
   let candidate (d : O.Declaration.t) =
     let free_names = O.Declaration.free d in
-    let worth_inlining =
+    let is_inlinable =
       match d.params with
       | [] -> is_duplicable d.body
       | _ -> expression_size d.body <= inline_size_limit
     in
     if
-      worth_inlining
+      is_inlinable
       && not
            (Names.mem (Data.Name.local (Data.Located.unwrap d.name)) free_names)
     then

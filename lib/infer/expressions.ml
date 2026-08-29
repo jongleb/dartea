@@ -7,7 +7,7 @@ let ftv_typ ty =
     (fun collected variable -> Variables.add variable collected)
     Variables.empty ty
 
-let deeper_than_the_binding ty =
+let deeper_variables ty =
   let bound_here = Variable.current_level () in
   Variables.elements
     (Type.fold_variables
@@ -19,7 +19,7 @@ let deeper_than_the_binding ty =
              else collected)
        Variables.empty ty)
 
-let generalize ty = Scheme (deeper_than_the_binding ty, Type.zonk ty)
+let generalize ty = Scheme (deeper_variables ty, Type.zonk ty)
 
 let infer_deeper compute =
   Variable.enter_level ();

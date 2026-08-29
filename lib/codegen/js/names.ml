@@ -16,7 +16,7 @@ let reserved_words =
     "Infinity"; "parseInt"; "parseFloat"; "isNaN"; "isFinite";
   ]
 
-let is_reserved name = List.mem name reserved_words
+let is_keyword name = List.mem name reserved_words
 
 let starts_an_identifier = function
   | 'A' .. 'Z' | 'a' .. 'z' | '_' | '$' -> true
@@ -40,7 +40,7 @@ let op_char_token = function
   | c -> Printf.sprintf "$u%d" (Char.code c)
 
 let sanitize (name : string) : string =
-  if is_reserved name then "$$" ^ name
+  if is_keyword name then "$$" ^ name
   else if is_valid_js_ident name then name
   else
     "$"
@@ -117,7 +117,7 @@ let arity_of names name = Hashtbl.find_opt names.arities name
 let note_arity names name arity = Hashtbl.replace names.arities name arity
 let note_siblings names name sibs = Hashtbl.replace names.siblings name sibs
 
-let is_tag_omitted names name =
+let omits_tag names name =
   match siblings_of names name with
   | Some siblings -> begin
       match List.filter (fun (_, arity) -> arity >= 1) siblings with

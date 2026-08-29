@@ -390,8 +390,8 @@ module Expr = struct
     in
     { typ; expr }
 
-  let rec lambdas_merged (e : t) : t =
-    let e = map_children e ~f:lambdas_merged in
+  let rec merge_nested_lambdas (e : t) : t =
+    let e = map_children e ~f:merge_nested_lambdas in
     match e.expr with
     | Expr_lambda { params; body = { expr = Expr_lambda inner; _ } }
       when Names.disjoint
@@ -478,7 +478,7 @@ module Declaration = struct
     List.length decl.params + from_kernel
 
   let saturate (decl : t) : t =
-    let decl = merge_lambdas { decl with body = Expr.lambdas_merged decl.body } in
+    let decl = merge_lambdas { decl with body = Expr.merge_nested_lambdas decl.body } in
     let given = arity decl in
     if Type.arrows decl.typ <= given then decl
     else
@@ -554,5 +554,5 @@ module Declaration = struct
             Error (Bad_recursion (List.map name_of grouped))
           else go (List.rev_append grouped ordered) rest
     in
-    go [] (Data.Components.strongly_connected ~name:name_of ~depends_on decls)
+    go [] (Data.Components.of_graph ~name:name_of ~depends_on decls)
 end

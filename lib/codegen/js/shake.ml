@@ -65,13 +65,13 @@ let parse source =
     | [] -> []
     | preamble_of :: rest ->
         let keyword = "export" in
-        let unexported =
+        let body_line =
           if String.starts_with ~prefix:keyword preamble_of then
             String.sub preamble_of (String.length keyword)
               (String.length preamble_of - String.length keyword)
           else preamble_of
         in
-        unexported :: rest
+        body_line :: rest
   in
   let preamble, rest = preamble_of [] (String.split_on_char '\n' source) in
   let blocks, tail = gather [] rest in

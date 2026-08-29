@@ -143,7 +143,7 @@ let offside state lexbuf =
 
 let misalign state = { state with aligned = false }
 
-let starting_binding state lexbuf =
+let begin_binding state lexbuf =
   let name_column = token_column state lexbuf in
   match context state with
   | Let ->
@@ -197,10 +197,10 @@ let handle state lexbuf token =
   | ALIAS when context state = Type_decl ->
       ([ ALIAS ], retag ~context:Type_alias state)
   | LPAREN ->
-      let* state = starting_binding state lexbuf in
+      let* state = begin_binding state lexbuf in
       ([ LPAREN ], state)
   | LBRACE ->
-      let* state = starting_binding state lexbuf in
+      let* state = begin_binding state lexbuf in
       ([ LBRACE ], mark ~column:(column state) ~context:Delimited state)
   | RBRACE -> close_through (function Delimited -> true | _ -> false) RBRACE state
   | IN -> close_through (function Let | Let_inline -> true | _ -> false) IN state
@@ -213,7 +213,7 @@ let handle state lexbuf token =
         | Let_inline -> ([], move ~column:(name_column + 1) state)
         | Top_level | Expression | Let | Let_binding | If | Case | Case_head
         | Case_arm | Type_alias | Type_decl | Type_annotation | Delimited ->
-            starting_binding state lexbuf
+            begin_binding state lexbuf
       in
       ([ token ], misalign state)
   | token -> ([ token ], state)

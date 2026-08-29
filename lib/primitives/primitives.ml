@@ -47,7 +47,7 @@ let builtin_of_scalar = function
     ->
       None
 
-let builtin_named written =
+let builtin_of_name written =
   List.find_opt
     (fun builtin -> String.equal (name_of_builtin builtin) written)
     builtin_types
@@ -72,7 +72,7 @@ let is_unit_constructor name =
 let concrete_type name arguments =
   let builtin =
     match name with
-    | Data.Name.Local written -> builtin_named written
+    | Data.Name.Local written -> builtin_of_name written
     | Data.Name.Global _ -> None
   in
   match (builtin, arguments) with

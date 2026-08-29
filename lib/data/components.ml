@@ -7,7 +7,7 @@ type vertex = {
   mutable self_recursive : bool;
 }
 
-let strongly_connected ~(name : 'a -> Name.t) ~(depends_on : 'a -> Name.Set.t)
+let of_graph ~(name : 'a -> Name.t) ~(depends_on : 'a -> Name.Set.t)
     (members : 'a list) : 'a component list =
   let known =
     List.fold_left

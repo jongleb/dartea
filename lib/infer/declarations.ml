@@ -169,14 +169,14 @@ let infer_toplevel ~(imports : Interface.t list) (module_ : Canonical.Module.t) 
                (visible, collected, error :: found))
          (announce type_env visible module_.top_declarations, [], [])
   in
-  let as_declared =
+  let in_source_order =
     List.sort (fun (left, _) (right, _) -> Int.compare left right) typed_decls
     |> List.map snd
   in
   zonk
     {
       values;
-      declarations = as_declared;
+      declarations = in_source_order;
       typedecls = Type_env.typedecls type_env;
       errors = List.rev found;
     }

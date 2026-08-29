@@ -23,7 +23,7 @@ let raw_components graph =
   let depends_on name =
     By_name.find_opt name edges |> Option.value ~default:Names.empty
   in
-  Data.Components.strongly_connected ~name:Fun.id ~depends_on graph.vertices
+  Data.Components.of_graph ~name:Fun.id ~depends_on graph.vertices
 
 let components graph = List.map Data.Components.members (raw_components graph)
 

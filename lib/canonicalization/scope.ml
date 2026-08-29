@@ -250,5 +250,5 @@ let in_dependency_order ~(declaration : 'a -> Canonical.Declaration.t)
   let depends_on member =
     Names.inter (free_in_declaration (declaration member)) own
   in
-  Data.Components.strongly_connected ~name ~depends_on members
+  Data.Components.of_graph ~name ~depends_on members
   |> List.map Data.Components.members
