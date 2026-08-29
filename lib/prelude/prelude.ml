@@ -19,6 +19,7 @@ type t =
   | Result
   | String
   | Task
+  | Time
   | Tuple
   | VirtualDom
 [@@deriving enumerate]
@@ -44,6 +45,7 @@ let name = function
   | Result -> "Result"
   | String -> "String"
   | Task -> "Task"
+  | Time -> "Time"
   | Tuple -> "Tuple"
   | VirtualDom -> "VirtualDom"
 
@@ -72,8 +74,10 @@ let notice module_ =
       derived_from "elm/browser" "Copyright 2017-present Evan Czaplicki"
   | Json_decode | Json_encode ->
       derived_from "elm/json" "Copyright 2014-present Evan Czaplicki"
-  | Basics | Char | Dict | List | Maybe | Platform | Platform_cmd | Platform_sub | Result
-  | String | Task | Tuple ->
+  | Time ->
+      derived_from "elm/time" "Copyright 2018-present Evan Czaplicki"
+  | Basics | Char | Dict | List | Maybe | Platform | Platform_cmd
+  | Platform_sub | Result | String | Task | Tuple ->
       derived_from "elm/core" "Copyright 2014-present Evan Czaplicki"
 
 let source = function
@@ -97,6 +101,7 @@ let source = function
   | Result -> Prelude_source.result
   | String -> Prelude_source.string
   | Task -> Prelude_source.task
+  | Time -> Prelude_source.time
   | Tuple -> Prelude_source.tuple
   | VirtualDom -> Prelude_source.virtual_dom
 
@@ -105,7 +110,7 @@ let imported_by_default = function
   | String | Tuple ->
       true
   | Browser | Browser_dom | Dict | Html | Html_attributes | Html_events
-  | Html_keyed | Html_lazy | Json_decode | Json_encode | Task | VirtualDom ->
+  | Html_keyed | Html_lazy | Json_decode | Json_encode | Task | Time | VirtualDom ->
       false
 
 let exposed_by_default = function
@@ -127,7 +132,7 @@ let exposed_by_default = function
         [ Canonical.Exposed.Type { name = "Sub"; ctors_exposed = false } ]
   | Browser | Browser_dom | Char | Dict | Html | Html_attributes | Html_events
   | Html_keyed | Html_lazy | Json_decode | Json_encode | List | String | Task
-  | Tuple | VirtualDom ->
+  | Time | Tuple | VirtualDom ->
       Canonical.Exposed.Only []
 
 let alias_by_default module_ =
@@ -136,7 +141,7 @@ let alias_by_default module_ =
   | Platform_sub -> Some "Sub"
   | Basics | Browser | Browser_dom | Char | Dict | Html | Html_attributes
   | Html_events | Html_keyed | Html_lazy | Json_decode | Json_encode | List
-  | Maybe | Platform | Result | String | Task | Tuple | VirtualDom ->
+  | Maybe | Platform | Result | String | Task | Time | Tuple | VirtualDom ->
       None
 
 let default_imports : Canonical.Import.t list =

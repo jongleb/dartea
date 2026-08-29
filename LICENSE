@@ -41,18 +41,18 @@ files listed under each.
 elm/core -- https://github.com/elm/core
 Copyright 2014-present Evan Czaplicki
 
-    lib/prelude/Basics.elm
-    lib/prelude/Char.elm
-    lib/prelude/Dict.elm
-    lib/prelude/List.elm
-    lib/prelude/Maybe.elm
-    lib/prelude/Platform.elm
-    lib/prelude/Platform.Cmd.elm
-    lib/prelude/Platform.Sub.elm
-    lib/prelude/Result.elm
-    lib/prelude/String.elm
-    lib/prelude/Task.elm
-    lib/prelude/Tuple.elm
+    lib/prelude/packages/core/Basics.elm
+    lib/prelude/packages/core/Char.elm
+    lib/prelude/packages/core/Dict.elm
+    lib/prelude/packages/core/List.elm
+    lib/prelude/packages/core/Maybe.elm
+    lib/prelude/packages/core/Platform.elm
+    lib/prelude/packages/core/Platform.Cmd.elm
+    lib/prelude/packages/core/Platform.Sub.elm
+    lib/prelude/packages/core/Result.elm
+    lib/prelude/packages/core/String.elm
+    lib/prelude/packages/core/Task.elm
+    lib/prelude/packages/core/Tuple.elm
     lib/prelude/prelude.ml
     lib/data/kernel.ml
     lib/codegen/js/dartea_runtime.js
@@ -128,6 +128,17 @@ The file is the upstream TodoMVC application, kept as a test that dartea
 compiles a real Elm program. The `port module` header, the `setStorage` port and
 `updateWithStorage` are removed; nothing else is changed. It is a test fixture,
 not part of the compiler, and is not redistributed in compiled output.
+
+
+elm/time -- https://github.com/elm/time
+Copyright 2018-present Evan Czaplicki
+
+    lib/prelude/packages/time/Time.elm
+
+The module name, the `Posix` type and the shape of `Time.every` are reproduced;
+the subscription machinery is dartea's own. A program that imports Time is
+compiled alongside Time.mjs, and redistributing that output redistributes
+material derived from elm/time.
 
 
 elm/compiler -- https://github.com/elm/compiler

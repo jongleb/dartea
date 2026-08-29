@@ -1,0 +1,11 @@
+Result
+andThen
+fromMaybe
+map
+map2
+map3
+map4
+map5
+mapError
+toMaybe
+withDefault

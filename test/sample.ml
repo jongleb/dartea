@@ -106,6 +106,22 @@ main =
 
 let dom = {|let created = 0;
 let replaced = 0;
+let started = 0;
+const timers = new Map();
+
+globalThis.setInterval = (fire, _wait) => {
+  started += 1;
+  timers.set(started, fire);
+  return started;
+};
+
+globalThis.clearInterval = (id) => {
+  timers.delete(id);
+};
+
+const ticked = () => {
+  for (const fire of [...timers.values()]) fire();
+};
 let styled = 0;
 let attributed = 0;
 let erased = 0;
@@ -505,6 +521,217 @@ console.log(
     counted(strip) +
     " | " +
     JSON.stringify(shown(host)),
+);
+|}
+
+let task_program = {|module Main exposing (main)
+
+import Browser
+import Html exposing (Html, div, text)
+import Task exposing (Task)
+
+
+type Msg
+    = Told String
+
+
+update : Msg -> String -> ( String, Cmd Msg )
+update msg model =
+    case msg of
+        Told written ->
+            ( model ++ written, Cmd.none )
+
+
+chained : Task String String
+chained =
+    Task.succeed "a"
+        |> Task.andThen (\one -> Task.succeed (one ++ "b"))
+        |> Task.andThen (\two -> Task.fail (two ++ "!"))
+        |> Task.onError (\reason -> Task.succeed (reason ++ "recovered"))
+
+
+skipped : Task String String
+skipped =
+    Task.fail "boom"
+        |> Task.andThen (\_ -> Task.succeed "NOT")
+
+
+listed : Task String String
+listed =
+    Task.sequence [ Task.succeed "1", Task.succeed "2", Task.succeed "3" ]
+        |> Task.map (String.join "")
+
+
+shown : Result String String -> Msg
+shown outcome =
+    case outcome of
+        Ok value ->
+            Told ("ok:" ++ value ++ " ")
+
+        Err reason ->
+            Told ("err:" ++ reason ++ " ")
+
+
+view : String -> Browser.Document Msg
+view model =
+    { title = "tasks", body = [ div [] [ text model ] ] }
+
+
+main : Program () String Msg
+main =
+    Browser.document
+        { init =
+            \_ ->
+                ( ""
+                , Cmd.batch
+                    [ Task.attempt shown chained
+                    , Task.attempt shown skipped
+                    , Task.attempt shown listed
+                    ]
+                )
+        , view = view
+        , update = update
+        , subscriptions = \_ -> Sub.none
+        }
+|}
+
+let task_stub = dom ^ {|const host = make("body");
+const { mount } = await import("./main.js");
+mount(host, null);
+console.log(shown(host).trim());
+|}
+
+let mapped_command_program = {|module Main exposing (main)
+
+import Browser
+import Html exposing (Html, div, text)
+import Task exposing (Task)
+
+
+type Inner
+    = Reported String
+
+
+type Msg
+    = Wrapped Inner
+
+
+update : Msg -> String -> ( String, Cmd Msg )
+update msg model =
+    case msg of
+        Wrapped (Reported written) ->
+            ( model ++ written, Cmd.none )
+
+
+inner : Cmd Inner
+inner =
+    Cmd.batch
+        [ Task.attempt told (Task.succeed "one")
+        , Task.attempt told (Task.fail "two")
+        ]
+
+
+told : Result String String -> Inner
+told outcome =
+    case outcome of
+        Ok value ->
+            Reported ("ok:" ++ value ++ " ")
+
+        Err reason ->
+            Reported ("err:" ++ reason ++ " ")
+
+
+view : String -> Browser.Document Msg
+view model =
+    { title = "mapped", body = [ div [] [ text model ] ] }
+
+
+main : Program () String Msg
+main =
+    Browser.document
+        { init = \_ -> ( "", Cmd.map Wrapped inner )
+        , view = view
+        , update = update
+        , subscriptions = \_ -> Sub.none
+        }
+|}
+
+let ticking_program = {|module Main exposing (main)
+
+import Browser
+import Html exposing (Html, button, div, text)
+import Html.Events exposing (onClick)
+import Time
+
+
+type Msg
+    = Ticked Time.Posix
+    | Stopped
+
+
+type alias Model =
+    { ticks : Int, watching : Bool }
+
+
+update : Msg -> Model -> ( Model, Cmd Msg )
+update msg model =
+    case msg of
+        Ticked _ ->
+            ( { model | ticks = model.ticks + 1 }, Cmd.none )
+
+        Stopped ->
+            ( { model | watching = False }, Cmd.none )
+
+
+view : Model -> Browser.Document Msg
+view model =
+    { title = "ticks"
+    , body =
+        [ div [] [ button [ onClick Stopped ] [ text "stop" ] ]
+        , div [] [ text (String.fromInt model.ticks) ]
+        ]
+    }
+
+
+main : Program () Model Msg
+main =
+    Browser.document
+        { init = \_ -> ( { ticks = 0, watching = True }, Cmd.none )
+        , view = view
+        , update = update
+        , subscriptions =
+            \model ->
+                if model.watching then
+                    Time.every 1000 Ticked
+
+                else
+                    Sub.none
+        }
+|}
+
+let ticking_stub = dom ^ {|const host = make("body");
+const { mount } = await import("./main.js");
+mount(host, null);
+const counted = () => shown(host.childNodes[1]);
+const opening = timers.size;
+ticked();
+ticked();
+const beating = counted();
+const kept = timers.size;
+tagged(host, "button")[0].listeners.click(happening({}));
+const cleared = timers.size;
+ticked();
+console.log(
+  "timers " +
+    opening +
+    " | ticks " +
+    beating +
+    " | still " +
+    kept +
+    " | after stop " +
+    cleared +
+    " | silent " +
+    counted(),
 );
 |}
 

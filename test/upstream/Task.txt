@@ -1,0 +1,14 @@
+Task
+andThen
+attempt
+fail
+map
+map2
+map3
+map4
+map5
+mapError
+onError
+perform
+sequence
+succeed

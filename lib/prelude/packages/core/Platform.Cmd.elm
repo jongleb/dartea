@@ -4,13 +4,16 @@
    Derived from elm/core -- https://github.com/elm/core
    Copyright 2014-present Evan Czaplicki, BSD 3-Clause License.
    dartea's LICENSE carries the full text and the file-by-file list.
--}module Platform.Cmd exposing (Cmd, batch, none)
+-}
+
+
+module Platform.Cmd exposing (Cmd, batch, map, none)
 
 import List
 
 
-type Effect msg
-    = Effect
+type alias Effect msg =
+    (msg -> ()) -> ()
 
 
 type Cmd msg
@@ -27,3 +30,16 @@ none =
 batch : List (Cmd msg) -> Cmd msg
 batch =
     Batch
+
+
+map : (a -> msg) -> Cmd a -> Cmd msg
+map tagger command =
+    case command of
+        None ->
+            None
+
+        Batch commands ->
+            Batch (List.map (map tagger) commands)
+
+        Perform run ->
+            Perform (\dispatch -> run (\value -> dispatch (tagger value)))

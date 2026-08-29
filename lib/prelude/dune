@@ -1,11 +1,11 @@
 (rule
  (target prelude_source.ml)
  (deps
-  Basics.elm
+  packages/core/Basics.elm
   packages/browser/Browser.elm
   packages/browser/Browser.Dom.elm
-  Char.elm
-  Dict.elm
+  packages/core/Char.elm
+  packages/core/Dict.elm
   packages/html/Html.elm
   packages/html/Html.Attributes.elm
   packages/html/Html.Events.elm
@@ -13,28 +13,29 @@
   packages/html/Html.Lazy.elm
   packages/json/Json.Decode.elm
   packages/json/Json.Encode.elm
-  List.elm
-  Maybe.elm
-  Platform.elm
-  Platform.Cmd.elm
-  Platform.Sub.elm
-  Result.elm
-  String.elm
-  Task.elm
-  Tuple.elm
+  packages/core/List.elm
+  packages/core/Maybe.elm
+  packages/core/Platform.elm
+  packages/core/Platform.Cmd.elm
+  packages/core/Platform.Sub.elm
+  packages/core/Result.elm
+  packages/core/String.elm
+  packages/core/Task.elm
+  packages/time/Time.elm
+  packages/core/Tuple.elm
   packages/virtual-dom/VirtualDom.elm)
  (action
   (with-stdout-to
    prelude_source.ml
    (progn
     (echo "let basics = {elm|")
-    (cat Basics.elm)
+    (cat packages/core/Basics.elm)
     (echo "|elm}\n\nlet browser = {elm|")
     (cat packages/browser/Browser.elm)
     (echo "|elm}\n\nlet char = {elm|")
-    (cat Char.elm)
+    (cat packages/core/Char.elm)
     (echo "|elm}\n\nlet dict = {elm|")
-    (cat Dict.elm)
+    (cat packages/core/Dict.elm)
     (echo "|elm}\n\nlet html = {elm|")
     (cat packages/html/Html.elm)
     (echo "|elm}\n\nlet html_attributes = {elm|")
@@ -50,25 +51,27 @@
     (echo "|elm}\n\nlet json_encode = {elm|")
     (cat packages/json/Json.Encode.elm)
     (echo "|elm}\n\nlet list = {elm|")
-    (cat List.elm)
+    (cat packages/core/List.elm)
     (echo "|elm}\n\nlet maybe = {elm|")
-    (cat Maybe.elm)
+    (cat packages/core/Maybe.elm)
     (echo "|elm}\n\nlet platform = {elm|")
-    (cat Platform.elm)
+    (cat packages/core/Platform.elm)
     (echo "|elm}\n\nlet platform_cmd = {elm|")
-    (cat Platform.Cmd.elm)
+    (cat packages/core/Platform.Cmd.elm)
     (echo "|elm}\n\nlet platform_sub = {elm|")
-    (cat Platform.Sub.elm)
+    (cat packages/core/Platform.Sub.elm)
     (echo "|elm}\n\nlet result = {elm|")
-    (cat Result.elm)
+    (cat packages/core/Result.elm)
     (echo "|elm}\n\nlet string = {elm|")
-    (cat String.elm)
+    (cat packages/core/String.elm)
     (echo "|elm}\n\nlet task = {elm|")
-    (cat Task.elm)
+    (cat packages/core/Task.elm)
+    (echo "|elm}\n\nlet time = {elm|")
+    (cat packages/time/Time.elm)
     (echo "|elm}\n\nlet browser_dom = {elm|")
     (cat packages/browser/Browser.Dom.elm)
     (echo "|elm}\n\nlet tuple = {elm|")
-    (cat Tuple.elm)
+    (cat packages/core/Tuple.elm)
     (echo "|elm}\n\nlet virtual_dom = {elm|")
     (cat packages/virtual-dom/VirtualDom.elm)
     (echo "|elm}\n")))))

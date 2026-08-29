@@ -108,6 +108,19 @@ let test_a_point_change_writes_once _ =
     {|bump 0/0/0/1 | paint 0/1/0/0 | strip 0/0/1/0 | "bps1"|}
     (printed_by ~program:Sample.counted_program ~stub:Sample.counted_stub)
 
+let test_tasks_run_in_order _ =
+  assert_equal ~printer:Fun.id "ok:ab!recovered err:boom ok:123"
+    (printed_by ~program:Sample.task_program ~stub:Sample.task_stub)
+
+let test_a_mapped_command_keeps_its_tagger _ =
+  assert_equal ~printer:Fun.id "ok:one err:two"
+    (printed_by ~program:Sample.mapped_command_program ~stub:Sample.task_stub)
+
+let test_a_subscription_outlives_updates _ =
+  assert_equal ~printer:Fun.id
+    "timers 1 | ticks 2 | still 1 | after stop 0 | silent 2"
+    (printed_by ~program:Sample.ticking_program ~stub:Sample.ticking_stub)
+
 let test_guards_stay_silent_like_elm _ =
   assert_equal ~printer:Fun.id
     {|script p | svg http://www.w3.org/2000/svg | xlink http://www.w3.org/1999/xlink #icon | viewBox undefined | hrefs ["","","","","/safe"] | onclick {"data-onclick":"boom()"} | innerHTML "<b>"|}
@@ -191,6 +204,10 @@ let suite =
     "typing_reaches_the_model" >:: test_typing_reaches_the_model;
     "mapped_messages_reach_the_model" >:: test_mapped_messages_reach_the_model;
     "a_point_change_writes_once" >:: test_a_point_change_writes_once;
+    "tasks_run_in_order" >:: test_tasks_run_in_order;
+    "a_subscription_outlives_updates" >:: test_a_subscription_outlives_updates;
+    "a_mapped_command_keeps_its_tagger"
+    >:: test_a_mapped_command_keeps_its_tagger;
     "guards_stay_silent_like_elm" >:: test_guards_stay_silent_like_elm;
     "the_real_todomvc_runs" >:: test_the_real_todomvc_runs;
     "the_real_todomvc_runs" >:: test_the_real_todomvc_runs;

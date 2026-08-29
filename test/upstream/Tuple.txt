@@ -1,0 +1,6 @@
+first
+mapBoth
+mapFirst
+mapSecond
+pair
+second

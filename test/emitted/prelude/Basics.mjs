@@ -84,4 +84,12 @@ const composeL = (g, f, x$4) => Dartea_runtime.$$curry(g, [Dartea_runtime.$$curr
 const composeR = (f$1, g$1, x$5) => Dartea_runtime.$$curry(g$1, [Dartea_runtime.$$curry(f$1, [x$5])]);
 const apR = (x$6, f$2) => Dartea_runtime.$$curry(f$2, [x$6]);
 const apL = (f$3, x$7) => Dartea_runtime.$$curry(f$3, [x$7]);
-export { EQ, GT, LT, abs, acos, always, apL, apR, asin, atan, atan2, ceiling, clamp, compare, composeL, composeR, cos, degrees, e, floor, identity, isInfinite, $$isNaN, logBase, max, min, modBy, negate, not, pi, radians, remainderBy, round, sin, sqrt, tan, toFloat, truncate, turns, xor };
+const never = nvr => {
+  while (true) {
+    const inner = nvr._0;
+    const $s1 = inner;
+    nvr = $s1;
+    continue;
+  }
+};
+export { EQ, GT, LT, abs, acos, always, apL, apR, asin, atan, atan2, ceiling, clamp, compare, composeL, composeR, cos, degrees, e, floor, identity, isInfinite, $$isNaN, logBase, max, min, modBy, negate, never, not, pi, radians, remainderBy, round, sin, sqrt, tan, toFloat, truncate, turns, xor };

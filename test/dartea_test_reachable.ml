@@ -11,12 +11,12 @@ let expected =
   [
     "browser 2/2 declarations, 92/92 bytes";
     "comparison 96/102 declarations, 9100/10195 bytes";
-    "counter 72/72 declarations, 7549/7549 bytes";
+    "counter 72/72 declarations, 7572/7572 bytes";
     "crossmod 10/10 declarations, 951/951 bytes";
     "currying 25/25 declarations, 1582/1582 bytes";
     "elm_code 135/135 declarations, 22248/22248 bytes";
     "fib 4/4 declarations, 530/530 bytes";
-    "todomvc 179/179 declarations, 24506/24506 bytes";
+    "todomvc 186/186 declarations, 26585/26585 bytes";
   ]
 
 let test_playgrounds _ =
@@ -33,10 +33,22 @@ let counted source =
        (fun line -> String.starts_with ~prefix:"const " line)
        (String.split_on_char '\n' source))
 
+let opening = [ "let "; "var "; "function "; "class " ]
+
 let test_runtimes_survive_a_total_shake _ =
   List.iter
     (fun (module_name, source) ->
       let file = Codegen_js.Shake.parsed source in
+      List.iter
+        (fun line ->
+          List.iter
+            (fun keyword ->
+              assert_bool
+                (module_name ^ " has a top-level `" ^ String.trim keyword
+               ^ "` the shaker cannot see: " ^ line)
+                (not (String.starts_with ~prefix:keyword line)))
+            opening)
+        (String.split_on_char '\n' source);
       assert_equal ~printer:string_of_int
         ~msg:(module_name ^ " has helpers the split did not find")
         (counted source) (List.length file.blocks);

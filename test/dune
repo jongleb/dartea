@@ -4,6 +4,7 @@
   dartea_runtime_test.c
   (source_tree errors)
   (source_tree emitted)
+  (source_tree upstream)
   (source_tree ../playgrounds)
   ../bin/main.exe
   ../lib/codegen/c/dartea_runtime.h

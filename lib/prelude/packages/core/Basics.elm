@@ -18,6 +18,7 @@ module Basics exposing
     , isNaN, isInfinite
     , composeL, composeR
     , apL, apR
+    , Never, never
     )
 
 
@@ -245,3 +246,14 @@ apR x f =
 apL : (a -> b) -> a -> b
 apL f x =
     f x
+
+
+type Never
+    = JustOneMore Never
+
+
+never : Never -> a
+never nvr =
+    case nvr of
+        JustOneMore inner ->
+            never inner

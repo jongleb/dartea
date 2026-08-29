@@ -24,8 +24,14 @@ let provided =
     (Browser, "VirtualDom", "mapAttribute", 2);
     (Browser, "Browser", "sandbox", 1);
     (Browser, "Browser", "document", 1);
+    (Browser, "Task", "succeed", 1);
+    (Browser, "Task", "fail", 1);
+    (Browser, "Task", "andThen", 2);
+    (Browser, "Task", "onError", 2);
+    (Browser, "Task", "perform", 2);
     (Browser, "Task", "attempt", 2);
     (Browser, "Dom", "focus", 1);
+    (Browser, "Time", "every", 2);
     (Json, "Json", "isString", 1);
     (Json, "Json", "isBool", 1);
     (Json, "Json", "isNumber", 1);

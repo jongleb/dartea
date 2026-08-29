@@ -1,0 +1,14 @@
+Char
+fromCode
+isAlpha
+isAlphaNum
+isDigit
+isHexDigit
+isLower
+isOctDigit
+isUpper
+toCode
+toLocaleLower
+toLocaleUpper
+toLower
+toUpper
