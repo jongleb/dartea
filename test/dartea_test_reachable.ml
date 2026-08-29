@@ -16,7 +16,7 @@ let expected =
     "currying 25/25 declarations, 1582/1582 bytes";
     "elm_code 135/135 declarations, 22248/22248 bytes";
     "fib 4/4 declarations, 530/530 bytes";
-    "todomvc 186/186 declarations, 26585/26585 bytes";
+    "todomvc 186/186 declarations, 26581/26581 bytes";
   ]
 
 let test_playgrounds _ =

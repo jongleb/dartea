@@ -22,7 +22,7 @@ let expected =
     "Char 11/14";
     "Dict 23/23";
     "Html 101/101";
-    "Html.Attributes 16/86";
+    "Html.Attributes 86/86";
     "Html.Events 20/20";
     "Html.Keyed 3/3";
     "Html.Lazy 8/8";
