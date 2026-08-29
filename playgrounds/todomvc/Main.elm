@@ -5,8 +5,9 @@
    Copyright (c) 2014-2016, Evan Czaplicki, BSD 3-Clause License.
    dartea's LICENSE carries the full text and the file-by-file list.
 
-   Unchanged from the original: this is the upstream file, kept as a test that
-   dartea compiles a real Elm program.
+   Changed from the original: `infoFooter` and its call are removed, so the
+   example shows only the application. Everything else is the upstream file,
+   kept as a test that dartea compiles a real Elm program.
 -}
 
 
@@ -235,7 +236,6 @@ view model =
             , lazy2 viewEntries model.visibility model.entries
             , lazy2 viewControls model.visibility model.entries
             ]
-        , infoFooter
         ]
 
 
@@ -428,19 +428,4 @@ viewControlsClear entriesCompleted =
         , onClick DeleteComplete
         ]
         [ text ("Clear completed (" ++ String.fromInt entriesCompleted ++ ")")
-        ]
-
-
-infoFooter : Html msg
-infoFooter =
-    footer [ class "info" ]
-        [ p [] [ text "Double-click to edit a todo" ]
-        , p []
-            [ text "Written by "
-            , a [ href "https://github.com/evancz" ] [ text "Evan Czaplicki" ]
-            ]
-        , p []
-            [ text "Part of "
-            , a [ href "http://todomvc.com" ] [ text "TodoMVC" ]
-            ]
         ]

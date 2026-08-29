@@ -125,9 +125,9 @@ Copyright (c) 2014-2016, Evan Czaplicki
     playgrounds/todomvc/Main.elm
 
 The file is the upstream TodoMVC application, kept as a test that dartea
-compiles a real Elm program. The `port module` header, the `setStorage` port and
-`updateWithStorage` are removed; nothing else is changed. It is a test fixture,
-not part of the compiler, and is not redistributed in compiled output.
+compiles a real Elm program. Only `infoFooter` and its call are removed;
+nothing else is changed. It is a test fixture, not part of the compiler, and is
+not redistributed in compiled output.
 
 
 elm/time -- https://github.com/elm/time

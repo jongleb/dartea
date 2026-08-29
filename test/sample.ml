@@ -200,11 +200,12 @@ const tagged = (node, tag, into = []) => {
 
 const found = (node, tag) => tagged(node, tag)[0];
 
-const happening = (extra) => ({
-  ...extra,
-  stopPropagation() { stopped += 1; },
-  preventDefault() { prevented += 1; },
-});
+const happening = (extra) =>
+  Object.create({
+    ...extra,
+    stopPropagation() { stopped += 1; },
+    preventDefault() { prevented += 1; },
+  });
 
 const launched = async (flags) => {
   await import("./main.js");
