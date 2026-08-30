@@ -680,13 +680,7 @@ let import_lines imports =
                })
            modules)
 
-let comment_lines lines =
-  match lines with
-  | [] -> ""
-  | spoken ->
-      To_string.program_to_string (List.map (fun line -> J.Comment line) spoken)
-
-let emit_module ~blocks ~notice ~arities ~constructors ~built ~siblings
+let emit_module ~blocks ~arities ~constructors ~built ~siblings
     ~typedecls ~imports ~exports (decls : O.Declaration.t list) :
     string * (string * string list) list =
   let program =
@@ -701,7 +695,6 @@ let emit_module ~blocks ~notice ~arities ~constructors ~built ~siblings
         | members -> Some (name, members))
       (runtime_module_name :: Platform_kernel.module_names)
   in
-  ( comment_lines notice
-    ^ import_lines (List.map fst runtimes @ imports)
+  ( import_lines (List.map fst runtimes @ imports)
     ^ To_string.program_to_string program,
     runtimes )

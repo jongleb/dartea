@@ -1,5 +1,3 @@
-// Compiled by dartea, an independent compiler. Not affiliated with or
-// endorsed by the Elm project.
 import * as Json$Decode from "./Json.Decode.mjs";
 import * as VirtualDom from "./VirtualDom.mjs";
 const on = (event, decoder) => VirtualDom.on(event, VirtualDom.Normal(decoder));

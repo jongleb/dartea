@@ -1,5 +1,3 @@
-// Compiled by dartea, an independent compiler. Not affiliated with or
-// endorsed by the Elm project.
 import * as Dartea_json from "./Dartea_json.mjs";
 import * as List from "./List.mjs";
 import * as Tuple from "./Tuple.mjs";

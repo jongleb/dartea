@@ -1,5 +1,3 @@
-// Compiled by dartea, an independent compiler. Not affiliated with or
-// endorsed by the Elm project.
 import * as VirtualDom from "./VirtualDom.mjs";
 const lazy = (eta1, eta2) => VirtualDom.lazy(eta1, eta2);
 const lazy2 = (eta1$1, eta2$1, eta3) => VirtualDom.lazy2(eta1$1, eta2$1, eta3);

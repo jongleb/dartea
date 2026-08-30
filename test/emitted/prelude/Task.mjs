@@ -1,5 +1,3 @@
-// Compiled by dartea, an independent compiler. Not affiliated with or
-// endorsed by the Elm project.
 import * as Dartea_runtime from "./Dartea_runtime.mjs";
 import * as Dartea_browser from "./Dartea_browser.mjs";
 import * as List from "./List.mjs";

@@ -7,7 +7,6 @@ module type BACKEND = sig
 
   val emit_module :
     blocks:bool ->
-    notice:string list ->
     arities:(Data.Name.t * int) list ->
     constructors:(Data.Name.t * int) list ->
     built:(Data.Name.t * int) list ->
@@ -39,9 +38,9 @@ module Js_backend : BACKEND = struct
         List.map (fun (hole : Codegen_js.Blocks.hole) -> hole.value) holes)
       (Codegen_js.Blocks.of_expression expression)
 
-  let emit_module ~blocks ~notice ~arities ~constructors ~built ~siblings
+  let emit_module ~blocks ~arities ~constructors ~built ~siblings
       ~typedecls ~imports ~exports decls =
-    Codegen_js.Of_optimized.emit_module ~blocks ~notice ~arities ~constructors
+    Codegen_js.Of_optimized.emit_module ~blocks ~arities ~constructors
       ~built ~siblings ~typedecls ~imports ~exports decls
 end
 
@@ -54,7 +53,6 @@ type artifact = {
 
 type linkable = {
   module_name : string;
-  notice : string list;
   arities : (Data.Name.t * int) list;
   constructors : (Data.Name.t * int) list;
   siblings : (Data.Name.t * (Data.Name.t * int) list) list;
@@ -383,7 +381,7 @@ module Make (B : BACKEND) = struct
     else
       let source, runtimes =
         B.emit_module ~blocks:(blocks_for module_.module_name)
-          ~notice:module_.notice ~arities:module_.arities
+          ~arities:module_.arities
           ~constructors:module_.constructors ~built ~siblings:module_.siblings
           ~typedecls:module_.typedecls
           ~imports:(providing_modules ~module_name:module_.module_name declarations)
@@ -436,13 +434,6 @@ module Make (B : BACKEND) = struct
             (prelude_file module_, Prelude.source module_))
           Prelude.all
     in
-    let notice_for name =
-      List.find_opt
-        (fun module_ -> String.equal (Prelude.name module_) name)
-        Prelude.all
-      |> Option.map Prelude.notice
-      |> Option.value ~default:[]
-    in
     let platform_kernel = B.platform_kernel in
     let compile_one progress module_ =
       match resolved_against ~platform_kernel progress.dependencies module_ with
@@ -487,7 +478,6 @@ module Make (B : BACKEND) = struct
                 let linkable_module =
                   {
                     module_name = resolved.name;
-                    notice = notice_for resolved.name;
                     arities = imported_arities imports;
                     constructors;
                     siblings;

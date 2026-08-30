@@ -40,12 +40,6 @@ let packages =
     "elm/virtual-dom"; "elm/url"; "elm/http";
   ]
 
-let compiled_by =
-  [
-    "Compiled by dartea, an independent compiler. Not affiliated with or";
-    "endorsed by the Elm project.";
-  ]
-
 let derived_from source copyright =
   [
     "Contains material derived from " ^ source ^ ",";
@@ -68,7 +62,6 @@ let derived module_ =
   | String | Task ->
       []
 
-let notice module_ = compiled_by @ derived module_
 let is_derived module_ = not (List.is_empty (derived module_))
 let of_name written = List.find_opt (fun module_ -> String.equal (name module_) written) all
 

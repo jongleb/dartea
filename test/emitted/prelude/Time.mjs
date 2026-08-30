@@ -1,5 +1,3 @@
-// Compiled by dartea, an independent compiler. Not affiliated with or
-// endorsed by the Elm project.
 import * as Dartea_browser from "./Dartea_browser.mjs";
 const Posix = _0 => ({ _0: _0 });
 const millisToPosix = eta1 => Posix(eta1);

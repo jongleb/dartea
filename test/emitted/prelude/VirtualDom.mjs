@@ -1,5 +1,3 @@
-// Compiled by dartea, an independent compiler. Not affiliated with or
-// endorsed by the Elm project.
 import * as Dartea_browser from "./Dartea_browser.mjs";
 import * as Basics from "./Basics.mjs";
 import * as Json$Decode from "./Json.Decode.mjs";
