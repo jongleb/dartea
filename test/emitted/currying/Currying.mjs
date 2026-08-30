@@ -13,28 +13,21 @@ const sharesWorkThenReturns = (n, eta1) => {
   return doubled + eta1;
 };
 const etaExpanded = -1 + sharesWorkThenReturns(3, 4);
-const f$1 = $s3 => add(1, $s3);
-const g = $s4 => mul(2, $s4);
-const handlers = { go: $s5 => add(7, $s5) };
-const notAnIdentifier = (true ? f$1 : g)(5) + handlers.go(5);
+const notAnIdentifier = (true ? $s3 => add(1, $s3) : $s4 => mul(2, $s4))(5) + { go: $s5 => add(7, $s5) }.go(5);
 const overApplied = Basics.identity(add)(3, 4);
-const f$2 = (a$2, b$2) => a$2 + b$2;
-const nestedLambda = f$2(3, 4);
-const f$3 = $s6 => add(3, $s6);
-const polymorphicParameter = f$3(4) + 7;
-const $s7 = Maybe.Just(add);
-let $s8;
-if (typeof $s7 === "object") {
-  const f$4 = $s7._0;
-  const b$3 = Boxed(mul);
+const $s6 = Maybe.Just(add);
+let $s7;
+if (typeof $s6 === "object") {
+  const f$1 = $s6._0;
+  const $s8 = Boxed(mul);
   let $s9;
-  const f$5 = b$3._0;
-  $s9 = f$5(1, 2);
-  $s8 = f$4(1, 2) + $s9;
+  const f$2 = $s8._0;
+  $s9 = f$2(1, 2);
+  $s7 = f$1(1, 2) + $s9;
 } else {
-  $s8 = 0;
+  $s7 = 0;
 }
-const throughAGenericSlot = $s8;
+const throughAGenericSlot = $s7;
 const line = (name, value) => name + ("=" + $$String.fromInt(value));
-const report = line("saturated", 3) + ("; " + (line("partial", partial) + ("; " + (line("concreteHigherOrder", concreteHigherOrder) + ("; " + (line("etaExpanded", etaExpanded) + ("; " + (line("notAnIdentifier", notAnIdentifier) + ("; " + (line("overApplied", overApplied) + ("; " + (line("nestedLambda", nestedLambda) + ("; " + (line("polymorphicParameter", polymorphicParameter) + ("; " + line("throughAGenericSlot", throughAGenericSlot))))))))))))))));
+const report = line("saturated", 3) + ("; " + (line("partial", partial) + ("; " + (line("concreteHigherOrder", concreteHigherOrder) + ("; " + (line("etaExpanded", etaExpanded) + ("; " + (line("notAnIdentifier", notAnIdentifier) + ("; " + (line("overApplied", overApplied) + ("; " + (line("nestedLambda", 7) + ("; " + (line("polymorphicParameter", 14) + ("; " + line("throughAGenericSlot", throughAGenericSlot))))))))))))))));
 export { report };

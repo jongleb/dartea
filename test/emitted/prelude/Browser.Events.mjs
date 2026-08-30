@@ -13,7 +13,6 @@ const Document = "Document";
 const Window = "Window";
 const onAnimationFrame = toMsg => Dartea_browser.$$Browser$onAnimationFrame(millis => Dartea_runtime.$$curry(toMsg, [Time.millisToPosix(millis)]));
 const onAnimationFrameDelta = Dartea_browser.$$Browser$onAnimationFrameDelta;
-const listen = Dartea_browser.$$Browser$on;
 const onKeyPress = eta1 => {
   let $s1;
   if (Document === "Document") {
@@ -21,7 +20,7 @@ const onKeyPress = eta1 => {
   } else {
     $s1 = "window";
   }
-  return listen($s1, "keypress", eta1);
+  return Dartea_browser.$$Browser$on($s1, "keypress", eta1);
 };
 const onKeyDown = eta1$1 => {
   let $s2;
@@ -30,7 +29,7 @@ const onKeyDown = eta1$1 => {
   } else {
     $s2 = "window";
   }
-  return listen($s2, "keydown", eta1$1);
+  return Dartea_browser.$$Browser$on($s2, "keydown", eta1$1);
 };
 const onKeyUp = eta1$2 => {
   let $s3;
@@ -39,7 +38,7 @@ const onKeyUp = eta1$2 => {
   } else {
     $s3 = "window";
   }
-  return listen($s3, "keyup", eta1$2);
+  return Dartea_browser.$$Browser$on($s3, "keyup", eta1$2);
 };
 const onClick = eta1$3 => {
   let $s4;
@@ -48,7 +47,7 @@ const onClick = eta1$3 => {
   } else {
     $s4 = "window";
   }
-  return listen($s4, "click", eta1$3);
+  return Dartea_browser.$$Browser$on($s4, "click", eta1$3);
 };
 const onMouseMove = eta1$4 => {
   let $s5;
@@ -57,7 +56,7 @@ const onMouseMove = eta1$4 => {
   } else {
     $s5 = "window";
   }
-  return listen($s5, "mousemove", eta1$4);
+  return Dartea_browser.$$Browser$on($s5, "mousemove", eta1$4);
 };
 const onMouseDown = eta1$5 => {
   let $s6;
@@ -66,7 +65,7 @@ const onMouseDown = eta1$5 => {
   } else {
     $s6 = "window";
   }
-  return listen($s6, "mousedown", eta1$5);
+  return Dartea_browser.$$Browser$on($s6, "mousedown", eta1$5);
 };
 const onMouseUp = eta1$6 => {
   let $s7;
@@ -75,27 +74,25 @@ const onMouseUp = eta1$6 => {
   } else {
     $s7 = "window";
   }
-  return listen($s7, "mouseup", eta1$6);
+  return Dartea_browser.$$Browser$on($s7, "mouseup", eta1$6);
 };
 const onResize = func => {
-  const decoder = Json$Decode.field("target", Json$Decode.map2(func, Json$Decode.field("innerWidth", Json$Decode.$$int), Json$Decode.field("innerHeight", Json$Decode.$$int)));
   let $s8;
   if (Window === "Document") {
     $s8 = "document";
   } else {
     $s8 = "window";
   }
-  return listen($s8, "resize", decoder);
+  return Dartea_browser.$$Browser$on($s8, "resize", Json$Decode.field("target", Json$Decode.map2(func, Json$Decode.field("innerWidth", Json$Decode.$$int), Json$Decode.field("innerHeight", Json$Decode.$$int))));
 };
 const withHidden = (func$1, isHidden) => Dartea_runtime.$$curry(func$1, [isHidden ? Hidden : Visible]);
 const onVisibilityChange = func$2 => {
-  const decoder$1 = Json$Decode.map($s9 => withHidden(func$2, $s9), Json$Decode.field("target", Json$Decode.field("hidden", Json$Decode.bool)));
-  let $s10;
+  let $s9;
   if (Document === "Document") {
-    $s10 = "document";
+    $s9 = "document";
   } else {
-    $s10 = "window";
+    $s9 = "window";
   }
-  return listen($s10, "visibilitychange", decoder$1);
+  return Dartea_browser.$$Browser$on($s9, "visibilitychange", Json$Decode.map($s10 => withHidden(func$2, $s10), Json$Decode.field("target", Json$Decode.field("hidden", Json$Decode.bool))));
 };
 export { Hidden, Visible, onAnimationFrame, onAnimationFrameDelta, onClick, onKeyDown, onKeyPress, onKeyUp, onMouseDown, onMouseMove, onMouseUp, onResize, onVisibilityChange };

@@ -10,7 +10,6 @@ const External = _0 => ({ TAG: "External", _0: _0 });
 const sandbox = Dartea_browser.$$Browser$sandbox;
 const element = Dartea_browser.$$Browser$element;
 const document = Dartea_browser.$$Browser$document;
-const applicationWith = Dartea_browser.$$Browser$application;
-const application = impl => applicationWith(Url.fromString, impl);
+const application = impl => Dartea_browser.$$Browser$application(Url.fromString, impl);
 const Document = ($a0, $a1) => ({ title: $a0, body: $a1 });
 export { Document, External, Internal, application, document, element, sandbox };

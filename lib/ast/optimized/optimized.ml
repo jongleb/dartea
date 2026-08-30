@@ -220,7 +220,10 @@ module Expr = struct
          (fun (p : expr_lambda_param) -> Data.Name.local (Data.Located.unwrap p.name))
          params)
 
-  let rec free_variables ~(bound : Names.t) (e : t) : Names.t =
+  let whole (_ : t) : t list option = None
+
+  let rec free_variables ?(through = whole) ~(bound : Names.t) (e : t) : Names.t =
+    let free_variables = free_variables ~through in
     match e.expr with
     | Expr_ident name ->
         if Names.mem name bound then Names.empty else Names.singleton name
@@ -254,10 +257,12 @@ module Expr = struct
     | Expr_record_select _ | Expr_record_empty | Expr_unit | Expr_kernel _
     | Expr_char _ | Expr_string _ | Expr_int _ | Expr_float _ | Expr_list _
     | Expr_cons _ | Expr_tuple _ ->
-        union_map (free_variables ~bound) (children e)
+        let below = Option.value ~default:(children e) (through e) in
+        union_map (free_variables ~bound) below
 
-  let rec references (e : t) : Names.t =
-    let inside = union_map references (children e) in
+  let rec references ?(through = whole) (e : t) : Names.t =
+    let below = Option.value ~default:(children e) (through e) in
+    let inside = union_map (references ~through) below in
     match e.expr with
     | Expr_ident name -> Names.add name inside
     | Expr_constr { name; _ } -> Names.add name inside
@@ -425,10 +430,11 @@ module Declaration = struct
     Expr.Names.of_list
       (List.map (fun (p : param) -> Data.Name.local (Data.Located.unwrap p.name)) d.params)
 
-  let free (d : t) : Expr.Names.t = Expr.free_variables ~bound:(bound d) d.body
+  let free ?through (d : t) : Expr.Names.t =
+    Expr.free_variables ?through ~bound:(bound d) d.body
 
-  let references_in_all (decls : t list) : Expr.Names.t =
-    Expr.union_map (fun (d : t) -> Expr.references d.body) decls
+  let references_in_all ?through (decls : t list) : Expr.Names.t =
+    Expr.union_map (fun (d : t) -> Expr.references ?through d.body) decls
 
   let of_typed (d : Typed.Declaration.t) : t =
     let params =

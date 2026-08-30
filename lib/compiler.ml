@@ -3,8 +3,10 @@ module type BACKEND = sig
   val runtime_modules : (string * string list) list -> (string * string) list
 
   val platform_kernel : Data.Name.t -> int option
+  val through : Optimized.Expr.t -> Optimized.Expr.t list option
 
   val emit_module :
+    blocks:bool ->
     notice:string list ->
     arities:(Data.Name.t * int) list ->
     constructors:(Data.Name.t * int) list ->
@@ -31,10 +33,16 @@ module Js_backend : BACKEND = struct
 
   let platform_kernel = Codegen_js.Platform_kernel.arity
 
-  let emit_module ~notice ~arities ~constructors ~built ~siblings ~typedecls
-      ~imports ~exports decls =
-    Codegen_js.Of_optimized.emit_module ~notice ~arities ~constructors ~built
-      ~siblings ~typedecls ~imports ~exports decls
+  let through expression =
+    Option.map
+      (fun (_, holes) ->
+        List.map (fun (hole : Codegen_js.Blocks.hole) -> hole.value) holes)
+      (Codegen_js.Blocks.of_expression expression)
+
+  let emit_module ~blocks ~notice ~arities ~constructors ~built ~siblings
+      ~typedecls ~imports ~exports decls =
+    Codegen_js.Of_optimized.emit_module ~blocks ~notice ~arities ~constructors
+      ~built ~siblings ~typedecls ~imports ~exports decls
 end
 
 type artifact = {
@@ -159,8 +167,16 @@ module Make (B : BACKEND) = struct
     entry : Entry.t option;
   }
 
-  let providing_modules declarations =
-    Optimized.Declaration.references_in_all declarations
+  let is_prelude name =
+    List.exists (fun module_ -> String.equal (Prelude.name module_) name) Prelude.all
+
+  let blocks_for module_name = not (is_prelude module_name)
+
+  let through_of module_name =
+    if blocks_for module_name then B.through else Optimized.Expr.whole
+
+  let providing_modules ~module_name declarations =
+    Optimized.Declaration.references_in_all ~through:(through_of module_name) declarations
     |> Data.Name.Set.elements
     |> List.filter_map (fun (name : Data.Name.t) ->
            match name with
@@ -168,10 +184,25 @@ module Make (B : BACKEND) = struct
            | Data.Name.Local _ -> None)
     |> List.sort_uniq String.compare
 
-  let prepare (typed : Infer.Declarations.infer_result) =
+  let inline_modules = [ "Html"; "Html.Attributes"; "Html.Events" ]
+
+  let imports_of (compiled : linkable list) =
+    List.filter_map
+      (fun (module_ : linkable) ->
+        if List.mem module_.module_name inline_modules then
+          Some
+            {
+              After_typed.Optimize.Import.module_name = module_.module_name;
+              exports = module_.exports;
+              declarations = module_.declarations;
+            }
+        else None)
+      compiled
+
+  let prepare ~imports (typed : Infer.Declarations.infer_result) =
     let declarations =
       match
-        After_typed.Optimize.optimize typed.declarations
+        After_typed.Optimize.optimize ~imports typed.declarations
         |> Optimized.Declaration.in_dependency_order
       with
       | Ok declarations -> declarations
@@ -291,7 +322,7 @@ module Make (B : BACKEND) = struct
           (fun found declaration ->
             Bodies.add
               (module_.module_name, name_of_declaration declaration)
-              (Optimized.Declaration.free declaration)
+              (Optimized.Declaration.free ~through:(through_of module_.module_name) declaration)
               found)
           found module_.declarations)
       Bodies.empty modules
@@ -351,10 +382,11 @@ module Make (B : BACKEND) = struct
     then None
     else
       let source, runtimes =
-        B.emit_module ~notice:module_.notice ~arities:module_.arities
+        B.emit_module ~blocks:(blocks_for module_.module_name)
+          ~notice:module_.notice ~arities:module_.arities
           ~constructors:module_.constructors ~built ~siblings:module_.siblings
           ~typedecls:module_.typedecls
-          ~imports:(providing_modules declarations)
+          ~imports:(providing_modules ~module_name:module_.module_name declarations)
           ~exports declarations
       in
       Some
@@ -439,7 +471,9 @@ module Make (B : BACKEND) = struct
                   errors = List.rev_append typed.errors known.errors;
                 }
               else
-                let declarations, constructors, siblings = prepare typed in
+                let declarations, constructors, siblings =
+                  prepare ~imports:(imports_of known.output) typed
+                in
                 let exports = exported_names resolved typed in
                 let roots =
                   match entry with

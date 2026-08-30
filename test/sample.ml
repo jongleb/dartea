@@ -136,43 +136,102 @@ let written = 0;
 let stopped = 0;
 let prevented = 0;
 
-const make = (tag) => ({
-  tag,
-  listeners: {},
-  attributes: {},
-  namespaces: {},
-  childNodes: [],
-  style: { setProperty() { styled += 1; }, removeProperty() {} },
-  setAttribute(key, value) { attributed += 1; this.attributes[key] = value; },
-  setAttributeNS(namespace, key, value) {
-    this.attributes[key] = value;
-    this.namespaces[key] = namespace;
-  },
-  removeAttributeNS(namespace, key) { delete this.attributes[key]; },
-  removeAttribute(key) { erased += 1; delete this.attributes[key]; },
-  addEventListener(event, handler) { this.listeners[event] = handler; },
-  appendChild(child) { this.childNodes.push(child); return child; },
-  append(...children) { this.childNodes.push(...children); },
-  replaceChildren(...children) { this.childNodes = [...children]; },
+class Linked {
+  constructor() {
+    this.childNodes = [];
+    this.parentNode = null;
+  }
+  get firstChild() { return this.childNodes[0] ?? null; }
+  get nextSibling() {
+    const kids = this.parentNode.childNodes;
+    return kids[kids.findIndex((kept) => kept === this) + 1] ?? null;
+  }
+  replaceWith(next) { this.parentNode.replaceChild(next, this); }
+  adopt(child) { child.parentNode = this; return child; }
+  appendChild(child) { this.childNodes.push(this.adopt(child)); return child; }
+  append(...children) { this.childNodes.push(...children.map((child) => this.adopt(child))); }
+  replaceChildren(...children) { this.childNodes = children.map((child) => this.adopt(child)); }
   insertBefore(child, before) {
     this.childNodes = this.childNodes.filter((kept) => kept !== child);
     const at =
       before === null ? this.childNodes.length : this.childNodes.indexOf(before);
-    this.childNodes.splice(at, 0, child);
+    this.childNodes.splice(at, 0, this.adopt(child));
     return child;
-  },
+  }
   removeChild(child) {
     this.childNodes = this.childNodes.filter((kept) => kept !== child);
-  },
+    child.parentNode = null;
+  }
   replaceChild(next, previous) {
     replaced += 1;
     this.childNodes = this.childNodes.map((kept) =>
-      kept === previous ? next : kept,
+      kept === previous ? this.adopt(next) : kept,
     );
-  },
-  set textContent(_) { this.childNodes = []; },
-  get textContent() { return ""; },
-});
+    previous.parentNode = null;
+  }
+  set textContent(_) { this.childNodes = []; }
+  get textContent() { return ""; }
+}
+
+class Text extends Linked {
+  constructor(text) {
+    super();
+    this.held = text;
+  }
+  get text() { return this.held; }
+  get data() { return this.held; }
+  set data(next) { written += 1; this.held = next; }
+  get nodeValue() { return this.held; }
+  set nodeValue(next) { this.data = next; }
+  cloneNode() { return new Text(this.held); }
+}
+
+class Made extends Linked {
+  constructor(tag) {
+    super();
+    this.tag = tag;
+    this.listeners = {};
+    this.attributes = {};
+    this.namespaces = {};
+    this.style = { setProperty() { styled += 1; }, removeProperty() {} };
+  }
+  setAttribute(key, value) { attributed += 1; this.attributes[key] = value; }
+  setAttributeNS(namespace, key, value) {
+    this.attributes[key] = value;
+    this.namespaces[key] = namespace;
+  }
+  removeAttributeNS(namespace, key) { delete this.attributes[key]; }
+  removeAttribute(key) { erased += 1; delete this.attributes[key]; }
+  addEventListener(event, handler) { this.listeners[event] = handler; }
+  cloneNode(deep) {
+    const copy =
+      this.namespace === undefined
+        ? document.createElement(this.tag)
+        : document.createElementNS(this.namespace, this.tag);
+    copy.attributes = { ...this.attributes };
+    if (deep) copy.append(...this.childNodes.map((child) => child.cloneNode(true)));
+    return copy;
+  }
+}
+
+const reflected = {
+  className: "class", htmlFor: "for", id: "id", title: "title", lang: "lang", dir: "dir",
+  type: "type", name: "name", placeholder: "placeholder", href: "href", src: "src", alt: "alt",
+  target: "target", rel: "rel", action: "action", method: "method", pattern: "pattern",
+  label: "label", scope: "scope", cite: "cite",
+};
+for (const [property, attribute] of Object.entries(reflected)) {
+  Object.defineProperty(Made.prototype, property, {
+    get() { return this.attributes[attribute]; },
+    set(value) { this.attributes[attribute] = value; },
+  });
+}
+
+const make = (tag) => {
+  const made = new Made(tag);
+  if (tag === "template") made.content = new Linked();
+  return made;
+};
 
 globalThis.document = {
   getElementById: () => undefined,
@@ -183,15 +242,7 @@ globalThis.document = {
     node.namespace = namespace;
     return node;
   },
-  createTextNode: (text) => {
-    let held = text;
-    return {
-      childNodes: [],
-      get text() { return held; },
-      get nodeValue() { return held; },
-      set nodeValue(next) { written += 1; held = next; },
-    };
-  },
+  createTextNode: (text) => new Text(text),
 };
 
 const shown = (node) =>

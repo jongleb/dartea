@@ -5,7 +5,12 @@ module Occ = After_typed.Exhaustive.Occurrence
 module DS = After_typed.Exhaustive.Share
 module Scope = Data.Name.Map
 
-type env = { scope : string Scope.t; names : Names.t; instances : Instances.t }
+type env = {
+  scope : string Scope.t;
+  names : Names.t;
+  instances : Instances.t;
+  forms : Forms.t option;
+}
 
 let runtime_module_name = Names.runtime_module
 let module_ident = Names.module_ident
@@ -498,7 +503,11 @@ and emit_raw env (e : O.Expr.t) : J.stmt list * J.expr =
       let sr, er = emit_value env record in
       let ss, members = emit_fields env fields in
       (sr @ ss, J.Object (J.Spread er :: members))
-  | O.Expr.Expr_apply { fn; arg } -> emit_apply env fn arg
+  | O.Expr.Expr_apply { fn; arg } -> begin
+      match emit_block env e with
+      | Some found -> found
+      | None -> emit_apply env fn arg
+    end
   | O.Expr.Expr_lambda { params; body } -> ([], emit_lambda env params body)
   | O.Expr.Expr_if_then_else { if_exp; then_exp; else_exp } ->
       let sc, ec = emit_value env if_exp in
@@ -532,6 +541,22 @@ and emit_raw env (e : O.Expr.t) : J.stmt list * J.expr =
 
 and emit_values env (es : O.Expr.t list) : J.stmt list * J.expr list =
   fold_emit (emit_value env) es
+
+and emit_block env (e : O.Expr.t) : (J.stmt list * J.expr) option =
+  let shape table (form, holes) =
+    let statements, values =
+      emit_values env (List.map (fun (hole : Blocks.hole) -> hole.value) holes)
+    in
+    ( statements,
+      J.Object
+        [
+          J.Field (Runtime.tag, J.string Runtime.block);
+          J.Field ("form", J.Identifier (Forms.name table (Forms.of_form form holes)));
+          J.Field ("values", J.Array values);
+        ] )
+  in
+  Option.bind env.forms (fun table ->
+      Option.map (shape table) (Blocks.of_expression e))
 
 and emit_fields env (rows : O.Expr.expr_record_row list) :
     J.stmt list * J.object_member list =
@@ -849,7 +874,7 @@ let constructor_decls names (constructors : (Data.Name.t * int) list) :
                    };
              })
 
-let prepare ~arities ~constructors ~siblings ~typedecls decls =
+let prepare ~blocks ~arities ~constructors ~siblings ~typedecls decls =
   let names = Names.create () in
   List.iter (fun (name, arity) -> Names.note_arity names name arity) arities;
   List.iter
@@ -864,20 +889,22 @@ let prepare ~arities ~constructors ~siblings ~typedecls decls =
       Names.note_arity names src (O.Declaration.arity decl))
     decls;
   List.iter (fun (name, sibs) -> Names.note_siblings names name sibs) siblings;
-  { scope = Scope.empty; names; instances = Instances.create typedecls }
+  let forms = if blocks then Some (Forms.create ()) else None in
+  { scope = Scope.empty; names; instances = Instances.create typedecls; forms }
 
-let program_with_helpers ~arities ~constructors ~built ~siblings ~typedecls
-    ~exports (decls : O.Declaration.t list) : J.program =
-  let env = prepare ~arities ~constructors ~siblings ~typedecls decls in
+let program_with_helpers ~blocks ~arities ~constructors ~built ~siblings
+    ~typedecls ~exports (decls : O.Declaration.t list) : J.program =
+  let env = prepare ~blocks ~arities ~constructors ~siblings ~typedecls decls in
   let export_stmts =
     match exports with
     | [] -> []
     | names -> [ J.Export (List.map Names.of_name names) ]
   in
   let body = List.concat_map (decl_stmts env) decls in
+  let forms = Option.fold ~none:[] ~some:Forms.declarations env.forms in
   constructor_decls env.names built
   @ Instances.declarations env.instances
-  @ body @ export_stmts
+  @ forms @ body @ export_stmts
 
 let import_lines imports =
   match imports with
@@ -899,12 +926,12 @@ let comment_lines lines =
   | spoken ->
       To_string.program_to_string (List.map (fun line -> J.Comment line) spoken)
 
-let emit_module ~notice ~arities ~constructors ~built ~siblings ~typedecls
-    ~imports ~exports (decls : O.Declaration.t list) :
+let emit_module ~blocks ~notice ~arities ~constructors ~built ~siblings
+    ~typedecls ~imports ~exports (decls : O.Declaration.t list) :
     string * (string * string list) list =
   let program =
-    program_with_helpers ~arities ~constructors ~built ~siblings ~typedecls
-      ~exports decls
+    program_with_helpers ~blocks ~arities ~constructors ~built ~siblings
+      ~typedecls ~exports decls
   in
   let runtimes =
     List.filter_map

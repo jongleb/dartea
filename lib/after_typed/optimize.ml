@@ -24,10 +24,12 @@ let is_duplicable (e : O.Expr.t) : bool =
   | Expr_int _ | Expr_float _ | Expr_string _ | Expr_char _ | Expr_ident _ ->
       true
   | Expr_constr { arguments = []; _ } -> true
+  | Expr_kernel (Kernel_value (Platform _)) -> true
   | Expr_constr _ | Expr_binop _ | Expr_let _ | Expr_if_then_else _
   | Expr_record _ | Expr_record_update _ | Expr_apply _ | Expr_pattern _
   | Expr_accessor _ | Expr_access _ | Expr_record_extend _
-  | Expr_record_select _ | Expr_record_empty | Expr_unit | Expr_kernel _
+  | Expr_record_select _ | Expr_record_empty | Expr_unit
+  | Expr_kernel (Kernel_value (Language _) | Kernel_unary _ | Kernel_binary _)
   | Expr_lambda _ | Expr_list _ | Expr_cons _ | Expr_tuple _ ->
       false
 
@@ -38,7 +40,7 @@ let rec is_pure (e : O.Expr.t) : bool =
   | Expr_apply _ -> begin
       match O.Expr.spine e with
       | { expr = Expr_ident name; _ }, ([ _; _ ] as operands)
-        when Data.Operator.referred_to_by name <> None ->
+        when Option.is_some (Data.Operator.referred_to_by name) ->
           List.for_all is_pure operands
       | _ -> false
     end
@@ -78,16 +80,129 @@ let rec zip_exactly parameters (arguments : O.Expr.t list) =
       |> Option.map (fun rest -> (parameter, argument) :: rest)
   | _ -> None
 
+type use = { count : int; under_lambda : bool }
+
+let rec uses ~(name : Data.Name.t) ~under_lambda (e : O.Expr.t) : use =
+  let sum found (child : O.Expr.t) =
+    let inner = uses ~name ~under_lambda child in
+    {
+      count = found.count + inner.count;
+      under_lambda = found.under_lambda || inner.under_lambda;
+    }
+  in
+  let none = { count = 0; under_lambda = false } in
+  match e.expr with
+  | Expr_ident found ->
+      if Data.Name.equal found name then { count = 1; under_lambda } else none
+  | Expr_let { binding; body } ->
+      let bound = Data.Name.local (Data.Located.unwrap binding.bind_body.name) in
+      let value = uses ~name ~under_lambda binding.bind_body.body in
+      if Data.Name.equal bound name then value else sum value body
+  | Expr_lambda { params; body } ->
+      if Names.mem name (O.Expr.bound_by_lambda params) then none
+      else uses ~name ~under_lambda:true body
+  | Expr_pattern { expr; pattern_data_items } ->
+      List.fold_left
+        (fun found (case : O.Expr.expr_pattern_case) ->
+          if Names.mem name (O.Pattern.bound case.pattern) then found
+          else sum found case.expr)
+        (uses ~name ~under_lambda expr)
+        pattern_data_items
+  | Expr_constr _ | Expr_binop _ | Expr_if_then_else _ | Expr_record _
+  | Expr_record_update _ | Expr_apply _ | Expr_accessor _ | Expr_access _
+  | Expr_record_extend _ | Expr_record_select _ | Expr_record_empty | Expr_unit
+  | Expr_kernel _ | Expr_char _ | Expr_string _ | Expr_int _ | Expr_float _
+  | Expr_list _ | Expr_cons _ | Expr_tuple _ ->
+      List.fold_left sum none (O.Expr.children e)
+
+exception Capture
+
+let rec replace ~(name : Data.Name.t) ~(value : O.Expr.t) ~(outer : Names.t)
+    (e : O.Expr.t) : O.Expr.t =
+  let inside = replace ~name ~value ~outer in
+  let guard binders =
+    if Names.disjoint binders outer then () else raise Capture
+  in
+  match e.expr with
+  | Expr_ident found ->
+      if Data.Name.equal found name then { value with typ = e.typ } else e
+  | Expr_let { binding; body } ->
+      let bound = Data.Name.local (Data.Located.unwrap binding.bind_body.name) in
+      let bound_value = inside binding.bind_body.body in
+      let rest =
+        if Data.Name.equal bound name then body
+        else begin
+          guard (Names.singleton bound);
+          inside body
+        end
+      in
+      {
+        e with
+        expr =
+          Expr_let
+            {
+              binding = { bind_body = { binding.bind_body with body = bound_value } };
+              body = rest;
+            };
+      }
+  | Expr_lambda { params; body } ->
+      let binders = O.Expr.bound_by_lambda params in
+      if Names.mem name binders then e
+      else begin
+        guard binders;
+        { e with expr = Expr_lambda { params; body = inside body } }
+      end
+  | Expr_pattern { expr; pattern_data_items } ->
+      let scrutinee = inside expr in
+      let inside_case (case : O.Expr.expr_pattern_case) =
+        let binders = O.Pattern.bound case.pattern in
+        if Names.mem name binders then case
+        else begin
+          guard binders;
+          { case with expr = inside case.expr }
+        end
+      in
+      {
+        e with
+        expr =
+          Expr_pattern
+            {
+              expr = scrutinee;
+              pattern_data_items = List.map inside_case pattern_data_items;
+            };
+      }
+  | Expr_constr _ | Expr_binop _ | Expr_if_then_else _ | Expr_record _
+  | Expr_record_update _ | Expr_apply _ | Expr_accessor _ | Expr_access _
+  | Expr_record_extend _ | Expr_record_select _ | Expr_record_empty | Expr_unit
+  | Expr_kernel _ | Expr_char _ | Expr_string _ | Expr_int _ | Expr_float _
+  | Expr_list _ | Expr_cons _ | Expr_tuple _ ->
+      O.Expr.map_children e ~f:inside
+
+let substitute ~(name : Data.Name.t) ~(value : O.Expr.t) (body : O.Expr.t) :
+    O.Expr.t option =
+  let use = uses ~name ~under_lambda:false body in
+  let is_linear = use.count = 1 && not use.under_lambda in
+  if use.count = 0 || is_linear || is_duplicable value then
+    let outer = O.Expr.free_variables ~bound:Names.empty value in
+    match replace ~name ~value ~outer body with
+    | body -> Some body
+    | exception Capture -> None
+  else None
+
 let bind_arguments (bindings : (string Data.Located.t * O.Expr.t) list)
     (body : O.Expr.t) : O.Expr.t =
   List.fold_right
     (fun (name, value) (inner : O.Expr.t) ->
-      {
-        O.Expr.typ = inner.typ;
-        expr =
-          O.Expr.Expr_let
-            { binding = { bind_body = { name; body = value } }; body = inner };
-      })
+      let bound =
+        {
+          O.Expr.typ = inner.typ;
+          expr =
+            O.Expr.Expr_let
+              { binding = { bind_body = { name; body = value } }; body = inner };
+        }
+      in
+      substitute ~name:(Data.Name.local (Data.Located.unwrap name)) ~value inner
+      |> Option.value ~default:bound)
     bindings body
 
 let arguments_escape_binders ~(binders : Names.t)
@@ -394,38 +509,162 @@ let rec specialise bindings (e : O.Expr.t) : O.Expr.t =
   in
   { typ = O.Type.substitute bindings e.typ; expr }
 
+let inlinable_of (d : O.Declaration.t) : inlinable option =
+  let free_names = O.Declaration.free d in
+  let is_inlinable =
+    match d.params with
+    | [] -> is_duplicable d.body
+    | _ -> expression_size d.body <= inline_size_limit
+  in
+  if
+    is_inlinable
+    && not (Names.mem (Data.Name.local (Data.Located.unwrap d.name)) free_names)
+  then
+    Some
+      {
+        parameters = d.params;
+        parameter_names = O.Declaration.bound d;
+        body = d.body;
+        free_names;
+      }
+  else None
+
 let inlinable_declarations (decls : O.Declaration.t list) :
     inlinable By_name.t =
-  let candidate (d : O.Declaration.t) =
-    let free_names = O.Declaration.free d in
-    let is_inlinable =
-      match d.params with
-      | [] -> is_duplicable d.body
-      | _ -> expression_size d.body <= inline_size_limit
-    in
-    if
-      is_inlinable
-      && not
-           (Names.mem (Data.Name.local (Data.Located.unwrap d.name)) free_names)
-    then
-      Some
-        {
-          parameters = d.params;
-          parameter_names = O.Declaration.bound d;
-          body = d.body;
-          free_names;
-        }
-    else None
-  in
   List.fold_left
     (fun table (d : O.Declaration.t) ->
-      match candidate d with
+      match inlinable_of d with
       | Some inlinable ->
           By_name.add
             (Data.Name.local (Data.Located.unwrap d.name))
             inlinable table
       | None -> table)
     By_name.empty decls
+
+module Import = struct
+  type t = {
+    module_name : string;
+    exports : Data.Name.t list;
+    declarations : O.Declaration.t list;
+  }
+
+  exception Unexportable
+
+  let qualify_name (import : t) (name : Data.Name.t) =
+    match name with
+    | Data.Name.Global _ -> name
+    | Data.Name.Local written ->
+        let is_operator = Option.is_some (Data.Operator.referred_to_by name) in
+        let is_public =
+          List.exists (Data.Name.equal name) import.exports
+        in
+        if is_operator then name
+        else if is_public then
+          Data.Name.global ~module_name:import.module_name
+            ~exported_name:written
+        else raise Unexportable
+
+  let rec qualify_in import ~bound (e : O.Expr.t) : O.Expr.t =
+    let inside = qualify_in import in
+    match e.expr with
+    | Expr_ident name when Names.mem name bound -> e
+    | Expr_ident name -> { e with expr = Expr_ident (qualify_name import name) }
+    | Expr_constr { name; arguments } ->
+        {
+          e with
+          expr =
+            Expr_constr
+              {
+                name = qualify_name import name;
+                arguments = List.map (inside ~bound) arguments;
+              };
+        }
+    | Expr_let { binding; body } ->
+        let name =
+          Data.Name.local (Data.Located.unwrap binding.bind_body.name)
+        in
+        let value = inside ~bound binding.bind_body.body in
+        {
+          e with
+          expr =
+            Expr_let
+              {
+                binding = { bind_body = { binding.bind_body with body = value } };
+                body = inside ~bound:(Names.add name bound) body;
+              };
+        }
+    | Expr_lambda { params; body } ->
+        let bound = Names.union bound (O.Expr.bound_by_lambda params) in
+        { e with expr = Expr_lambda { params; body = inside ~bound body } }
+    | Expr_pattern _ -> raise Unexportable
+    | Expr_binop _ | Expr_if_then_else _ | Expr_record _ | Expr_record_update _
+    | Expr_apply _ | Expr_accessor _ | Expr_access _ | Expr_record_extend _
+    | Expr_record_select _ | Expr_record_empty | Expr_unit | Expr_kernel _
+    | Expr_char _ | Expr_string _ | Expr_int _ | Expr_float _ | Expr_list _
+    | Expr_cons _ | Expr_tuple _ ->
+        O.Expr.map_children e ~f:(inside ~bound)
+
+  let candidates (import : t) : (Data.Name.t * inlinable) list =
+    List.filter_map
+      (fun (d : O.Declaration.t) ->
+        let name = Data.Located.unwrap d.name in
+        let is_public =
+          List.exists (Data.Name.equal (Data.Name.local name)) import.exports
+        in
+        match inlinable_of d with
+        | Some inlinable when is_public -> begin
+            match
+              qualify_in import ~bound:inlinable.parameter_names inlinable.body
+            with
+            | body ->
+                Some
+                  ( Data.Name.global ~module_name:import.module_name
+                      ~exported_name:name,
+                    {
+                      inlinable with
+                      body;
+                      free_names =
+                        O.Expr.free_variables ~bound:inlinable.parameter_names
+                          body;
+                    } )
+            | exception Unexportable -> None
+          end
+        | Some _ | None -> None)
+      import.declarations
+
+  let table (imports : t list) : inlinable By_name.t =
+    List.fold_left
+      (fun table import ->
+        List.fold_left
+          (fun table (name, inlinable) -> By_name.add name inlinable table)
+          table (candidates import))
+      By_name.empty imports
+end
+
+let shelter ~taken (bindings : (string Data.Located.t * O.Expr.t) list)
+    (body : O.Expr.t) : O.Expr.t =
+  let fresh =
+    O.Declaration.unused_names ~taken
+    |> Seq.take (List.length bindings)
+    |> List.of_seq
+  in
+  let outer =
+    List.map2
+      (fun name ((parameter : string Data.Located.t), argument) ->
+        (Data.Located.at parameter.region name, argument))
+      fresh bindings
+  in
+  let inner =
+    List.map2
+      (fun (name, _) (parameter, (argument : O.Expr.t)) ->
+        ( parameter,
+          {
+            argument with
+            O.Expr.expr = Expr_ident (Data.Name.local (Data.Located.unwrap name));
+          } ))
+      outer bindings
+  in
+  bind_arguments outer (bind_arguments inner body)
 
 let rec inline_calls ~(table : inlinable By_name.t) ~(bound : Names.t)
     (e : O.Expr.t) : O.Expr.t =
@@ -435,12 +674,7 @@ let rec inline_calls ~(table : inlinable By_name.t) ~(bound : Names.t)
     let expand candidate =
       let arity = List.length candidate.parameters in
       let taken = List.take arity arguments in
-      if
-        Names.disjoint candidate.free_names bound
-        && not
-             (arguments_escape_binders ~binders:candidate.parameter_names
-                ~arguments:taken)
-      then
+      if Names.disjoint candidate.free_names bound then
         zip_exactly candidate.parameters taken
         |> Option.map (fun bindings ->
                let specialisation =
@@ -451,16 +685,33 @@ let rec inline_calls ~(table : inlinable By_name.t) ~(bound : Names.t)
                      match_types collected parameter.typ argument.typ)
                    O.Type.By_variable.empty bindings
                in
-               let bound =
+               let pairs =
                  List.map
                    (fun ((parameter : O.Declaration.param), argument) ->
                      (parameter.name, argument))
                    bindings
                in
-               apply_to
-                 (bind_arguments bound
-                    (specialise specialisation candidate.body))
-                 (List.drop arity arguments))
+               let body = specialise specialisation candidate.body in
+               let capture =
+                 arguments_escape_binders ~binders:candidate.parameter_names
+                   ~arguments:taken
+               in
+               let expansion =
+                 if capture then
+                   let taken =
+                     List.fold_left
+                       (fun taken argument ->
+                         Names.union taken
+                           (O.Expr.free_variables ~bound:Names.empty argument))
+                       (Names.union bound
+                          (Names.union candidate.parameter_names
+                             candidate.free_names))
+                       taken
+                   in
+                   shelter ~taken pairs body
+                 else bind_arguments pairs body
+               in
+               apply_to expansion (List.drop arity arguments))
       else None
     in
     let unbound name =
@@ -517,9 +768,15 @@ let rec inline_calls ~(table : inlinable By_name.t) ~(bound : Names.t)
   | Expr_list _ | Expr_cons _ | Expr_tuple _ ->
       O.Expr.map_children e ~f:(inline_calls ~table ~bound)
 
-let optimize (decls : T.Declaration.t list) : O.Declaration.t list =
+let optimize ~(imports : Import.t list) (decls : T.Declaration.t list) :
+    O.Declaration.t list =
+  let import_table = Import.table imports in
   let round decls =
-    let table = inlinable_declarations decls in
+    let table =
+      By_name.union
+        (fun _ own _ -> Some own)
+        (inlinable_declarations decls) import_table
+    in
     List.map
       (fun (d : O.Declaration.t) ->
         let bound = O.Declaration.bound d in

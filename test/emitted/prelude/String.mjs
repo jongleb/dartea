@@ -62,7 +62,7 @@ const wordStep = (letter, chunks$2) => {
   }
 };
 const words = text$3 => List.filter(chunk$3 => chunk$3 !== "", List.foldr(wordStep, { hd: "", tl: 0 }, toList(text$3)));
-const lines = text$4 => split("\n", replace("\r\n", "\n", text$4));
+const lines = text$4 => split("\n", join("\n", split("\r\n", text$4)));
 const clampIndex = (index, size) => {
   if (index < 0) {
     const $s4 = size + index;
@@ -175,7 +175,7 @@ const toFloat = text$16 => {
 };
 const fromFloat = x => String(x);
 const fromChar = $$char$1 => fromList({ hd: $$char$1, tl: 0 });
-const cons = ($$char$2, text$17) => append(fromChar($$char$2), text$17);
+const cons = ($$char$2, text$17) => append(fromList({ hd: $$char$2, tl: 0 }), text$17);
 const uncons = text$18 => {
   const $s12 = toList(text$18);
   if ($s12 === 0) {
@@ -192,17 +192,13 @@ const foldl = (func$1, acc$1, text$21) => List.foldl(func$1, acc$1, toList(text$
 const foldr = (func$2, acc$2, text$22) => List.foldr(func$2, acc$2, toList(text$22));
 const any = (isGood$1, text$23) => List.any(isGood$1, toList(text$23));
 const all = (isGood$2, text$24) => List.all(isGood$2, toList(text$24));
-const toUpper = text$25 => map(Char.toUpper, text$25);
-const toLower = text$26 => map(Char.toLower, text$26);
-const padLeft = (n$6, $$char$4, text$27) => append(repeat(n$6 - length(text$27), fromChar($$char$4)), text$27);
-const padRight = (n$7, $$char$5, text$28) => append(text$28, repeat(n$7 - length(text$28), fromChar($$char$5)));
+const toUpper = text$25 => fromList(List.map(Char.toUpper, toList(text$25)));
+const toLower = text$26 => fromList(List.map(Char.toLower, toList(text$26)));
+const padLeft = (n$6, $$char$4, text$27) => append(repeatHelp(n$6 - length(text$27), fromList({ hd: $$char$4, tl: 0 }), ""), text$27);
+const padRight = (n$7, $$char$5, text$28) => append(text$28, repeatHelp(n$7 - length(text$28), fromList({ hd: $$char$5, tl: 0 }), ""));
 const pad = (n$8, $$char$6, text$29) => {
   const half = Basics.toFloat(n$8 - length(text$29)) / 2;
-  const n$9 = Basics.ceiling(half);
-  const chunk$5 = fromChar($$char$6);
-  const n$10 = Basics.floor(half);
-  const chunk$6 = fromChar($$char$6);
-  return append(repeatHelp(n$9, chunk$5, ""), append(text$29, repeatHelp(n$10, chunk$6, "")));
+  return append(repeatHelp(Basics.ceiling(half), fromList({ hd: $$char$6, tl: 0 }), ""), append(text$29, repeatHelp(Basics.floor(half), fromList({ hd: $$char$6, tl: 0 }), "")));
 };
 const dropSpaces = chars => {
   while (true) {
@@ -223,5 +219,5 @@ const dropSpaces = chars => {
 };
 const trimLeft = text$30 => fromList(dropSpaces(toList(text$30)));
 const trimRight = text$31 => fromList(List.reverse(dropSpaces(List.reverse(toList(text$31)))));
-const trim = text$32 => trimLeft(trimRight(text$32));
+const trim = text$32 => fromList(dropSpaces(toList(trimRight(text$32))));
 export { all, any, append, concat, cons, contains, dropLeft, dropRight, endsWith, filter, foldl, foldr, fromChar, fromFloat, fromInt, fromList, indexes, indices, isEmpty, join, left, length, lines, map, pad, padLeft, padRight, repeat, replace, reverse, right, slice, split, startsWith, toFloat, toInt, toList, toLower, toUpper, trim, trimLeft, trimRight, uncons, words };

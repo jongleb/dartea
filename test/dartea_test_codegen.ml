@@ -3221,7 +3221,8 @@ result = same (String.length "abcd") 4
   in
   assert_js ~src ~expr:"Main.result" ~expected:"true";
   assert_bool "the inlined equality on Ints is emitted inline"
-    (contains ~needle:"const result = one$1 === 4;" (main_source src))
+    (contains ~needle:{|const result = $$String.length("abcd") === 4;|}
+       (main_source src))
 
 let test_a_polymorphic_definition_still_uses_the_runtime _ =
   let src =

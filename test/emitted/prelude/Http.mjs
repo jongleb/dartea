@@ -23,20 +23,17 @@ const Timeout = "Timeout";
 const NetworkError = "NetworkError";
 const BadStatus = _0 => ({ TAG: "BadStatus", _0: _0 });
 const BadBody = _0 => ({ TAG: "BadBody", _0: _0 });
-const emptyBody = Dartea_browser.$$Http$emptyBody;
 const prepared = (risky, r) => ({ method: r.method, headers: r.headers, url: r.url, body: r.body, expect: r.expect, timeout: r.timeout, tracker: r.tracker, allowCookiesFromOtherDomains: risky });
-const send = Dartea_browser.$$Http$request;
-const request = r$1 => send(prepared(false, r$1));
-const get = r$2 => request({ method: "GET", headers: 0, url: r$2.url, body: emptyBody, expect: r$2.expect, timeout: Maybe.Nothing, tracker: Maybe.Nothing });
-const post = r$3 => request({ method: "POST", headers: 0, url: r$3.url, body: r$3.body, expect: r$3.expect, timeout: Maybe.Nothing, tracker: Maybe.Nothing });
-const riskyRequest = r$4 => send(prepared(true, r$4));
+const get = r$1 => Dartea_browser.$$Http$request(prepared(false, { method: "GET", headers: 0, url: r$1.url, body: Dartea_browser.$$Http$emptyBody, expect: r$1.expect, timeout: Maybe.Nothing, tracker: Maybe.Nothing }));
+const post = r$2 => Dartea_browser.$$Http$request(prepared(false, { method: "POST", headers: 0, url: r$2.url, body: r$2.body, expect: r$2.expect, timeout: Maybe.Nothing, tracker: Maybe.Nothing }));
+const request = r$3 => Dartea_browser.$$Http$request(prepared(false, r$3));
+const riskyRequest = r$4 => Dartea_browser.$$Http$request(prepared(true, r$4));
 const header = (eta1, eta2) => Header(eta1, eta2);
+const emptyBody = Dartea_browser.$$Http$emptyBody;
+const jsonBody = value => Dartea_browser.$$Http$pair("application/json", Json$Encode.encode(0, value));
 const stringBody = Dartea_browser.$$Http$pair;
-const jsonBody = value => stringBody("application/json", Json$Encode.encode(0, value));
-const formData = Dartea_browser.$$Http$toFormData;
-const multipartBody = parts => stringBody("", formData(parts));
+const multipartBody = parts => Dartea_browser.$$Http$pair("", Dartea_browser.$$Http$toFormData(parts));
 const stringPart = Dartea_browser.$$Http$pair;
-const expectWith = Dartea_browser.$$Http$expect;
 const responseOf = raw => {
   const metadata = { url: raw.url, statusCode: raw.statusCode, statusText: raw.statusText, headers: Dict.fromList(raw.headers) };
   const $s1 = raw.kind;
@@ -53,7 +50,7 @@ const responseOf = raw => {
       return GoodStatus_(metadata, raw.body);
   }
 };
-const expectStringResponse = (toMsg, toResult) => expectWith($s3 => Basics.composeR(responseOf, $s2 => Basics.composeR(toResult, toMsg, $s2), $s3));
+const expectStringResponse = (toMsg, toResult) => Dartea_browser.$$Http$expect($s3 => Basics.composeR(responseOf, $s2 => Basics.composeR(toResult, toMsg, $s2), $s3));
 const resolve = (toResult$1, response) => {
   if (response.TAG === "BadUrl_") {
     const url = response._0;
@@ -102,10 +99,8 @@ const fractionReceived = p$1 => {
   }
 };
 const preparedTask = (risky$1, r$5) => ({ method: r$5.method, headers: r$5.headers, url: r$5.url, body: r$5.body, expect: r$5.resolver, timeout: r$5.timeout, tracker: Maybe.Nothing, allowCookiesFromOtherDomains: risky$1 });
-const resolved = Dartea_browser.$$Http$toTask;
-const task = r$6 => resolved(preparedTask(false, r$6));
-const riskyTask = r$7 => resolved(preparedTask(true, r$7));
-const resolverWith = Dartea_browser.$$Http$expect;
-const stringResolver = toResult$2 => resolverWith($s8 => Basics.composeR(responseOf, toResult$2, $s8));
+const task = r$6 => Dartea_browser.$$Http$toTask(preparedTask(false, r$6));
+const riskyTask = r$7 => Dartea_browser.$$Http$toTask(preparedTask(true, r$7));
+const stringResolver = toResult$2 => Dartea_browser.$$Http$expect($s8 => Basics.composeR(responseOf, toResult$2, $s8));
 const Metadata = ($a0, $a1, $a2, $a3) => ({ url: $a0, statusCode: $a1, statusText: $a2, headers: $a3 });
 export { BadBody, BadStatus, BadStatus_, BadUrl, BadUrl_, GoodStatus_, Metadata, NetworkError, NetworkError_, Receiving, Sending, Timeout, Timeout_, cancel, emptyBody, expectJson, expectString, expectStringResponse, expectWhatever, fractionReceived, fractionSent, get, header, jsonBody, multipartBody, post, request, riskyRequest, riskyTask, stringBody, stringPart, stringResolver, task, track };

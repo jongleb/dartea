@@ -1,10 +1,10 @@
 import * as Browser from "./Browser.mjs";
-import * as Html from "./Html.mjs";
-import * as Html$Attributes from "./Html.Attributes.mjs";
-import * as Html$Events from "./Html.Events.mjs";
+import * as Json$Decode from "./Json.Decode.mjs";
 import * as $$String from "./String.mjs";
+import * as VirtualDom from "./VirtualDom.mjs";
 const Bumped = "Bumped";
 const Reset = "Reset";
+const $$form0 = { tag: "div", attributes: [{ key: "className", value: "counter", way: "property" }], children: [{ tag: "button", attributes: [], children: [{ text: "+" }] }, { hole: 1 }, { tag: "button", attributes: [], children: [{ text: "reset" }] }], holes: [{ path: [0], kind: "event" }, { path: [1], kind: "text" }, { path: [2], kind: "event" }] };
 const update = (msg, model) => {
   switch (msg) {
     case "Bumped":
@@ -13,6 +13,6 @@ const update = (msg, model) => {
       return 0;
   }
 };
-const view = model$1 => Html.div({ hd: Html$Attributes.$$class("counter"), tl: 0 }, { hd: Html.button({ hd: Html$Events.onClick(Bumped), tl: 0 }, { hd: Html.text("+"), tl: 0 }), tl: { hd: Html.text(" " + ($$String.fromInt(model$1) + " ")), tl: { hd: Html.button({ hd: Html$Events.onClick(Reset), tl: 0 }, { hd: Html.text("reset"), tl: 0 }), tl: 0 } } });
+const view = model$1 => ({ TAG: "block", form: $$form0, values: [VirtualDom.on("click", VirtualDom.Normal(Json$Decode.succeed(Bumped))), " " + ($$String.fromInt(model$1) + " "), VirtualDom.on("click", VirtualDom.Normal(Json$Decode.succeed(Reset)))] });
 const main = Browser.sandbox({ init: 0, update: update, view: view });
 export { main };

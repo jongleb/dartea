@@ -6,6 +6,7 @@ let json_module_name = "Dartea_json"
 let json_source = Runtime_source.dartea_json
 let mount = "$$mount"
 let tag = "TAG"
+let block = "block"
 let head = "hd"
 let tail = "tl"
 let payload index = "_" ^ string_of_int index

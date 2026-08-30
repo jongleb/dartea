@@ -460,7 +460,7 @@ page =
       ]
     ~expr:"Main.page"
     ~expected:
-      {|{"TAG":"node","tag":"div","attributes":[{"TAG":"property","key":"className","value":"box"}],"children":[{"TAG":"text","text":"hi"}]}|}
+      {|{"TAG":"block","form":{"tag":"div","attributes":[{"key":"className","value":"box","way":"property"}],"children":[{"text":"hi"}],"holes":[]},"values":[]}|}
 
 let test_html_needs_an_import _ =
   let outcome =
@@ -492,7 +492,7 @@ page =
       ]
     ~expr:"Main.page"
     ~expected:
-      {|{"TAG":"node","tag":"div","attributes":[{"TAG":"attribute","key":"id","value":"main"}],"children":[{"TAG":"text","text":"hi"}]}|}
+      {|{"TAG":"block","form":{"tag":"div","attributes":[{"key":"id","value":"main","way":"attribute"}],"children":[{"text":"hi"}],"holes":[]},"values":[]}|}
 
 let test_a_partly_applied_platform_kernel _ =
   assert_runs
@@ -514,7 +514,7 @@ page =
 |};
       ]
     ~expr:"Main.page"
-    ~expected:{|{"TAG":"node","tag":"div","attributes":[],"children":[]}|}
+    ~expected:{|{"TAG":"block","form":{"tag":"div","attributes":[],"children":[],"holes":[]},"values":[]}|}
 
 let test_virtual_dom_text_builds_a_node _ =
   assert_runs

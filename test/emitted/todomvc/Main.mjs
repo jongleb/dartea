@@ -2,18 +2,19 @@ import * as Dartea_browser from "./Dartea_browser.mjs";
 import * as Basics from "./Basics.mjs";
 import * as Browser from "./Browser.mjs";
 import * as Browser$Dom from "./Browser.Dom.mjs";
-import * as Html from "./Html.mjs";
 import * as Html$Attributes from "./Html.Attributes.mjs";
 import * as Html$Events from "./Html.Events.mjs";
 import * as Html$Keyed from "./Html.Keyed.mjs";
 import * as Html$Lazy from "./Html.Lazy.mjs";
 import * as Json$Decode from "./Json.Decode.mjs";
+import * as Json$Encode from "./Json.Encode.mjs";
 import * as List from "./List.mjs";
 import * as Maybe from "./Maybe.mjs";
 import * as Platform$Cmd from "./Platform.Cmd.mjs";
 import * as Platform$Sub from "./Platform.Sub.mjs";
 import * as $$String from "./String.mjs";
 import * as Task from "./Task.mjs";
+import * as VirtualDom from "./VirtualDom.mjs";
 const NoOp = "NoOp";
 const UpdateField = _0 => ({ TAG: "UpdateField", _0: _0 });
 const EditingEntry = (_0, _1) => ({ TAG: "EditingEntry", _0: _0, _1: _1 });
@@ -39,6 +40,15 @@ const $append$List = (xs, ys) => {
   }
   return root;
 };
+const $$form0 = { tag: "button", attributes: [{ key: "className", value: "clear-completed", way: "property" }], children: [{ hole: 2 }], holes: [{ path: [], kind: "attribute" }, { path: [], kind: "event" }, { path: [0], kind: "text" }] };
+const $$form1 = { tag: "span", attributes: [{ key: "className", value: "todo-count", way: "property" }], children: [{ tag: "strong", attributes: [], children: [{ hole: 0 }] }, { hole: 1 }], holes: [{ path: [0, 0], kind: "text" }, { path: [1], kind: "text" }] };
+const $$form2 = { tag: "li", attributes: [], children: [{ tag: "a", attributes: [], children: [{ hole: 3 }] }], holes: [{ path: [], kind: "event" }, { path: [0], kind: "attribute" }, { path: [0], kind: "attribute" }, { path: [0, 0], kind: "text" }] };
+const $$form3 = { tag: "ul", attributes: [{ key: "className", value: "filters", way: "property" }], children: [{ hole: 0 }, { text: " " }, { hole: 1 }, { text: " " }, { hole: 2 }], holes: [{ path: [0], kind: "subtree" }, { path: [2], kind: "subtree" }, { path: [4], kind: "subtree" }] };
+const $$form4 = { tag: "footer", attributes: [{ key: "className", value: "footer", way: "property" }], children: [{ hole: 1 }, { hole: 2 }, { hole: 3 }], holes: [{ path: [], kind: "attribute" }, { path: [0], kind: "subtree" }, { path: [1], kind: "subtree" }, { path: [2], kind: "subtree" }] };
+const $$form5 = { tag: "li", attributes: [], children: [{ tag: "div", attributes: [{ key: "className", value: "view", way: "property" }], children: [{ tag: "input", attributes: [{ key: "className", value: "toggle", way: "property" }, { key: "type", value: "checkbox", way: "property" }], children: [] }, { tag: "label", attributes: [], children: [{ hole: 4 }] }, { tag: "button", attributes: [{ key: "className", value: "destroy", way: "property" }], children: [] }] }, { tag: "input", attributes: [{ key: "className", value: "edit", way: "property" }, { key: "name", value: "title", way: "property" }], children: [] }], holes: [{ path: [], kind: "attribute" }, { path: [0, 0], kind: "attribute" }, { path: [0, 0], kind: "event" }, { path: [0, 1], kind: "event" }, { path: [0, 1, 0], kind: "text" }, { path: [0, 2], kind: "event" }, { path: [1], kind: "attribute" }, { path: [1], kind: "attribute" }, { path: [1], kind: "attribute" }, { path: [1], kind: "event" }, { path: [1], kind: "attribute" }] };
+const $$form6 = { tag: "section", attributes: [{ key: "className", value: "main", way: "property" }], children: [{ tag: "input", attributes: [{ key: "className", value: "toggle-all", way: "property" }, { key: "type", value: "checkbox", way: "property" }, { key: "name", value: "toggle", way: "property" }], children: [] }, { tag: "label", attributes: [{ key: "htmlFor", value: "toggle-all", way: "property" }], children: [{ text: "Mark all as complete" }] }, { hole: 3 }], holes: [{ path: [], kind: "attribute" }, { path: [0], kind: "attribute" }, { path: [0], kind: "event" }, { path: [2], kind: "subtree" }] };
+const $$form7 = { tag: "header", attributes: [{ key: "className", value: "header", way: "property" }], children: [{ tag: "h1", attributes: [], children: [{ text: "todos" }] }, { tag: "input", attributes: [{ key: "className", value: "new-todo", way: "property" }, { key: "placeholder", value: "What needs to be done?", way: "property" }, { key: "name", value: "newTodo", way: "property" }], children: [] }], holes: [{ path: [1], kind: "attribute" }, { path: [1], kind: "attribute" }, { path: [1], kind: "attribute" }, { path: [1], kind: "attribute" }] };
+const $$form8 = { tag: "div", attributes: [{ key: "className", value: "todomvc-wrapper", way: "property" }, { key: "visibility", value: "hidden", way: "style" }], children: [{ tag: "section", attributes: [{ key: "className", value: "todoapp", way: "property" }], children: [{ hole: 0 }, { hole: 1 }, { hole: 2 }] }], holes: [{ path: [0, 0], kind: "subtree" }, { path: [0, 1], kind: "subtree" }, { path: [0, 2], kind: "subtree" }] };
 const emptyModel = { entries: 0, visibility: "All", field: "", uid: 0 };
 const init = maybeModel => [Maybe.withDefault(emptyModel, maybeModel), Platform$Cmd.none];
 const newEntry = (desc, id) => ({ description: desc, completed: false, editing: false, id: id });
@@ -120,17 +130,17 @@ const updateWithStorage = (msg$1, model$1) => {
   const cmds = $s2[1];
   return [newModel, Platform$Cmd.batch({ hd: Dartea_browser.$$Port$outgoing("setStorage", newModel), tl: { hd: cmds, tl: 0 } })];
 };
-const viewControlsClear = entriesCompleted => Html.button({ hd: Html$Attributes.$$class("clear-completed"), tl: { hd: Html$Attributes.hidden(entriesCompleted === 0), tl: { hd: Html$Events.onClick(DeleteComplete), tl: 0 } } }, { hd: Html.text("Clear completed (" + ($$String.fromInt(entriesCompleted) + ")")), tl: 0 });
+const viewControlsClear = entriesCompleted => ({ TAG: "block", form: $$form0, values: [VirtualDom.property("hidden", Json$Encode.bool(entriesCompleted === 0)), VirtualDom.on("click", VirtualDom.Normal(Json$Decode.succeed(DeleteComplete))), "Clear completed (" + ($$String.fromInt(entriesCompleted) + ")")] });
 const viewControlsCount = entriesLeft => {
   const item_ = (entriesLeft === 1) ? " item" : " items";
-  return Html.span({ hd: Html$Attributes.$$class("todo-count"), tl: 0 }, { hd: Html.strong(0, { hd: Html.text($$String.fromInt(entriesLeft)), tl: 0 }), tl: { hd: Html.text(item_ + " left"), tl: 0 } });
+  return { TAG: "block", form: $$form1, values: [$$String.fromInt(entriesLeft), item_ + " left"] };
 };
-const visibilitySwap = (uri, visibility$1, actualVisibility) => Html.li({ hd: Html$Events.onClick(ChangeVisibility(visibility$1)), tl: 0 }, { hd: Html.a({ hd: Html$Attributes.href(uri), tl: { hd: Html$Attributes.classList({ hd: ["selected", visibility$1 === actualVisibility], tl: 0 }), tl: 0 } }, { hd: Html.text(visibility$1), tl: 0 }), tl: 0 });
-const viewControlsFilters = visibility$2 => Html.ul({ hd: Html$Attributes.$$class("filters"), tl: 0 }, { hd: visibilitySwap("#/", "All", visibility$2), tl: { hd: Html.text(" "), tl: { hd: visibilitySwap("#/active", "Active", visibility$2), tl: { hd: Html.text(" "), tl: { hd: visibilitySwap("#/completed", "Completed", visibility$2), tl: 0 } } } } });
+const visibilitySwap = (uri, visibility$1, actualVisibility) => ({ TAG: "block", form: $$form2, values: [VirtualDom.on("click", VirtualDom.Normal(Json$Decode.succeed(ChangeVisibility(visibility$1)))), VirtualDom.property("href", Json$Encode.string(uri)), Html$Attributes.classList({ hd: ["selected", visibility$1 === actualVisibility], tl: 0 }), visibility$1] });
+const viewControlsFilters = visibility$2 => ({ TAG: "block", form: $$form3, values: [visibilitySwap("#/", "All", visibility$2), visibilitySwap("#/active", "Active", visibility$2), visibilitySwap("#/completed", "Completed", visibility$2)] });
 const viewControls = (visibility$3, entries) => {
   const entriesCompleted$1 = List.length(List.filter(r => r.completed, entries));
   const entriesLeft$1 = List.length(entries) - entriesCompleted$1;
-  return Html.footer({ hd: Html$Attributes.$$class("footer"), tl: { hd: Html$Attributes.hidden(List.isEmpty(entries)), tl: 0 } }, { hd: Html$Lazy.lazy(viewControlsCount, entriesLeft$1), tl: { hd: Html$Lazy.lazy(viewControlsFilters, visibility$3), tl: { hd: Html$Lazy.lazy(viewControlsClear, entriesCompleted$1), tl: 0 } } });
+  return { TAG: "block", form: $$form4, values: [VirtualDom.property("hidden", Json$Encode.bool(List.isEmpty(entries))), Html$Lazy.lazy(viewControlsCount, entriesLeft$1), Html$Lazy.lazy(viewControlsFilters, visibility$3), Html$Lazy.lazy(viewControlsClear, entriesCompleted$1)] };
 };
 const onEnter = msg$2 => {
   const isEnter = code => {
@@ -140,9 +150,9 @@ const onEnter = msg$2 => {
     return Json$Decode.fail("not ENTER");
   }
 };
-  return Html$Events.on("keydown", Json$Decode.andThen(isEnter, Html$Events.keyCode));
+  return VirtualDom.on("keydown", VirtualDom.Normal(Json$Decode.andThen(isEnter, Html$Events.keyCode)));
 };
-const viewEntry = todo => Html.li({ hd: Html$Attributes.classList({ hd: ["completed", todo.completed], tl: { hd: ["editing", todo.editing], tl: 0 } }), tl: 0 }, { hd: Html.div({ hd: Html$Attributes.$$class("view"), tl: 0 }, { hd: Html.input({ hd: Html$Attributes.$$class("toggle"), tl: { hd: Html$Attributes.type_("checkbox"), tl: { hd: Html$Attributes.checked(todo.completed), tl: { hd: Html$Events.onClick(Check(todo.id, Basics.not(todo.completed))), tl: 0 } } } }, 0), tl: { hd: Html.label({ hd: Html$Events.onDoubleClick(EditingEntry(todo.id, true)), tl: 0 }, { hd: Html.text(todo.description), tl: 0 }), tl: { hd: Html.button({ hd: Html$Attributes.$$class("destroy"), tl: { hd: Html$Events.onClick(Delete(todo.id)), tl: 0 } }, 0), tl: 0 } } }), tl: { hd: Html.input({ hd: Html$Attributes.$$class("edit"), tl: { hd: Html$Attributes.value(todo.description), tl: { hd: Html$Attributes.name("title"), tl: { hd: Html$Attributes.id("todo-" + $$String.fromInt(todo.id)), tl: { hd: Html$Events.onInput($s3 => UpdateEntry(todo.id, $s3)), tl: { hd: Html$Events.onBlur(EditingEntry(todo.id, false)), tl: { hd: onEnter(EditingEntry(todo.id, false)), tl: 0 } } } } } } }, 0), tl: 0 } });
+const viewEntry = todo => ({ TAG: "block", form: $$form5, values: [Html$Attributes.classList({ hd: ["completed", todo.completed], tl: { hd: ["editing", todo.editing], tl: 0 } }), VirtualDom.property("checked", Json$Encode.bool(todo.completed)), VirtualDom.on("click", VirtualDom.Normal(Json$Decode.succeed(Check(todo.id, Basics.not(todo.completed))))), VirtualDom.on("dblclick", VirtualDom.Normal(Json$Decode.succeed(EditingEntry(todo.id, true)))), todo.description, VirtualDom.on("click", VirtualDom.Normal(Json$Decode.succeed(Delete(todo.id)))), VirtualDom.property("value", Json$Encode.string(todo.description)), VirtualDom.property("id", Json$Encode.string("todo-" + $$String.fromInt(todo.id))), Html$Events.onInput($s3 => UpdateEntry(todo.id, $s3)), VirtualDom.on("blur", VirtualDom.Normal(Json$Decode.succeed(EditingEntry(todo.id, false)))), onEnter(EditingEntry(todo.id, false))] });
 const viewKeyedEntry = todo$1 => [$$String.fromInt(todo$1.id), Html$Lazy.lazy(viewEntry, todo$1)];
 const viewEntries = (visibility$4, entries$1) => {
   const isVisible = todo$2 => {
@@ -157,10 +167,10 @@ const viewEntries = (visibility$4, entries$1) => {
 };
   const allCompleted = List.all(r => r.completed, entries$1);
   const cssVisibility = List.isEmpty(entries$1) ? "hidden" : "visible";
-  return Html.section({ hd: Html$Attributes.$$class("main"), tl: { hd: Html$Attributes.style("visibility", cssVisibility), tl: 0 } }, { hd: Html.input({ hd: Html$Attributes.$$class("toggle-all"), tl: { hd: Html$Attributes.type_("checkbox"), tl: { hd: Html$Attributes.name("toggle"), tl: { hd: Html$Attributes.checked(allCompleted), tl: { hd: Html$Events.onClick(CheckAll(Basics.not(allCompleted))), tl: 0 } } } } }, 0), tl: { hd: Html.label({ hd: Html$Attributes.$$for("toggle-all"), tl: 0 }, { hd: Html.text("Mark all as complete"), tl: 0 }), tl: { hd: Html$Keyed.ul({ hd: Html$Attributes.$$class("todo-list"), tl: 0 }, List.map(viewKeyedEntry, List.filter(isVisible, entries$1))), tl: 0 } } });
+  return { TAG: "block", form: $$form6, values: [VirtualDom.style("visibility", cssVisibility), VirtualDom.property("checked", Json$Encode.bool(allCompleted)), VirtualDom.on("click", VirtualDom.Normal(Json$Decode.succeed(CheckAll(Basics.not(allCompleted))))), Html$Keyed.ul({ hd: VirtualDom.property("className", Json$Encode.string("todo-list")), tl: 0 }, List.map(viewKeyedEntry, List.filter(isVisible, entries$1)))] };
 };
-const viewInput = task$1 => Html.header({ hd: Html$Attributes.$$class("header"), tl: 0 }, { hd: Html.h1(0, { hd: Html.text("todos"), tl: 0 }), tl: { hd: Html.input({ hd: Html$Attributes.$$class("new-todo"), tl: { hd: Html$Attributes.placeholder("What needs to be done?"), tl: { hd: Html$Attributes.autofocus(true), tl: { hd: Html$Attributes.value(task$1), tl: { hd: Html$Attributes.name("newTodo"), tl: { hd: Html$Events.onInput(UpdateField), tl: { hd: onEnter(Add), tl: 0 } } } } } } }, 0), tl: 0 } });
-const view = model$2 => Html.div({ hd: Html$Attributes.$$class("todomvc-wrapper"), tl: { hd: Html$Attributes.style("visibility", "hidden"), tl: 0 } }, { hd: Html.section({ hd: Html$Attributes.$$class("todoapp"), tl: 0 }, { hd: Html$Lazy.lazy(viewInput, model$2.field), tl: { hd: Html$Lazy.lazy2(viewEntries, model$2.visibility, model$2.entries), tl: { hd: Html$Lazy.lazy2(viewControls, model$2.visibility, model$2.entries), tl: 0 } } }), tl: 0 });
+const viewInput = task$1 => ({ TAG: "block", form: $$form7, values: [VirtualDom.property("autofocus", Json$Encode.bool(true)), VirtualDom.property("value", Json$Encode.string(task$1)), Html$Events.onInput(UpdateField), onEnter(Add)] });
+const view = model$2 => ({ TAG: "block", form: $$form8, values: [Html$Lazy.lazy(viewInput, model$2.field), Html$Lazy.lazy2(viewEntries, model$2.visibility, model$2.entries), Html$Lazy.lazy2(viewControls, model$2.visibility, model$2.entries)] });
 const main = Browser.document({ init: init, view: model$3 => ({ title: "Elm • TodoMVC", body: { hd: view(model$3), tl: 0 } }), update: updateWithStorage, subscriptions: $p0$1 => Platform$Sub.none });
 const setStorage = given => Dartea_browser.$$Port$outgoing("setStorage", given);
 const Entry = ($a0, $a1, $a2, $a3) => ({ description: $a0, completed: $a1, editing: $a2, id: $a3 });

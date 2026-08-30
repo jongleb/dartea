@@ -13,13 +13,6 @@ const Normal = _0 => ({ TAG: "Normal", _0: _0 });
 const MayStopPropagation = _0 => ({ TAG: "MayStopPropagation", _0: _0 });
 const MayPreventDefault = _0 => ({ TAG: "MayPreventDefault", _0: _0 });
 const Custom = _0 => ({ TAG: "Custom", _0: _0 });
-const noScript = tag => {
-  if (tag === "script") {
-    return "p";
-  } else {
-    return tag;
-  }
-};
 const noOnOrFormAction = key => {
   const lowered = $$String.toLower(key);
   if ($$String.startsWith("on", lowered) || (lowered === "formaction")) {
@@ -41,35 +34,28 @@ const dangerousUri = value => {
   const trimmed = $$String.toLower($$String.trimLeft(value));
   return $$String.startsWith("javascript:", squeezed) || $$String.startsWith("data:text/html", trimmed);
 };
-const noJavaScriptOrHtmlUri = value$1 => {
-  if (dangerousUri(value$1)) {
-    return "";
-  } else {
-    return value$1;
-  }
-};
-const noJavaScriptOrHtmlJson = value$2 => {
-  const $s1 = Json$Decode.decodeValue(Json$Decode.string, value$2);
+const noJavaScriptOrHtmlJson = value$1 => {
+  const $s1 = Json$Decode.decodeValue(Json$Decode.string, value$1);
   switch ($s1.TAG) {
     case "Ok":
       const written = $s1._0;
       if (dangerousUri(written)) {
         return Json$Encode.string("");
       } else {
-        return value$2;
+        return value$1;
       }
     case "Err":
-      return value$2;
+      return value$1;
   }
 };
-const node = (tag$1, eta1, eta2) => Dartea_browser.$$VirtualDom$node(noScript(tag$1), eta1, eta2);
-const nodeNS = (namespace, tag$2, eta1$1, eta2$1) => Dartea_browser.$$VirtualDom$nodeNS(namespace, noScript(tag$2), eta1$1, eta2$1);
-const keyedNode = (tag$3, eta1$2, eta2$2) => Dartea_browser.$$VirtualDom$keyedNode(noScript(tag$3), eta1$2, eta2$2);
-const keyedNodeNS = (namespace$1, tag$4, eta1$3, eta2$3) => Dartea_browser.$$VirtualDom$keyedNodeNS(namespace$1, noScript(tag$4), eta1$3, eta2$3);
+const node = (tag, eta1, eta2) => Dartea_browser.$$VirtualDom$node((tag === "script") ? "p" : tag, eta1, eta2);
+const nodeNS = (namespace, tag$1, eta1$1, eta2$1) => Dartea_browser.$$VirtualDom$nodeNS(namespace, (tag$1 === "script") ? "p" : tag$1, eta1$1, eta2$1);
+const keyedNode = (tag$2, eta1$2, eta2$2) => Dartea_browser.$$VirtualDom$keyedNode((tag$2 === "script") ? "p" : tag$2, eta1$2, eta2$2);
+const keyedNodeNS = (namespace$1, tag$3, eta1$3, eta2$3) => Dartea_browser.$$VirtualDom$keyedNodeNS(namespace$1, (tag$3 === "script") ? "p" : tag$3, eta1$3, eta2$3);
 const text = Dartea_browser.$$VirtualDom$text;
-const attribute = (key$2, value$3) => Dartea_browser.$$VirtualDom$attribute(noOnOrFormAction(key$2), noJavaScriptOrHtmlUri(value$3));
-const attributeNS = (namespace$2, key$3, value$4) => Dartea_browser.$$VirtualDom$attributeNS(namespace$2, noOnOrFormAction(key$3), noJavaScriptOrHtmlUri(value$4));
-const property = (key$4, value$5) => Dartea_browser.$$VirtualDom$property(noInnerHtmlOrFormAction(key$4), noJavaScriptOrHtmlJson(value$5));
+const attribute = (key$2, value$2) => Dartea_browser.$$VirtualDom$attribute(noOnOrFormAction(key$2), dangerousUri(value$2) ? "" : value$2);
+const attributeNS = (namespace$2, key$3, value$3) => Dartea_browser.$$VirtualDom$attributeNS(namespace$2, noOnOrFormAction(key$3), dangerousUri(value$3) ? "" : value$3);
+const property = (key$4, value$4) => Dartea_browser.$$VirtualDom$property(noInnerHtmlOrFormAction(key$4), noJavaScriptOrHtmlJson(value$4));
 const style = Dartea_browser.$$VirtualDom$style;
 const on = Dartea_browser.$$VirtualDom$on;
 const map = Dartea_browser.$$VirtualDom$map;
