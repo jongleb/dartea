@@ -16,21 +16,22 @@ type token = Name of string | Field of string
 
 let tokens text =
   let word = Buffer.create 32 in
-  let flush (found, dotted) =
+  let flush (found, dots) =
     let token = Buffer.contents word in
     Buffer.clear word;
     if String.equal token "" then found
-    else if dotted then Field token :: found
+    else if dots = 1 then Field token :: found
     else Name token :: found
   in
-  let letter (found, dotted) letter =
+  let letter (found, dots) letter =
     if identifier_char letter then begin
       Buffer.add_char word letter;
-      (found, dotted)
+      (found, dots)
     end
-    else (flush (found, dotted), Char.equal letter '.')
+    else if Char.equal letter '.' then (flush (found, dots), dots + 1)
+    else (flush (found, dots), 0)
   in
-  List.rev (flush (String.fold_left letter ([], false) text))
+  List.rev (flush (String.fold_left letter ([], 0) text))
 
 let plain text =
   List.filter_map

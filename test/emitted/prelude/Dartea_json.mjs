@@ -11,7 +11,7 @@ const $$Json$unsafeField = (name, value) => value[name];
 const $$Json$length = (value) => value.length;
 const $$Json$unsafeIndex = (index, value) => value[index];
 const $$Json$identity = (value) => value;
-const $$Json$stringify = (value) => JSON.stringify(value) ?? "null";
+const $$Json$stringify = (indent, value) => JSON.stringify(value, null, indent) ?? "null";
 const $$Json$isValid = (text) => {
   try {
     JSON.parse(text);

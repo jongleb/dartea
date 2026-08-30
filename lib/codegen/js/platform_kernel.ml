@@ -4,6 +4,7 @@ module Kernel_module = struct
   type t =
     | Browser
     | Dom
+    | Http
     | Json
     | Port
     | Task
@@ -49,6 +50,14 @@ let table =
     (Browser, Kernel_module.Browser, "onAnimationFrameDelta", 1);
     (Browser, Kernel_module.Url, "percentEncode", 1);
     (Browser, Kernel_module.Url, "percentDecode", 1);
+    (Browser, Kernel_module.Http, "emptyBody", 0);
+    (Browser, Kernel_module.Http, "pair", 2);
+    (Browser, Kernel_module.Http, "toFormData", 1);
+    (Browser, Kernel_module.Http, "expect", 1);
+    (Browser, Kernel_module.Http, "request", 1);
+    (Browser, Kernel_module.Http, "cancel", 1);
+    (Browser, Kernel_module.Http, "track", 2);
+    (Browser, Kernel_module.Http, "toTask", 1);
     (Browser, Kernel_module.Task, "succeed", 1);
     (Browser, Kernel_module.Task, "fail", 1);
     (Browser, Kernel_module.Task, "andThen", 2);
@@ -71,7 +80,7 @@ let table =
     (Json, Kernel_module.Json, "length", 1);
     (Json, Kernel_module.Json, "unsafeIndex", 2);
     (Json, Kernel_module.Json, "identity", 1);
-    (Json, Kernel_module.Json, "stringify", 1);
+    (Json, Kernel_module.Json, "stringify", 2);
     (Json, Kernel_module.Json, "isValid", 1);
     (Json, Kernel_module.Json, "unsafeParse", 1);
     (Json, Kernel_module.Json, "emptyArray", 0);

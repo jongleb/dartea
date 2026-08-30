@@ -28,6 +28,7 @@ let expected =
     "Html.Events 20/20";
     "Html.Keyed 3/3";
     "Html.Lazy 8/8";
+    "Http 30/37";
     "Json.Decode 32/35";
     "Json.Encode 9/12";
     "List 37/37";

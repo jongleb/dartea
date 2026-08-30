@@ -11,6 +11,7 @@ type t =
   | Html_events [@rename "Html.Events"]
   | Html_keyed [@rename "Html.Keyed"]
   | Html_lazy [@rename "Html.Lazy"]
+  | Http [@rename "Http"]
   | Json_decode [@rename "Json.Decode"]
   | Json_encode [@rename "Json.Encode"]
   | List [@rename "List"]
@@ -36,7 +37,7 @@ let name = to_string
 let packages =
   [
     "elm/core"; "elm/json"; "elm/html"; "elm/browser"; "elm/time";
-    "elm/virtual-dom"; "elm/url";
+    "elm/virtual-dom"; "elm/url"; "elm/http";
   ]
 
 let compiled_by =
@@ -66,6 +67,7 @@ let notice module_ =
       derived_from "elm/url" "Copyright 2017-present Evan Czaplicki"
   | Json_decode | Json_encode ->
       derived_from "elm/json" "Copyright 2014-present Evan Czaplicki"
+  | Http -> derived_from "elm/http" "Copyright 2014-present Evan Czaplicki"
   | Time ->
       derived_from "elm/time" "Copyright 2018-present Evan Czaplicki"
   | Basics | Char | Dict | List | Maybe | Platform | Platform_cmd
@@ -85,6 +87,7 @@ let source = function
   | Html_events -> Prelude_source.html_events
   | Html_keyed -> Prelude_source.html_keyed
   | Html_lazy -> Prelude_source.html_lazy
+  | Http -> Prelude_source.http
   | Json_decode -> Prelude_source.json_decode
   | Json_encode -> Prelude_source.json_encode
   | List -> Prelude_source.list
@@ -109,7 +112,7 @@ let imported_by_default = function
   | String | Tuple ->
       true
   | Browser | Browser_dom | Browser_events | Browser_navigation | Dict | Html
-  | Html_attributes | Html_events | Html_keyed | Html_lazy | Json_decode
+  | Html_attributes | Html_events | Html_keyed | Html_lazy | Http | Json_decode
   | Json_encode | Task | Time | Url | Url_builder | Url_parser
   | Url_parser_internal | Url_parser_query | VirtualDom ->
       false
@@ -132,9 +135,9 @@ let exposed_by_default = function
       Canonical.Exposed.Only
         [ Canonical.Exposed.Type { name = "Sub"; ctors_exposed = false } ]
   | Browser | Browser_dom | Browser_events | Browser_navigation | Char | Dict
-  | Html | Html_attributes | Html_events | Html_keyed | Html_lazy | Json_decode
-  | Json_encode | List | String | Task | Time | Tuple | Url | Url_builder
-  | Url_parser | Url_parser_internal | Url_parser_query | VirtualDom ->
+  | Html | Html_attributes | Html_events | Html_keyed | Html_lazy | Http
+  | Json_decode | Json_encode | List | String | Task | Time | Tuple | Url
+  | Url_builder | Url_parser | Url_parser_internal | Url_parser_query | VirtualDom ->
       Canonical.Exposed.Only []
 
 let alias_by_default module_ =
@@ -142,7 +145,7 @@ let alias_by_default module_ =
   | Platform_cmd -> Some "Cmd"
   | Platform_sub -> Some "Sub"
   | Basics | Browser | Browser_dom | Browser_events | Browser_navigation | Char
-  | Dict | Html | Html_attributes | Html_events | Html_keyed | Html_lazy
+  | Dict | Html | Html_attributes | Html_events | Html_keyed | Html_lazy | Http
   | Json_decode | Json_encode | List | Maybe | Platform | Result | String | Task
   | Time | Tuple | Url | Url_builder | Url_parser | Url_parser_internal
   | Url_parser_query | VirtualDom ->

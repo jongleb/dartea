@@ -108,6 +108,10 @@ main =
 |}
 
 let dom = {|let created = 0;
+globalThis.requestAnimationFrame = (draw) => {
+  draw(0);
+  return 0;
+};
 let replaced = 0;
 let started = 0;
 const timers = new Map();
@@ -148,6 +152,8 @@ const make = (tag) => ({
   removeAttribute(key) { erased += 1; delete this.attributes[key]; },
   addEventListener(event, handler) { this.listeners[event] = handler; },
   appendChild(child) { this.childNodes.push(child); return child; },
+  append(...children) { this.childNodes.push(...children); },
+  replaceChildren(...children) { this.childNodes = [...children]; },
   insertBefore(child, before) {
     this.childNodes = this.childNodes.filter((kept) => kept !== child);
     const at =
@@ -215,6 +221,7 @@ const launched = async (flags) => {
   const host = make("body");
   document.body = host;
   globalThis.Dartea.Main.init({ node: host, flags });
+  await new Promise((settle) => setTimeout(settle));
   return host;
 };
 

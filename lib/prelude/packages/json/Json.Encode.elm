@@ -61,6 +61,6 @@ object pairs =
         pairs
 
 
-encode : Value -> String
+encode : Int -> Value -> String
 encode =
     Elm.Kernel.Json.stringify

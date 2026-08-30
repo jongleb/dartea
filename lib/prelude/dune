@@ -18,6 +18,7 @@
   packages/html/Html.Events.elm
   packages/html/Html.Keyed.elm
   packages/html/Html.Lazy.elm
+  packages/http/Http.elm
   packages/json/Json.Decode.elm
   packages/json/Json.Encode.elm
   packages/core/List.elm
@@ -53,6 +54,8 @@
     (cat packages/html/Html.Keyed.elm)
     (echo "|elm}\n\nlet html_lazy = {elm|")
     (cat packages/html/Html.Lazy.elm)
+    (echo "|elm}\n\nlet http = {elm|")
+    (cat packages/http/Http.elm)
     (echo "|elm}\n\nlet json_decode = {elm|")
     (cat packages/json/Json.Decode.elm)
     (echo "|elm}\n\nlet json_encode = {elm|")

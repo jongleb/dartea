@@ -5,6 +5,7 @@
 // dartea's LICENSE carries the full text.
 import * as Dartea_runtime from "./Dartea_runtime.mjs";
 import * as Dartea_json from "./Dartea_json.mjs";
+import * as Json$Encode from "./Json.Encode.mjs";
 import * as List from "./List.mjs";
 import * as Maybe from "./Maybe.mjs";
 import * as Result from "./Result.mjs";
@@ -29,7 +30,6 @@ const asString = Dartea_json.$$Json$identity;
 const asBool = Dartea_json.$$Json$identity;
 const asInt = Dartea_json.$$Json$identity;
 const asFloat = Dartea_json.$$Json$identity;
-const shown = Dartea_json.$$Json$stringify;
 const isValidJson = Dartea_json.$$Json$isValid;
 const parsed = Dartea_json.$$Json$unsafeParse;
 const run = (decoder, input) => {
@@ -217,7 +217,7 @@ const errorToString = error$6 => {
     case "Failure":
       const message$1 = error$6._0;
       const given$9 = error$6._1;
-      return message$1 + (", but instead got: " + shown(given$9));
+      return message$1 + (", but instead got: " + Json$Encode.encode(0, given$9));
   }
 };
 const map4 = (func, one$1, other, third$1, fourth) => andThen(a => map3(Dartea_runtime.$$curry(func, [a]), other, third$1, fourth), one$1);

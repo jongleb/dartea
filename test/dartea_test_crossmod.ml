@@ -371,7 +371,7 @@ pair =
 report : String
 report =
     let
-        text = E.encode (E.object [ ( "name", E.string "ann" ), ( "age", E.int 7 ) ])
+        text = E.encode 0 (E.object [ ( "name", E.string "ann" ), ( "age", E.int 7 ) ])
     in
     case D.decodeString pair text of
         Ok found -> Tuple.first found ++ "/" ++ String.fromInt (Tuple.second found)

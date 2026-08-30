@@ -113,8 +113,8 @@ asFloat =
 
 
 shown : Value -> String
-shown =
-    Elm.Kernel.Json.stringify
+shown value =
+    Json.Encode.encode 0 value
 
 
 isValidJson : String -> Bool

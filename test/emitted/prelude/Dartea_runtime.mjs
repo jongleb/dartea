@@ -38,8 +38,8 @@ const $$cmp = (x, y) => {
     return x === y ? 0 : x < y ? -1 : 1;
   }
   if (Array.isArray(x)) {
-    for (let index = 0; index < x.length; index++) {
-      const ordering = $$cmp(x[index], y[index]);
+    for (const [index, item] of x.entries()) {
+      const ordering = $$cmp(item, y[index]);
       if (ordering !== 0) return ordering;
     }
     return 0;
@@ -63,29 +63,15 @@ const $$modBy = (modulus, x) => {
     : answer;
 };
 
-const $$charToCode = (char) => {
-  const code = char.charCodeAt(0);
-  if (0xd800 <= code && code <= 0xdbff) {
-    return (code - 0xd800) * 0x400 + char.charCodeAt(1) - 0xdc00 + 0x10000;
-  }
-  return code;
-};
+const $$charToCode = (char) => char.codePointAt(0);
 
-const $$stringToList = (text) => {
+const $$listOf = (items) => {
   let list = 0;
-  let index = text.length;
-  while (index > 0) {
-    index -= 1;
-    let letter = text[index];
-    const code = text.charCodeAt(index);
-    if (0xdc00 <= code && code <= 0xdfff && index > 0) {
-      index -= 1;
-      letter = text[index] + letter;
-    }
-    list = { hd: letter, tl: list };
-  }
+  for (const item of items.toReversed()) list = { hd: item, tl: list };
   return list;
 };
+
+const $$stringToList = (text) => $$listOf([...text]);
 
 const $$stringFromList = (chars) => {
   let text = "";
@@ -93,24 +79,10 @@ const $$stringFromList = (chars) => {
   return text;
 };
 
-const $$stringSplit = (separator, text) => {
-  const parts = text.split(separator);
-  let list = 0;
-  for (let index = parts.length - 1; index >= 0; index--) {
-    list = { hd: parts[index], tl: list };
-  }
-  return list;
-};
+const $$stringSplit = (separator, text) => $$listOf(text.split(separator));
 
-const $$charFromCode = (code) => {
-  if (code < 0 || 0x10ffff < code) return "\ufffd";
-  if (code <= 0xffff) return String.fromCharCode(code);
-  const rest = code - 0x10000;
-  return String.fromCharCode(
-    Math.floor(rest / 0x400) + 0xd800,
-    (rest % 0x400) + 0xdc00,
-  );
-};
+const $$charFromCode = (code) =>
+  code < 0 || 0x10ffff < code ? "\ufffd" : String.fromCodePoint(code);
 
 export {
   $$curry,
