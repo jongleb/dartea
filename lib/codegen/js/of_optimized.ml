@@ -278,9 +278,7 @@ and emit_raw env (e : O.Expr.t) : J.stmt list * J.expr =
       let ss, vs = emit_values env items in
       (ss, J.Array vs)
   | O.Expr.Expr_record_update { record; fields } ->
-      let sr, er = emit_value env record in
-      let ss, members = emit_fields env fields in
-      (sr @ ss, J.Object (J.Spread er :: members))
+      emit_record_update env e.typ record fields
   | O.Expr.Expr_apply { fn; arg } -> begin
       match emit_block env e with
       | Some found -> found
@@ -347,6 +345,35 @@ and emit_binding env (binding : O.Expr.expr_let_binding) =
   | _ ->
       let sv, ev = emit_value env' bound in
       (env', sv @ [ J.ConstDecl { name; init = ev } ])
+
+and record_labels (typ : O.Type.t) : string list option =
+  let rec row (t : O.Type.t) =
+    match t with
+    | O.Type.TRowExtend (label, _, rest) -> Option.map (List.cons label) (row rest)
+    | O.Type.TRowEmpty -> Some []
+    | O.Type.TVar _ | O.Type.TInt | O.Type.TFloat | O.Type.TChar | O.Type.TBool
+    | O.Type.TStr | O.Type.TUnit | O.Type.TFun _ | O.Type.TTup _
+    | O.Type.TCustom _ | O.Type.TRecord _ ->
+        None
+  in
+  match typ with O.Type.TRecord inner -> row inner | _ -> None
+
+and emit_record_update env typ (record : O.Expr.t) (fields : O.Expr.expr_record_row list) =
+  let sr, er, share = emit_scrutinee env record in
+  let ss, members = emit_fields env fields in
+  let field_name (member : J.object_member) =
+    match member with J.Field (name, _) -> name | J.Spread _ -> ""
+  in
+  let written = List.map field_name members in
+  match record_labels typ with
+  | Some labels ->
+      let carried =
+        labels
+        |> List.filter (fun label -> not (List.mem label written))
+        |> List.map (fun label -> J.Field (label, J.member er label))
+      in
+      (sr @ share @ ss, J.Object (carried @ members))
+  | None -> (sr @ ss @ share, J.Object (J.Spread er :: members))
 
 and emit_scrutinee env (expr : O.Expr.t) : J.stmt list * J.expr * J.stmt list =
   let s, e = emit_value env expr in

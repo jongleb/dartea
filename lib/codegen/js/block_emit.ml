@@ -58,6 +58,9 @@ and emit ~emit_value ~emit_values env (e : O.Expr.t) : (J.stmt list * J.expr) op
       List.filter (fun found -> Scope.mem found env.Env.scope) (Data.Name.Set.elements free)
     in
     let arguments = List.map (Env.jid_env env) locals in
+    let arguments_value =
+      if List.is_empty arguments then J.Identifier Runtime.no_args else J.Array arguments
+    in
     let preamble =
       List.mapi
         (fun index found ->
@@ -82,7 +85,7 @@ and emit ~emit_value ~emit_values env (e : O.Expr.t) : (J.stmt list * J.expr) op
           J.Field (Runtime.tag, J.string Runtime.block);
           Forms.field Form (J.Identifier name);
           Forms.field Refresh (J.Identifier refresher);
-          Forms.field Args (J.Array arguments);
+          Forms.field Args arguments_value;
         ] )
   in
   Option.bind env.Env.forms (fun table ->

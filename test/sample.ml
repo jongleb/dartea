@@ -152,11 +152,19 @@ class Linked {
   appendChild(child) { this.childNodes.push(this.adopt(child)); return child; }
   append(...children) { this.childNodes.push(...children.map((child) => this.adopt(child))); }
   replaceChildren(...children) { this.childNodes = children.map((child) => this.adopt(child)); }
+  prepend(...children) { this.childNodes.unshift(...children.map((child) => this.adopt(child))); }
+  get isConnected() {
+    for (let node = this; node !== null && node !== undefined; node = node.parentNode) {
+      if (node === document.body) return true;
+    }
+    return false;
+  }
   insertBefore(child, before) {
-    this.childNodes = this.childNodes.filter((kept) => kept !== child);
+    const arriving = child.fragment === true ? child.childNodes.splice(0) : [child];
+    this.childNodes = this.childNodes.filter((kept) => !arriving.includes(kept));
     const at =
       before === null ? this.childNodes.length : this.childNodes.indexOf(before);
-    this.childNodes.splice(at, 0, this.adopt(child));
+    this.childNodes.splice(at, 0, ...arriving.map((node) => this.adopt(node)));
     return child;
   }
   removeChild(child) {
@@ -241,8 +249,16 @@ const make = (tag) => {
   return made;
 };
 
+class Fragment extends Linked {
+  constructor() {
+    super();
+    this.fragment = true;
+  }
+}
+
 globalThis.document = {
   getElementById: () => undefined,
+  createDocumentFragment: () => new Fragment(),
   createElement: (tag) => { created += 1; return make(tag); },
   createElementNS: (namespace, tag) => {
     created += 1;

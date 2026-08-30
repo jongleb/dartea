@@ -20,6 +20,7 @@ module Key = struct
     | Form [@rename "form"]
     | Refresh [@rename "refresh"]
     | Args [@rename "args"]
+    | Find [@rename "find"]
   [@@deriving to_string]
 end
 
@@ -110,11 +111,26 @@ and child shape ~path (child : Blocks.child) =
   | Static_text text -> J.Object [ field Text (J.string text) ]
   | Hole _ -> J.Object [ field Hole (J.int (hole_index shape path)) ]
 
+let chain path =
+  let root = "$$e" in
+  let step held index =
+    let rec siblings held left =
+      if left = 0 then held else siblings (Dom.member held Dom.Node.Next_sibling) (left - 1)
+    in
+    siblings (Dom.member held Dom.Node.First_child) index
+  in
+  J.Arrow
+    {
+      params = [ root ];
+      body = J.ArrowExpr (List.fold_left step (J.Identifier root) path);
+    }
+
 let expression shape =
   let hole (path, kind) =
     J.Object
       ([
          field Path (J.Array (List.map J.int path));
+         field Find (chain path);
          field Kind (J.string (Kind.to_string (Kind.of_hole kind)));
        ]
       @ kind_fields kind)
@@ -132,5 +148,10 @@ let name table shape =
       name
 
 let declarations table =
+  let shared =
+    if List.is_empty table.refreshers then []
+    else [ J.ConstDecl { name = Runtime.no_args; init = J.Array [] } ]
+  in
   List.rev_map (fun (name, shape) -> J.ConstDecl { name; init = expression shape }) table.known
+  @ shared
   @ List.rev_map (fun (name, arrow) -> J.ConstDecl { name; init = arrow }) table.refreshers

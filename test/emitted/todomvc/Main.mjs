@@ -39,15 +39,16 @@ const $append$List = (xs, ys) => {
   }
   return root;
 };
-const $$form0 = { tag: "button", attributes: [{ key: "className", value: "clear-completed", way: "property" }], children: [{ hole: 2 }], holes: [{ path: [], kind: "attribute" }, { path: [], kind: "event", event: "click", plain: true }, { path: [0], kind: "text" }] };
-const $$form1 = { tag: "span", attributes: [{ key: "className", value: "todo-count", way: "property" }], children: [{ tag: "strong", attributes: [], children: [{ hole: 0 }] }, { hole: 1 }], holes: [{ path: [0, 0], kind: "text" }, { path: [1], kind: "text" }] };
-const $$form2 = { tag: "li", attributes: [], children: [{ tag: "a", attributes: [], children: [{ hole: 3 }] }], holes: [{ path: [], kind: "event", event: "click", plain: true }, { path: [0], kind: "slot", key: "href", way: "property" }, { path: [0], kind: "attribute" }, { path: [0, 0], kind: "text" }] };
-const $$form3 = { tag: "ul", attributes: [{ key: "className", value: "filters", way: "property" }], children: [{ hole: 0 }, { text: " " }, { hole: 1 }, { text: " " }, { hole: 2 }], holes: [{ path: [0], kind: "subtree" }, { path: [2], kind: "subtree" }, { path: [4], kind: "subtree" }] };
-const $$form4 = { tag: "footer", attributes: [{ key: "className", value: "footer", way: "property" }], children: [{ hole: 1 }, { hole: 2 }, { hole: 3 }], holes: [{ path: [], kind: "attribute" }, { path: [0], kind: "subtree" }, { path: [1], kind: "subtree" }, { path: [2], kind: "subtree" }] };
-const $$form5 = { tag: "li", attributes: [], children: [{ tag: "div", attributes: [{ key: "className", value: "view", way: "property" }], children: [{ tag: "input", attributes: [{ key: "className", value: "toggle", way: "property" }, { key: "type", value: "checkbox", way: "property" }], children: [] }, { tag: "label", attributes: [], children: [{ hole: 4 }] }, { tag: "button", attributes: [{ key: "className", value: "destroy", way: "property" }], children: [] }] }, { tag: "input", attributes: [{ key: "className", value: "edit", way: "property" }, { key: "name", value: "title", way: "property" }], children: [] }], holes: [{ path: [], kind: "attribute" }, { path: [0, 0], kind: "slot", key: "checked", way: "property" }, { path: [0, 0], kind: "event", event: "click", plain: true }, { path: [0, 1], kind: "event", event: "dblclick", plain: true }, { path: [0, 1, 0], kind: "text" }, { path: [0, 2], kind: "event", event: "click", plain: true }, { path: [1], kind: "slot", key: "value", way: "property" }, { path: [1], kind: "slot", key: "id", way: "property" }, { path: [1], kind: "attribute" }, { path: [1], kind: "event", event: "blur", plain: true }, { path: [1], kind: "attribute" }] };
-const $$form6 = { tag: "section", attributes: [{ key: "className", value: "main", way: "property" }], children: [{ tag: "input", attributes: [{ key: "className", value: "toggle-all", way: "property" }, { key: "type", value: "checkbox", way: "property" }, { key: "name", value: "toggle", way: "property" }], children: [] }, { tag: "label", attributes: [{ key: "htmlFor", value: "toggle-all", way: "property" }], children: [{ text: "Mark all as complete" }] }, { tag: "ul", attributes: [{ key: "className", value: "todo-list", way: "property" }], children: [] }], holes: [{ path: [], kind: "slot", key: "visibility", way: "style" }, { path: [0], kind: "slot", key: "checked", way: "property" }, { path: [0], kind: "event", event: "click", plain: true }, { path: [2], kind: "rows", keyed: true }] };
-const $$form7 = { tag: "header", attributes: [{ key: "className", value: "header", way: "property" }], children: [{ tag: "h1", attributes: [], children: [{ text: "todos" }] }, { tag: "input", attributes: [{ key: "className", value: "new-todo", way: "property" }, { key: "placeholder", value: "What needs to be done?", way: "property" }, { key: "name", value: "newTodo", way: "property" }], children: [] }], holes: [{ path: [1], kind: "attribute" }, { path: [1], kind: "slot", key: "value", way: "property" }, { path: [1], kind: "attribute" }, { path: [1], kind: "attribute" }] };
-const $$form8 = { tag: "div", attributes: [{ key: "className", value: "todomvc-wrapper", way: "property" }, { key: "visibility", value: "hidden", way: "style" }], children: [{ tag: "section", attributes: [{ key: "className", value: "todoapp", way: "property" }], children: [{ hole: 0 }, { hole: 1 }, { hole: 2 }] }], holes: [{ path: [0, 0], kind: "subtree" }, { path: [0, 1], kind: "subtree" }, { path: [0, 2], kind: "subtree" }] };
+const $$form0 = { tag: "button", attributes: [{ key: "className", value: "clear-completed", way: "property" }], children: [{ hole: 2 }], holes: [{ path: [], find: $$e => $$e, kind: "attribute" }, { path: [], find: $$e => $$e, kind: "event", event: "click", plain: true }, { path: [0], find: $$e => $$e.firstChild, kind: "text" }] };
+const $$form1 = { tag: "span", attributes: [{ key: "className", value: "todo-count", way: "property" }], children: [{ tag: "strong", attributes: [], children: [{ hole: 0 }] }, { hole: 1 }], holes: [{ path: [0, 0], find: $$e => $$e.firstChild.firstChild, kind: "text" }, { path: [1], find: $$e => $$e.firstChild.nextSibling, kind: "text" }] };
+const $$form2 = { tag: "li", attributes: [], children: [{ tag: "a", attributes: [], children: [{ hole: 3 }] }], holes: [{ path: [], find: $$e => $$e, kind: "event", event: "click", plain: true }, { path: [0], find: $$e => $$e.firstChild, kind: "slot", key: "href", way: "property" }, { path: [0], find: $$e => $$e.firstChild, kind: "attribute" }, { path: [0, 0], find: $$e => $$e.firstChild.firstChild, kind: "text" }] };
+const $$form3 = { tag: "ul", attributes: [{ key: "className", value: "filters", way: "property" }], children: [{ hole: 0 }, { text: " " }, { hole: 1 }, { text: " " }, { hole: 2 }], holes: [{ path: [0], find: $$e => $$e.firstChild, kind: "subtree" }, { path: [2], find: $$e => $$e.firstChild.nextSibling.nextSibling, kind: "subtree" }, { path: [4], find: $$e => $$e.firstChild.nextSibling.nextSibling.nextSibling.nextSibling, kind: "subtree" }] };
+const $$form4 = { tag: "footer", attributes: [{ key: "className", value: "footer", way: "property" }], children: [{ hole: 1 }, { hole: 2 }, { hole: 3 }], holes: [{ path: [], find: $$e => $$e, kind: "attribute" }, { path: [0], find: $$e => $$e.firstChild, kind: "subtree" }, { path: [1], find: $$e => $$e.firstChild.nextSibling, kind: "subtree" }, { path: [2], find: $$e => $$e.firstChild.nextSibling.nextSibling, kind: "subtree" }] };
+const $$form5 = { tag: "li", attributes: [], children: [{ tag: "div", attributes: [{ key: "className", value: "view", way: "property" }], children: [{ tag: "input", attributes: [{ key: "className", value: "toggle", way: "property" }, { key: "type", value: "checkbox", way: "property" }], children: [] }, { tag: "label", attributes: [], children: [{ hole: 4 }] }, { tag: "button", attributes: [{ key: "className", value: "destroy", way: "property" }], children: [] }] }, { tag: "input", attributes: [{ key: "className", value: "edit", way: "property" }, { key: "name", value: "title", way: "property" }], children: [] }], holes: [{ path: [], find: $$e => $$e, kind: "attribute" }, { path: [0, 0], find: $$e => $$e.firstChild.firstChild, kind: "slot", key: "checked", way: "property" }, { path: [0, 0], find: $$e => $$e.firstChild.firstChild, kind: "event", event: "click", plain: true }, { path: [0, 1], find: $$e => $$e.firstChild.firstChild.nextSibling, kind: "event", event: "dblclick", plain: true }, { path: [0, 1, 0], find: $$e => $$e.firstChild.firstChild.nextSibling.firstChild, kind: "text" }, { path: [0, 2], find: $$e => $$e.firstChild.firstChild.nextSibling.nextSibling, kind: "event", event: "click", plain: true }, { path: [1], find: $$e => $$e.firstChild.nextSibling, kind: "slot", key: "value", way: "property" }, { path: [1], find: $$e => $$e.firstChild.nextSibling, kind: "slot", key: "id", way: "property" }, { path: [1], find: $$e => $$e.firstChild.nextSibling, kind: "attribute" }, { path: [1], find: $$e => $$e.firstChild.nextSibling, kind: "event", event: "blur", plain: true }, { path: [1], find: $$e => $$e.firstChild.nextSibling, kind: "attribute" }] };
+const $$form6 = { tag: "section", attributes: [{ key: "className", value: "main", way: "property" }], children: [{ tag: "input", attributes: [{ key: "className", value: "toggle-all", way: "property" }, { key: "type", value: "checkbox", way: "property" }, { key: "name", value: "toggle", way: "property" }], children: [] }, { tag: "label", attributes: [{ key: "htmlFor", value: "toggle-all", way: "property" }], children: [{ text: "Mark all as complete" }] }, { tag: "ul", attributes: [{ key: "className", value: "todo-list", way: "property" }], children: [] }], holes: [{ path: [], find: $$e => $$e, kind: "slot", key: "visibility", way: "style" }, { path: [0], find: $$e => $$e.firstChild, kind: "slot", key: "checked", way: "property" }, { path: [0], find: $$e => $$e.firstChild, kind: "event", event: "click", plain: true }, { path: [2], find: $$e => $$e.firstChild.nextSibling.nextSibling, kind: "rows", keyed: true }] };
+const $$form7 = { tag: "header", attributes: [{ key: "className", value: "header", way: "property" }], children: [{ tag: "h1", attributes: [], children: [{ text: "todos" }] }, { tag: "input", attributes: [{ key: "className", value: "new-todo", way: "property" }, { key: "placeholder", value: "What needs to be done?", way: "property" }, { key: "name", value: "newTodo", way: "property" }], children: [] }], holes: [{ path: [1], find: $$e => $$e.firstChild.nextSibling, kind: "attribute" }, { path: [1], find: $$e => $$e.firstChild.nextSibling, kind: "slot", key: "value", way: "property" }, { path: [1], find: $$e => $$e.firstChild.nextSibling, kind: "attribute" }, { path: [1], find: $$e => $$e.firstChild.nextSibling, kind: "attribute" }] };
+const $$form8 = { tag: "div", attributes: [{ key: "className", value: "todomvc-wrapper", way: "property" }, { key: "visibility", value: "hidden", way: "style" }], children: [{ tag: "section", attributes: [{ key: "className", value: "todoapp", way: "property" }], children: [{ hole: 0 }, { hole: 1 }, { hole: 2 }] }], holes: [{ path: [0, 0], find: $$e => $$e.firstChild.firstChild, kind: "subtree" }, { path: [0, 1], find: $$e => $$e.firstChild.firstChild.nextSibling, kind: "subtree" }, { path: [0, 2], find: $$e => $$e.firstChild.firstChild.nextSibling.nextSibling, kind: "subtree" }] };
+const $$noargs = [];
 const $$r0 = ($$b, $$put, $$a) => {
   const entriesCompleted = $$a[0];
   if ($$b.deps[0] !== entriesCompleted) {
@@ -205,11 +206,11 @@ const update = (msg, model) => {
     return [model, Platform$Cmd.none];
   } else {
     if (msg === "Add") {
-      return [{ ...model, uid: model.uid + 1, field: "", entries: $$String.isEmpty(model.field) ? model.entries : $append$List(model.entries, { hd: newEntry(model.field, model.uid), tl: 0 }) }, Platform$Cmd.none];
+      return [{ visibility: model.visibility, uid: model.uid + 1, field: "", entries: $$String.isEmpty(model.field) ? model.entries : $append$List(model.entries, { hd: newEntry(model.field, model.uid), tl: 0 }) }, Platform$Cmd.none];
     } else {
       if (msg.TAG === "UpdateField") {
         const str = msg._0;
-        return [{ ...model, field: str }, Platform$Cmd.none];
+        return [{ entries: model.entries, uid: model.uid, visibility: model.visibility, field: str }, Platform$Cmd.none];
       } else {
         if (msg.TAG === "EditingEntry") {
           const id$4 = msg._0;
@@ -222,7 +223,7 @@ const update = (msg, model) => {
   }
 };
           const focus = Browser$Dom.focus("todo-" + $$String.fromInt(id$4));
-          return [{ ...model, entries: List.map(updateEntry$3, model.entries) }, Task.attempt($p0 => NoOp, focus)];
+          return [{ field: model.field, uid: model.uid, visibility: model.visibility, entries: List.map(updateEntry$3, model.entries) }, Task.attempt($p0 => NoOp, focus)];
         } else {
           if (msg.TAG === "UpdateEntry") {
             const id$3 = msg._0;
@@ -234,14 +235,14 @@ const update = (msg, model) => {
     return t$3;
   }
 };
-            return [{ ...model, entries: List.map(updateEntry$2, model.entries) }, Platform$Cmd.none];
+            return [{ field: model.field, uid: model.uid, visibility: model.visibility, entries: List.map(updateEntry$2, model.entries) }, Platform$Cmd.none];
           } else {
             if (msg.TAG === "Delete") {
               const id$2 = msg._0;
-              return [{ ...model, entries: List.filter(t$2 => t$2.id !== id$2, model.entries) }, Platform$Cmd.none];
+              return [{ field: model.field, uid: model.uid, visibility: model.visibility, entries: List.filter(t$2 => t$2.id !== id$2, model.entries) }, Platform$Cmd.none];
             } else {
               if (msg === "DeleteComplete") {
-                return [{ ...model, entries: List.filter($s1 => Basics.composeL(Basics.not, r => r.completed, $s1), model.entries) }, Platform$Cmd.none];
+                return [{ field: model.field, uid: model.uid, visibility: model.visibility, entries: List.filter($s1 => Basics.composeL(Basics.not, r => r.completed, $s1), model.entries) }, Platform$Cmd.none];
               } else {
                 if (msg.TAG === "Check") {
                   const id$1 = msg._0;
@@ -253,15 +254,15 @@ const update = (msg, model) => {
     return t$1;
   }
 };
-                  return [{ ...model, entries: List.map(updateEntry$1, model.entries) }, Platform$Cmd.none];
+                  return [{ field: model.field, uid: model.uid, visibility: model.visibility, entries: List.map(updateEntry$1, model.entries) }, Platform$Cmd.none];
                 } else {
                   if (msg.TAG === "CheckAll") {
                     const isCompleted = msg._0;
                     const updateEntry = t => ({ ...t, completed: isCompleted });
-                    return [{ ...model, entries: List.map(updateEntry, model.entries) }, Platform$Cmd.none];
+                    return [{ field: model.field, uid: model.uid, visibility: model.visibility, entries: List.map(updateEntry, model.entries) }, Platform$Cmd.none];
                   } else {
                     const visibility = msg._0;
-                    return [{ ...model, visibility: visibility }, Platform$Cmd.none];
+                    return [{ entries: model.entries, field: model.field, uid: model.uid, visibility: visibility }, Platform$Cmd.none];
                   }
                 }
               }

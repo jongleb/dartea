@@ -2,7 +2,8 @@ import * as Browser from "./Browser.mjs";
 import * as $$String from "./String.mjs";
 const Bumped = "Bumped";
 const Reset = "Reset";
-const $$form0 = { tag: "div", attributes: [{ key: "className", value: "counter", way: "property" }], children: [{ tag: "button", attributes: [], children: [{ text: "+" }] }, { hole: 1 }, { tag: "button", attributes: [], children: [{ text: "reset" }] }], holes: [{ path: [0], kind: "event", event: "click", plain: true }, { path: [1], kind: "text" }, { path: [2], kind: "event", event: "click", plain: true }] };
+const $$form0 = { tag: "div", attributes: [{ key: "className", value: "counter", way: "property" }], children: [{ tag: "button", attributes: [], children: [{ text: "+" }] }, { hole: 1 }, { tag: "button", attributes: [], children: [{ text: "reset" }] }], holes: [{ path: [0], find: $$e => $$e.firstChild, kind: "event", event: "click", plain: true }, { path: [1], find: $$e => $$e.firstChild.nextSibling, kind: "text" }, { path: [2], find: $$e => $$e.firstChild.nextSibling.nextSibling, kind: "event", event: "click", plain: true }] };
+const $$noargs = [];
 const $$r0 = ($$b, $$put, $$a) => {
   const model$1 = $$a[0];
   $$put($$b, 0, Bumped);

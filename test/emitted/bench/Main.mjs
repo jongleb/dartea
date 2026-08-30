@@ -27,8 +27,9 @@ const $append$List = (xs, ys) => {
   }
   return root;
 };
-const $$form0 = { tag: "tr", attributes: [], children: [{ tag: "td", attributes: [{ key: "className", value: "col-md-1", way: "property" }], children: [{ hole: 1 }] }, { tag: "td", attributes: [{ key: "className", value: "col-md-4", way: "property" }], children: [{ tag: "a", attributes: [], children: [{ hole: 3 }] }] }, { tag: "td", attributes: [{ key: "className", value: "col-md-1", way: "property" }], children: [{ tag: "button", attributes: [{ key: "className", value: "remove", way: "property" }], children: [{ text: "x" }] }] }, { tag: "td", attributes: [{ key: "className", value: "col-md-6", way: "property" }], children: [] }], holes: [{ path: [], kind: "slot", key: "className", way: "property" }, { path: [0, 0], kind: "text" }, { path: [1, 0], kind: "event", event: "click", plain: true }, { path: [1, 0, 0], kind: "text" }, { path: [2, 0], kind: "event", event: "click", plain: true }] };
-const $$form1 = { tag: "div", attributes: [{ key: "className", value: "container", way: "property" }], children: [{ tag: "div", attributes: [{ key: "className", value: "jumbotron", way: "property" }], children: [{ tag: "h1", attributes: [], children: [{ text: "dartea keyed" }] }, { tag: "button", attributes: [{ key: "id", value: "run", way: "property" }], children: [{ text: "Create 1,000 rows" }] }, { tag: "button", attributes: [{ key: "id", value: "runlots", way: "property" }], children: [{ text: "Create 10,000 rows" }] }, { tag: "button", attributes: [{ key: "id", value: "add", way: "property" }], children: [{ text: "Append 1,000 rows" }] }, { tag: "button", attributes: [{ key: "id", value: "update", way: "property" }], children: [{ text: "Update every 10th row" }] }, { tag: "button", attributes: [{ key: "id", value: "clear", way: "property" }], children: [{ text: "Clear" }] }, { tag: "button", attributes: [{ key: "id", value: "swaprows", way: "property" }], children: [{ text: "Swap Rows" }] }] }, { tag: "table", attributes: [{ key: "className", value: "table", way: "property" }], children: [{ tag: "tbody", attributes: [], children: [] }] }], holes: [{ path: [0, 1], kind: "event", event: "click", plain: true }, { path: [0, 2], kind: "event", event: "click", plain: true }, { path: [0, 3], kind: "event", event: "click", plain: true }, { path: [0, 4], kind: "event", event: "click", plain: true }, { path: [0, 5], kind: "event", event: "click", plain: true }, { path: [0, 6], kind: "event", event: "click", plain: true }, { path: [1, 0], kind: "rows", keyed: true }] };
+const $$form0 = { tag: "tr", attributes: [], children: [{ tag: "td", attributes: [{ key: "className", value: "col-md-1", way: "property" }], children: [{ hole: 1 }] }, { tag: "td", attributes: [{ key: "className", value: "col-md-4", way: "property" }], children: [{ tag: "a", attributes: [], children: [{ hole: 3 }] }] }, { tag: "td", attributes: [{ key: "className", value: "col-md-1", way: "property" }], children: [{ tag: "button", attributes: [{ key: "className", value: "remove", way: "property" }], children: [{ text: "x" }] }] }, { tag: "td", attributes: [{ key: "className", value: "col-md-6", way: "property" }], children: [] }], holes: [{ path: [], find: $$e => $$e, kind: "slot", key: "className", way: "property" }, { path: [0, 0], find: $$e => $$e.firstChild.firstChild, kind: "text" }, { path: [1, 0], find: $$e => $$e.firstChild.nextSibling.firstChild, kind: "event", event: "click", plain: true }, { path: [1, 0, 0], find: $$e => $$e.firstChild.nextSibling.firstChild.firstChild, kind: "text" }, { path: [2, 0], find: $$e => $$e.firstChild.nextSibling.nextSibling.firstChild, kind: "event", event: "click", plain: true }] };
+const $$form1 = { tag: "div", attributes: [{ key: "className", value: "container", way: "property" }], children: [{ tag: "div", attributes: [{ key: "className", value: "jumbotron", way: "property" }], children: [{ tag: "h1", attributes: [], children: [{ text: "dartea keyed" }] }, { tag: "button", attributes: [{ key: "id", value: "run", way: "property" }], children: [{ text: "Create 1,000 rows" }] }, { tag: "button", attributes: [{ key: "id", value: "runlots", way: "property" }], children: [{ text: "Create 10,000 rows" }] }, { tag: "button", attributes: [{ key: "id", value: "add", way: "property" }], children: [{ text: "Append 1,000 rows" }] }, { tag: "button", attributes: [{ key: "id", value: "update", way: "property" }], children: [{ text: "Update every 10th row" }] }, { tag: "button", attributes: [{ key: "id", value: "clear", way: "property" }], children: [{ text: "Clear" }] }, { tag: "button", attributes: [{ key: "id", value: "swaprows", way: "property" }], children: [{ text: "Swap Rows" }] }] }, { tag: "table", attributes: [{ key: "className", value: "table", way: "property" }], children: [{ tag: "tbody", attributes: [], children: [] }] }], holes: [{ path: [0, 1], find: $$e => $$e.firstChild.firstChild.nextSibling, kind: "event", event: "click", plain: true }, { path: [0, 2], find: $$e => $$e.firstChild.firstChild.nextSibling.nextSibling, kind: "event", event: "click", plain: true }, { path: [0, 3], find: $$e => $$e.firstChild.firstChild.nextSibling.nextSibling.nextSibling, kind: "event", event: "click", plain: true }, { path: [0, 4], find: $$e => $$e.firstChild.firstChild.nextSibling.nextSibling.nextSibling.nextSibling, kind: "event", event: "click", plain: true }, { path: [0, 5], find: $$e => $$e.firstChild.firstChild.nextSibling.nextSibling.nextSibling.nextSibling.nextSibling, kind: "event", event: "click", plain: true }, { path: [0, 6], find: $$e => $$e.firstChild.firstChild.nextSibling.nextSibling.nextSibling.nextSibling.nextSibling.nextSibling, kind: "event", event: "click", plain: true }, { path: [1, 0], find: $$e => $$e.firstChild.nextSibling.firstChild, kind: "rows", keyed: true }] };
+const $$noargs = [];
 const $$r0 = ($$b, $$put, $$a) => {
   const row$3 = $$a[0];
   const selected = $$a[1];
@@ -93,12 +94,12 @@ const build = (count$1, model) => {
   const next = $s5[1][0];
   const seed$3 = $s5[1][1];
   const rows$1 = $s5[0];
-  return [rows$1, { ...model, next: next, seed: seed$3 }];
+  return [rows$1, { rows: model.rows, selected: model.selected, next: next, seed: seed$3 }];
 };
 const init = $p0 => [{ rows: 0, selected: 0, next: 1, seed: 0 }, Platform$Cmd.none];
 const bump = (index, row) => {
   if (Basics.modBy(10, index) === 0) {
-    return { ...row, label: row.label + " !!!" };
+    return { id: row.id, label: row.label + " !!!" };
   } else {
     return row;
   }
@@ -134,30 +135,30 @@ const update = (msg, model$1) => {
     const $s8 = build(count$3, model$1);
     const rows$4 = $s8[0];
     const next$2 = $s8[1];
-    return [{ ...next$2, rows: rows$4 }, Platform$Cmd.none];
+    return [{ selected: next$2.selected, next: next$2.next, seed: next$2.seed, rows: rows$4 }, Platform$Cmd.none];
   } else {
     if (msg.TAG === "Append") {
       const count$2 = msg._0;
       const $s7 = build(count$2, model$1);
       const rows$3 = $s7[0];
       const next$1 = $s7[1];
-      return [{ ...next$1, rows: $append$List(model$1.rows, rows$3) }, Platform$Cmd.none];
+      return [{ selected: next$1.selected, next: next$1.next, seed: next$1.seed, rows: $append$List(model$1.rows, rows$3) }, Platform$Cmd.none];
     } else {
       if (msg === "Update") {
-        return [{ ...model$1, rows: List.indexedMap(bump, model$1.rows) }, Platform$Cmd.none];
+        return [{ selected: model$1.selected, next: model$1.next, seed: model$1.seed, rows: List.indexedMap(bump, model$1.rows) }, Platform$Cmd.none];
       } else {
         if (msg === "Clear") {
-          return [{ ...model$1, rows: 0 }, Platform$Cmd.none];
+          return [{ selected: model$1.selected, next: model$1.next, seed: model$1.seed, rows: 0 }, Platform$Cmd.none];
         } else {
           if (msg === "Swap") {
-            return [{ ...model$1, rows: swap(model$1.rows) }, Platform$Cmd.none];
+            return [{ selected: model$1.selected, next: model$1.next, seed: model$1.seed, rows: swap(model$1.rows) }, Platform$Cmd.none];
           } else {
             if (msg.TAG === "Select") {
               const rowId$2 = msg._0;
-              return [{ ...model$1, selected: rowId$2 }, Platform$Cmd.none];
+              return [{ rows: model$1.rows, next: model$1.next, seed: model$1.seed, selected: rowId$2 }, Platform$Cmd.none];
             } else {
               const rowId$1 = msg._0;
-              return [{ ...model$1, rows: List.filter(row$2 => row$2.id !== rowId$1, model$1.rows) }, Platform$Cmd.none];
+              return [{ selected: model$1.selected, next: model$1.next, seed: model$1.seed, rows: List.filter(row$2 => row$2.id !== rowId$1, model$1.rows) }, Platform$Cmd.none];
             }
           }
         }

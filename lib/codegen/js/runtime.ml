@@ -11,6 +11,7 @@ let form index = "$$form" ^ string_of_int index
 let put = "$$put"
 let refresher index = "$$r" ^ string_of_int index
 let refresh_args = "$$a"
+let no_args = "$$noargs"
 let block_state = "$$b"
 let deps = "deps"
 let head = "hd"

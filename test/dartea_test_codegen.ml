@@ -2462,8 +2462,10 @@ twice = (increment (increment start)).count
   assert_js ~src ~expr:"Main.twice" ~expected:"2";
   assert_js ~src ~expr:"Main.start.count" ~expected:"0";
   let js = main_source src in
-  assert_bool "a record update spreads the original"
-    (contains ~needle:"...start" js)
+  assert_bool "a record update lists every field"
+    (contains ~needle:{|name: start.name|} js);
+  assert_bool "a record update never spreads when the fields are known"
+    (not (contains ~needle:"...start" js))
 
 let test_record_update_keeps_the_record_type _ =
   let src =

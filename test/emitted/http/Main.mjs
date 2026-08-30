@@ -9,7 +9,8 @@ import * as $$String from "./String.mjs";
 const Fetch = "Fetch";
 const Got = _0 => ({ TAG: "Got", _0: _0 });
 const Posted = _0 => ({ TAG: "Posted", _0: _0 });
-const $$form0 = { tag: "div", attributes: [], children: [{ tag: "p", attributes: [{ key: "id", value: "greeting", way: "property" }], children: [{ hole: 0 }] }, { tag: "p", attributes: [{ key: "id", value: "answer", way: "property" }], children: [{ hole: 1 }] }, { tag: "p", attributes: [{ key: "id", value: "failure", way: "property" }], children: [{ hole: 2 }] }, { tag: "button", attributes: [], children: [{ text: "double" }] }], holes: [{ path: [0, 0], kind: "text" }, { path: [1, 0], kind: "text" }, { path: [2, 0], kind: "text" }, { path: [3], kind: "event", event: "click", plain: true }] };
+const $$form0 = { tag: "div", attributes: [], children: [{ tag: "p", attributes: [{ key: "id", value: "greeting", way: "property" }], children: [{ hole: 0 }] }, { tag: "p", attributes: [{ key: "id", value: "answer", way: "property" }], children: [{ hole: 1 }] }, { tag: "p", attributes: [{ key: "id", value: "failure", way: "property" }], children: [{ hole: 2 }] }, { tag: "button", attributes: [], children: [{ text: "double" }] }], holes: [{ path: [0, 0], find: $$e => $$e.firstChild.firstChild, kind: "text" }, { path: [1, 0], find: $$e => $$e.firstChild.nextSibling.firstChild, kind: "text" }, { path: [2, 0], find: $$e => $$e.firstChild.nextSibling.nextSibling.firstChild, kind: "text" }, { path: [3], find: $$e => $$e.firstChild.nextSibling.nextSibling.nextSibling, kind: "event", event: "click", plain: true }] };
+const $$noargs = [];
 const $$r0 = ($$b, $$put, $$a) => {
   const model$1 = $$a[0];
   $$put($$b, 0, model$1.greeting);
@@ -48,19 +49,19 @@ const update = (msg, model) => {
       switch (msg._0.TAG) {
         case "Ok":
           const greeting = msg._0._0;
-          return [{ ...model, greeting: greeting }, Platform$Cmd.none];
+          return [{ answer: model.answer, failure: model.failure, greeting: greeting }, Platform$Cmd.none];
         case "Err":
           const problem$2 = msg._0._0;
-          return [{ ...model, failure: describe(problem$2) }, Platform$Cmd.none];
+          return [{ greeting: model.greeting, answer: model.answer, failure: describe(problem$2) }, Platform$Cmd.none];
       }
     } else {
       switch (msg._0.TAG) {
         case "Ok":
           const doubled = msg._0._0;
-          return [{ ...model, answer: $$String.fromInt(doubled) }, Platform$Cmd.none];
+          return [{ greeting: model.greeting, failure: model.failure, answer: $$String.fromInt(doubled) }, Platform$Cmd.none];
         case "Err":
           const problem$1 = msg._0._0;
-          return [{ ...model, failure: describe(problem$1) }, Platform$Cmd.none];
+          return [{ greeting: model.greeting, answer: model.answer, failure: describe(problem$1) }, Platform$Cmd.none];
       }
     }
   }
