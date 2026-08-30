@@ -16,6 +16,7 @@ let expected =
     "currying 25/25 declarations, 1582/1582 bytes";
     "elm_code 135/135 declarations, 22248/22248 bytes";
     "fib 4/4 declarations, 530/530 bytes";
+    "spa 163/168 declarations, 37566/37872 bytes";
     "todomvc 193/193 declarations, 27301/27301 bytes";
   ]
 
