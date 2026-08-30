@@ -196,6 +196,12 @@ class Made extends Linked {
     this.namespaces = {};
     this.style = { setProperty() { styled += 1; }, removeProperty() {} };
   }
+  contains(other) {
+    for (let node = other; node !== null && node !== undefined; node = node.parentNode) {
+      if (node === this) return true;
+    }
+    return false;
+  }
   setAttribute(key, value) { attributed += 1; this.attributes[key] = value; }
   setAttributeNS(namespace, key, value) {
     this.attributes[key] = value;
@@ -269,7 +275,32 @@ const happening = (extra) =>
     preventDefault() { prevented += 1; },
   });
 
-const handles = (node, type) => node.$$on?.[type] !== undefined && (node.$$on[type].b !== undefined || node.$$on[type].attribute !== undefined);
+const walked = (root, path) => {
+  let node = root;
+  for (const index of path) {
+    node = node.firstChild;
+    for (let step = 0; step < index; step += 1) node = node.nextSibling;
+  }
+  return node;
+};
+
+const handles = (node, type) => {
+  for (let held = node; held !== null && held !== undefined; held = held.parentNode) {
+    const on = held.$$on?.[type];
+    if (on !== undefined && (on.b !== undefined || on.attribute !== undefined)) return true;
+    const b = held.$$block;
+    if (b !== undefined) {
+      const root = held;
+      const hit = b.form.holes.some((hole) => {
+        if (hole.kind !== "event" || hole.event !== type) return false;
+        const at = walked(root, hole.path);
+        return at === node || at.contains(node);
+      });
+      if (hit) return true;
+    }
+  }
+  return false;
+};
 
 const fired = (node, type, extra = {}) => {
   let root = node;

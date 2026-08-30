@@ -19,6 +19,7 @@ module Key = struct
     | Way [@rename "way"]
     | Form [@rename "form"]
     | Refresh [@rename "refresh"]
+    | Args [@rename "args"]
   [@@deriving to_string]
 end
 
@@ -47,9 +48,14 @@ end
 let field key value = J.Field (Key.to_string key, value)
 
 type shape = { form : Blocks.t; holes : (int list * Blocks.hole_kind) list }
-type t = { mutable known : (string * shape) list }
+type t = { mutable known : (string * shape) list; mutable refreshers : (string * J.expr) list }
 
-let create () = { known = [] }
+let create () = { known = []; refreshers = [] }
+
+let refresher table arrow =
+  let name = Runtime.refresher (List.length table.refreshers) in
+  table.refreshers <- (name, arrow) :: table.refreshers;
+  name
 
 let equal_hole (path, kind) (other_path, other_kind) =
   List.equal Int.equal path other_path && Blocks.equal_hole_kind kind other_kind
@@ -127,3 +133,4 @@ let name table shape =
 
 let declarations table =
   List.rev_map (fun (name, shape) -> J.ConstDecl { name; init = expression shape }) table.known
+  @ List.rev_map (fun (name, arrow) -> J.ConstDecl { name; init = arrow }) table.refreshers

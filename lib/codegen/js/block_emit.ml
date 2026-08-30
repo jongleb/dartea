@@ -47,14 +47,42 @@ and emit ~emit_value ~emit_values env (e : O.Expr.t) : (J.stmt list * J.expr) op
   let shape table (form, holes) =
     let name = Forms.name table (Forms.of_form form holes) in
     let body = List.concat (List.mapi (emit_refresh ~emit_value ~emit_values env) holes) in
+    let free =
+      List.fold_left
+        (fun seen (hole : Blocks.hole) ->
+          Data.Name.Set.union seen
+            (O.Expr.free_variables ~bound:Data.Name.Set.empty hole.value))
+        Data.Name.Set.empty holes
+    in
+    let locals =
+      List.filter (fun found -> Scope.mem found env.Env.scope) (Data.Name.Set.elements free)
+    in
+    let arguments = List.map (Env.jid_env env) locals in
+    let preamble =
+      List.mapi
+        (fun index found ->
+          match Env.jid_env env found with
+          | J.Identifier js ->
+              J.ConstDecl
+                { name = js; init = J.at_index (J.Identifier Runtime.refresh_args) index }
+          | _ -> J.ExprStmt (J.Identifier Runtime.refresh_args))
+        locals
+    in
+    let arrow =
+      J.Arrow
+        {
+          params = [ Runtime.block_state; Runtime.put; Runtime.refresh_args ];
+          body = J.ArrowBlock (preamble @ body);
+        }
+    in
+    let refresher = Forms.refresher table arrow in
     ( [],
       J.Object
         [
           J.Field (Runtime.tag, J.string Runtime.block);
           Forms.field Form (J.Identifier name);
-          Forms.field Refresh
-            (
-              J.Arrow { params = [ Runtime.block_state; Runtime.put ]; body = J.ArrowBlock body } );
+          Forms.field Refresh (J.Identifier refresher);
+          Forms.field Args (J.Array arguments);
         ] )
   in
   Option.bind env.Env.forms (fun table ->

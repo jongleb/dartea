@@ -112,15 +112,18 @@ const host = await mounted();
 const before = serial(host);
 fired(found(host, "button"), "click");
 await new Promise((settle) => setTimeout(settle));
-console.log(before + "\n" + serial(host));
+const once = serial(host);
+fired(found(host, "button"), "click");
+await new Promise((settle) => setTimeout(settle));
+console.log(before + "\n" + once + "\n" + serial(host));
 |}
 
 let law_blocks_render_like_the_oracle =
-  Test.make ~name:"blocks render exactly the oracle, before and after an update" ~count:25
+  Test.make ~name:"blocks render exactly the oracle, before and after an update" ~count:40
     ~print:(fun tree -> program tree)
     gen_tree
     (fun tree ->
-      let expected = page tree 0 ^ "\n" ^ page tree 1 in
+      let expected = page tree 0 ^ "\n" ^ page tree 1 ^ "\n" ^ page tree 2 in
       let actual = Dartea_test_delivery.printed_by ~program:(program tree) ~stub in
       if String.equal expected actual then true
       else Test.fail_reportf "expected:\n%s\nbut got:\n%s" expected actual)

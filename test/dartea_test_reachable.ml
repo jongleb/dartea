@@ -9,17 +9,17 @@ let measured folder =
 
 let expected =
   [
-    "bench 52/54 declarations, 11964/12159 bytes";
+    "bench 54/56 declarations, 12129/12324 bytes";
     "browser 2/2 declarations, 92/92 bytes";
     "comparison 92/98 declarations, 8852/9937 bytes";
-    "counter 13/13 declarations, 1825/1825 bytes";
+    "counter 14/14 declarations, 1891/1891 bytes";
     "crossmod 10/10 declarations, 951/951 bytes";
     "currying 18/18 declarations, 1361/1361 bytes";
     "elm_code 128/128 declarations, 22702/22702 bytes";
     "fib 4/4 declarations, 530/530 bytes";
-    "http 100/105 declarations, 18763/19069 bytes";
-    "spa 117/122 declarations, 32420/32726 bytes";
-    "todomvc 147/147 declarations, 26368/26368 bytes";
+    "http 101/106 declarations, 18829/19135 bytes";
+    "spa 119/124 declarations, 32519/32825 bytes";
+    "todomvc 156/156 declarations, 27395/27395 bytes";
   ]
 
 let test_playgrounds _ =

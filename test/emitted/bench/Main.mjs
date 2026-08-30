@@ -29,6 +29,43 @@ const $append$List = (xs, ys) => {
 };
 const $$form0 = { tag: "tr", attributes: [], children: [{ tag: "td", attributes: [{ key: "className", value: "col-md-1", way: "property" }], children: [{ hole: 1 }] }, { tag: "td", attributes: [{ key: "className", value: "col-md-4", way: "property" }], children: [{ tag: "a", attributes: [], children: [{ hole: 3 }] }] }, { tag: "td", attributes: [{ key: "className", value: "col-md-1", way: "property" }], children: [{ tag: "button", attributes: [{ key: "className", value: "remove", way: "property" }], children: [{ text: "x" }] }] }, { tag: "td", attributes: [{ key: "className", value: "col-md-6", way: "property" }], children: [] }], holes: [{ path: [], kind: "slot", key: "className", way: "property" }, { path: [0, 0], kind: "text" }, { path: [1, 0], kind: "event", event: "click", plain: true }, { path: [1, 0, 0], kind: "text" }, { path: [2, 0], kind: "event", event: "click", plain: true }] };
 const $$form1 = { tag: "div", attributes: [{ key: "className", value: "container", way: "property" }], children: [{ tag: "div", attributes: [{ key: "className", value: "jumbotron", way: "property" }], children: [{ tag: "h1", attributes: [], children: [{ text: "dartea keyed" }] }, { tag: "button", attributes: [{ key: "id", value: "run", way: "property" }], children: [{ text: "Create 1,000 rows" }] }, { tag: "button", attributes: [{ key: "id", value: "runlots", way: "property" }], children: [{ text: "Create 10,000 rows" }] }, { tag: "button", attributes: [{ key: "id", value: "add", way: "property" }], children: [{ text: "Append 1,000 rows" }] }, { tag: "button", attributes: [{ key: "id", value: "update", way: "property" }], children: [{ text: "Update every 10th row" }] }, { tag: "button", attributes: [{ key: "id", value: "clear", way: "property" }], children: [{ text: "Clear" }] }, { tag: "button", attributes: [{ key: "id", value: "swaprows", way: "property" }], children: [{ text: "Swap Rows" }] }] }, { tag: "table", attributes: [{ key: "className", value: "table", way: "property" }], children: [{ tag: "tbody", attributes: [], children: [] }] }], holes: [{ path: [0, 1], kind: "event", event: "click", plain: true }, { path: [0, 2], kind: "event", event: "click", plain: true }, { path: [0, 3], kind: "event", event: "click", plain: true }, { path: [0, 4], kind: "event", event: "click", plain: true }, { path: [0, 5], kind: "event", event: "click", plain: true }, { path: [0, 6], kind: "event", event: "click", plain: true }, { path: [1, 0], kind: "rows", keyed: true }] };
+const $$r0 = ($$b, $$put, $$a) => {
+  const row$3 = $$a[0];
+  const selected = $$a[1];
+  $$put($$b, 0, (selected === row$3.id) ? "danger" : "");
+  if ($$b.deps[1] !== row$3.id) {
+    $$b.deps[1] = row$3.id;
+    $$put($$b, 1, $$String.fromInt(row$3.id));
+  }
+  if ($$b.deps[2] !== row$3.id) {
+    $$b.deps[2] = row$3.id;
+    $$put($$b, 2, Select(row$3.id));
+  }
+  $$put($$b, 3, row$3.label);
+  if ($$b.deps[4] !== row$3.id) {
+    $$b.deps[4] = row$3.id;
+    $$put($$b, 4, Remove(row$3.id));
+  }
+};
+const $$r1 = ($$b, $$put, $$a) => {
+  const model$2 = $$a[0];
+  if ($$b.deps[0] !== true) {
+    $$b.deps[0] = true;
+    $$put($$b, 0, Create(1000));
+  }
+  if ($$b.deps[1] !== true) {
+    $$b.deps[1] = true;
+    $$put($$b, 1, Create(10000));
+  }
+  if ($$b.deps[2] !== true) {
+    $$b.deps[2] = true;
+    $$put($$b, 2, Append(1000));
+  }
+  $$put($$b, 3, Update);
+  $$put($$b, 4, Clear);
+  $$put($$b, 5, Swap);
+  $$put($$b, 6, [viewRow, [model$2.selected], model$2.rows]);
+};
 const adjectives = { hd: "pretty", tl: { hd: "large", tl: { hd: "big", tl: { hd: "small", tl: { hd: "tall", tl: { hd: "short", tl: { hd: "long", tl: { hd: "handsome", tl: { hd: "plain", tl: { hd: "quaint", tl: { hd: "clean", tl: { hd: "elegant", tl: { hd: "easy", tl: { hd: "angry", tl: { hd: "crazy", tl: { hd: "helpful", tl: { hd: "mushy", tl: { hd: "odd", tl: { hd: "unsightly", tl: { hd: "adorable", tl: { hd: "important", tl: { hd: "inexpensive", tl: { hd: "cheap", tl: { hd: "expensive", tl: { hd: "fancy", tl: 0 } } } } } } } } } } } } } } } } } } } } } } } } };
 const colours = { hd: "red", tl: { hd: "yellow", tl: { hd: "blue", tl: { hd: "green", tl: { hd: "pink", tl: { hd: "brown", tl: { hd: "purple", tl: { hd: "brown", tl: { hd: "white", tl: { hd: "black", tl: { hd: "orange", tl: 0 } } } } } } } } } } };
 const nouns = { hd: "table", tl: { hd: "chair", tl: { hd: "house", tl: { hd: "bbq", tl: { hd: "desk", tl: { hd: "car", tl: { hd: "pony", tl: { hd: "cookie", tl: { hd: "sandwich", tl: { hd: "burger", tl: { hd: "pizza", tl: { hd: "mouse", tl: { hd: "keyboard", tl: 0 } } } } } } } } } } } } };
@@ -109,39 +146,7 @@ const update = (msg, model$1) => {
     }
   }
 };
-const viewRow = (selected, row$3) => [$$String.fromInt(row$3.id), { TAG: "block", form: $$form0, refresh: ($$b, $$put) => {
-  $$put($$b, 0, (selected === row$3.id) ? "danger" : "");
-  if ($$b.deps[1] !== row$3.id) {
-    $$b.deps[1] = row$3.id;
-    $$put($$b, 1, $$String.fromInt(row$3.id));
-  }
-  if ($$b.deps[2] !== row$3.id) {
-    $$b.deps[2] = row$3.id;
-    $$put($$b, 2, Select(row$3.id));
-  }
-  $$put($$b, 3, row$3.label);
-  if ($$b.deps[4] !== row$3.id) {
-    $$b.deps[4] = row$3.id;
-    $$put($$b, 4, Remove(row$3.id));
-  }
-} }];
-const view = model$2 => ({ TAG: "block", form: $$form1, refresh: ($$b, $$put) => {
-  if ($$b.deps[0] !== true) {
-    $$b.deps[0] = true;
-    $$put($$b, 0, Create(1000));
-  }
-  if ($$b.deps[1] !== true) {
-    $$b.deps[1] = true;
-    $$put($$b, 1, Create(10000));
-  }
-  if ($$b.deps[2] !== true) {
-    $$b.deps[2] = true;
-    $$put($$b, 2, Append(1000));
-  }
-  $$put($$b, 3, Update);
-  $$put($$b, 4, Clear);
-  $$put($$b, 5, Swap);
-  $$put($$b, 6, [viewRow, [model$2.selected], model$2.rows]);
-} });
+const viewRow = (selected, row$3) => [$$String.fromInt(row$3.id), { TAG: "block", form: $$form0, refresh: $$r0, args: [row$3, selected] }];
+const view = model$2 => ({ TAG: "block", form: $$form1, refresh: $$r1, args: [model$2] });
 const main = Browser.element({ init: init, view: view, update: update, subscriptions: $p0$1 => Platform$Sub.none });
 export { main };
