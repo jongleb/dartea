@@ -5,12 +5,7 @@ module Occ = After_typed.Exhaustive.Occurrence
 module DS = After_typed.Exhaustive.Share
 module Scope = Data.Name.Map
 
-type env = {
-  scope : string Scope.t;
-  names : Names.t;
-  instances : Instances.t;
-  forms : Forms.t option;
-}
+type env = Env.t
 
 let runtime_module_name = Names.runtime_module
 let module_ident = Names.module_ident
@@ -18,39 +13,6 @@ let js_of_name = Names.of_name
 let extension = "mjs"
 let module_suffix = "." ^ extension
 let module_file module_name = module_name ^ module_suffix
-let temp env = Names.temp env.names
-
-let bind_one env src =
-  let js = Names.fresh env.names (Names.of_name src) in
-  ({ env with scope = Scope.add src js env.scope }, js)
-
-let jid_env env src =
-  match Scope.find_opt src env.scope with
-  | Some js -> J.Identifier js
-  | None -> Names.expression_of src
-
-let is_bool_constructor name = Option.is_some (Primitives.bool_of_constructor name)
-let is_unit_constructor = Primitives.is_unit_constructor
-
-let bool_literal name =
-  J.bool (Option.equal Bool.equal (Primitives.bool_of_constructor name) (Some true))
-
-let is_inline_constructor name =
-  is_bool_constructor name || is_unit_constructor name
-
-let payload_fields js_arguments =
-  List.mapi (fun i a -> J.Field (Runtime.payload i, a)) js_arguments
-
-let constructor_to_object names name js_arguments =
-  if is_bool_constructor name then bool_literal name
-  else if is_unit_constructor name then J.Literal J.Null
-  else if List.is_empty js_arguments then J.string (Data.Name.base name)
-  else if Names.omits_tag names name then
-    J.Object (payload_fields js_arguments)
-  else
-    J.Object
-      (J.Field (Runtime.tag, J.string (Data.Name.base name))
-      :: payload_fields js_arguments)
 
 let is_record_construction (expr_node : O.Expr.t) =
   let head, _ = O.Expr.spine expr_node in
@@ -81,7 +43,7 @@ let needs_temp_var = function
 
 let shared_operand env expression =
   if needs_temp_var expression then
-    let name = temp env in
+    let name = Env.temp env in
     ([ J.ConstDecl { name; init = expression } ], J.Identifier name)
   else ([], expression)
 
@@ -97,10 +59,10 @@ let lower_binary env ~(operand : O.Type.t) (operator : Data.Operator.t) left
   let bindings, left, right =
     shared_operands env
       ~when_duplicated:
-        (Instances.reads_operands_twice env.instances operand operator)
+        (Instances.reads_operands_twice env.Env.instances operand operator)
       left right
   in
-  (bindings, Instances.lower env.instances ~operand operator left right)
+  (bindings, Instances.lower env.Env.instances ~operand operator left right)
 
 let lower_method env (method_ : Data.Method.t) ~operand left right =
   let bindings, left, right =
@@ -110,23 +72,23 @@ let lower_method env (method_ : Data.Method.t) ~operand left right =
     J.Conditional { test; consequent = left; alternate = right }
   in
   let extreme operator =
-    Instances.ordering_of env.instances ~budget:Instances.expansion_budget
+    Instances.ordering_of env.Env.instances ~budget:Instances.expansion_budget
       ~operator operand left right
   in
   match method_ with
   | Minimum -> (bindings, pick (extreme J.LessThan))
   | Maximum -> (bindings, pick (extreme J.GreaterThan))
   | Compare ->
-      let name = temp env in
+      let name = Env.temp env in
       let sign = J.Identifier name in
       let result = Data.Method.ordering_result in
-      let nullary ctor = constructor_to_object env.names ctor [] in
+      let nullary ctor = Names.constructor_to_object env.Env.names ctor [] in
       ( bindings
         @ [
             J.ConstDecl
               {
                 name;
-                init = Instances.three_way_of env.instances operand left right;
+                init = Instances.three_way_of env.Env.instances operand left right;
               };
           ],
         J.Conditional
@@ -143,7 +105,7 @@ let lower_method env (method_ : Data.Method.t) ~operand left right =
           } )
 
 let lower_full_call env name ~operand =
-  if Scope.mem name env.scope then None
+  if Scope.mem name env.Env.scope then None
   else
     match Data.Operator.referred_to_by name with
     | Some operator -> Some (lower_binary env ~operand operator)
@@ -152,91 +114,12 @@ let lower_full_call env name ~operand =
           (fun method_ -> lower_method env method_ ~operand)
           (Data.Method.referred_to_by name)
 
-let occ_expr root (o : Occ.t) : J.expr =
-  List.fold_left
-    (fun e step ->
-      match step with
-      | Occ.Payload i -> J.member e (Runtime.payload i)
-      | Occ.Index i -> J.at_index e i
-      | Occ.Field f -> J.member e f
-      | Occ.Hd -> J.member e Runtime.head
-      | Occ.Tl -> J.member e Runtime.tail)
-    root o
-
-let ctor_literal name =
-  match Primitives.bool_of_constructor name with
-  | Some truth -> J.Bool truth
-  | None -> J.String (Data.Name.base name)
-
-let js_eq left literal = J.binary J.StrictEqual left (J.Literal literal)
-
-let test_expr env occ_e (test : DT.test) : J.expr =
-  match test with
-  | DT.Test_ctor name -> js_eq occ_e (ctor_literal name)
-  | DT.Test_tag name ->
-      if Names.omits_tag env.names name then J.is_object occ_e
-      else js_eq (J.member occ_e Runtime.tag) (J.String (Data.Name.base name))
-  | DT.Test_int n -> js_eq occ_e (J.Int n)
-  | DT.Test_str s -> js_eq occ_e (J.String s)
-  | DT.Test_chr c -> js_eq occ_e (J.String c)
-  | DT.Test_nil -> js_eq occ_e (J.Int 0)
-  | DT.Test_cons -> J.binary J.StrictNotEqual occ_e (J.int 0)
-
-type discriminant = By_tag | By_value
-
-let same_discriminant one other =
-  match (one, other) with
-  | By_tag, By_tag | By_value, By_value -> true
-  | By_tag, By_value | By_value, By_tag -> false
-
-let switch_key env (test : DT.test) : (discriminant * J.literal) option =
-  match test with
-  | DT.Test_tag n when not (Names.omits_tag env.names n) ->
-      Some (By_tag, J.String (Data.Name.base n))
-  | DT.Test_tag _ -> None
-  | DT.Test_ctor n when not (is_bool_constructor n) ->
-      Some (By_value, J.String (Data.Name.base n))
-  | DT.Test_int n -> Some (By_value, J.Int n)
-  | DT.Test_str s -> Some (By_value, J.String s)
-  | DT.Test_chr c -> Some (By_value, J.String c)
-  | DT.Test_ctor _ | DT.Test_nil | DT.Test_cons -> None
-
-let switch_plan env occ_e (branches : (DT.test * DT.t) list) :
-    (J.expr * (J.literal * DT.t) list) option =
-  let keys =
-    List.fold_right
-      (fun (test, subtree) collected ->
-        match (collected, switch_key env test) with
-        | Some cases, Some (kind, literal) ->
-            Some ((kind, literal, subtree) :: cases)
-        | _ -> None)
-      branches (Some [])
-  in
-  match keys with
-  | None | Some [] -> None
-  | Some ((kind, _, _) :: _ as cases) ->
-      if List.for_all (fun (other, _, _) -> same_discriminant other kind) cases
-      then
-        let discriminant =
-          match kind with By_tag -> J.member occ_e Runtime.tag | By_value -> occ_e
-        in
-        Some
-          ( discriminant,
-            List.map (fun (_, literal, subtree) -> (literal, subtree)) cases )
-      else None
-
-let match_failure =
-  [
-    J.Throw
-      (J.New
-         {
-           callee = J.Identifier "Error";
-           args = [ J.string "Pattern match failed" ];
-         });
-  ]
 
 let curry_call f args =
-  J.call Names.curry_reference [ f; J.Array args ]
+  match args with
+  | [ x ] -> J.call Names.apply1_reference [ f; x ]
+  | [ x; y ] -> J.call Names.apply2_reference [ f; x; y ]
+  | [] | _ :: _ :: _ :: _ -> J.call Names.curry_reference [ f; J.Array args ]
 
 let split_at n lst =
   let rec go i acc = function
@@ -246,15 +129,13 @@ let split_at n lst =
   in
   go n [] lst
 
-let declared_arity env name =
-  if Scope.mem name env.scope then None else Names.arity_of env.names name
 
 type arity = O.Type.arity = Exactly of int | At_least of int
 
 let arity_of_type = O.Type.arity
 
 let closure_partial env callee args missing =
-  let rparams = List.init missing (fun _ -> temp env) in
+  let rparams = List.init missing (fun _ -> Env.temp env) in
   let rargs = List.map (fun p -> J.Identifier p) rparams in
   J.Arrow
     { params = rparams; body = J.ArrowExpr (J.call callee (args @ rargs)) }
@@ -276,26 +157,6 @@ type tctx = {
   mutable triggered : bool;
 }
 
-let bind_binds env binds =
-  let env, rev =
-    List.fold_left
-      (fun (env, acc) (src, occ) ->
-        let env, js = bind_one env src in
-        (env, J.ConstDecl { name = js; init = occ } :: acc))
-      (env, []) binds
-  in
-  (env, List.rev rev)
-
-let bind_params env names =
-  let env, rev =
-    List.fold_left
-      (fun (env, acc) src ->
-        let env, js = bind_one env src in
-        (env, js :: acc))
-      (env, []) names
-  in
-  (env, List.rev rev)
-
 let accessor_arrow field =
   J.Arrow
     {
@@ -303,91 +164,7 @@ let accessor_arrow field =
       body = J.ArrowExpr (J.member (J.Identifier "r") (Data.Located.unwrap field));
     }
 
-let arrow_of_body params stmts =
-  let body =
-    match stmts with
-    | [ J.Return (Some e) ] -> J.ArrowExpr e
-    | _ -> J.ArrowBlock stmts
-  in
-  J.Arrow { params; body }
 
-let thunk_names env plan =
-  List.map
-    (fun (id, _) -> (id, Names.fresh env.names ("$dt" ^ string_of_int id)))
-    (DS.nodes plan)
-
-let rec lower env root ~terminating ~leaf ~fail ~sink ~plan ~tnames
-    (tree : DT.t) : J.stmt list =
-  match DS.id_of plan tree with
-  | Some id -> sink (J.call (J.Identifier (List.assoc id tnames)) [])
-  | None -> lower_node env root ~terminating ~leaf ~fail ~sink ~plan ~tnames tree
-
-and lower_node env root ~terminating ~leaf ~fail ~sink ~plan ~tnames
-    (tree : DT.t) : J.stmt list =
-  match tree with
-  | DT.Fail -> fail
-  | DT.Leaf { action; bindings } ->
-      let jbinds =
-        List.map (fun (v, o) -> (Data.Name.local v, occ_expr root o)) bindings
-      in
-      let env', bstmts = bind_binds env jbinds in
-      bstmts @ leaf env' action
-  | DT.Switch { occurrence; branches; default } -> begin
-      let occ_e = occ_expr root occurrence in
-      let go tr =
-        lower env root ~terminating ~leaf ~fail ~sink ~plan ~tnames tr
-      in
-      let many_cases (disc, cases) =
-        if List.length cases >= 2 then Some (disc, cases) else None
-      in
-      let switch_of =
-        if terminating then switch_plan env occ_e branches else None
-      in
-      match Option.bind switch_of many_cases with
-      | Some (disc, cases) ->
-          let default_case =
-            default
-            |> Option.map (fun t -> { J.test = None; consequent = go t })
-            |> Option.to_list
-          in
-          let js_cases =
-            List.map
-              (fun (lit, tr) ->
-                { J.test = Some (J.Literal lit); consequent = go tr })
-              cases
-          in
-          [ J.Switch { discriminant = disc; cases = js_cases @ default_case } ]
-      | None ->
-          let rec build = function
-            | [] -> Option.fold ~none:fail ~some:go default
-            | [ (_, tr) ] when Option.is_none default -> go tr
-            | (test, tr) :: rest ->
-                [
-                  J.If
-                    {
-                      test = test_expr env occ_e test;
-                      consequent = go tr;
-                      alternate = Some (build rest);
-                    };
-                ]
-          in
-          build branches
-    end
-
-let shared_thunks env root ~plan ~tnames clause_expr =
-  let sink e = [ J.Return (Some e) ] in
-  let leaf env action =
-    let sa, ea = clause_expr env action in
-    sa @ [ J.Return (Some ea) ]
-  in
-  List.map
-    (fun (id, sub) ->
-      let body =
-        lower_node env root ~terminating:true ~leaf ~fail:match_failure ~sink
-          ~plan ~tnames sub
-      in
-      J.ConstDecl { name = List.assoc id tnames; init = arrow_of_body [] body })
-    (DS.nodes plan)
 
 let rec emit_value env (e : O.Expr.t) : J.stmt list * J.expr =
   let statements, expression = emit_raw env e in
@@ -400,7 +177,7 @@ and coerce env expression ~expected ~actual =
   match (expected, actual) with
   | Exactly wanted, Exactly given
     when wanted <> given && wanted >= 1 && given >= 1 ->
-      let params = List.init wanted (fun _ -> temp env) in
+      let params = List.init wanted (fun _ -> Env.temp env) in
       let arguments = List.map (fun p -> J.Identifier p) params in
       let call_in_two_steps () =
         let first, extra = split_at given arguments in
@@ -421,7 +198,7 @@ and emitted_arity env (e : O.Expr.t) : arity =
   | O.Expr.Expr_constr { name; arguments } ->
       let given_count = List.length arguments in
       begin
-        match declared_arity env name with
+        match Env.declared_arity env name with
         | Some n when n > given_count -> Exactly (n - given_count)
         | Some _ | None -> arity_of_type e.typ
       end
@@ -447,7 +224,7 @@ and emitted_arity env (e : O.Expr.t) : arity =
       arity_of_type e.typ
 
 and callee_arity env (callee : O.Expr.t) : arity =
-  Option.bind (O.Expr.ident_of callee) (declared_arity env)
+  Option.bind (O.Expr.ident_of callee) (Env.declared_arity env)
   |> Option.fold ~none:(arity_of_type callee.typ) ~some:(fun n -> Exactly n)
 
 and emit_raw env (e : O.Expr.t) : J.stmt list * J.expr =
@@ -456,9 +233,9 @@ and emit_raw env (e : O.Expr.t) : J.stmt list * J.expr =
   | O.Expr.Expr_float f -> ([], J.Literal (J.Float f))
   | O.Expr.Expr_string s -> ([], J.string s)
   | O.Expr.Expr_char c -> ([], J.string c)
-  | O.Expr.Expr_ident name when is_inline_constructor name ->
-      ([], constructor_to_object env.names name [])
-  | O.Expr.Expr_ident name -> ([], jid_env env name)
+  | O.Expr.Expr_ident name when Names.is_inline_constructor name ->
+      ([], Names.constructor_to_object env.Env.names name [])
+  | O.Expr.Expr_ident name -> ([], Env.jid_env env name)
   | O.Expr.Expr_record_empty -> ([], J.Object [])
   | O.Expr.Expr_unit -> ([], J.Literal J.Null)
   | O.Expr.Expr_kernel (Kernel_value kernel) -> ([], Of_kernel.value kernel)
@@ -470,8 +247,8 @@ and emit_raw env (e : O.Expr.t) : J.stmt list * J.expr =
       let right_statements, right = emit_value env right in
       ( left_statements @ right_statements,
         Of_kernel.binary_operation kernel left right )
-  | O.Expr.Expr_record_extend name -> ([], jid_env env (Data.Name.local name))
-  | O.Expr.Expr_record_select name -> ([], jid_env env (Data.Name.local name))
+  | O.Expr.Expr_record_extend name -> ([], Env.jid_env env (Data.Name.local name))
+  | O.Expr.Expr_record_select name -> ([], Env.jid_env env (Data.Name.local name))
   | O.Expr.Expr_accessor field -> ([], accessor_arrow field)
   | O.Expr.Expr_access { expr; field } ->
       let s, o = emit_value env expr in
@@ -485,7 +262,7 @@ and emit_raw env (e : O.Expr.t) : J.stmt list * J.expr =
       (sa @ sb @ bindings, lowered)
   | O.Expr.Expr_constr { name; arguments } ->
       let ss, es = emit_values env arguments in
-      (ss, constructor_to_object env.names name es)
+      (ss, Names.constructor_to_object env.Env.names name es)
   | O.Expr.Expr_record rows ->
       let ss, members = emit_fields env rows in
       (ss, J.Object members)
@@ -516,7 +293,7 @@ and emit_raw env (e : O.Expr.t) : J.stmt list * J.expr =
       if List.is_empty st && List.is_empty se then
         (sc, J.Conditional { test = ec; consequent = et; alternate = ee })
       else
-        let r = temp env in
+        let r = Env.temp env in
         ( sc
           @ [
               J.VarDecl { name = r; init = None };
@@ -534,7 +311,7 @@ and emit_raw env (e : O.Expr.t) : J.stmt list * J.expr =
       (bound @ sb, eb)
   | O.Expr.Expr_pattern { expr; pattern_data_items } ->
       let ss, occ, sbind = emit_scrutinee env expr in
-      let r = temp env in
+      let r = Env.temp env in
       let chain = emit_match_assign env r occ pattern_data_items in
       ( ss @ sbind @ [ J.VarDecl { name = r; init = None } ] @ chain,
         J.Identifier r )
@@ -543,20 +320,7 @@ and emit_values env (es : O.Expr.t list) : J.stmt list * J.expr list =
   fold_emit (emit_value env) es
 
 and emit_block env (e : O.Expr.t) : (J.stmt list * J.expr) option =
-  let shape table (form, holes) =
-    let statements, values =
-      emit_values env (List.map (fun (hole : Blocks.hole) -> hole.value) holes)
-    in
-    ( statements,
-      J.Object
-        [
-          J.Field (Runtime.tag, J.string Runtime.block);
-          J.Field ("form", J.Identifier (Forms.name table (Forms.of_form form holes)));
-          J.Field ("values", J.Array values);
-        ] )
-  in
-  Option.bind env.forms (fun table ->
-      Option.map (shape table) (Blocks.of_expression e))
+  Block_emit.emit ~emit_value ~emit_values env e
 
 and emit_fields env (rows : O.Expr.expr_record_row list) :
     J.stmt list * J.object_member list =
@@ -568,7 +332,7 @@ and emit_fields env (rows : O.Expr.expr_record_row list) :
 
 and emit_binding env (binding : O.Expr.expr_let_binding) =
   let env', name =
-    bind_one env (Data.Name.local (Data.Located.unwrap binding.bind_body.name))
+    Env.bind_one env (Data.Name.local (Data.Located.unwrap binding.bind_body.name))
   in
   let sv, ev = emit_value env' binding.bind_body.body in
   (env', sv @ [ J.ConstDecl { name; init = ev } ])
@@ -576,7 +340,7 @@ and emit_binding env (binding : O.Expr.expr_let_binding) =
 and emit_scrutinee env (expr : O.Expr.t) : J.stmt list * J.expr * J.stmt list =
   let s, e = emit_value env expr in
   if needs_temp_var e then
-    let t = temp env in
+    let t = Env.temp env in
     (s, J.Identifier t, [ J.ConstDecl { name = t; init = e } ])
   else (s, e, [])
 
@@ -609,9 +373,9 @@ and emit_apply env fn arg =
                 (O.Type.result_after ~applied:arity callee.O.Expr.typ)
               args
         | O.Expr.Expr_ident name, _ -> begin
-            match declared_arity env name with
+            match Env.declared_arity env name with
             | Some n when n >= 1 ->
-                emit_known_call env (jid_env env name) ~arity:n
+                emit_known_call env (Env.jid_env env name) ~arity:n
                   ~result_type:
                     (O.Type.result_after ~applied:n callee.O.Expr.typ)
                   args
@@ -658,7 +422,7 @@ and emit_generic env callee args =
   | Exactly arity when arity >= 1 ->
       let bound, target =
         if List.length es < arity && needs_temp_var ec then
-          let t = temp env in
+          let t = Env.temp env in
           ([ J.ConstDecl { name = t; init = ec } ], J.Identifier t)
         else ([], ec)
       in
@@ -696,26 +460,22 @@ and emit_lambda env params body =
         Data.Name.local (Data.Located.unwrap p.name))
       params
   in
-  let env, param_names = bind_params env names in
-  arrow_of_body param_names (emit_return env None body)
+  let env, param_names = Env.bind_params env names in
+  J.arrow_of_body param_names (emit_return env None body)
 
 and self_tail_args env tc (e : O.Expr.t) : O.Expr.t list option =
   let callee, args = O.Expr.spine e in
-  let self_call name =
-    if
-      Data.Name.equal name tc.fn
-      && (not (Scope.mem name env.scope))
-      && List.length args = List.length tc.params
-    then Some args
-    else None
+  let calls_itself name =
+    Data.Name.equal name tc.fn && not (Scope.mem name env.Env.scope)
   in
-  match args with
-  | [] -> None
-  | _ :: _ -> Option.bind (O.Expr.ident_of callee) self_call
+  let saturates = List.length args = List.length tc.params in
+  match O.Expr.ident_of callee with
+  | Some name when calls_itself name && saturates && not (List.is_empty args) -> Some args
+  | Some _ | None -> None
 
 and loop_step env tc args =
   let ss, es = emit_values env args in
-  let temps = List.map (fun _ -> temp env) es in
+  let temps = List.map (fun _ -> Env.temp env) es in
   let bind = List.map2 (fun t v -> J.ConstDecl { name = t; init = v }) temps es in
   let step = List.map2 (fun p t -> J.assign p (J.Identifier t)) tc.params temps in
   ss @ bind @ step @ [ J.Continue ]
@@ -769,7 +529,7 @@ and match_tree env clauses =
   let patterns =
     List.map (fun (c : O.Expr.expr_pattern_case) -> c.O.Expr.pattern) clauses
   in
-  ( After_typed.Exhaustive.build (Names.siblings_of env.names) patterns,
+  ( After_typed.Exhaustive.build (Names.siblings_of env.Env.names) patterns,
     Array.of_list clauses )
 
 and trivial_action (e : O.Expr.t) =
@@ -801,9 +561,9 @@ and emit_match env (occ : J.expr) (clauses : O.Expr.expr_pattern_case list)
     emit_value env clause_arr.(action).O.Expr.expr
   in
   let leaf env action = taken env clause_arr.(action).O.Expr.expr in
-  let tnames = thunk_names env plan in
-  shared_thunks env occ ~plan ~tnames clause_expr
-  @ lower env occ ~terminating ~leaf ~fail:match_failure ~sink ~plan ~tnames
+  let tnames = Decisions.thunk_names env plan in
+  Decisions.shared_thunks env occ ~plan ~tnames clause_expr
+  @ Decisions.lower env occ ~terminating ~leaf ~fail:Decisions.match_failure ~sink ~plan ~tnames
       tree
 
 and emit_match_return env tc (occ : J.expr)
@@ -834,7 +594,7 @@ let decl_stmts env (decl : O.Declaration.t) : J.stmt list =
             Data.Name.local (Data.Located.unwrap p.name))
           params
       in
-      let env, param_names = bind_params env names in
+      let env, param_names = Env.bind_params env names in
       let tc =
         {
           fn = Data.Name.local (Data.Located.unwrap decl.name);
@@ -846,7 +606,7 @@ let decl_stmts env (decl : O.Declaration.t) : J.stmt list =
       let body =
         if tc.triggered then [ J.While { test = J.bool true; body } ] else body
       in
-      [ J.ConstDecl { name; init = arrow_of_body param_names body } ]
+      [ J.ConstDecl { name; init = J.arrow_of_body param_names body } ]
 
 let is_defined_here (name : Data.Name.t) =
   match name with Data.Name.Local _ -> true | Data.Name.Global _ -> false
@@ -855,11 +615,11 @@ let constructor_decls names (constructors : (Data.Name.t * int) list) :
     J.stmt list =
   constructors
   |> List.filter (fun (name, _) ->
-         is_defined_here name && not (is_inline_constructor name))
+         is_defined_here name && not (Names.is_inline_constructor name))
   |> List.map (fun (name, arity) ->
          if arity = 0 then
            J.ConstDecl
-             { name = Names.of_name name; init = constructor_to_object names name [] }
+             { name = Names.of_name name; init = Names.constructor_to_object names name [] }
          else
            let params = List.init arity Runtime.payload in
            let args = List.map (fun p -> J.Identifier p) params in
@@ -870,7 +630,7 @@ let constructor_decls names (constructors : (Data.Name.t * int) list) :
                  J.Arrow
                    {
                      params;
-                     body = J.ArrowExpr (constructor_to_object names name args);
+                     body = J.ArrowExpr (Names.constructor_to_object names name args);
                    };
              })
 
@@ -890,7 +650,7 @@ let prepare ~blocks ~arities ~constructors ~siblings ~typedecls decls =
     decls;
   List.iter (fun (name, sibs) -> Names.note_siblings names name sibs) siblings;
   let forms = if blocks then Some (Forms.create ()) else None in
-  { scope = Scope.empty; names; instances = Instances.create typedecls; forms }
+  { Env.scope = Scope.empty; names; instances = Instances.create typedecls; forms }
 
 let program_with_helpers ~blocks ~arities ~constructors ~built ~siblings
     ~typedecls ~exports (decls : O.Declaration.t list) : J.program =
@@ -901,9 +661,9 @@ let program_with_helpers ~blocks ~arities ~constructors ~built ~siblings
     | names -> [ J.Export (List.map Names.of_name names) ]
   in
   let body = List.concat_map (decl_stmts env) decls in
-  let forms = Option.fold ~none:[] ~some:Forms.declarations env.forms in
-  constructor_decls env.names built
-  @ Instances.declarations env.instances
+  let forms = Option.fold ~none:[] ~some:Forms.declarations env.Env.forms in
+  constructor_decls env.Env.names built
+  @ Instances.declarations env.Env.instances
   @ forms @ body @ export_stmts
 
 let import_lines imports =

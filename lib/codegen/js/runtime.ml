@@ -7,11 +7,17 @@ let json_source = Runtime_source.dartea_json
 let mount = "$$mount"
 let tag = "TAG"
 let block = "block"
+let form index = "$$form" ^ string_of_int index
+let put = "$$put"
+let block_state = "$$b"
+let deps = "deps"
 let head = "hd"
 let tail = "tl"
 let payload index = "_" ^ string_of_int index
 let engine_source = Runtime_source.dartea_engine
 let curry = "$$curry"
+let apply1 = "$$apply1"
+let apply2 = "$$apply2"
 let append = "$$append"
 let equal = "$$eq"
 let compare = "$$cmp"
@@ -31,6 +37,6 @@ let files =
 
 let all =
   [
-    curry; append; equal; compare; mod_by; char_to_code; char_from_code;
+    curry; apply1; apply2; append; equal; compare; mod_by; char_to_code; char_from_code;
     string_to_list; string_from_list; string_split;
   ]

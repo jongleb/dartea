@@ -1,12 +1,3 @@
-{- Vendored by dartea, an independent compiler. Not affiliated with or
-   endorsed by the Elm project.
-
-   Derived from elm/html -- https://github.com/elm/html
-   Copyright (c) 2014-present, Evan Czaplicki, BSD 3-Clause License.
-   dartea's LICENSE carries the full text and the file-by-file list.
--}
-
-
 module Html exposing
     ( Attribute, Html, a, abbr, address, article, aside, audio, b, bdi, bdo
     , blockquote, br, button, canvas, caption, cite, code, col, colgroup

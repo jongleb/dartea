@@ -108,6 +108,7 @@ main =
 |}
 
 let dom = {|let created = 0;
+globalThis.queueMicrotask = (run) => run();
 globalThis.requestAnimationFrame = (draw) => {
   draw(0);
   return 0;
@@ -203,6 +204,7 @@ class Made extends Linked {
   removeAttributeNS(namespace, key) { delete this.attributes[key]; }
   removeAttribute(key) { erased += 1; delete this.attributes[key]; }
   addEventListener(event, handler) { this.listeners[event] = handler; }
+  removeEventListener(event) { delete this.listeners[event]; }
   cloneNode(deep) {
     const copy =
       this.namespace === undefined
@@ -267,6 +269,22 @@ const happening = (extra) =>
     preventDefault() { prevented += 1; },
   });
 
+const handles = (node, type) => node.$$on?.[type] !== undefined && (node.$$on[type].b !== undefined || node.$$on[type].attribute !== undefined);
+
+const fired = (node, type, extra = {}) => {
+  let root = node;
+  while (root.parentNode !== null) root = root.parentNode;
+  const listener = root.listeners?.[type];
+  if (listener === undefined) return false;
+  listener(happening({ ...extra, type, target: node, bubbles: type !== "blur" && type !== "focus" }));
+  return true;
+};
+
+const typed = (node, written) => {
+  node.value = written;
+  fired(node, "input");
+};
+
 const launched = async (flags) => {
   await import("./main.js");
   const host = make("body");
@@ -280,16 +298,13 @@ const mounted = () => launched(undefined);
 |}
 
 let dom_stub = dom ^ {|const clicked = (node) => {
-  if (node.listeners && node.listeners.click) {
-    node.listeners.click(happening({}));
-    return true;
-  }
+  if (handles(node, "click")) return fired(node, "click");
   for (const child of node.childNodes ?? []) if (clicked(child)) return true;
   return false;
 };
 
 const listening = (node) => {
-  if (node.listeners && node.listeners.click) return node;
+  if (handles(node, "click")) return node;
   for (const child of node.childNodes ?? []) {
     const inside = listening(child);
     if (inside) return inside;
@@ -355,11 +370,11 @@ main =
 |}
 
 let typing_stub = dom ^ {|const host = await mounted();
-found(host, "input").listeners.input(happening({ target: { value: "ok" } }));
-const typed = shown(found(host, "div"));
-found(host, "form").listeners.submit(happening({}));
+typed(found(host, "input"), "ok");
+const shownTyped = shown(found(host, "div"));
+fired(found(host, "form"), "submit");
 console.log(
-  typed +
+  shownTyped +
     " -> " +
     shown(found(host, "div")) +
     " (stopped " +
@@ -439,7 +454,7 @@ main =
 let mapped_stub = dom ^ {|const host = await mounted();
 const [left, right, third] = tagged(host, "button");
 created = 0;
-for (const which of [left, right, third, left]) which.listeners.click(happening({}));
+for (const which of [left, right, third, left]) fired(which, "click");
 console.log(
   shown(host),
   "(created",
@@ -574,7 +589,7 @@ const counted = (which) => {
   styled = 0;
   erased = 0;
   written = 0;
-  which.listeners.click(happening({}));
+  fired(which, "click");
   return [attributed, styled, erased, written].join("/");
 };
 console.log(
@@ -779,7 +794,7 @@ ticked();
 ticked();
 const beating = counted();
 const kept = timers.size;
-tagged(host, "button")[0].listeners.click(happening({}));
+fired(tagged(host, "button")[0], "click");
 const cleared = timers.size;
 ticked();
 console.log(
@@ -849,7 +864,7 @@ const app = globalThis.Dartea.Main.init({ node: host, flags: null });
 const heard = [];
 app.ports.saved.subscribe((value) => heard.push(value));
 app.ports.arrived.send("fromJs");
-tagged(host, "button")[0].listeners.click(happening({}));
+fired(tagged(host, "button")[0], "click");
 app.ports.arrived.send("more");
 console.log(shown(host) + " | outgoing " + JSON.stringify(heard));
 |}
@@ -1022,10 +1037,10 @@ main =
 let lazy_stub = dom ^ {|const host = await mounted();
 const [bump, rename] = tagged(host, "button");
 styled = 0;
-bump.listeners.click(happening({}));
+fired(bump, "click");
 const quiet = styled;
 styled = 0;
-rename.listeners.click(happening({}));
+fired(rename, "click");
 console.log(
   shown(host) +
     " (skipped " +
@@ -1092,13 +1107,12 @@ main =
 
 let reshaped_stub = dom ^ {|const host = await mounted();
 const flip = tagged(host, "button")[0];
-const listening = () =>
-  tagged(host, "div").find((node) => node.listeners.click !== undefined);
-flip.listeners.click(happening({}));
-listening().listeners.click(happening({}));
-flip.listeners.click(happening({}));
-flip.listeners.click(happening({}));
-listening().listeners.click(happening({}));
+const listening = () => tagged(host, "div").find((node) => handles(node, "click"));
+fired(flip, "click");
+fired(listening(), "click");
+fired(flip, "click");
+fired(flip, "click");
+fired(listening(), "click");
 console.log(shown(host));
 |}
 
@@ -1150,10 +1164,10 @@ const kept = list.childNodes[0];
 const rows = () => list.childNodes.map(shown).join(",");
 const [prepend, flip] = tagged(host, "button");
 created = 0;
-prepend.listeners.click(happening({}));
+fired(prepend, "click");
 const inserted = rows() + " (created " + created + ", kept " + (list.childNodes[1] === kept) + ")";
 created = 0;
-flip.listeners.click(happening({}));
+fired(flip, "click");
 console.log(
   inserted +
     " -> " +
@@ -1169,27 +1183,18 @@ console.log(
 let todomvc_stub = dom ^ {|const host = await launched(null);
 const listed = () => tagged(host, "li").slice(0, 2).map(shown).join(" / ");
 const field = tagged(host, "input").find((node) => node.className === "new-todo");
-const typed = (into, written) => {
-  into.listeners.input(happening({ target: { value: written } }));
-};
 typed(field, "milk");
-field.listeners.keydown(happening({ keyCode: 13 }));
+fired(field, "keydown", { keyCode: 13 });
 typed(field, "cat");
-field.listeners.keydown(happening({ keyCode: 13 }));
+fired(field, "keydown", { keyCode: 13 });
 const added = listed();
-tagged(host, "label")
-  .find((node) => node.listeners.dblclick !== undefined)
-  .listeners.dblclick(happening({}));
+fired(tagged(host, "label").find((node) => handles(node, "dblclick")), "dblclick");
 const editing = tagged(host, "input").find((node) => node.className === "edit");
 typed(editing, "kefir");
-editing.listeners.blur(happening({}));
+fired(editing, "blur");
 const edited = listed();
-tagged(host, "input")
-  .filter((node) => node.className === "toggle")[0]
-  .listeners.click(happening({}));
-tagged(host, "button")
-  .filter((node) => node.className === "destroy")[0]
-  .listeners.click(happening({}));
+fired(tagged(host, "input").filter((node) => node.className === "toggle")[0], "click");
+fired(tagged(host, "button").filter((node) => node.className === "destroy")[0], "click");
 console.log(
   document.title +
     " | added " +

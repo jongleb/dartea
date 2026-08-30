@@ -1,5 +1,51 @@
 module J = Ast
 
+module Key = struct
+  type t =
+    | Tag [@rename "tag"]
+    | Namespace [@rename "namespace"]
+    | Attributes [@rename "attributes"]
+    | Children [@rename "children"]
+    | Holes [@rename "holes"]
+    | Text [@rename "text"]
+    | Hole [@rename "hole"]
+    | Path [@rename "path"]
+    | Kind [@rename "kind"]
+    | Keyed [@rename "keyed"]
+    | Event [@rename "event"]
+    | Plain [@rename "plain"]
+    | Key [@rename "key"]
+    | Value [@rename "value"]
+    | Way [@rename "way"]
+    | Form [@rename "form"]
+    | Refresh [@rename "refresh"]
+  [@@deriving to_string]
+end
+
+module Kind = struct
+  type t =
+    | Text [@rename "text"]
+    | Attribute [@rename "attribute"]
+    | Slot [@rename "slot"]
+    | Event [@rename "event"]
+    | Children [@rename "children"]
+    | Rows [@rename "rows"]
+    | Subtree [@rename "subtree"]
+  [@@deriving to_string]
+
+  let of_hole (kind : Blocks.hole_kind) =
+    match kind with
+    | Text -> Text
+    | Attribute -> Attribute
+    | Slot _ -> Slot
+    | Event _ -> Event
+    | Children _ -> Children
+    | Rows _ -> Rows
+    | Subtree -> Subtree
+end
+
+let field key value = J.Field (Key.to_string key, value)
+
 type shape = { form : Blocks.t; holes : (int list * Blocks.hole_kind) list }
 type t = { mutable known : (string * shape) list }
 
@@ -14,26 +60,19 @@ let equal_shape one other =
 let of_form (form : Blocks.t) (holes : Blocks.hole list) =
   { form; holes = List.map (fun (hole : Blocks.hole) -> (hole.path, hole.kind)) holes }
 
-let kind_name (kind : Blocks.hole_kind) =
+let kind_fields (kind : Blocks.hole_kind) =
   match kind with
-  | Text -> "text"
-  | Attribute -> "attribute"
-  | Event -> "event"
-  | Children -> "children"
-  | Subtree -> "subtree"
-
-let way_name (way : Blocks.way) =
-  match way with
-  | Set_attribute -> "attribute"
-  | Set_property -> "property"
-  | Set_style -> "style"
+  | Children { keyed } | Rows { keyed } -> [ field Keyed (J.bool keyed) ]
+  | Event { event; plain } -> [ field Event (J.string event); field Plain (J.bool plain) ]
+  | Slot { key; way } -> [ field Key (J.string key); field Way (J.string (Blocks.string_of_way way)) ]
+  | Text | Attribute | Subtree -> []
 
 let attribute ({ key; value; way } : Blocks.static) =
   J.Object
     [
-      J.Field ("key", J.string key);
-      J.Field ("value", J.string value);
-      J.Field ("way", J.string (way_name way));
+      field Key (J.string key);
+      field Value (J.string value);
+      field Way (J.string (Blocks.string_of_way way));
     ]
 
 let hole_index shape path =
@@ -47,48 +86,44 @@ let hole_index shape path =
 let rec node shape ~path (form : Blocks.t) =
   let namespace =
     Option.fold ~none:[]
-      ~some:(fun namespace -> [ J.Field ("namespace", J.string namespace) ])
+      ~some:(fun namespace -> [ field Namespace (J.string namespace) ])
       form.namespace
   in
   J.Object
-    ((J.Field ("tag", J.string form.tag) :: namespace)
+    ((field Tag (J.string form.tag) :: namespace)
     @ [
-        J.Field ("attributes", J.Array (List.map attribute form.attributes));
-        J.Field
-          ( "children",
-            J.Array
-              (List.mapi (fun index -> child shape ~path:(path @ [ index ])) form.children)
-          );
+        field Attributes (J.Array (List.map attribute form.attributes));
+        field Children
+          (J.Array
+             (List.mapi (fun index -> child shape ~path:(path @ [ index ])) form.children));
       ])
 
 and child shape ~path (child : Blocks.child) =
   match child with
   | Element inner -> node shape ~path inner
-  | Static_text text -> J.Object [ J.Field ("text", J.string text) ]
-  | Hole _ -> J.Object [ J.Field ("hole", J.int (hole_index shape path)) ]
+  | Static_text text -> J.Object [ field Text (J.string text) ]
+  | Hole _ -> J.Object [ field Hole (J.int (hole_index shape path)) ]
 
 let expression shape =
   let hole (path, kind) =
     J.Object
-      [
-        J.Field ("path", J.Array (List.map J.int path));
-        J.Field ("kind", J.string (kind_name kind));
-      ]
+      ([
+         field Path (J.Array (List.map J.int path));
+         field Kind (J.string (Kind.to_string (Kind.of_hole kind)));
+       ]
+      @ kind_fields kind)
   in
   match node shape ~path:[] shape.form with
-  | J.Object fields ->
-      J.Object (fields @ [ J.Field ("holes", J.Array (List.map hole shape.holes)) ])
+  | J.Object fields -> J.Object (fields @ [ field Holes (J.Array (List.map hole shape.holes)) ])
   | other -> other
 
 let name table shape =
   match List.find_opt (fun (_, known) -> equal_shape known shape) table.known with
   | Some (name, _) -> name
   | None ->
-      let name = "$$form" ^ string_of_int (List.length table.known) in
+      let name = Runtime.form (List.length table.known) in
       table.known <- (name, shape) :: table.known;
       name
 
 let declarations table =
-  List.rev_map
-    (fun (name, shape) -> J.ConstDecl { name; init = expression shape })
-    table.known
+  List.rev_map (fun (name, shape) -> J.ConstDecl { name; init = expression shape }) table.known

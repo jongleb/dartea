@@ -53,26 +53,24 @@ let derived_from source copyright =
     "dartea's LICENSE carries the full text.";
   ]
 
-let notice module_ =
-  compiled_by
-  @
+let derived module_ =
   match module_ with
-  | VirtualDom ->
-      derived_from "elm/virtual-dom" "Copyright (c) 2016-present Evan Czaplicki"
-  | Html | Html_attributes | Html_events | Html_keyed | Html_lazy ->
-      derived_from "elm/html" "Copyright (c) 2014-present Evan Czaplicki"
-  | Browser | Browser_dom | Browser_events | Browser_navigation ->
+  | Html_attributes -> derived_from "elm/html" "Copyright (c) 2014-present Evan Czaplicki"
+  | Browser | Browser_events | Browser_navigation ->
       derived_from "elm/browser" "Copyright 2017-present Evan Czaplicki"
   | Url | Url_builder | Url_parser | Url_parser_internal | Url_parser_query ->
       derived_from "elm/url" "Copyright 2017-present Evan Czaplicki"
-  | Json_decode | Json_encode ->
-      derived_from "elm/json" "Copyright 2014-present Evan Czaplicki"
   | Http -> derived_from "elm/http" "Copyright 2014-present Evan Czaplicki"
-  | Time ->
-      derived_from "elm/time" "Copyright 2018-present Evan Czaplicki"
-  | Basics | Char | Dict | List | Maybe | Platform | Platform_cmd
-  | Platform_sub | Result | String | Task | Tuple ->
+  | Basics | Char | Dict | List | Maybe | Result | Tuple ->
       derived_from "elm/core" "Copyright 2014-present Evan Czaplicki"
+  | VirtualDom | Html | Html_events | Html_keyed | Html_lazy | Browser_dom
+  | Json_decode | Json_encode | Time | Platform | Platform_cmd | Platform_sub
+  | String | Task ->
+      []
+
+let notice module_ = compiled_by @ derived module_
+let is_derived module_ = not (List.is_empty (derived module_))
+let of_name written = List.find_opt (fun module_ -> String.equal (name module_) written) all
 
 let source = function
   | Basics -> Prelude_source.basics

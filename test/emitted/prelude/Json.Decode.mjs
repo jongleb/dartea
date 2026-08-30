@@ -1,8 +1,5 @@
 // Compiled by dartea, an independent compiler. Not affiliated with or
 // endorsed by the Elm project.
-// Contains material derived from elm/json,
-// Copyright 2014-present Evan Czaplicki, under the BSD 3-Clause License.
-// dartea's LICENSE carries the full text.
 import * as Dartea_runtime from "./Dartea_runtime.mjs";
 import * as Dartea_json from "./Dartea_json.mjs";
 import * as Json$Encode from "./Json.Encode.mjs";
@@ -32,7 +29,7 @@ const fail = message => Decoder(input => Result.Err(Failure(message, input)));
 const value = Decoder(input$1 => Result.Ok(input$1));
 const primitive = (fits, take, expected) => Decoder(input$2 => {
   if (fits(input$2)) {
-    return Result.Ok(Dartea_runtime.$$curry(take, [input$2]));
+    return Result.Ok(Dartea_runtime.$$apply1(take, input$2));
   } else {
     return Result.Err(Failure("Expecting " + expected, input$2));
   }
@@ -64,13 +61,13 @@ const map2 = (combine, first, second) => Decoder(input$5 => {
       let $s3;
       const decode$4 = second._0;
       $s3 = decode$4(input$5);
-      return Result.map(Dartea_runtime.$$curry(combine, [one]), $s3);
+      return Result.map(Dartea_runtime.$$apply1(combine, one), $s3);
     case "Err":
       const error = $s2._0;
       return Result.Err(error);
   }
 });
-const map3 = (combine$1, first$1, second$1, third) => map2((apply, given$2) => Dartea_runtime.$$curry(apply, [given$2]), map2(combine$1, first$1, second$1), third);
+const map3 = (combine$1, first$1, second$1, third) => map2((apply, given$2) => Dartea_runtime.$$apply1(apply, given$2), map2(combine$1, first$1, second$1), third);
 const andThen = (next, decoder$2) => Decoder(input$6 => {
   let $s4;
   const decode$5 = decoder$2._0;
@@ -222,11 +219,11 @@ const errorToString = error$6 => {
       return message$1 + (", but instead got: " + Json$Encode.encode(0, given$9));
   }
 };
-const map4 = (func, one$1, other, third$1, fourth) => andThen(a => map3(Dartea_runtime.$$curry(func, [a]), other, third$1, fourth), one$1);
-const map5 = (func$1, one$2, other$1, third$2, fourth$1, fifth) => andThen(a$1 => map4(Dartea_runtime.$$curry(func$1, [a$1]), other$1, third$2, fourth$1, fifth), one$2);
-const map6 = (func$2, one$3, other$2, third$3, fourth$2, fifth$1, sixth) => andThen(a$2 => map5(Dartea_runtime.$$curry(func$2, [a$2]), other$2, third$3, fourth$2, fifth$1, sixth), one$3);
-const map7 = (func$3, one$4, other$3, third$4, fourth$3, fifth$2, sixth$1, seventh) => andThen(a$3 => map6(Dartea_runtime.$$curry(func$3, [a$3]), other$3, third$4, fourth$3, fifth$2, sixth$1, seventh), one$4);
-const map8 = (func$4, one$5, other$4, third$5, fourth$4, fifth$3, sixth$2, seventh$1, eighth) => andThen(a$4 => map7(Dartea_runtime.$$curry(func$4, [a$4]), other$4, third$5, fourth$4, fifth$3, sixth$2, seventh$1, eighth), one$5);
+const map4 = (func, one$1, other, third$1, fourth) => andThen(a => map3(Dartea_runtime.$$apply1(func, a), other, third$1, fourth), one$1);
+const map5 = (func$1, one$2, other$1, third$2, fourth$1, fifth) => andThen(a$1 => map4(Dartea_runtime.$$apply1(func$1, a$1), other$1, third$2, fourth$1, fifth), one$2);
+const map6 = (func$2, one$3, other$2, third$3, fourth$2, fifth$1, sixth) => andThen(a$2 => map5(Dartea_runtime.$$apply1(func$2, a$2), other$2, third$3, fourth$2, fifth$1, sixth), one$3);
+const map7 = (func$3, one$4, other$3, third$4, fourth$3, fifth$2, sixth$1, seventh) => andThen(a$3 => map6(Dartea_runtime.$$apply1(func$3, a$3), other$3, third$4, fourth$3, fifth$2, sixth$1, seventh), one$4);
+const map8 = (func$4, one$5, other$4, third$5, fourth$4, fifth$3, sixth$2, seventh$1, eighth) => andThen(a$4 => map7(Dartea_runtime.$$apply1(func$4, a$4), other$4, third$5, fourth$4, fifth$3, sixth$2, seventh$1, eighth), one$5);
 const lazy = thunk => {
   const given$10 = null;
   return andThen(thunk, Decoder($p0$1 => Result.Ok(given$10)));
@@ -237,7 +234,7 @@ const oneOrMoreHelp = (func$5, values) => {
   } else {
     const first$2 = values.hd;
     const rest$1 = values.tl;
-    const given$11 = Dartea_runtime.$$curry(func$5, [first$2, rest$1]);
+    const given$11 = Dartea_runtime.$$apply2(func$5, first$2, rest$1);
     return Decoder($p0$2 => Result.Ok(given$11));
   }
 };

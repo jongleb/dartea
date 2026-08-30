@@ -69,6 +69,8 @@ let runtime_reference helper =
   J.member (J.Identifier runtime_module) helper
 
 let curry_reference = runtime_reference Runtime.curry
+let apply1_reference = runtime_reference Runtime.apply1
+let apply2_reference = runtime_reference Runtime.apply2
 let append_reference = runtime_reference Runtime.append
 let equal_reference = runtime_reference Runtime.equal
 let compare_reference = runtime_reference Runtime.compare
@@ -125,3 +127,34 @@ let omits_tag names name =
       | _ -> false
     end
   | None -> false
+
+let is_bool_constructor name = Option.is_some (Primitives.bool_of_constructor name)
+let is_unit_constructor = Primitives.is_unit_constructor
+
+let bool_literal name =
+  J.bool (Option.equal Bool.equal (Primitives.bool_of_constructor name) (Some true))
+
+let is_inline_constructor name =
+  is_bool_constructor name || is_unit_constructor name
+
+let payload_fields js_arguments =
+  List.mapi (fun i a -> J.Field (Runtime.payload i, a)) js_arguments
+
+type shape = Boolean of bool | Unit | Nullary | Tagless | Tagged
+
+let shape names name js_arguments =
+  match Primitives.bool_of_constructor name with
+  | Some truth -> Boolean truth
+  | None when is_unit_constructor name -> Unit
+  | None when List.is_empty js_arguments -> Nullary
+  | None when omits_tag names name -> Tagless
+  | None -> Tagged
+
+let constructor_to_object names name js_arguments =
+  match shape names name js_arguments with
+  | Boolean truth -> J.bool truth
+  | Unit -> J.Literal J.Null
+  | Nullary -> J.string (Data.Name.base name)
+  | Tagless -> J.Object (payload_fields js_arguments)
+  | Tagged ->
+      J.Object (J.Field (Runtime.tag, J.string (Data.Name.base name)) :: payload_fields js_arguments)

@@ -577,7 +577,7 @@ const map = (func$2, dict$18) => {
     const value$13 = dict$18._2;
     const left$10 = dict$18._3;
     const right$9 = dict$18._4;
-    return RBNode_elm_builtin(color$5, key$14, Dartea_runtime.$$curry(func$2, [key$14, value$13]), map(func$2, left$10), map(func$2, right$9));
+    return RBNode_elm_builtin(color$5, key$14, Dartea_runtime.$$apply2(func$2, key$14, value$13), map(func$2, left$10), map(func$2, right$9));
   }
 };
 const partition = (isGood$1, dict$19) => {

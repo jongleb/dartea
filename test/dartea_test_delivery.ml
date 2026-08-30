@@ -37,11 +37,9 @@ let test_esm_folder_is_one_file_per_module _ =
   let outcome = outcome_of ~entry:None Sample.starter in
   let files = delivered ~delivery:Dartea.Delivery.default ~output:"." outcome in
   assert_equal ~printer:Sample.names
-    (("./" ^ Dartea.Delivery.licence_file)
-     :: List.map
-          (fun (module_name, _) ->
-            "./" ^ Codegen_js.Of_optimized.module_file module_name)
-          (Sample.delivered ~delivery:Dartea.Delivery.default outcome)
+    (List.map
+       (fun (module_name, _) -> "./" ^ Codegen_js.Of_optimized.module_file module_name)
+       (Sample.delivered ~delivery:Dartea.Delivery.default outcome)
     |> List.sort String.compare)
     (paths files);
   List.iter2

@@ -17,7 +17,7 @@ const withDefault = ($$default, maybe) => {
 const map = (f, maybe$1) => {
   if (typeof maybe$1 === "object") {
     const value$1 = maybe$1._0;
-    return Just(Dartea_runtime.$$curry(f, [value$1]));
+    return Just(Dartea_runtime.$$apply1(f, value$1));
   } else {
     return Nothing;
   }
@@ -39,7 +39,7 @@ const map2 = (func, ma, mb) => {
       return Nothing;
     } else {
       const b = mb._0;
-      return Just(Dartea_runtime.$$curry(func, [a, b]));
+      return Just(Dartea_runtime.$$apply2(func, a, b));
     }
   }
 };

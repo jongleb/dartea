@@ -35,11 +35,10 @@ let of_modules ~entry_module ~declaration ~flags modules =
     declaration (To_string.expr_to_string flags)
 
 let sandwich ~title ~entry_module ~notice script =
+  let heading = Option.fold ~none:"" ~some:(fun text -> "<!--\n" ^ text ^ "-->\n") notice in
   Printf.sprintf
     {|<!DOCTYPE html>
-<!--
-%s-->
-<html lang="en">
+%s<html lang="en">
   <head>
     <meta charset="utf-8" />
     <title>%s</title>
@@ -64,4 +63,4 @@ try {
   </body>
 </html>
 |}
-    notice title script global_name (Of_optimized.module_ident entry_module)
+    heading title script global_name (Of_optimized.module_ident entry_module)

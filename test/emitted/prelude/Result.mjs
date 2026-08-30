@@ -20,7 +20,7 @@ const map = (func, ra) => {
   switch (ra.TAG) {
     case "Ok":
       const a$1 = ra._0;
-      return Ok(Dartea_runtime.$$curry(func, [a$1]));
+      return Ok(Dartea_runtime.$$apply1(func, a$1));
     case "Err":
       const e = ra._0;
       return Err(e);
@@ -39,7 +39,7 @@ const map2 = (func$1, ra$1, rb) => {
           return Err(x$1);
         case "Ok":
           const b = rb._0;
-          return Ok(Dartea_runtime.$$curry(func$1, [a$2, b]));
+          return Ok(Dartea_runtime.$$apply2(func$1, a$2, b));
       }
   }
 };
@@ -67,8 +67,8 @@ const map3 = (func$2, ra$2, rb$1, rc) => {
       }
   }
 };
-const map4 = (func$3, ra$3, rb$2, rc$1, rd) => map2((g, d) => Dartea_runtime.$$curry(g, [d]), map3(func$3, ra$3, rb$2, rc$1), rd);
-const map5 = (func$4, ra$4, rb$3, rc$2, rd$1, re) => map2((g$1, e$1) => Dartea_runtime.$$curry(g$1, [e$1]), map4(func$4, ra$4, rb$3, rc$2, rd$1), re);
+const map4 = (func$3, ra$3, rb$2, rc$1, rd) => map2((g, d) => Dartea_runtime.$$apply1(g, d), map3(func$3, ra$3, rb$2, rc$1), rd);
+const map5 = (func$4, ra$4, rb$3, rc$2, rd$1, re) => map2((g$1, e$1) => Dartea_runtime.$$apply1(g$1, e$1), map4(func$4, ra$4, rb$3, rc$2, rd$1), re);
 const andThen = (callback, result$1) => {
   switch (result$1.TAG) {
     case "Ok":
@@ -86,7 +86,7 @@ const mapError = (f, result$2) => {
       return Ok(v);
     case "Err":
       const e$2 = result$2._0;
-      return Err(Dartea_runtime.$$curry(f, [e$2]));
+      return Err(Dartea_runtime.$$apply1(f, e$2));
   }
 };
 const toMaybe = result$3 => {

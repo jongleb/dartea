@@ -1,12 +1,3 @@
-{- Vendored by dartea, an independent compiler. Not affiliated with or
-   endorsed by the Elm project.
-
-   Derived from elm/virtual-dom -- https://github.com/elm/virtual-dom
-   Copyright (c) 2016-present, Evan Czaplicki, BSD 3-Clause License.
-   dartea's LICENSE carries the full text and the file-by-file list.
--}
-
-
 module VirtualDom exposing
     ( Attribute, Handler(..), Node, attribute, attributeNS, keyedNode
     , keyedNodeNS, lazy, lazy2, lazy3, lazy4, lazy5, lazy6, lazy7, lazy8, map

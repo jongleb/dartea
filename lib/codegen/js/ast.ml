@@ -176,3 +176,11 @@ let returning_when test result =
 
 let is_object subject =
   binary StrictEqual (Unary { op = Typeof; arg = subject }) (string "object")
+
+let arrow_of_body params stmts =
+  let body =
+    match stmts with
+    | [ Return (Some e) ] -> ArrowExpr e
+    | _ -> ArrowBlock stmts
+  in
+  Arrow { params; body }

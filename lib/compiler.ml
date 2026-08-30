@@ -184,7 +184,7 @@ module Make (B : BACKEND) = struct
            | Data.Name.Local _ -> None)
     |> List.sort_uniq String.compare
 
-  let inline_modules = [ "Html"; "Html.Attributes"; "Html.Events" ]
+  let inline_modules = [ "Html"; "Html.Attributes"; "Html.Events"; "Html.Keyed" ]
 
   let imports_of (compiled : linkable list) =
     List.filter_map

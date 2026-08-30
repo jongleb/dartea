@@ -1,8 +1,5 @@
 // Compiled by dartea, an independent compiler. Not affiliated with or
 // endorsed by the Elm project.
-// Contains material derived from elm/virtual-dom,
-// Copyright (c) 2016-present Evan Czaplicki, under the BSD 3-Clause License.
-// dartea's LICENSE carries the full text.
 import * as Dartea_browser from "./Dartea_browser.mjs";
 import * as Basics from "./Basics.mjs";
 import * as Json$Decode from "./Json.Decode.mjs";

@@ -1,8 +1,5 @@
 // Compiled by dartea, an independent compiler. Not affiliated with or
 // endorsed by the Elm project.
-// Contains material derived from elm/json,
-// Copyright 2014-present Evan Czaplicki, under the BSD 3-Clause License.
-// dartea's LICENSE carries the full text.
 import * as Dartea_json from "./Dartea_json.mjs";
 import * as List from "./List.mjs";
 import * as Tuple from "./Tuple.mjs";

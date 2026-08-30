@@ -48,7 +48,7 @@ const foldl = (func, acc, list$1) => {
       const x = list$1.hd;
       const xs = list$1.tl;
       const $s7 = func;
-      const $s8 = Dartea_runtime.$$curry(func, [x, acc]);
+      const $s8 = Dartea_runtime.$$apply2(func, x, acc);
       const $s9 = xs;
       func = $s7;
       acc = $s8;
@@ -59,7 +59,7 @@ const foldl = (func, acc, list$1) => {
 };
 const foldr = (func$1, acc$1, list$2) => foldl(func$1, acc$1, foldl(cons, 0, list$2));
 const reverse = list$3 => foldl(cons, 0, list$3);
-const map = (f, xs$1) => foldl((x$1, acc$2) => ({ hd: Dartea_runtime.$$curry(f, [x$1]), tl: acc$2 }), 0, foldl(cons, 0, xs$1));
+const map = (f, xs$1) => foldl((x$1, acc$2) => ({ hd: Dartea_runtime.$$apply1(f, x$1), tl: acc$2 }), 0, foldl(cons, 0, xs$1));
 const length = xs$2 => foldl(($p0, count) => count + 1, 0, xs$2);
 const map2Help = (f$1, xs$3, ys, acc$3) => {
   while (true) {
@@ -76,7 +76,7 @@ const map2Help = (f$1, xs$3, ys, acc$3) => {
         const $s10 = f$1;
         const $s11 = xrest;
         const $s12 = yrest;
-        const $s13 = { hd: Dartea_runtime.$$curry(f$1, [x$2, y]), tl: acc$3 };
+        const $s13 = { hd: Dartea_runtime.$$apply2(f$1, x$2, y), tl: acc$3 };
         f$1 = $s10;
         xs$3 = $s11;
         ys = $s12;
@@ -166,9 +166,9 @@ const intersperse = (sep, xs$12) => {
     return { hd: hd, tl: spersed };
   }
 };
-const map3 = (f$7, xs$13, ys$3, zs) => map2((g, z) => Dartea_runtime.$$curry(g, [z]), map2(f$7, xs$13, ys$3), zs);
-const map4 = (f$8, xs$14, ys$4, zs$1, ws) => map2((g$1, w) => Dartea_runtime.$$curry(g$1, [w]), map3(f$8, xs$14, ys$4, zs$1), ws);
-const map5 = (f$9, xs$15, ys$5, zs$2, ws$1, vs) => map2((g$2, v) => Dartea_runtime.$$curry(g$2, [v]), map4(f$9, xs$15, ys$5, zs$2, ws$1), vs);
+const map3 = (f$7, xs$13, ys$3, zs) => map2((g, z) => Dartea_runtime.$$apply1(g, z), map2(f$7, xs$13, ys$3), zs);
+const map4 = (f$8, xs$14, ys$4, zs$1, ws) => map2((g$1, w) => Dartea_runtime.$$apply1(g$1, w), map3(f$8, xs$14, ys$4, zs$1), ws);
+const map5 = (f$9, xs$15, ys$5, zs$2, ws$1, vs) => map2((g$2, v) => Dartea_runtime.$$apply1(g$2, v), map4(f$9, xs$15, ys$5, zs$2, ws$1), vs);
 const drop = (n$2, list$10) => {
   while (true) {
     if (n$2 <= 0) {
@@ -260,8 +260,8 @@ const sortWith = (ordering$2, xs$18) => {
 };
 const sort = xs$19 => sortWith(Basics.compare, xs$19);
 const sortBy = (toKey, xs$20) => sortWith((a$2, b) => {
-  const $s32 = Dartea_runtime.$$curry(toKey, [a$2]);
-  const $s33 = Dartea_runtime.$$curry(toKey, [b]);
+  const $s32 = Dartea_runtime.$$apply1(toKey, a$2);
+  const $s33 = Dartea_runtime.$$apply1(toKey, b);
   const $s34 = Dartea_runtime.$$cmp($s32, $s33);
   return ($s34 < 0) ? "LT" : ($s34 === 0) ? "EQ" : "GT";
 }, xs$20);

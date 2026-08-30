@@ -1,10 +1,8 @@
 import * as Browser from "./Browser.mjs";
-import * as Json$Decode from "./Json.Decode.mjs";
 import * as $$String from "./String.mjs";
-import * as VirtualDom from "./VirtualDom.mjs";
 const Bumped = "Bumped";
 const Reset = "Reset";
-const $$form0 = { tag: "div", attributes: [{ key: "className", value: "counter", way: "property" }], children: [{ tag: "button", attributes: [], children: [{ text: "+" }] }, { hole: 1 }, { tag: "button", attributes: [], children: [{ text: "reset" }] }], holes: [{ path: [0], kind: "event" }, { path: [1], kind: "text" }, { path: [2], kind: "event" }] };
+const $$form0 = { tag: "div", attributes: [{ key: "className", value: "counter", way: "property" }], children: [{ tag: "button", attributes: [], children: [{ text: "+" }] }, { hole: 1 }, { tag: "button", attributes: [], children: [{ text: "reset" }] }], holes: [{ path: [0], kind: "event", event: "click", plain: true }, { path: [1], kind: "text" }, { path: [2], kind: "event", event: "click", plain: true }] };
 const update = (msg, model) => {
   switch (msg) {
     case "Bumped":
@@ -13,6 +11,13 @@ const update = (msg, model) => {
       return 0;
   }
 };
-const view = model$1 => ({ TAG: "block", form: $$form0, values: [VirtualDom.on("click", VirtualDom.Normal(Json$Decode.succeed(Bumped))), " " + ($$String.fromInt(model$1) + " "), VirtualDom.on("click", VirtualDom.Normal(Json$Decode.succeed(Reset)))] });
+const view = model$1 => ({ TAG: "block", form: $$form0, refresh: ($$b, $$put) => {
+  $$put($$b, 0, Bumped);
+  if ($$b.deps[1] !== model$1) {
+    $$b.deps[1] = model$1;
+    $$put($$b, 1, " " + ($$String.fromInt(model$1) + " "));
+  }
+  $$put($$b, 2, Reset);
+} });
 const main = Browser.sandbox({ init: 0, update: update, view: view });
 export { main };

@@ -20,59 +20,64 @@ let declaration ~name folder =
 
 let forms_in ~name folder = Blocks.forms (declaration ~name folder).body
 
-let count kind holes =
+let count named holes =
   List.length
-    (List.filter (fun (hole : Blocks.hole) -> Blocks.equal_hole_kind hole.kind kind) holes)
+    (List.filter
+       (fun (hole : Blocks.hole) -> String.equal
+           (Codegen_js.Forms.Kind.to_string (Codegen_js.Forms.Kind.of_hole hole.kind))
+           named)
+       holes)
 
 let show (forms : (Blocks.t * Blocks.hole list) list) =
   let holes = List.concat_map snd forms in
-  Printf.sprintf "forms %d, nodes %d, text %d, attribute %d, event %d, children %d, subtree %d"
+  Printf.sprintf
+    "forms %d, nodes %d, text %d, attribute %d, slot %d, event %d, children %d, rows %d, subtree %d"
     (List.length forms)
     (List.fold_left (fun total (form, _) -> total + Blocks.size form) 0 forms)
-    (count Text holes) (count Attribute holes) (count Event holes)
-    (count Children holes) (count Subtree holes)
+    (count "text" holes) (count "attribute" holes) (count "slot" holes) (count "event" holes)
+    (count "children" holes) (count "rows" holes) (count "subtree" holes)
 
 let assert_shape ~expected forms =
   assert_equal ~printer:Fun.id expected (show forms)
 
 let test_counter_view _ =
   assert_shape
-    ~expected:"forms 1, nodes 3, text 1, attribute 0, event 2, children 0, subtree 0"
+    ~expected:"forms 1, nodes 3, text 1, attribute 0, slot 0, event 2, children 0, rows 0, subtree 0"
     (forms_in ~name:"view" "counter")
 
 let test_todomvc_view _ =
   assert_shape
-    ~expected:"forms 1, nodes 2, text 0, attribute 0, event 0, children 0, subtree 3"
+    ~expected:"forms 1, nodes 2, text 0, attribute 0, slot 0, event 0, children 0, rows 0, subtree 3"
     (forms_in ~name:"view" "todomvc")
 
 let test_todomvc_view_input _ =
   assert_shape
-    ~expected:"forms 1, nodes 3, text 0, attribute 4, event 0, children 0, subtree 0"
+    ~expected:"forms 1, nodes 3, text 0, attribute 3, slot 1, event 0, children 0, rows 0, subtree 0"
     (forms_in ~name:"viewInput" "todomvc")
 
 let test_todomvc_view_entries _ =
   assert_shape
-    ~expected:"forms 1, nodes 3, text 0, attribute 2, event 1, children 0, subtree 1"
+    ~expected:"forms 1, nodes 4, text 0, attribute 0, slot 2, event 1, children 0, rows 1, subtree 0"
     (forms_in ~name:"viewEntries" "todomvc")
 
 let test_todomvc_view_entry _ =
   assert_shape
-    ~expected:"forms 1, nodes 6, text 1, attribute 6, event 4, children 0, subtree 0"
+    ~expected:"forms 1, nodes 6, text 1, attribute 3, slot 3, event 4, children 0, rows 0, subtree 0"
     (forms_in ~name:"viewEntry" "todomvc")
 
 let test_todomvc_view_controls _ =
   assert_shape
-    ~expected:"forms 1, nodes 1, text 0, attribute 1, event 0, children 0, subtree 3"
+    ~expected:"forms 1, nodes 1, text 0, attribute 1, slot 0, event 0, children 0, rows 0, subtree 3"
     (forms_in ~name:"viewControls" "todomvc")
 
 let test_bench_view_row _ =
   assert_shape
-    ~expected:"forms 1, nodes 7, text 2, attribute 1, event 2, children 0, subtree 0"
+    ~expected:"forms 1, nodes 7, text 2, attribute 0, slot 1, event 2, children 0, rows 0, subtree 0"
     (forms_in ~name:"viewRow" "bench")
 
 let test_bench_view _ =
   assert_shape
-    ~expected:"forms 1, nodes 10, text 0, attribute 0, event 6, children 0, subtree 1"
+    ~expected:"forms 1, nodes 11, text 0, attribute 0, slot 0, event 6, children 0, rows 1, subtree 0"
     (forms_in ~name:"view" "bench")
 
 let compile source =

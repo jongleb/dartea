@@ -1242,7 +1242,7 @@ result = apply add 3 4
   assert_js ~src ~expr:"Main.result" ~expected:"7";
   let js = main_source src in
   assert_bool "a call on a parameter of polymorphic type keeps the runtime"
-    (contains ~needle:"$$curry" js)
+    (contains ~needle:"$$apply1" js)
 
 let test_unapplied_kernel_becomes_an_arrow _ =
   let js = module_source ~name:"String" "x : Int\nx = 1" in

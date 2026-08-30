@@ -1,6 +1,3 @@
-// Derived from elm/core -- https://github.com/elm/core
-// Copyright 2014-present Evan Czaplicki, BSD 3-Clause License.
-// Emitted by dartea; its LICENSE file carries the full text.
 const $$curry = (f, args) => {
   const n = f.length === 0 ? 1 : f.length;
   if (args.length === n) return f(...args);
@@ -8,29 +5,19 @@ const $$curry = (f, args) => {
   return $$curry(f(...args.slice(0, n)), args.slice(n));
 };
 
-const $$eqHelp = (x, y, depth, stack) => {
-  if (x === y) return true;
-  if (typeof x !== "object" || x === null || y === null) {
-    if (typeof x === "function") throw new Error("Functions cannot be compared");
-    return false;
-  }
-  if (depth > 100) {
-    stack.push([x, y]);
-    return true;
-  }
-  for (const key in x) {
-    if (!$$eqHelp(x[key], y[key], depth + 1, stack)) return false;
-  }
-  return true;
-};
+const $$apply1 = (f, x) => (f.length === 1 ? f(x) : $$curry(f, [x]));
+const $$apply2 = (f, x, y) => (f.length === 2 ? f(x, y) : $$curry(f, [x, y]));
 
 const $$eq = (x, y) => {
-  const stack = [];
-  let equal = $$eqHelp(x, y, 0, stack);
-  for (let pair = stack.pop(); equal && pair !== undefined; pair = stack.pop()) {
-    equal = $$eqHelp(pair[0], pair[1], 0, stack);
+  const pending = [[x, y]];
+  while (pending.length > 0) {
+    const [left, right] = pending.pop();
+    if (left === right) continue;
+    if (typeof left === "function") throw new Error("Functions cannot be compared");
+    if (typeof left !== "object" || left === null || right === null) return false;
+    for (const key of Object.keys(left)) pending.push([left[key], right[key]]);
   }
-  return equal;
+  return true;
 };
 
 const $$cmp = (x, y) => {
@@ -86,6 +73,8 @@ const $$charFromCode = (code) =>
 
 export {
   $$curry,
+  $$apply1,
+  $$apply2,
   $$eq,
   $$cmp,
   $$modBy,

@@ -80,10 +80,10 @@ const acos = x => Math.acos(x);
 const asin = x => Math.asin(x);
 const atan = x => Math.atan(x);
 const atan2 = (a, b) => Math.atan2(a, b);
-const composeL = (g, f, x$4) => Dartea_runtime.$$curry(g, [Dartea_runtime.$$curry(f, [x$4])]);
-const composeR = (f$1, g$1, x$5) => Dartea_runtime.$$curry(g$1, [Dartea_runtime.$$curry(f$1, [x$5])]);
-const apR = (x$6, f$2) => Dartea_runtime.$$curry(f$2, [x$6]);
-const apL = (f$3, x$7) => Dartea_runtime.$$curry(f$3, [x$7]);
+const composeL = (g, f, x$4) => Dartea_runtime.$$apply1(g, Dartea_runtime.$$apply1(f, x$4));
+const composeR = (f$1, g$1, x$5) => Dartea_runtime.$$apply1(g$1, Dartea_runtime.$$apply1(f$1, x$5));
+const apR = (x$6, f$2) => Dartea_runtime.$$apply1(f$2, x$6);
+const apL = (f$3, x$7) => Dartea_runtime.$$apply1(f$3, x$7);
 const never = nvr => {
   while (true) {
     const inner = nvr._0;

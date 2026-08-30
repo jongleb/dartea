@@ -27,7 +27,7 @@ const query = $p0$1 => {
   const params = $p0$2.params;
   const unvisited = $p0$2.unvisited;
   const visited = $p0$2.visited;
-  return { hd: State(visited, unvisited, params, frag, Dartea_runtime.$$curry(value, [Dartea_runtime.$$curry(queryParser, [params])])), tl: 0 };
+  return { hd: State(visited, unvisited, params, frag, Dartea_runtime.$$apply1(value, Dartea_runtime.$$apply1(queryParser, params))), tl: 0 };
 });
 };
 const $$lt$question$gt = (eta1$1, eta2$1) => slash(eta1$1, query(eta2$1));
@@ -45,7 +45,7 @@ const custom = (tipe, stringToSomething) => Parser($p0$3 => {
     const $s1 = stringToSomething(next);
     if (typeof $s1 === "object") {
       const nextValue = $s1._0;
-      return { hd: State({ hd: next, tl: visited$1 }, rest, params$1, frag$1, Dartea_runtime.$$curry(value$1, [nextValue])), tl: 0 };
+      return { hd: State({ hd: next, tl: visited$1 }, rest, params$1, frag$1, Dartea_runtime.$$apply1(value$1, nextValue)), tl: 0 };
     } else {
       return 0;
     }
@@ -77,7 +77,7 @@ const mapState = (func, $p1$1) => {
   const params$3 = $p1$1.params;
   const unvisited$3 = $p1$1.unvisited;
   const visited$3 = $p1$1.visited;
-  return State(visited$3, unvisited$3, params$3, frag$3, Dartea_runtime.$$curry(func, [value$3]));
+  return State(visited$3, unvisited$3, params$3, frag$3, Dartea_runtime.$$apply1(func, value$3));
 };
 const map = (subValue, $p1$2) => {
   const parseArg = $p1$2._0;
@@ -101,7 +101,7 @@ const fragment = toFrag => Parser($p0$7 => {
   const params$5 = $p0$7.params;
   const unvisited$5 = $p0$7.unvisited;
   const visited$5 = $p0$7.visited;
-  return { hd: State(visited$5, unvisited$5, params$5, frag$5, Dartea_runtime.$$curry(value$5, [Dartea_runtime.$$curry(toFrag, [frag$5])])), tl: 0 };
+  return { hd: State(visited$5, unvisited$5, params$5, frag$5, Dartea_runtime.$$apply1(value$5, Dartea_runtime.$$apply1(toFrag, frag$5))), tl: 0 };
 });
 const getFirstMatch = states => {
   if (states === 0) {

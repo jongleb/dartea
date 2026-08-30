@@ -44,7 +44,14 @@ const title = found => {
     }
   }
 };
-const view = model$1 => ({ title: title(model$1.route), body: { hd: { TAG: "block", form: $$form0, values: [title(model$1.route)] }, tl: { hd: { TAG: "block", form: $$form1, values: [] }, tl: 0 } } });
+const view = model$1 => ({ title: title(model$1.route), body: { hd: { TAG: "block", form: $$form0, refresh: ($$b, $$put) => {
+  if ($$b.deps[0] !== model$1.route) {
+    $$b.deps[0] = model$1.route;
+    $$put($$b, 0, title(model$1.route));
+  }
+} }, tl: { hd: { TAG: "block", form: $$form1, refresh: ($$b, $$put) => {
+
+} }, tl: 0 } } });
 const main = Browser.application({ init: init, view: view, update: update, subscriptions: $p0$1 => Platform$Sub.none, onUrlRequest: Clicked, onUrlChange: Changed });
 const Model = ($a0, $a1) => ({ key: $a0, route: $a1 });
 export { Changed, Clicked, Home, Model, Post, Unknown, main, routeOf };

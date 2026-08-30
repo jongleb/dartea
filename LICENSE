@@ -32,10 +32,12 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 Third-party material
 
 
-This software contains material derived from six projects by Evan Czaplicki,
+This software contains material derived from five projects by Evan Czaplicki,
 all licensed under the same BSD 3-Clause License reproduced above. Their
 copyright notices are retained here, as clause 1 requires, and apply to the
-files listed under each.
+files listed under each. Everything not listed -- the compiler, the JavaScript
+runtime and virtual DOM engine, and the remaining prelude modules -- is
+dartea's own work.
 
 
 elm/core -- https://github.com/elm/core
@@ -46,77 +48,61 @@ Copyright 2014-present Evan Czaplicki
     lib/prelude/packages/core/Dict.elm
     lib/prelude/packages/core/List.elm
     lib/prelude/packages/core/Maybe.elm
-    lib/prelude/packages/core/Platform.elm
-    lib/prelude/packages/core/Platform.Cmd.elm
-    lib/prelude/packages/core/Platform.Sub.elm
     lib/prelude/packages/core/Result.elm
-    lib/prelude/packages/core/String.elm
-    lib/prelude/packages/core/Task.elm
     lib/prelude/packages/core/Tuple.elm
-    lib/prelude/prelude.ml
-    lib/data/kernel.ml
-    lib/codegen/js/dartea_runtime.js
 
-The prelude modules are embedded into the compiler binary; those a program
-imports are compiled alongside it, as Basics.mjs, Char.mjs, Dict.mjs, List.mjs,
-Maybe.mjs, Result.mjs, String.mjs and Tuple.mjs. Dartea_runtime.mjs ships with
-every program. Redistributing that output redistributes material derived from
-elm/core.
-
-
-elm/virtual-dom -- https://github.com/elm/virtual-dom
-Copyright (c) 2016-present, Evan Czaplicki
-
-    lib/prelude/packages/virtual-dom/VirtualDom.elm
-    lib/codegen/js/browser_kernel.ml
-
-The module names, type names and signatures are reproduced; the implementations
-are not, because elm/virtual-dom is written against the Elm runtime's own value
-representation. A program that imports VirtualDom is compiled alongside
-VirtualDom.mjs, and redistributing that output redistributes material derived
-from elm/virtual-dom.
+A program that imports these modules is compiled alongside Basics.mjs,
+Char.mjs, Dict.mjs, List.mjs, Maybe.mjs, Result.mjs and Tuple.mjs, and
+redistributing that output redistributes material derived from elm/core.
 
 
 elm/html -- https://github.com/elm/html
 Copyright (c) 2014-present, Evan Czaplicki
 
-    lib/prelude/packages/html/Html.elm
     lib/prelude/packages/html/Html.Attributes.elm
-    lib/prelude/packages/html/Html.Events.elm
-    lib/prelude/packages/html/Html.Keyed.elm
-    lib/prelude/packages/html/Html.Lazy.elm
 
-The module names, type names and signatures are reproduced; the tag and
-attribute helpers are written against dartea's own VirtualDom module. A program
-that imports Html is compiled alongside Html.mjs, Html.Attributes.mjs and
-Html.Events.mjs, Html.Keyed.mjs and Html.Lazy.mjs, and redistributing that
-output redistributes material derived from elm/html.
+A program that imports Html.Attributes is compiled alongside
+Html.Attributes.mjs, and redistributing that output redistributes material
+derived from elm/html.
 
 
 elm/browser -- https://github.com/elm/browser
 Copyright 2017-present Evan Czaplicki
 
     lib/prelude/packages/browser/Browser.elm
-    lib/prelude/packages/browser/Browser.Dom.elm
+    lib/prelude/packages/browser/Browser.Events.elm
+    lib/prelude/packages/browser/Browser.Navigation.elm
 
-The module name, the `Program` type and the shape of `Browser.sandbox` are
-reproduced; the update loop is dartea's own and is written against dartea's
-value representation. A program that imports Browser is compiled alongside
-Browser.mjs, and redistributing that output redistributes material derived from
-elm/browser.
+The module names, types and signatures are reproduced; the update loop,
+navigation and event machinery are dartea's own. A program that imports these
+modules is compiled alongside Browser.mjs, Browser.Events.mjs and
+Browser.Navigation.mjs, and redistributing that output redistributes material
+derived from elm/browser.
 
 
-elm/json -- https://github.com/elm/json
+elm/url -- https://github.com/elm/url
+Copyright 2017-present Evan Czaplicki
+
+    lib/prelude/packages/url/Url.elm
+    lib/prelude/packages/url/Url.Builder.elm
+    lib/prelude/packages/url/Url.Parser.elm
+    lib/prelude/packages/url/Url.Parser.Internal.elm
+    lib/prelude/packages/url/Url.Parser.Query.elm
+
+These modules are reproduced nearly verbatim. A program that imports them is
+compiled alongside the matching .mjs files, and redistributing that output
+redistributes material derived from elm/url.
+
+
+elm/http -- https://github.com/elm/http
 Copyright 2014-present Evan Czaplicki
 
-    lib/prelude/packages/json/Json.Decode.elm
-    lib/prelude/packages/json/Json.Encode.elm
+    lib/prelude/packages/http/Http.elm
 
-The module names, type names and signatures are reproduced; the decoders are
-dartea's own, written in Elm over a small set of primitives rather than in
-JavaScript over Elm's value representation. A program that imports Json.Decode
-is compiled alongside Json.Decode.mjs, and redistributing that output
-redistributes material derived from elm/json.
+The types, the request builders and the response resolution are reproduced;
+the transport is dartea's own. A program that imports Http is compiled
+alongside Http.mjs, and redistributing that output redistributes material
+derived from elm/http.
 
 
 evancz/elm-todomvc -- https://github.com/evancz/elm-todomvc
@@ -128,87 +114,3 @@ The file is the upstream TodoMVC application, kept as a test that dartea
 compiles a real Elm program. Only `infoFooter` and its call are removed;
 nothing else is changed. It is a test fixture, not part of the compiler, and is
 not redistributed in compiled output.
-
-
-elm/time -- https://github.com/elm/time
-Copyright 2018-present Evan Czaplicki
-
-    lib/prelude/packages/time/Time.elm
-
-The module name, the `Posix` type and the shape of `Time.every` are reproduced;
-the subscription machinery is dartea's own. A program that imports Time is
-compiled alongside Time.mjs, and redistributing that output redistributes
-material derived from elm/time.
-
-
-elm/compiler -- https://github.com/elm/compiler
-Copyright 2012-present Evan Czaplicki
-
-    lib/reporting/category.ml
-    lib/reporting/context.ml
-    lib/reporting/doc.ml
-    lib/reporting/expectation.ml
-    lib/reporting/hint.ml
-    lib/reporting/name_error.ml
-    lib/reporting/report.ml
-    lib/reporting/snippet.ml
-    lib/reporting/syntax_error.ml
-    lib/reporting/type_error.ml
-    lib/reporting/warning.ml
-    test/errors/*.txt
-
-The diagnostic wording in report.ml and in the golden files is reproduced
-verbatim; the rest is Elm's error taxonomy and report layout translated into
-OCaml, and carries no English text.
-
-
-This software is an independent implementation. It is not affiliated with or
-endorsed by the Elm project or by Evan Czaplicki.
-
-
--------------------------------------------------------------------------------
-Studied, not copied
-
-
-No code from these is present here. They are named because they shaped design
-decisions.
-
-    ReScript, Melange
-        Runtime data representation, the uncurried calling convention, and
-        building backend AST nodes instead of splicing JavaScript text.
-
-    Luc Maranget, Compiling Pattern Matching to Good Decision Trees (ML'08)
-    and Warnings for Pattern Matching (JFP 2007)
-        lib/after_typed/exhaustive.ml.
-
-    Reinking, Xie, de Moura and Leijen, Perceus: Garbage Free Reference
-    Counting with Reuse (PLDI 2021)
-        lib/codegen/c/dartea_runtime.h. The dup / drop / reuse vocabulary is
-        the paper's; the object layout was chosen here. Not compared line by
-        line against the Koka runtime.
-
--------------------------------------------------------------------------------
-Linked dependencies
-
-
-The compiled binary links the following libraries. Their own licenses apply to
-them and their notices are preserved by their respective distributions.
-
-    menhirLib        LGPL-2.0-only WITH OCaml-LGPL-linking-exception
-    OCaml runtime    LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
-    base             MIT
-    non_empty_list   MIT
-    ppx_hash         MIT
-    eio, eio_main    ISC
-    containers-data  BSD-2-Clause
-
-menhirLib and the OCaml runtime are LGPL. The OCaml linking exception permits
-linking them into a binary under these terms without that binary becoming
-subject to the LGPL.
-
-The menhir parser generator itself is GPL-2.0-only. It is a build-time tool and
-is not linked into the binary, in the same way a compiler is not.
-
-Used only to build and test, never linked into the shipped binary:
-ppx_jane (MIT), ppx_deriving (MIT), ounit2 (MIT), qcheck-core and qcheck-ounit
-(BSD-2-Clause).

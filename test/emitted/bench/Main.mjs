@@ -1,14 +1,10 @@
 import * as Basics from "./Basics.mjs";
 import * as Browser from "./Browser.mjs";
-import * as Html$Keyed from "./Html.Keyed.mjs";
-import * as Json$Decode from "./Json.Decode.mjs";
-import * as Json$Encode from "./Json.Encode.mjs";
 import * as List from "./List.mjs";
 import * as Maybe from "./Maybe.mjs";
 import * as Platform$Cmd from "./Platform.Cmd.mjs";
 import * as Platform$Sub from "./Platform.Sub.mjs";
 import * as $$String from "./String.mjs";
-import * as VirtualDom from "./VirtualDom.mjs";
 const Create = _0 => ({ TAG: "Create", _0: _0 });
 const Append = _0 => ({ TAG: "Append", _0: _0 });
 const Update = "Update";
@@ -31,8 +27,8 @@ const $append$List = (xs, ys) => {
   }
   return root;
 };
-const $$form0 = { tag: "tr", attributes: [], children: [{ tag: "td", attributes: [{ key: "className", value: "col-md-1", way: "property" }], children: [{ hole: 1 }] }, { tag: "td", attributes: [{ key: "className", value: "col-md-4", way: "property" }], children: [{ tag: "a", attributes: [], children: [{ hole: 3 }] }] }, { tag: "td", attributes: [{ key: "className", value: "col-md-1", way: "property" }], children: [{ tag: "button", attributes: [{ key: "className", value: "remove", way: "property" }], children: [{ text: "x" }] }] }, { tag: "td", attributes: [{ key: "className", value: "col-md-6", way: "property" }], children: [] }], holes: [{ path: [], kind: "attribute" }, { path: [0, 0], kind: "text" }, { path: [1, 0], kind: "event" }, { path: [1, 0, 0], kind: "text" }, { path: [2, 0], kind: "event" }] };
-const $$form1 = { tag: "div", attributes: [{ key: "className", value: "container", way: "property" }], children: [{ tag: "div", attributes: [{ key: "className", value: "jumbotron", way: "property" }], children: [{ tag: "h1", attributes: [], children: [{ text: "dartea keyed" }] }, { tag: "button", attributes: [{ key: "id", value: "run", way: "property" }], children: [{ text: "Create 1,000 rows" }] }, { tag: "button", attributes: [{ key: "id", value: "runlots", way: "property" }], children: [{ text: "Create 10,000 rows" }] }, { tag: "button", attributes: [{ key: "id", value: "add", way: "property" }], children: [{ text: "Append 1,000 rows" }] }, { tag: "button", attributes: [{ key: "id", value: "update", way: "property" }], children: [{ text: "Update every 10th row" }] }, { tag: "button", attributes: [{ key: "id", value: "clear", way: "property" }], children: [{ text: "Clear" }] }, { tag: "button", attributes: [{ key: "id", value: "swaprows", way: "property" }], children: [{ text: "Swap Rows" }] }] }, { tag: "table", attributes: [{ key: "className", value: "table", way: "property" }], children: [{ hole: 6 }] }], holes: [{ path: [0, 1], kind: "event" }, { path: [0, 2], kind: "event" }, { path: [0, 3], kind: "event" }, { path: [0, 4], kind: "event" }, { path: [0, 5], kind: "event" }, { path: [0, 6], kind: "event" }, { path: [1, 0], kind: "subtree" }] };
+const $$form0 = { tag: "tr", attributes: [], children: [{ tag: "td", attributes: [{ key: "className", value: "col-md-1", way: "property" }], children: [{ hole: 1 }] }, { tag: "td", attributes: [{ key: "className", value: "col-md-4", way: "property" }], children: [{ tag: "a", attributes: [], children: [{ hole: 3 }] }] }, { tag: "td", attributes: [{ key: "className", value: "col-md-1", way: "property" }], children: [{ tag: "button", attributes: [{ key: "className", value: "remove", way: "property" }], children: [{ text: "x" }] }] }, { tag: "td", attributes: [{ key: "className", value: "col-md-6", way: "property" }], children: [] }], holes: [{ path: [], kind: "slot", key: "className", way: "property" }, { path: [0, 0], kind: "text" }, { path: [1, 0], kind: "event", event: "click", plain: true }, { path: [1, 0, 0], kind: "text" }, { path: [2, 0], kind: "event", event: "click", plain: true }] };
+const $$form1 = { tag: "div", attributes: [{ key: "className", value: "container", way: "property" }], children: [{ tag: "div", attributes: [{ key: "className", value: "jumbotron", way: "property" }], children: [{ tag: "h1", attributes: [], children: [{ text: "dartea keyed" }] }, { tag: "button", attributes: [{ key: "id", value: "run", way: "property" }], children: [{ text: "Create 1,000 rows" }] }, { tag: "button", attributes: [{ key: "id", value: "runlots", way: "property" }], children: [{ text: "Create 10,000 rows" }] }, { tag: "button", attributes: [{ key: "id", value: "add", way: "property" }], children: [{ text: "Append 1,000 rows" }] }, { tag: "button", attributes: [{ key: "id", value: "update", way: "property" }], children: [{ text: "Update every 10th row" }] }, { tag: "button", attributes: [{ key: "id", value: "clear", way: "property" }], children: [{ text: "Clear" }] }, { tag: "button", attributes: [{ key: "id", value: "swaprows", way: "property" }], children: [{ text: "Swap Rows" }] }] }, { tag: "table", attributes: [{ key: "className", value: "table", way: "property" }], children: [{ tag: "tbody", attributes: [], children: [] }] }], holes: [{ path: [0, 1], kind: "event", event: "click", plain: true }, { path: [0, 2], kind: "event", event: "click", plain: true }, { path: [0, 3], kind: "event", event: "click", plain: true }, { path: [0, 4], kind: "event", event: "click", plain: true }, { path: [0, 5], kind: "event", event: "click", plain: true }, { path: [0, 6], kind: "event", event: "click", plain: true }, { path: [1, 0], kind: "rows", keyed: true }] };
 const adjectives = { hd: "pretty", tl: { hd: "large", tl: { hd: "big", tl: { hd: "small", tl: { hd: "tall", tl: { hd: "short", tl: { hd: "long", tl: { hd: "handsome", tl: { hd: "plain", tl: { hd: "quaint", tl: { hd: "clean", tl: { hd: "elegant", tl: { hd: "easy", tl: { hd: "angry", tl: { hd: "crazy", tl: { hd: "helpful", tl: { hd: "mushy", tl: { hd: "odd", tl: { hd: "unsightly", tl: { hd: "adorable", tl: { hd: "important", tl: { hd: "inexpensive", tl: { hd: "cheap", tl: { hd: "expensive", tl: { hd: "fancy", tl: 0 } } } } } } } } } } } } } } } } } } } } } } } } };
 const colours = { hd: "red", tl: { hd: "yellow", tl: { hd: "blue", tl: { hd: "green", tl: { hd: "pink", tl: { hd: "brown", tl: { hd: "purple", tl: { hd: "brown", tl: { hd: "white", tl: { hd: "black", tl: { hd: "orange", tl: 0 } } } } } } } } } } };
 const nouns = { hd: "table", tl: { hd: "chair", tl: { hd: "house", tl: { hd: "bbq", tl: { hd: "desk", tl: { hd: "car", tl: { hd: "pony", tl: { hd: "cookie", tl: { hd: "sandwich", tl: { hd: "burger", tl: { hd: "pizza", tl: { hd: "mouse", tl: { hd: "keyboard", tl: 0 } } } } } } } } } } } } };
@@ -109,7 +105,39 @@ const update = (msg, model$1) => {
     }
   }
 };
-const viewRow = (selected, row$2) => [$$String.fromInt(row$2.id), { TAG: "block", form: $$form0, values: [VirtualDom.property("className", Json$Encode.string((selected === row$2.id) ? "danger" : "")), $$String.fromInt(row$2.id), VirtualDom.on("click", VirtualDom.Normal(Json$Decode.succeed(Select(row$2.id)))), row$2.label, VirtualDom.on("click", VirtualDom.Normal(Json$Decode.succeed(Remove(row$2.id))))] }];
-const view = model$2 => ({ TAG: "block", form: $$form1, values: [VirtualDom.on("click", VirtualDom.Normal(Json$Decode.succeed(Create(1000)))), VirtualDom.on("click", VirtualDom.Normal(Json$Decode.succeed(Create(10000)))), VirtualDom.on("click", VirtualDom.Normal(Json$Decode.succeed(Append(1000)))), VirtualDom.on("click", VirtualDom.Normal(Json$Decode.succeed(Update))), VirtualDom.on("click", VirtualDom.Normal(Json$Decode.succeed(Clear))), VirtualDom.on("click", VirtualDom.Normal(Json$Decode.succeed(Swap))), Html$Keyed.node("tbody", 0, List.map($s4 => viewRow(model$2.selected, $s4), model$2.rows))] });
+const viewRow = (selected, row$2) => [$$String.fromInt(row$2.id), { TAG: "block", form: $$form0, refresh: ($$b, $$put) => {
+  $$put($$b, 0, (selected === row$2.id) ? "danger" : "");
+  if ($$b.deps[1] !== row$2.id) {
+    $$b.deps[1] = row$2.id;
+    $$put($$b, 1, $$String.fromInt(row$2.id));
+  }
+  if ($$b.deps[2] !== row$2.id) {
+    $$b.deps[2] = row$2.id;
+    $$put($$b, 2, Select(row$2.id));
+  }
+  $$put($$b, 3, row$2.label);
+  if ($$b.deps[4] !== row$2.id) {
+    $$b.deps[4] = row$2.id;
+    $$put($$b, 4, Remove(row$2.id));
+  }
+} }];
+const view = model$2 => ({ TAG: "block", form: $$form1, refresh: ($$b, $$put) => {
+  if ($$b.deps[0] !== true) {
+    $$b.deps[0] = true;
+    $$put($$b, 0, Create(1000));
+  }
+  if ($$b.deps[1] !== true) {
+    $$b.deps[1] = true;
+    $$put($$b, 1, Create(10000));
+  }
+  if ($$b.deps[2] !== true) {
+    $$b.deps[2] = true;
+    $$put($$b, 2, Append(1000));
+  }
+  $$put($$b, 3, Update);
+  $$put($$b, 4, Clear);
+  $$put($$b, 5, Swap);
+  $$put($$b, 6, [viewRow, [model$2.selected], model$2.rows]);
+} });
 const main = Browser.element({ init: init, view: view, update: update, subscriptions: $p0$1 => Platform$Sub.none });
 export { main };

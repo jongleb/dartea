@@ -11,12 +11,12 @@ const Add = (_0, _1) => ({ TAG: "Add", _0: _0, _1: _1 });
 const Sub = (_0, _1) => ({ TAG: "Sub", _0: _0, _1: _1 });
 const Mul = (_0, _1) => ({ TAG: "Mul", _0: _0, _1: _1 });
 const Div = (_0, _1) => ({ TAG: "Div", _0: _0, _1: _1 });
-const flip = (f, a, b) => Dartea_runtime.$$curry(f, [b, a]);
-const compose = (f$1, g, x) => Dartea_runtime.$$curry(f$1, [Dartea_runtime.$$curry(g, [x])]);
-const twice = (f$2, eta1) => Dartea_runtime.$$curry(f$2, [Dartea_runtime.$$curry(f$2, [eta1])]);
-const thrice = (f$3, eta1$1) => Dartea_runtime.$$curry(f$3, [Dartea_runtime.$$curry(f$3, [Dartea_runtime.$$curry(f$3, [eta1$1])])]);
-const on = (f$4, g$1, a$1, b$1) => Dartea_runtime.$$curry(f$4, [Dartea_runtime.$$curry(g$1, [a$1]), Dartea_runtime.$$curry(g$1, [b$1])]);
-const apply = (f$5, x$1) => Dartea_runtime.$$curry(f$5, [x$1]);
+const flip = (f, a, b) => Dartea_runtime.$$apply2(f, b, a);
+const compose = (f$1, g, x) => Dartea_runtime.$$apply1(f$1, Dartea_runtime.$$apply1(g, x));
+const twice = (f$2, eta1) => Dartea_runtime.$$apply1(f$2, Dartea_runtime.$$apply1(f$2, eta1));
+const thrice = (f$3, eta1$1) => Dartea_runtime.$$apply1(f$3, Dartea_runtime.$$apply1(f$3, Dartea_runtime.$$apply1(f$3, eta1$1)));
+const on = (f$4, g$1, a$1, b$1) => Dartea_runtime.$$apply2(f$4, Dartea_runtime.$$apply1(g$1, a$1), Dartea_runtime.$$apply1(g$1, b$1));
+const apply = (f$5, x$1) => Dartea_runtime.$$apply1(f$5, x$1);
 const neg = x$2 => 0 - x$2;
 const abs = x$3 => {
   if (x$3 < 0) {
@@ -163,13 +163,13 @@ const collatzSteps = n$10 => {
     return acc$1;
   } else {
     if (rem(m$1, 2) === 0) {
-      return Dartea_runtime.$$curry(go$3, [(m$1 / 2) | 0, acc$1 + 1]);
+      return Dartea_runtime.$$apply2(go$3, (m$1 / 2) | 0, acc$1 + 1);
     } else {
-      return Dartea_runtime.$$curry(go$3, [(3 * m$1) + 1, acc$1 + 1]);
+      return Dartea_runtime.$$apply2(go$3, (3 * m$1) + 1, acc$1 + 1);
     }
   }
 };
-  return Dartea_runtime.$$curry(go$3, [n$10, 0]);
+  return Dartea_runtime.$$apply2(go$3, n$10, 0);
 };
 const ack = (m$2, n$11) => {
   while (true) {
@@ -200,7 +200,7 @@ const foldRange = (lo$1, hi$1, step, acc$2) => {
       const $s7 = lo$1 + 1;
       const $s8 = hi$1;
       const $s9 = step;
-      const $s10 = Dartea_runtime.$$curry(step, [lo$1, acc$2]);
+      const $s10 = Dartea_runtime.$$apply2(step, lo$1, acc$2);
       lo$1 = $s7;
       hi$1 = $s8;
       step = $s9;
@@ -220,7 +220,7 @@ const countPrimes = n$13 => foldRange(2, n$13, (i$2, acc$4) => {
 const mapMaybe = (f$6, m$3) => {
   if (typeof m$3 === "object") {
     const v = m$3._0;
-    return Maybe.Just(Dartea_runtime.$$curry(f$6, [v]));
+    return Maybe.Just(Dartea_runtime.$$apply1(f$6, v));
   } else {
     return Maybe.Nothing;
   }
@@ -259,7 +259,7 @@ const isJust = m$7 => {
 const map2 = (f$8, a$9, b$10) => {
   if (typeof a$9 === "object") {
     const v$4 = a$9._0;
-    return mapMaybe(Dartea_runtime.$$curry(f$8, [v$4]), b$10);
+    return mapMaybe(Dartea_runtime.$$apply1(f$8, v$4), b$10);
   } else {
     return Maybe.Nothing;
   }
@@ -563,7 +563,7 @@ const mapRes = (f$9, r$1) => {
   switch (r$1.TAG) {
     case "Ok":
       const a$37 = r$1._0;
-      return Ok(Dartea_runtime.$$curry(f$9, [a$37]));
+      return Ok(Dartea_runtime.$$apply1(f$9, a$37));
     case "Err":
       const e$6 = r$1._0;
       return Err(e$6);
@@ -654,28 +654,28 @@ const manhattan = (a$49, b$40) => {
 const vshow = v$13 => "(" + ($$String.fromInt(Tuple.first(v$13)) + (", " + ($$String.fromInt(Tuple.second(v$13)) + ")")));
 const swap = t => Tuple.pair(Tuple.second(t), Tuple.first(t));
 const nil = ($p0, z) => z;
-const cons = (x$22, xs, f$11, z$1) => Dartea_runtime.$$curry(f$11, [x$22, Dartea_runtime.$$curry(xs, [f$11, z$1])]);
-const foldr = (f$12, z$2, xs$1) => Dartea_runtime.$$curry(xs$1, [f$12, z$2]);
-const lmap = (f$13, xs$2, g$2, z$3) => Dartea_runtime.$$curry(xs$2, [(x$23, acc$5) => Dartea_runtime.$$curry(g$2, [Dartea_runtime.$$curry(f$13, [x$23]), acc$5]), z$3]);
-const lfilter = (p$1, xs$3, g$3, z$4) => Dartea_runtime.$$curry(xs$3, [(x$24, acc$6) => {
+const cons = (x$22, xs, f$11, z$1) => Dartea_runtime.$$apply2(f$11, x$22, Dartea_runtime.$$apply2(xs, f$11, z$1));
+const foldr = (f$12, z$2, xs$1) => Dartea_runtime.$$apply2(xs$1, f$12, z$2);
+const lmap = (f$13, xs$2, g$2, z$3) => Dartea_runtime.$$apply2(xs$2, (x$23, acc$5) => Dartea_runtime.$$apply2(g$2, Dartea_runtime.$$apply1(f$13, x$23), acc$5), z$3);
+const lfilter = (p$1, xs$3, g$3, z$4) => Dartea_runtime.$$apply2(xs$3, (x$24, acc$6) => {
   if (p$1(x$24)) {
-    return Dartea_runtime.$$curry(g$3, [x$24, acc$6]);
+    return Dartea_runtime.$$apply2(g$3, x$24, acc$6);
   } else {
     return acc$6;
   }
-}, z$4]);
-const lsum = xs$4 => Dartea_runtime.$$curry(xs$4, [(x$25, acc$7) => x$25 + acc$7, 0]);
-const llen = xs$5 => Dartea_runtime.$$curry(xs$5, [($p0$1, acc$8) => acc$8 + 1, 0]);
-const lall = (p$2, xs$6) => Dartea_runtime.$$curry(xs$6, [(x$26, acc$9) => p$2(x$26) && acc$9, true]);
-const lany = (p$3, xs$7) => Dartea_runtime.$$curry(xs$7, [(x$27, acc$10) => p$3(x$27) || acc$10, false]);
-const lrange = (lo$2, hi$2, eta1$6, eta2$4) => Dartea_runtime.$$curry((lo$2 > hi$2) ? nil : ($s19, $s20) => cons(lo$2, ($s17, $s18) => lrange(lo$2 + 1, hi$2, $s17, $s18), $s19, $s20), [eta1$6, eta2$4]);
-const ljoin = (sep, xs$8) => Dartea_runtime.$$curry(xs$8, [(x$28, acc$11) => {
+}, z$4);
+const lsum = xs$4 => Dartea_runtime.$$apply2(xs$4, (x$25, acc$7) => x$25 + acc$7, 0);
+const llen = xs$5 => Dartea_runtime.$$apply2(xs$5, ($p0$1, acc$8) => acc$8 + 1, 0);
+const lall = (p$2, xs$6) => Dartea_runtime.$$apply2(xs$6, (x$26, acc$9) => p$2(x$26) && acc$9, true);
+const lany = (p$3, xs$7) => Dartea_runtime.$$apply2(xs$7, (x$27, acc$10) => p$3(x$27) || acc$10, false);
+const lrange = (lo$2, hi$2, eta1$6, eta2$4) => Dartea_runtime.$$apply2((lo$2 > hi$2) ? nil : ($s19, $s20) => cons(lo$2, ($s17, $s18) => lrange(lo$2 + 1, hi$2, $s17, $s18), $s19, $s20), eta1$6, eta2$4);
+const ljoin = (sep, xs$8) => Dartea_runtime.$$apply2(xs$8, (x$28, acc$11) => {
   if (acc$11 === "") {
     return x$28;
   } else {
     return x$28 + (sep + acc$11);
   }
-}, ""]);
+}, "");
 const lshow = xs$9 => "[" + (ljoin(", ", ($s21, $s22) => lmap($$String.fromInt, xs$9, $s21, $s22)) + "]");
 const primesTo = (n$19, eta1$7, eta2$5) => lfilter(isPrime, ($s23, $s24) => lrange(2, n$19, $s23, $s24), eta1$7, eta2$5);
 const squares = (n$20, eta1$8, eta2$6) => lmap(x$29 => x$29 * x$29, ($s25, $s26) => lrange(1, n$20, $s25, $s26), eta1$8, eta2$6);

@@ -1,8 +1,5 @@
 // Compiled by dartea, an independent compiler. Not affiliated with or
 // endorsed by the Elm project.
-// Contains material derived from elm/core,
-// Copyright 2014-present Evan Czaplicki, under the BSD 3-Clause License.
-// dartea's LICENSE carries the full text.
 import * as Dartea_runtime from "./Dartea_runtime.mjs";
 import * as List from "./List.mjs";
 const None = "None";
@@ -20,7 +17,7 @@ const map = (tagger, subscription) => {
     } else {
       const key = subscription._0;
       const watch = subscription._1;
-      return Listen(key, ($s2, $s3) => (dispatch => $s1 => watch(value => dispatch(Dartea_runtime.$$curry(tagger, [value])), $s1))($s2)($s3));
+      return Listen(key, ($s2, $s3) => (dispatch => $s1 => watch(value => dispatch(Dartea_runtime.$$apply1(tagger, value)), $s1))($s2)($s3));
     }
   }
 };

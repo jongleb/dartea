@@ -35,6 +35,7 @@ let suite =
          "test_infer_laws" >::: Dartea_test_infer_laws.suite;
          "test_mutation" >::: Dartea_test_mutation.suite;
          "test_blocks" >::: Dartea_test_blocks.suite;
+         "test_block_laws" >::: Dartea_test_block_laws.suite;
          (* "test_infer" >::: Dartea_infer_test.suite; *)
        ]
 

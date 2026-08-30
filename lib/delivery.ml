@@ -3,6 +3,14 @@ type file = { path : string; content : string }
 let licence_file = "dartea.LICENSE.txt"
 let licence path = { path; content = Licence_text.notice }
 
+let carries_derived (modules : Compiler.artifact list) =
+  List.exists
+    (fun (module_ : Compiler.artifact) ->
+      Option.fold ~none:false ~some:Prelude.is_derived (Prelude.of_name module_.module_name))
+    modules
+
+let licence_files ~at modules = if carries_derived modules then [ licence at ] else []
+
 module type S = sig
   val name : string
   val roots : Compiler.outcome -> Data.Name.t list
@@ -33,8 +41,8 @@ module Esm_folder : S = struct
 
   let files ~entry:_ ~output modules =
     let inside path = Filename.concat output path in
-    licence (inside licence_file)
-    :: List.map
+    licence_files ~at:(inside licence_file) modules
+    @ List.map
          (fun (module_ : Compiler.artifact) ->
            {
              path =
@@ -133,13 +141,9 @@ module Script : S = struct
 
   let files ~entry ~output modules =
     let entry = Browser_program.require_entry ~name entry in
-    [
-      licence (beside output);
-      {
-        path = output;
-        content = banner ^ Browser_program.script ~name entry modules;
-      };
-    ]
+    let heading = if carries_derived modules then banner else "" in
+    licence_files ~at:(beside output) modules
+    @ [ { path = output; content = heading ^ Browser_program.script ~name entry modules } ]
 end
 
 module Sandwich : S = struct
@@ -153,7 +157,8 @@ module Sandwich : S = struct
         path = output;
         content =
           Codegen_js.Bundle.sandwich ~title:entry.module_name
-            ~entry_module:entry.module_name ~notice:Licence_text.notice
+            ~entry_module:entry.module_name
+            ~notice:(if carries_derived modules then Some Licence_text.notice else None)
             (Browser_program.script ~name entry modules);
       };
     ]

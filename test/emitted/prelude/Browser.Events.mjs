@@ -11,7 +11,7 @@ const Visible = "Visible";
 const Hidden = "Hidden";
 const Document = "Document";
 const Window = "Window";
-const onAnimationFrame = toMsg => Dartea_browser.$$Browser$onAnimationFrame(millis => Dartea_runtime.$$curry(toMsg, [Time.millisToPosix(millis)]));
+const onAnimationFrame = toMsg => Dartea_browser.$$Browser$onAnimationFrame(millis => Dartea_runtime.$$apply1(toMsg, Time.millisToPosix(millis)));
 const onAnimationFrameDelta = Dartea_browser.$$Browser$onAnimationFrameDelta;
 const onKeyPress = eta1 => {
   let $s1;
@@ -85,7 +85,7 @@ const onResize = func => {
   }
   return Dartea_browser.$$Browser$on($s8, "resize", Json$Decode.field("target", Json$Decode.map2(func, Json$Decode.field("innerWidth", Json$Decode.$$int), Json$Decode.field("innerHeight", Json$Decode.$$int))));
 };
-const withHidden = (func$1, isHidden) => Dartea_runtime.$$curry(func$1, [isHidden ? Hidden : Visible]);
+const withHidden = (func$1, isHidden) => Dartea_runtime.$$apply1(func$1, isHidden ? Hidden : Visible);
 const onVisibilityChange = func$2 => {
   let $s9;
   if (Document === "Document") {
