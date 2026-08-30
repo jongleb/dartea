@@ -194,6 +194,9 @@ let handle state lexbuf token =
   | PORT ->
       let* state = closing_annotation state in
       ([ PORT ], mark ~column:0 ~context:Top_level state)
+  | INFIX ->
+      let* state = closing_annotation state in
+      ([ INFIX ], mark ~column:0 ~context:Top_level state)
   | ALIAS when context state = Type_decl ->
       ([ ALIAS ], retag ~context:Type_alias state)
   | LPAREN ->

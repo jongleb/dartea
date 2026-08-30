@@ -4,6 +4,13 @@
   packages/core/Basics.elm
   packages/browser/Browser.elm
   packages/browser/Browser.Dom.elm
+  packages/browser/Browser.Events.elm
+  packages/browser/Browser.Navigation.elm
+  packages/url/Url.elm
+  packages/url/Url.Builder.elm
+  packages/url/Url.Parser.elm
+  packages/url/Url.Parser.Internal.elm
+  packages/url/Url.Parser.Query.elm
   packages/core/Char.elm
   packages/core/Dict.elm
   packages/html/Html.elm
@@ -70,6 +77,20 @@
     (cat packages/time/Time.elm)
     (echo "|elm}\n\nlet browser_dom = {elm|")
     (cat packages/browser/Browser.Dom.elm)
+    (echo "|elm}\n\nlet browser_events = {elm|")
+    (cat packages/browser/Browser.Events.elm)
+    (echo "|elm}\n\nlet browser_navigation = {elm|")
+    (cat packages/browser/Browser.Navigation.elm)
+    (echo "|elm}\n\nlet url = {elm|")
+    (cat packages/url/Url.elm)
+    (echo "|elm}\n\nlet url_builder = {elm|")
+    (cat packages/url/Url.Builder.elm)
+    (echo "|elm}\n\nlet url_parser = {elm|")
+    (cat packages/url/Url.Parser.elm)
+    (echo "|elm}\n\nlet url_parser_internal = {elm|")
+    (cat packages/url/Url.Parser.Internal.elm)
+    (echo "|elm}\n\nlet url_parser_query = {elm|")
+    (cat packages/url/Url.Parser.Query.elm)
     (echo "|elm}\n\nlet tuple = {elm|")
     (cat packages/core/Tuple.elm)
     (echo "|elm}\n\nlet virtual_dom = {elm|")

@@ -8,6 +8,7 @@ module Kernel_module = struct
     | Port
     | Task
     | Time
+    | Url
     | VirtualDom
   [@@deriving to_string]
 end
@@ -36,6 +37,18 @@ let table =
     (Browser, Kernel_module.VirtualDom, "mapAttribute", 2);
     (Browser, Kernel_module.Browser, "sandbox", 1);
     (Browser, Kernel_module.Browser, "document", 1);
+    (Browser, Kernel_module.Browser, "element", 1);
+    (Browser, Kernel_module.Browser, "application", 2);
+    (Browser, Kernel_module.Browser, "pushUrl", 2);
+    (Browser, Kernel_module.Browser, "replaceUrl", 2);
+    (Browser, Kernel_module.Browser, "go", 2);
+    (Browser, Kernel_module.Browser, "load", 1);
+    (Browser, Kernel_module.Browser, "reload", 1);
+    (Browser, Kernel_module.Browser, "on", 3);
+    (Browser, Kernel_module.Browser, "onAnimationFrame", 1);
+    (Browser, Kernel_module.Browser, "onAnimationFrameDelta", 1);
+    (Browser, Kernel_module.Url, "percentEncode", 1);
+    (Browser, Kernel_module.Url, "percentDecode", 1);
     (Browser, Kernel_module.Task, "succeed", 1);
     (Browser, Kernel_module.Task, "fail", 1);
     (Browser, Kernel_module.Task, "andThen", 2);

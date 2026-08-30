@@ -62,6 +62,9 @@
 %token COLON
 %token PIPE
 %token CONCAT
+%token INFIX
+%token SLASH_GT
+%token LT_QUESTION
 
 %nonassoc ELSE IN
 %nonassoc ARROW
@@ -75,7 +78,9 @@
 %right CONCAT CONS
 %left PLUS MINUS
 %left TIMES DIV IDIV
+%right SLASH_GT
 %right POW
+%left LT_QUESTION
 %left COMPOSE_L
 %right COMPOSE_R
 %nonassoc UMINUS
@@ -99,9 +104,23 @@ top_decls: l=list(top_decl) { l }
 
 top_decl:
     | d=value_decl_with_type { d }
+    | d=infix_decl { d }
     | d=port_decl { d }
     | d=type_alias_decl { d }
     | d=type_decl { d }
+
+infix_decl:
+    | INFIX LCNAME INT LPAREN op=loc(package_operator) RPAREN EQUAL fn=indented(loc(LCNAME))
+        { Impl.Top_declaration
+            { type_part_data = None;
+              body_part =
+                { name = op; params = [];
+                  expr = at $loc(fn) (Expr_ident fn.Located.thing) } } }
+
+%inline
+package_operator:
+    | SLASH_GT { "</>" }
+    | LT_QUESTION { "<?>" }
 
 upper_possible_dotted:
     | what=UCNAME { what }
@@ -132,6 +151,7 @@ exposing:
 exposing_item:
     | name=loc(UCNAME) { Exposing.Upper { name; privacy=Private } }
     | name=loc(LCNAME) { Exposing.Lower name }
+    | LPAREN name=loc(package_operator) RPAREN { Exposing.Lower name }
     | name=loc(UCNAME) LPAREN TWO_DOTS RPAREN { Exposing.Upper { name; privacy=Public (Region.of_lexing $loc) } }
 
 
@@ -270,6 +290,10 @@ expr:
 expr_lowered_binop:
     | head=expr CONS tail=expr { at $loc (Expr_cons { head; tail }) }
     | arg=expr PIPE_GT fn=expr { at $loc (Expr_apply { fn; arg }) }
+    | left=expr op=SLASH_GT right=expr
+        { make_expr_apply ~args:[left; right] (at $loc(op) (Expr_ident "</>")) }
+    | left=expr op=LT_QUESTION right=expr
+        { make_expr_apply ~args:[left; right] (at $loc(op) (Expr_ident "<?>")) }
     | fn=expr APPLY_L arg=expr { at $loc (Expr_apply { fn; arg }) }
     | outer=expr op=COMPOSE_L inner=expr
         { make_expr_apply ~args:[outer; inner]
@@ -350,6 +374,7 @@ expr_applicable:
     | LPAREN e=expr RPAREN { e }
     | LPAREN name=binop RPAREN { make_operator_value ~region:(Region.of_lexing $loc) name }
     | LPAREN PIPE_GT RPAREN { make_qualified ~region:(Region.of_lexing $loc) "Basics.apR" }
+    | LPAREN op=package_operator RPAREN { at $loc (Expr_ident op) }
     | LPAREN APPLY_L RPAREN { make_qualified ~region:(Region.of_lexing $loc) "Basics.apL" }
     | LPAREN COMPOSE_L RPAREN { make_qualified ~region:(Region.of_lexing $loc) "Basics.composeL" }
     | LPAREN COMPOSE_R RPAREN { make_qualified ~region:(Region.of_lexing $loc) "Basics.composeR" }

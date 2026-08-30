@@ -97,6 +97,7 @@ rule token = parse
   | "module"        { Token (MODULE) }
   | "port"          { Token (PORT) }
   | "import"        { Token (IMPORT) }
+  | "infix"         { Token (INFIX) }
   | "as"            { Token (AS) }
   | lcname          { Token (LCNAME (Lexing.lexeme lexbuf)) }
   | ucname          { Token (UCNAME (Lexing.lexeme lexbuf)) }
@@ -115,6 +116,8 @@ rule token = parse
   | "|"             { Token (PIPE) }
   | "\\"            { Token (BACKSLASH) }
   | "->"            { Token ARROW }
+  | "</>"           { Token (SLASH_GT) }
+  | "<?>"           { Token (LT_QUESTION) }
   | "|>"            { Token (PIPE_GT) }
   | "<|"            { Token (APPLY_L) }
   | "<<"            { Token (COMPOSE_L) }

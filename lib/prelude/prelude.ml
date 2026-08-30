@@ -2,6 +2,8 @@ type t =
   | Basics [@rename "Basics"]
   | Browser [@rename "Browser"]
   | Browser_dom [@rename "Browser.Dom"]
+  | Browser_events [@rename "Browser.Events"]
+  | Browser_navigation [@rename "Browser.Navigation"]
   | Char [@rename "Char"]
   | Dict [@rename "Dict"]
   | Html [@rename "Html"]
@@ -21,6 +23,11 @@ type t =
   | Task [@rename "Task"]
   | Time [@rename "Time"]
   | Tuple [@rename "Tuple"]
+  | Url [@rename "Url"]
+  | Url_builder [@rename "Url.Builder"]
+  | Url_parser [@rename "Url.Parser"]
+  | Url_parser_internal [@rename "Url.Parser.Internal"]
+  | Url_parser_query [@rename "Url.Parser.Query"]
   | VirtualDom [@rename "VirtualDom"]
 [@@deriving enumerate, to_string]
 
@@ -29,7 +36,7 @@ let name = to_string
 let packages =
   [
     "elm/core"; "elm/json"; "elm/html"; "elm/browser"; "elm/time";
-    "elm/virtual-dom";
+    "elm/virtual-dom"; "elm/url";
   ]
 
 let compiled_by =
@@ -53,8 +60,10 @@ let notice module_ =
       derived_from "elm/virtual-dom" "Copyright (c) 2016-present Evan Czaplicki"
   | Html | Html_attributes | Html_events | Html_keyed | Html_lazy ->
       derived_from "elm/html" "Copyright (c) 2014-present Evan Czaplicki"
-  | Browser | Browser_dom ->
+  | Browser | Browser_dom | Browser_events | Browser_navigation ->
       derived_from "elm/browser" "Copyright 2017-present Evan Czaplicki"
+  | Url | Url_builder | Url_parser | Url_parser_internal | Url_parser_query ->
+      derived_from "elm/url" "Copyright 2017-present Evan Czaplicki"
   | Json_decode | Json_encode ->
       derived_from "elm/json" "Copyright 2014-present Evan Czaplicki"
   | Time ->
@@ -67,6 +76,8 @@ let source = function
   | Basics -> Prelude_source.basics
   | Browser -> Prelude_source.browser
   | Browser_dom -> Prelude_source.browser_dom
+  | Browser_events -> Prelude_source.browser_events
+  | Browser_navigation -> Prelude_source.browser_navigation
   | Char -> Prelude_source.char
   | Dict -> Prelude_source.dict
   | Html -> Prelude_source.html
@@ -86,14 +97,21 @@ let source = function
   | Task -> Prelude_source.task
   | Time -> Prelude_source.time
   | Tuple -> Prelude_source.tuple
+  | Url -> Prelude_source.url
+  | Url_builder -> Prelude_source.url_builder
+  | Url_parser -> Prelude_source.url_parser
+  | Url_parser_internal -> Prelude_source.url_parser_internal
+  | Url_parser_query -> Prelude_source.url_parser_query
   | VirtualDom -> Prelude_source.virtual_dom
 
 let imported_by_default = function
   | Basics | Char | List | Maybe | Platform | Platform_cmd | Platform_sub | Result
   | String | Tuple ->
       true
-  | Browser | Browser_dom | Dict | Html | Html_attributes | Html_events
-  | Html_keyed | Html_lazy | Json_decode | Json_encode | Task | Time | VirtualDom ->
+  | Browser | Browser_dom | Browser_events | Browser_navigation | Dict | Html
+  | Html_attributes | Html_events | Html_keyed | Html_lazy | Json_decode
+  | Json_encode | Task | Time | Url | Url_builder | Url_parser
+  | Url_parser_internal | Url_parser_query | VirtualDom ->
       false
 
 let exposed_by_default = function
@@ -113,18 +131,21 @@ let exposed_by_default = function
   | Platform_sub ->
       Canonical.Exposed.Only
         [ Canonical.Exposed.Type { name = "Sub"; ctors_exposed = false } ]
-  | Browser | Browser_dom | Char | Dict | Html | Html_attributes | Html_events
-  | Html_keyed | Html_lazy | Json_decode | Json_encode | List | String | Task
-  | Time | Tuple | VirtualDom ->
+  | Browser | Browser_dom | Browser_events | Browser_navigation | Char | Dict
+  | Html | Html_attributes | Html_events | Html_keyed | Html_lazy | Json_decode
+  | Json_encode | List | String | Task | Time | Tuple | Url | Url_builder
+  | Url_parser | Url_parser_internal | Url_parser_query | VirtualDom ->
       Canonical.Exposed.Only []
 
 let alias_by_default module_ =
   match module_ with
   | Platform_cmd -> Some "Cmd"
   | Platform_sub -> Some "Sub"
-  | Basics | Browser | Browser_dom | Char | Dict | Html | Html_attributes
-  | Html_events | Html_keyed | Html_lazy | Json_decode | Json_encode | List
-  | Maybe | Platform | Result | String | Task | Time | Tuple | VirtualDom ->
+  | Basics | Browser | Browser_dom | Browser_events | Browser_navigation | Char
+  | Dict | Html | Html_attributes | Html_events | Html_keyed | Html_lazy
+  | Json_decode | Json_encode | List | Maybe | Platform | Result | String | Task
+  | Time | Tuple | Url | Url_builder | Url_parser | Url_parser_internal
+  | Url_parser_query | VirtualDom ->
       None
 
 let default_imports : Canonical.Import.t list =

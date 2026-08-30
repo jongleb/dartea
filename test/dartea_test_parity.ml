@@ -17,8 +17,10 @@ let shown module_ =
 let expected =
   [
     "Basics 40/60";
-    "Browser 3/6";
+    "Browser 6/6";
     "Browser.Dom 2/10";
+    "Browser.Events 12/12";
+    "Browser.Navigation 8/8";
     "Char 11/14";
     "Dict 23/23";
     "Html 101/101";
@@ -38,6 +40,11 @@ let expected =
     "Task 14/14";
     "Time 4/21";
     "Tuple 6/6";
+    "Url 6/6";
+    "Url.Builder 9/9";
+    "Url.Parser 13/13";
+    "Url.Parser.Internal 1/1";
+    "Url.Parser.Query 13/13";
     "VirtualDom 23/23";
   ]
 

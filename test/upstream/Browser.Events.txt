@@ -1,0 +1,12 @@
+Visibility
+onAnimationFrame
+onAnimationFrameDelta
+onClick
+onKeyDown
+onKeyPress
+onKeyUp
+onMouseDown
+onMouseMove
+onMouseUp
+onResize
+onVisibilityChange

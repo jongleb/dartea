@@ -1,0 +1,9 @@
+QueryParameter
+Root
+absolute
+crossOrigin
+custom
+int
+relative
+string
+toQuery
