@@ -32,9 +32,9 @@ nouns =
     [ "table", "chair", "house", "bbq", "desk", "car", "pony", "cookie", "sandwich", "burger", "pizza", "mouse", "keyboard" ]
 
 
-pick : Int -> List String -> String
-pick seed words =
-    List.drop (modBy (List.length words) seed) words
+pick : Int -> Int -> List String -> String
+pick seed count words =
+    List.drop (modBy count seed) words
         |> List.head
         |> Maybe.withDefault ""
 
@@ -46,7 +46,7 @@ step seed =
 
 label : Int -> String
 label seed =
-    pick seed adjectives ++ " " ++ pick (step seed) colours ++ " " ++ pick (step (step seed)) nouns
+    pick seed 25 adjectives ++ " " ++ pick (step seed) 11 colours ++ " " ++ pick (step (step seed)) 13 nouns
 
 
 buttons : List ( String, String, Msg )
@@ -138,21 +138,22 @@ init systemTime =
     ( { seed = systemTime, rows = [], lastId = 0, selectedId = 0 }, Cmd.none )
 
 
+grow : Int -> Int -> Int -> List Row -> ( List Row, Int )
+grow left id seed rows =
+    if left == 0 then
+        ( List.reverse rows, seed )
+
+    else
+        let
+            next =
+                step seed
+        in
+        grow (left - 1) (id + 1) next ({ id = id + 1, label = label next } :: rows)
+
+
 build : Int -> Model -> ( List Row, Int )
 build amount model =
-    let
-        ids =
-            List.range (model.lastId + 1) (model.lastId + amount)
-
-        seeds =
-            List.foldl (\_ acc -> step (Maybe.withDefault model.seed (List.head acc)) :: acc) [ model.seed ] ids
-                |> List.reverse
-                |> List.drop 1
-
-        rows =
-            List.map2 (\rowId seed -> { id = rowId, label = label seed }) ids seeds
-    in
-    ( rows, Maybe.withDefault model.seed (List.head (List.reverse seeds)) )
+    grow amount model.lastId model.seed []
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )

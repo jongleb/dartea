@@ -99,10 +99,18 @@ const powFast = (base, e) => {
 };
 const fib = n$3 => {
   const go = (i, a$8, b$9) => {
-  if (i === 0) {
-    return a$8;
-  } else {
-    return Dartea_runtime.$$curry(go, [i - 1, b$9, a$8 + b$9]);
+  while (true) {
+    if (i === 0) {
+      return a$8;
+    } else {
+      const $s3 = i - 1;
+      const $s4 = b$9;
+      const $s5 = a$8 + b$9;
+      i = $s3;
+      a$8 = $s4;
+      b$9 = $s5;
+      continue;
+    }
   }
 };
   return Dartea_runtime.$$curry(go, [n$3, 0, 1]);
@@ -130,10 +138,16 @@ const digitCount = n$6 => {
 };
 const reverseInt = n$7 => {
   const go$1 = (m, acc) => {
-  if (m === 0) {
-    return acc;
-  } else {
-    return go$1((m / 10) | 0, (acc * 10) + rem(m, 10));
+  while (true) {
+    if (m === 0) {
+      return acc;
+    } else {
+      const $s6 = (m / 10) | 0;
+      const $s7 = (acc * 10) + rem(m, 10);
+      m = $s6;
+      acc = $s7;
+      continue;
+    }
   }
 };
   return go$1(n$7, 0);
@@ -141,13 +155,17 @@ const reverseInt = n$7 => {
 const isPalindromeInt = n$8 => reverseInt(n$8) === n$8;
 const isPrime = n$9 => {
   const go$2 = d$1 => {
-  if ((d$1 * d$1) > n$9) {
-    return true;
-  } else {
-    if (rem(n$9, d$1) === 0) {
-      return false;
+  while (true) {
+    if ((d$1 * d$1) > n$9) {
+      return true;
     } else {
-      return go$2(d$1 + 1);
+      if (rem(n$9, d$1) === 0) {
+        return false;
+      } else {
+        const $s8 = d$1 + 1;
+        d$1 = $s8;
+        continue;
+      }
     }
   }
 };
@@ -159,13 +177,23 @@ const isPrime = n$9 => {
 };
 const collatzSteps = n$10 => {
   const go$3 = (m$1, acc$1) => {
-  if (m$1 <= 1) {
-    return acc$1;
-  } else {
-    if (rem(m$1, 2) === 0) {
-      return Dartea_runtime.$$apply2(go$3, (m$1 / 2) | 0, acc$1 + 1);
+  while (true) {
+    if (m$1 <= 1) {
+      return acc$1;
     } else {
-      return Dartea_runtime.$$apply2(go$3, (3 * m$1) + 1, acc$1 + 1);
+      if (rem(m$1, 2) === 0) {
+        const $s11 = (m$1 / 2) | 0;
+        const $s12 = acc$1 + 1;
+        m$1 = $s11;
+        acc$1 = $s12;
+        continue;
+      } else {
+        const $s9 = (3 * m$1) + 1;
+        const $s10 = acc$1 + 1;
+        m$1 = $s9;
+        acc$1 = $s10;
+        continue;
+      }
     }
   }
 };
@@ -177,16 +205,16 @@ const ack = (m$2, n$11) => {
       return n$11 + 1;
     } else {
       if (n$11 === 0) {
-        const $s5 = m$2 - 1;
-        const $s6 = 1;
-        m$2 = $s5;
-        n$11 = $s6;
+        const $s15 = m$2 - 1;
+        const $s16 = 1;
+        m$2 = $s15;
+        n$11 = $s16;
         continue;
       } else {
-        const $s3 = m$2 - 1;
-        const $s4 = ack(m$2, n$11 - 1);
-        m$2 = $s3;
-        n$11 = $s4;
+        const $s13 = m$2 - 1;
+        const $s14 = ack(m$2, n$11 - 1);
+        m$2 = $s13;
+        n$11 = $s14;
         continue;
       }
     }
@@ -197,14 +225,14 @@ const foldRange = (lo$1, hi$1, step, acc$2) => {
     if (lo$1 > hi$1) {
       return acc$2;
     } else {
-      const $s7 = lo$1 + 1;
-      const $s8 = hi$1;
-      const $s9 = step;
-      const $s10 = Dartea_runtime.$$apply2(step, lo$1, acc$2);
-      lo$1 = $s7;
-      hi$1 = $s8;
-      step = $s9;
-      acc$2 = $s10;
+      const $s17 = lo$1 + 1;
+      const $s18 = hi$1;
+      const $s19 = step;
+      const $s20 = Dartea_runtime.$$apply2(step, lo$1, acc$2);
+      lo$1 = $s17;
+      hi$1 = $s18;
+      step = $s19;
+      acc$2 = $s20;
       continue;
     }
   }
@@ -309,13 +337,13 @@ const $$eval = e$1 => {
     case "Div":
       const a$16 = e$1._0;
       const b$16 = e$1._1;
-      const $s11 = $$eval(b$16);
-      if (typeof $s11 === "object") {
-        const v$7 = $s11._0;
+      const $s21 = $$eval(b$16);
+      if (typeof $s21 === "object") {
+        const v$7 = $s21._0;
         const y$4 = v$7;
-        const $s12 = $$eval(a$16);
-        if (typeof $s12 === "object") {
-          const v$8 = $s12._0;
+        const $s22 = $$eval(a$16);
+        if (typeof $s22 === "object") {
+          const v$8 = $s22._0;
           return safeDiv(v$8, y$4);
         } else {
           return Maybe.Nothing;
@@ -415,24 +443,24 @@ const simplify = e$5 => {
     case "Add":
       const a$32 = e$5._0;
       const b$29 = e$5._1;
-      const $s13 = [simplify(a$32), simplify(b$29)];
+      const $s23 = [simplify(a$32), simplify(b$29)];
       const $dt0 = () => {
-  const sb$1 = $s13[1];
-  const sa$2 = $s13[0];
+  const sb$1 = $s23[1];
+  const sa$2 = $s23[0];
   return Add(sa$2, sb$1);
 };
-      if ($s13[0].TAG === "Lit") {
-        if ($s13[0]._0 === 0) {
-          const sb = $s13[1];
+      if ($s23[0].TAG === "Lit") {
+        if ($s23[0]._0 === 0) {
+          const sb = $s23[1];
           return sb;
         } else {
-          if ($s13[1].TAG === "Lit") {
-            if ($s13[1]._0 === 0) {
-              const sa$1 = $s13[0];
+          if ($s23[1].TAG === "Lit") {
+            if ($s23[1]._0 === 0) {
+              const sa$1 = $s23[0];
               return sa$1;
             } else {
-              const y$5 = $s13[1]._0;
-              const x$11 = $s13[0]._0;
+              const y$5 = $s23[1]._0;
+              const x$11 = $s23[0]._0;
               return Lit(x$11 + y$5);
             }
           } else {
@@ -440,9 +468,9 @@ const simplify = e$5 => {
           }
         }
       } else {
-        if ($s13[1].TAG === "Lit") {
-          if ($s13[1]._0 === 0) {
-            const sa = $s13[0];
+        if ($s23[1].TAG === "Lit") {
+          if ($s23[1]._0 === 0) {
+            const sa = $s23[0];
             return sa;
           } else {
             return $dt0();
@@ -454,44 +482,44 @@ const simplify = e$5 => {
     case "Mul":
       const a$33 = e$5._0;
       const b$30 = e$5._1;
-      const $s14 = [simplify(a$33), simplify(b$30)];
+      const $s24 = [simplify(a$33), simplify(b$30)];
       const $dt0$1 = () => Lit(0);
       const $dt1 = () => {
-  const sb$5 = $s14[1];
-  const sa$5 = $s14[0];
+  const sb$5 = $s24[1];
+  const sa$5 = $s24[0];
   return Mul(sa$5, sb$5);
 };
-      if ($s14[0].TAG === "Lit") {
-        switch ($s14[0]._0) {
+      if ($s24[0].TAG === "Lit") {
+        switch ($s24[0]._0) {
           case 0:
             return Lit(0);
           case 1:
-            if ($s14[1].TAG === "Lit") {
-              switch ($s14[1]._0) {
+            if ($s24[1].TAG === "Lit") {
+              switch ($s24[1]._0) {
                 case 0:
                   return $dt0$1();
                 case 1:
-                  const sb$4 = $s14[1];
+                  const sb$4 = $s24[1];
                   return sb$4;
                 default:
-                  const sb$3 = $s14[1];
+                  const sb$3 = $s24[1];
                   return sb$3;
               }
             } else {
-              const sb$2 = $s14[1];
+              const sb$2 = $s24[1];
               return sb$2;
             }
           default:
-            if ($s14[1].TAG === "Lit") {
-              switch ($s14[1]._0) {
+            if ($s24[1].TAG === "Lit") {
+              switch ($s24[1]._0) {
                 case 0:
                   return $dt0$1();
                 case 1:
-                  const sa$4 = $s14[0];
+                  const sa$4 = $s24[0];
                   return sa$4;
                 default:
-                  const y$6 = $s14[1]._0;
-                  const x$12 = $s14[0]._0;
+                  const y$6 = $s24[1]._0;
+                  const x$12 = $s24[0]._0;
                   return Lit(x$12 * y$6);
               }
             } else {
@@ -499,12 +527,12 @@ const simplify = e$5 => {
             }
         }
       } else {
-        if ($s14[1].TAG === "Lit") {
-          switch ($s14[1]._0) {
+        if ($s24[1].TAG === "Lit") {
+          switch ($s24[1]._0) {
             case 0:
               return $dt0$1();
             case 1:
-              const sa$3 = $s14[0];
+              const sa$3 = $s24[0];
               return sa$3;
             default:
               return $dt1();
@@ -516,35 +544,35 @@ const simplify = e$5 => {
     case "Sub":
       const a$34 = e$5._0;
       const b$31 = e$5._1;
-      const $s15 = [simplify(a$34), simplify(b$31)];
-      if ($s15[1].TAG === "Lit") {
-        if ($s15[1]._0 === 0) {
-          const sa$8 = $s15[0];
+      const $s25 = [simplify(a$34), simplify(b$31)];
+      if ($s25[1].TAG === "Lit") {
+        if ($s25[1]._0 === 0) {
+          const sa$8 = $s25[0];
           return sa$8;
         } else {
-          if ($s15[0].TAG === "Lit") {
-            const y$7 = $s15[1]._0;
-            const x$13 = $s15[0]._0;
+          if ($s25[0].TAG === "Lit") {
+            const y$7 = $s25[1]._0;
+            const x$13 = $s25[0]._0;
             return Lit(x$13 - y$7);
           } else {
-            const sa$7 = $s15[0];
-            const sb$7 = $s15[1];
+            const sa$7 = $s25[0];
+            const sb$7 = $s25[1];
             return Sub(sa$7, sb$7);
           }
         }
       } else {
-        const sb$6 = $s15[1];
-        const sa$6 = $s15[0];
+        const sb$6 = $s25[1];
+        const sa$6 = $s25[0];
         return Sub(sa$6, sb$6);
       }
     case "Neg":
       const a$35 = e$5._0;
-      const $s16 = simplify(a$35);
-      if ($s16.TAG === "Lit") {
-        const x$14 = $s16._0;
+      const $s26 = simplify(a$35);
+      if ($s26.TAG === "Lit") {
+        const x$14 = $s26._0;
         return Lit(0 - x$14);
       } else {
-        const sa$9 = $s16;
+        const sa$9 = $s26;
         return Neg(sa$9);
       }
     case "Div":
@@ -668,7 +696,7 @@ const lsum = xs$4 => Dartea_runtime.$$apply2(xs$4, (x$25, acc$7) => x$25 + acc$7
 const llen = xs$5 => Dartea_runtime.$$apply2(xs$5, ($p0$1, acc$8) => acc$8 + 1, 0);
 const lall = (p$2, xs$6) => Dartea_runtime.$$apply2(xs$6, (x$26, acc$9) => p$2(x$26) && acc$9, true);
 const lany = (p$3, xs$7) => Dartea_runtime.$$apply2(xs$7, (x$27, acc$10) => p$3(x$27) || acc$10, false);
-const lrange = (lo$2, hi$2, eta1$6, eta2$4) => Dartea_runtime.$$apply2((lo$2 > hi$2) ? nil : ($s19, $s20) => cons(lo$2, ($s17, $s18) => lrange(lo$2 + 1, hi$2, $s17, $s18), $s19, $s20), eta1$6, eta2$4);
+const lrange = (lo$2, hi$2, eta1$6, eta2$4) => Dartea_runtime.$$apply2((lo$2 > hi$2) ? nil : ($s29, $s30) => cons(lo$2, ($s27, $s28) => lrange(lo$2 + 1, hi$2, $s27, $s28), $s29, $s30), eta1$6, eta2$4);
 const ljoin = (sep, xs$8) => Dartea_runtime.$$apply2(xs$8, (x$28, acc$11) => {
   if (acc$11 === "") {
     return x$28;
@@ -676,9 +704,9 @@ const ljoin = (sep, xs$8) => Dartea_runtime.$$apply2(xs$8, (x$28, acc$11) => {
     return x$28 + (sep + acc$11);
   }
 }, "");
-const lshow = xs$9 => "[" + (ljoin(", ", ($s21, $s22) => lmap($$String.fromInt, xs$9, $s21, $s22)) + "]");
-const primesTo = (n$19, eta1$7, eta2$5) => lfilter(isPrime, ($s23, $s24) => lrange(2, n$19, $s23, $s24), eta1$7, eta2$5);
-const squares = (n$20, eta1$8, eta2$6) => lmap(x$29 => x$29 * x$29, ($s25, $s26) => lrange(1, n$20, $s25, $s26), eta1$8, eta2$6);
+const lshow = xs$9 => "[" + (ljoin(", ", ($s31, $s32) => lmap($$String.fromInt, xs$9, $s31, $s32)) + "]");
+const primesTo = (n$19, eta1$7, eta2$5) => lfilter(isPrime, ($s33, $s34) => lrange(2, n$19, $s33, $s34), eta1$7, eta2$5);
+const squares = (n$20, eta1$8, eta2$6) => lmap(x$29 => x$29 * x$29, ($s35, $s36) => lrange(1, n$20, $s35, $s36), eta1$8, eta2$6);
 const fizzbuzz = n$21 => {
   if (rem(n$21, 15) === 0) {
     return "FizzBuzz";
@@ -694,41 +722,41 @@ const fizzbuzz = n$21 => {
     }
   }
 };
-const fizzbuzzTo = n$22 => ljoin(" ", ($s29, $s30) => lmap(fizzbuzz, ($s27, $s28) => lrange(1, n$22, $s27, $s28), $s29, $s30));
+const fizzbuzzTo = n$22 => ljoin(" ", ($s39, $s40) => lmap(fizzbuzz, ($s37, $s38) => lrange(1, n$22, $s37, $s38), $s39, $s40));
 const polyTest = Tuple.pair(Tuple.pair(Basics.identity(1), Basics.identity("str")), Tuple.pair(Basics.always(true, "x"), Basics.always("y", 42)));
 const line = (label, value) => label + (" = " + value);
-const report = ljoin("; ", ($s47, $s48) => cons("fib 25" + (" = " + $$String.fromInt(fib(25))), ($s45, $s46) => cons("fact 10" + (" = " + $$String.fromInt(fact(10))), ($s43, $s44) => cons("gcd 462 1071" + (" = " + $$String.fromInt(gcd(462, 1071))), ($s41, $s42) => cons("2^16" + (" = " + $$String.fromInt(powFast(2, 16))), ($s39, $s40) => cons("collatz 27" + (" = " + $$String.fromInt(collatzSteps(27))), ($s37, $s38) => cons("primes<100" + (" = " + $$String.fromInt(countPrimes(100))), ($s35, $s36) => cons("ack 2 3" + (" = " + $$String.fromInt(ack(2, 3))), ($s33, $s34) => cons("sumDigits 987654" + (" = " + $$String.fromInt(sumDigits(987654))), ($s31, $s32) => cons("palindrome 12321" + (" = " + $$String.fromInt(reverseInt(12321))), nil, $s31, $s32), $s33, $s34), $s35, $s36), $s37, $s38), $s39, $s40), $s41, $s42), $s43, $s44), $s45, $s46), $s47, $s48));
-const $s49 = $$eval(expr1);
-let $s50;
-if (typeof $s49 === "object") {
-  const v$14 = $s49._0;
-  $s50 = v$14;
+const report = ljoin("; ", ($s57, $s58) => cons("fib 25" + (" = " + $$String.fromInt(fib(25))), ($s55, $s56) => cons("fact 10" + (" = " + $$String.fromInt(fact(10))), ($s53, $s54) => cons("gcd 462 1071" + (" = " + $$String.fromInt(gcd(462, 1071))), ($s51, $s52) => cons("2^16" + (" = " + $$String.fromInt(powFast(2, 16))), ($s49, $s50) => cons("collatz 27" + (" = " + $$String.fromInt(collatzSteps(27))), ($s47, $s48) => cons("primes<100" + (" = " + $$String.fromInt(countPrimes(100))), ($s45, $s46) => cons("ack 2 3" + (" = " + $$String.fromInt(ack(2, 3))), ($s43, $s44) => cons("sumDigits 987654" + (" = " + $$String.fromInt(sumDigits(987654))), ($s41, $s42) => cons("palindrome 12321" + (" = " + $$String.fromInt(reverseInt(12321))), nil, $s41, $s42), $s43, $s44), $s45, $s46), $s47, $s48), $s49, $s50), $s51, $s52), $s53, $s54), $s55, $s56), $s57, $s58));
+const $s59 = $$eval(expr1);
+let $s60;
+if (typeof $s59 === "object") {
+  const v$14 = $s59._0;
+  $s60 = v$14;
 } else {
-  $s50 = 0;
+  $s60 = 0;
 }
-const demoExpr1 = show(simplify(expr1)) + (" -> " + $$String.fromInt($s50));
+const demoExpr1 = show(simplify(expr1)) + (" -> " + $$String.fromInt($s60));
 const demoExpr2 = showRes(evalR(expr2));
 const demoExpr3 = show(simplify(expr3));
 const demoVec = vshow(vadd(Tuple.pair(3, 4), vscale(2, Tuple.pair(1, 1))));
-const demoList = lshow(($s51, $s52) => squares(10, $s51, $s52)) + (" sum=" + $$String.fromInt(squares(10, (x$30, acc$12) => x$30 + acc$12, 0)));
-const demoPrimes = lshow(($s53, $s54) => primesTo(50, $s53, $s54));
+const demoList = lshow(($s61, $s62) => squares(10, $s61, $s62)) + (" sum=" + $$String.fromInt(squares(10, (x$30, acc$12) => x$30 + acc$12, 0)));
+const demoPrimes = lshow(($s63, $s64) => primesTo(50, $s63, $s64));
 const demoFizz = fizzbuzzTo(20);
-const $s55 = addStrings("40", "2");
-let $s56;
-if (typeof $s55 === "object") {
-  const v$15 = $s55._0;
-  $s56 = v$15;
+const $s65 = addStrings("40", "2");
+let $s66;
+if (typeof $s65 === "object") {
+  const v$15 = $s65._0;
+  $s66 = v$15;
 } else {
-  $s56 = 0;
+  $s66 = 0;
 }
-const demoMaybe = $s56;
-const $s57 = mapMaybe(x$31 => x$31 * 6, $$String.toInt("7"));
-let $s58;
-if (typeof $s57 === "object") {
-  const v$16 = $s57._0;
-  $s58 = v$16;
+const demoMaybe = $s66;
+const $s67 = mapMaybe(x$31 => x$31 * 6, $$String.toInt("7"));
+let $s68;
+if (typeof $s67 === "object") {
+  const v$16 = $s67._0;
+  $s68 = v$16;
 } else {
-  $s58 = 0;
+  $s68 = 0;
 }
-const demoChain = $$String.fromInt($s58);
+const demoChain = $$String.fromInt($s68);
 export { Add, Div, Err, Lit, Mul, Neg, Ok, Sub, abs, ack, addStrings, andThen, andThenRes, apply, binop, clamp, collatzSteps, compose, cons, countPrimes, demoChain, demoExpr1, demoExpr2, demoExpr3, demoFizz, demoList, demoMaybe, demoPrimes, demoVec, depth, digitCount, divides, $$eval, evalR, even, expr1, expr2, expr3, fact, fib, fizzbuzz, fizzbuzzTo, flip, foldRange, foldr, gcd, isJust, isPalindromeInt, isPrime, keepIf, lall, lany, lcm, lfilter, line, ljoin, llen, lmap, lrange, lshow, lsum, manhattan, map2, mapMaybe, mapRes, max, maybeToRes, min, neg, nil, odd, on, orElse, polyTest, powFast, primesTo, quot, rem, report, resToMaybe, reverseInt, safeDiv, show, showRes, sign, simplify, size, squares, sumDigits, sumTo, swap, thrice, twice, vadd, vdot, vec, vlen2, vscale, vshow, vsub, vx, vy, withDefault };

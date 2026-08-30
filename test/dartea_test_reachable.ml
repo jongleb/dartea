@@ -9,14 +9,14 @@ let measured folder =
 
 let expected =
   [
-    "bench 54/56 declarations, 12129/12324 bytes";
+    "bench 55/57 declarations, 12478/12673 bytes";
     "browser 2/2 declarations, 92/92 bytes";
     "comparison 92/98 declarations, 8852/9937 bytes";
     "counter 14/14 declarations, 1891/1891 bytes";
     "crossmod 10/10 declarations, 951/951 bytes";
     "currying 18/18 declarations, 1361/1361 bytes";
-    "elm_code 128/128 declarations, 22702/22702 bytes";
-    "fib 4/4 declarations, 530/530 bytes";
+    "elm_code 128/128 declarations, 23143/23143 bytes";
+    "fib 4/4 declarations, 719/719 bytes";
     "http 101/106 declarations, 18829/19135 bytes";
     "spa 119/124 declarations, 32519/32825 bytes";
     "todomvc 156/156 declarations, 27395/27395 bytes";

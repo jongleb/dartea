@@ -69,12 +69,31 @@ const $$r1 = ($$b, $$put, $$a) => {
 const adjectives = { hd: "pretty", tl: { hd: "large", tl: { hd: "big", tl: { hd: "small", tl: { hd: "tall", tl: { hd: "short", tl: { hd: "long", tl: { hd: "handsome", tl: { hd: "plain", tl: { hd: "quaint", tl: { hd: "clean", tl: { hd: "elegant", tl: { hd: "easy", tl: { hd: "angry", tl: { hd: "crazy", tl: { hd: "helpful", tl: { hd: "mushy", tl: { hd: "odd", tl: { hd: "unsightly", tl: { hd: "adorable", tl: { hd: "important", tl: { hd: "inexpensive", tl: { hd: "cheap", tl: { hd: "expensive", tl: { hd: "fancy", tl: 0 } } } } } } } } } } } } } } } } } } } } } } } } };
 const colours = { hd: "red", tl: { hd: "yellow", tl: { hd: "blue", tl: { hd: "green", tl: { hd: "pink", tl: { hd: "brown", tl: { hd: "purple", tl: { hd: "brown", tl: { hd: "white", tl: { hd: "black", tl: { hd: "orange", tl: 0 } } } } } } } } } } };
 const nouns = { hd: "table", tl: { hd: "chair", tl: { hd: "house", tl: { hd: "bbq", tl: { hd: "desk", tl: { hd: "car", tl: { hd: "pony", tl: { hd: "cookie", tl: { hd: "sandwich", tl: { hd: "burger", tl: { hd: "pizza", tl: { hd: "mouse", tl: { hd: "keyboard", tl: 0 } } } } } } } } } } } } };
-const pick = (seed, words) => Maybe.withDefault("", List.head(List.drop(Basics.modBy(List.length(words), seed), words)));
-const label = seed$1 => pick(seed$1, adjectives) + (" " + (pick((seed$1 / 7) | 0, colours) + (" " + pick((seed$1 / 3) | 0, nouns))));
-const build = (count, model) => {
-  const ids = List.range(model.next, (model.next + count) - 1);
-  const rows = List.indexedMap((offset, rowId) => ({ id: rowId, label: label(model.seed + (offset * 13)) }), ids);
-  return [rows, { ...model, next: model.next + count, seed: model.seed + (count * 13) }];
+const pick = (seed, count, words) => Maybe.withDefault("", List.head(List.drop(Basics.modBy(count, seed), words)));
+const label = seed$1 => pick(seed$1, 25, adjectives) + (" " + (pick((seed$1 / 7) | 0, 11, colours) + (" " + pick((seed$1 / 3) | 0, 13, nouns))));
+const growth = (left, rowId, seed$2, rows) => {
+  while (true) {
+    if (left === 0) {
+      return [List.reverse(rows), [rowId, seed$2]];
+    } else {
+      const $s1 = left - 1;
+      const $s2 = rowId + 1;
+      const $s3 = seed$2 + 13;
+      const $s4 = { hd: { id: rowId, label: label(seed$2) }, tl: rows };
+      left = $s1;
+      rowId = $s2;
+      seed$2 = $s3;
+      rows = $s4;
+      continue;
+    }
+  }
+};
+const build = (count$1, model) => {
+  const $s5 = growth(count$1, model.next, model.seed, 0);
+  const next = $s5[1][0];
+  const seed$3 = $s5[1][1];
+  const rows$1 = $s5[0];
+  return [rows$1, { ...model, next: next, seed: seed$3 }];
 };
 const init = $p0 => [{ rows: 0, selected: 0, next: 1, seed: 0 }, Platform$Cmd.none];
 const bump = (index, row) => {
@@ -84,13 +103,13 @@ const bump = (index, row) => {
     return row;
   }
 };
-const swap = rows$1 => {
-  const at = index$1 => List.head(List.drop(index$1, rows$1));
-  const $s1 = [at(1), at(998)];
-  if (typeof $s1[0] === "object") {
-    if (typeof $s1[1] === "object") {
-      const target = $s1[1]._0;
-      const second = $s1[0]._0;
+const swap = rows$2 => {
+  const at = index$1 => List.head(List.drop(index$1, rows$2));
+  const $s6 = [at(1), at(998)];
+  if (typeof $s6[0] === "object") {
+    if (typeof $s6[1] === "object") {
+      const target = $s6[1]._0;
+      const second = $s6[0]._0;
       return List.indexedMap((index$2, row$1) => {
   if (index$2 === 1) {
     return target;
@@ -101,28 +120,28 @@ const swap = rows$1 => {
       return row$1;
     }
   }
-}, rows$1);
+}, rows$2);
     } else {
-      return rows$1;
+      return rows$2;
     }
   } else {
-    return rows$1;
+    return rows$2;
   }
 };
 const update = (msg, model$1) => {
   if (msg.TAG === "Create") {
-    const count$2 = msg._0;
-    const $s3 = build(count$2, model$1);
-    const rows$3 = $s3[0];
-    const next$1 = $s3[1];
-    return [{ ...next$1, rows: rows$3 }, Platform$Cmd.none];
+    const count$3 = msg._0;
+    const $s8 = build(count$3, model$1);
+    const rows$4 = $s8[0];
+    const next$2 = $s8[1];
+    return [{ ...next$2, rows: rows$4 }, Platform$Cmd.none];
   } else {
     if (msg.TAG === "Append") {
-      const count$1 = msg._0;
-      const $s2 = build(count$1, model$1);
-      const rows$2 = $s2[0];
-      const next = $s2[1];
-      return [{ ...next, rows: $append$List(model$1.rows, rows$2) }, Platform$Cmd.none];
+      const count$2 = msg._0;
+      const $s7 = build(count$2, model$1);
+      const rows$3 = $s7[0];
+      const next$1 = $s7[1];
+      return [{ ...next$1, rows: $append$List(model$1.rows, rows$3) }, Platform$Cmd.none];
     } else {
       if (msg === "Update") {
         return [{ ...model$1, rows: List.indexedMap(bump, model$1.rows) }, Platform$Cmd.none];

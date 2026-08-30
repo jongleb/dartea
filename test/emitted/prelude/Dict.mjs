@@ -535,28 +535,36 @@ const foldr = (func$1, acc$1, t$1) => {
 const toList = dict$17 => foldr((key$13, value$12, list) => ({ hd: [key$13, value$12], tl: list }), 0, dict$17);
 const merge = (leftStep, bothStep, rightStep, leftDict, rightDict, initialResult) => {
   const stepState = (rKey, rValue, $p2) => {
-  const list$1 = $p2[0];
-  const result = $p2[1];
-  if (list$1 === 0) {
-    return [list$1, Dartea_runtime.$$curry(rightStep, [rKey, rValue, result])];
-  } else {
-    const lKey = list$1.hd[0];
-    const lValue = list$1.hd[1];
-    const rest = list$1.tl;
-    if (Dartea_runtime.$$cmp(lKey, rKey) < 0) {
-      return stepState(rKey, rValue, [rest, Dartea_runtime.$$curry(leftStep, [lKey, lValue, result])]);
+  while (true) {
+    const list$1 = $p2[0];
+    const result = $p2[1];
+    if (list$1 === 0) {
+      return [list$1, Dartea_runtime.$$curry(rightStep, [rKey, rValue, result])];
     } else {
-      if (Dartea_runtime.$$cmp(lKey, rKey) > 0) {
-        return [list$1, Dartea_runtime.$$curry(rightStep, [rKey, rValue, result])];
+      const lKey = list$1.hd[0];
+      const lValue = list$1.hd[1];
+      const rest = list$1.tl;
+      if (Dartea_runtime.$$cmp(lKey, rKey) < 0) {
+        const $s31 = rKey;
+        const $s32 = rValue;
+        const $s33 = [rest, Dartea_runtime.$$curry(leftStep, [lKey, lValue, result])];
+        rKey = $s31;
+        rValue = $s32;
+        $p2 = $s33;
+        continue;
       } else {
-        return [rest, Dartea_runtime.$$curry(bothStep, [lKey, lValue, rValue, result])];
+        if (Dartea_runtime.$$cmp(lKey, rKey) > 0) {
+          return [list$1, Dartea_runtime.$$curry(rightStep, [rKey, rValue, result])];
+        } else {
+          return [rest, Dartea_runtime.$$curry(bothStep, [lKey, lValue, rValue, result])];
+        }
       }
     }
   }
 };
-  const $s31 = foldl(stepState, [toList(leftDict), initialResult], rightDict);
-  const leftovers = $s31[0];
-  const intermediateResult = $s31[1];
+  const $s34 = foldl(stepState, [toList(leftDict), initialResult], rightDict);
+  const leftovers = $s34[0];
+  const intermediateResult = $s34[1];
   return List.foldl(($p0, result$1) => {
   const k$9 = $p0[0];
   const v$8 = $p0[1];

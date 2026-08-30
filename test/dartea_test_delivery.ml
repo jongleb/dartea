@@ -198,6 +198,46 @@ let test_browser_needs_a_program _ =
       assert_equal ~printer:Fun.id "String" found
   | problem -> assert_failure (Diagnostic.Project_error.show problem)
 
+let deep_loop_program =
+  {|module Main exposing (main)
+
+import Browser
+import Html exposing (Html, text)
+
+
+count : Int -> String
+count total =
+    let
+        loop left acc =
+            if left == 0 then
+                String.fromInt acc
+
+            else
+                loop (left - 1) (acc + 1)
+    in
+    loop total 0
+
+
+view : Int -> Html msg
+view total =
+    text (count total)
+
+
+main : Program () Int msg
+main =
+    Browser.sandbox { init = 200000, update = \_ model -> model, view = view }
+|}
+
+let deep_loop_stub =
+  Sample.dom
+  ^ {|const host = await mounted();
+console.log(host.childNodes[0].text);
+|}
+
+let test_a_let_bound_loop_runs_in_constant_stack _ =
+  assert_equal ~printer:Fun.id "200000"
+    (printed_by ~program:deep_loop_program ~stub:deep_loop_stub)
+
 let suite =
   [
     "esm_folder_is_one_file_per_module"
@@ -215,6 +255,8 @@ let suite =
     "guards_stay_silent_like_elm" >:: test_guards_stay_silent_like_elm;
     "the_real_todomvc_runs" >:: test_the_real_todomvc_runs;
     "the_real_todomvc_runs" >:: test_the_real_todomvc_runs;
+    "a_let_bound_loop_runs_in_constant_stack"
+    >:: test_a_let_bound_loop_runs_in_constant_stack;
     "lazy_skips_an_unchanged_subtree" >:: test_lazy_skips_an_unchanged_subtree;
     "a_mapped_subtree_survives_being_replaced"
     >:: test_a_mapped_subtree_survives_being_replaced;

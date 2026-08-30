@@ -153,6 +153,7 @@ let fold_emit (f : 'a -> J.stmt list * 'b) (items : 'a list) :
 
 type tctx = {
   fn : Data.Name.t;
+  js : string;
   params : string list;
   mutable triggered : bool;
 }
@@ -331,11 +332,21 @@ and emit_fields env (rows : O.Expr.expr_record_row list) :
     rows
 
 and emit_binding env (binding : O.Expr.expr_let_binding) =
-  let env', name =
-    Env.bind_one env (Data.Name.local (Data.Located.unwrap binding.bind_body.name))
+  let src = Data.Name.local (Data.Located.unwrap binding.bind_body.name) in
+  let env', name = Env.bind_one env src in
+  let bound = binding.bind_body.body in
+  let recursive =
+    Data.Name.Set.mem src (O.Expr.free_variables ~bound:Data.Name.Set.empty bound)
   in
-  let sv, ev = emit_value env' binding.bind_body.body in
-  (env', sv @ [ J.ConstDecl { name; init = ev } ])
+  match bound.expr with
+  | O.Expr.Expr_lambda { params; body } when recursive ->
+      let env_fn, param_names = bind_lambda_params env' params in
+      let tc = { fn = src; js = name; params = param_names; triggered = false } in
+      let stmts = loop_body env_fn tc body in
+      (env', [ J.ConstDecl { name; init = J.arrow_of_body param_names stmts } ])
+  | _ ->
+      let sv, ev = emit_value env' bound in
+      (env', sv @ [ J.ConstDecl { name; init = ev } ])
 
 and emit_scrutinee env (expr : O.Expr.t) : J.stmt list * J.expr * J.stmt list =
   let s, e = emit_value env expr in
@@ -453,21 +464,31 @@ and emit_record_apply env fn arg =
       in
       (ss, J.Object members)
 
-and emit_lambda env params body =
+and bind_lambda_params env (params : O.Expr.expr_lambda_param list) =
   let names =
     List.map
       (fun (p : O.Expr.expr_lambda_param) ->
         Data.Name.local (Data.Located.unwrap p.name))
       params
   in
-  let env, param_names = Env.bind_params env names in
+  Env.bind_params env names
+
+and emit_lambda env params body =
+  let env, param_names = bind_lambda_params env params in
   J.arrow_of_body param_names (emit_return env None body)
+
+and loop_body env tc body =
+  let stmts = emit_return env (Some tc) body in
+  if tc.triggered then [ J.While { test = J.bool true; body = stmts } ] else stmts
 
 and self_tail_args env tc (e : O.Expr.t) : O.Expr.t list option =
   let callee, args = O.Expr.spine e in
-  let calls_itself name =
-    Data.Name.equal name tc.fn && not (Scope.mem name env.Env.scope)
+  let unshadowed name =
+    match Scope.find_opt name env.Env.scope with
+    | None -> true
+    | Some js -> String.equal js tc.js
   in
+  let calls_itself name = Data.Name.equal name tc.fn && unshadowed name in
   let saturates = List.length args = List.length tc.params in
   match O.Expr.ident_of callee with
   | Some name when calls_itself name && saturates && not (List.is_empty args) -> Some args
@@ -598,14 +619,12 @@ let decl_stmts env (decl : O.Declaration.t) : J.stmt list =
       let tc =
         {
           fn = Data.Name.local (Data.Located.unwrap decl.name);
+          js = name;
           params = param_names;
           triggered = false;
         }
       in
-      let body = emit_return env (Some tc) decl.body in
-      let body =
-        if tc.triggered then [ J.While { test = J.bool true; body } ] else body
-      in
+      let body = loop_body env tc decl.body in
       [ J.ConstDecl { name; init = J.arrow_of_body param_names body } ]
 
 let is_defined_here (name : Data.Name.t) =

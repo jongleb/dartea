@@ -46,28 +46,34 @@ nouns =
     [ "table", "chair", "house", "bbq", "desk", "car", "pony", "cookie", "sandwich", "burger", "pizza", "mouse", "keyboard" ]
 
 
-pick : Int -> List String -> String
-pick seed words =
-    List.drop (modBy (List.length words) seed) words
+pick : Int -> Int -> List String -> String
+pick seed count words =
+    List.drop (modBy count seed) words
         |> List.head
         |> Maybe.withDefault ""
 
 
 label : Int -> String
 label seed =
-    pick seed adjectives ++ " " ++ pick (seed // 7) colours ++ " " ++ pick (seed // 3) nouns
+    pick seed 25 adjectives ++ " " ++ pick (seed // 7) 11 colours ++ " " ++ pick (seed // 3) 13 nouns
+
+
+growth : Int -> Int -> Int -> List Row -> ( List Row, ( Int, Int ) )
+growth left rowId seed rows =
+    if left == 0 then
+        ( List.reverse rows, ( rowId, seed ) )
+
+    else
+        growth (left - 1) (rowId + 1) (seed + 13) ({ id = rowId, label = label seed } :: rows)
 
 
 build : Int -> Model -> ( List Row, Model )
 build count model =
     let
-        ids =
-            List.range model.next (model.next + count - 1)
-
-        rows =
-            List.indexedMap (\offset rowId -> { id = rowId, label = label (model.seed + offset * 13) }) ids
+        ( rows, ( next, seed ) ) =
+            growth count model.next model.seed []
     in
-    ( rows, { model | next = model.next + count, seed = model.seed + count * 13 } )
+    ( rows, { model | next = next, seed = seed } )
 
 
 init : () -> ( Model, Cmd Msg )
