@@ -22,9 +22,13 @@ Elm values never change in place. So "did this value change" is one reference ch
 
 ## Speed
 
-We measure with js-framework-benchmark. Same operations. Same method. A Chrome trace from the click to the paint.
+We run js-framework-benchmark. The script `bench/run.sh` clones it, adds dartea as one more framework and starts the official runner. The other frameworks are the official implementations from that repository. Only the dartea program is ours.
 
-On the keyed set the output of dartea runs at the speed of the plain JavaScript reference. Geometric mean 1.00. The same Elm program through a classic virtual DOM is 2.5 times slower. Scripts and numbers are in `docs/block-dom.md`.
+Result. Weighted geometric mean of slowdowns: vanilla 1.00, Solid 1.12, Svelte 1.12, dartea 1.18, Elm 1.52, React 1.58.
+
+Screenshot of the result page from that run. Apple M5, headless Chrome, August 30, 2026. This is my machine, not the official published table.
+
+![js-framework-benchmark keyed results](bench/benchmark.png)
 
 ## Effects
 
@@ -36,7 +40,7 @@ The upstream TodoMVC runs without changes. A parity test checks module by module
 
 Ready: `elm/core`, `elm/html`, `elm/browser` with `sandbox`, `element`, `document` and `application`, `elm/url`, `elm/json`, `elm/http` without Bytes and File, part of `elm/time`.
 
-Missing: `Random`, `Process`, `Set`, `Array`, packages from the Elm registry. See `docs/roadmap-prod.md`.
+Missing: `Random`, `Process`, `Set`, `Array`, packages from the Elm registry.
 
 ## Use
 

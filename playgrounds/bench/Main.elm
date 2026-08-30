@@ -119,14 +119,24 @@ bump index row =
 
 swap : List Row -> List Row
 swap rows =
-    case rows of
-        first :: second :: rest ->
-            case List.reverse rest of
-                last :: middle ->
-                    first :: last :: List.reverse middle ++ [ second ]
+    let
+        at index =
+            List.head (List.drop index rows)
+    in
+    case ( at 1, at 998 ) of
+        ( Just second, Just target ) ->
+            List.indexedMap
+                (\index row ->
+                    if index == 1 then
+                        target
 
-                [] ->
-                    rows
+                    else if index == 998 then
+                        second
+
+                    else
+                        row
+                )
+                rows
 
         _ ->
             rows

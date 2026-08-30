@@ -48,19 +48,23 @@ const bump = (index, row) => {
   }
 };
 const swap = rows$1 => {
-  if (rows$1 !== 0) {
-    if (rows$1.tl !== 0) {
-      const second = rows$1.tl.hd;
-      const rest = rows$1.tl.tl;
-      const first = rows$1.hd;
-      const $s1 = List.reverse(rest);
-      if ($s1 !== 0) {
-        const last = $s1.hd;
-        const middle = $s1.tl;
-        return { hd: first, tl: { hd: last, tl: $append$List(List.reverse(middle), { hd: second, tl: 0 }) } };
-      } else {
-        return rows$1;
-      }
+  const at = index$1 => List.head(List.drop(index$1, rows$1));
+  const $s1 = [at(1), at(998)];
+  if (typeof $s1[0] === "object") {
+    if (typeof $s1[1] === "object") {
+      const target = $s1[1]._0;
+      const second = $s1[0]._0;
+      return List.indexedMap((index$2, row$1) => {
+  if (index$2 === 1) {
+    return target;
+  } else {
+    if (index$2 === 998) {
+      return second;
+    } else {
+      return row$1;
+    }
+  }
+}, rows$1);
     } else {
       return rows$1;
     }
@@ -97,7 +101,7 @@ const update = (msg, model$1) => {
               return [{ ...model$1, selected: rowId$2 }, Platform$Cmd.none];
             } else {
               const rowId$1 = msg._0;
-              return [{ ...model$1, rows: List.filter(row$1 => row$1.id !== rowId$1, model$1.rows) }, Platform$Cmd.none];
+              return [{ ...model$1, rows: List.filter(row$2 => row$2.id !== rowId$1, model$1.rows) }, Platform$Cmd.none];
             }
           }
         }
@@ -105,20 +109,20 @@ const update = (msg, model$1) => {
     }
   }
 };
-const viewRow = (selected, row$2) => [$$String.fromInt(row$2.id), { TAG: "block", form: $$form0, refresh: ($$b, $$put) => {
-  $$put($$b, 0, (selected === row$2.id) ? "danger" : "");
-  if ($$b.deps[1] !== row$2.id) {
-    $$b.deps[1] = row$2.id;
-    $$put($$b, 1, $$String.fromInt(row$2.id));
+const viewRow = (selected, row$3) => [$$String.fromInt(row$3.id), { TAG: "block", form: $$form0, refresh: ($$b, $$put) => {
+  $$put($$b, 0, (selected === row$3.id) ? "danger" : "");
+  if ($$b.deps[1] !== row$3.id) {
+    $$b.deps[1] = row$3.id;
+    $$put($$b, 1, $$String.fromInt(row$3.id));
   }
-  if ($$b.deps[2] !== row$2.id) {
-    $$b.deps[2] = row$2.id;
-    $$put($$b, 2, Select(row$2.id));
+  if ($$b.deps[2] !== row$3.id) {
+    $$b.deps[2] = row$3.id;
+    $$put($$b, 2, Select(row$3.id));
   }
-  $$put($$b, 3, row$2.label);
-  if ($$b.deps[4] !== row$2.id) {
-    $$b.deps[4] = row$2.id;
-    $$put($$b, 4, Remove(row$2.id));
+  $$put($$b, 3, row$3.label);
+  if ($$b.deps[4] !== row$3.id) {
+    $$b.deps[4] = row$3.id;
+    $$put($$b, 4, Remove(row$3.id));
   }
 } }];
 const view = model$2 => ({ TAG: "block", form: $$form1, refresh: ($$b, $$put) => {

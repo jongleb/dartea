@@ -35,3 +35,6 @@ playgrounds/**/build/
 .DS_Store
 
 .claude/
+bench/dist
+bench/node_modules
+_bench

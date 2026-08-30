@@ -1,0 +1,15 @@
+{
+  "name": "js-framework-benchmark-dartea",
+  "version": "1.0.0",
+  "description": "dartea demo",
+  "js-framework-benchmark": {
+    "frameworkVersion": "0.1",
+    "frameworkHomeURL": "https://github.com/jongleber/dartea",
+    "issues": [],
+    "language": "Elm"
+  },
+  "scripts": {
+    "build-prod": "dartea make src/Main.elm --output dist/main.js"
+  },
+  "license": "BSD-3-Clause"
+}
