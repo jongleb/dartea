@@ -7,7 +7,12 @@ const $$curry = (f, args) => {
 
 const $$apply1 = (f, x) => (f.length === 1 ? f(x) : $$curry(f, [x]));
 const $$apply2 = (f, x, y) => (f.length === 2 ? f(x, y) : $$curry(f, [x, y]));
-
+const $$apply3 = (f, x, y, z) => (f.length === 3 ? f(x, y, z) : $$curry(f, [x, y, z]));
+const $$apply4 = (f, x, y, z, a) => (f.length === 4 ? f(x, y, z, a) : $$curry(f, [x, y, z, a]));
+const $$apply5 = (f, x, y, z, a, b) => (f.length === 5 ? f(x, y, z, a, b) : $$curry(f, [x, y, z, a, b]));
+const $$apply6 = (f, x, y, z, a, b, c) => (f.length === 6 ? f(x, y, z, a, b, c) : $$curry(f, [x, y, z, a, b, c]));
+const $$apply7 = (f, x, y, z, a, b, c, d) => (f.length === 7 ? f(x, y, z, a, b, c, d) : $$curry(f, [x, y, z, a, b, c, d]));
+const $$apply8 = (f, x, y, z, a, b, c, d, e) => (f.length === 8 ? f(x, y, z, a, b, c, d, e) : $$curry(f, [x, y, z, a, b, c, d, e]));
 const $$eq = (x, y) => {
   const pending = [[x, y]];
   while (pending.length > 0) {
@@ -75,6 +80,12 @@ export {
   $$curry,
   $$apply1,
   $$apply2,
+  $$apply3,
+  $$apply4,
+  $$apply5,
+  $$apply6,
+  $$apply7,
+  $$apply8,
   $$eq,
   $$cmp,
   $$modBy,

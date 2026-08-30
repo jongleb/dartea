@@ -51,7 +51,7 @@ const map3 = (func$1, ma$1, mb$1, mc) => {
         return Nothing;
       } else {
         const c = mc._0;
-        return Just(Dartea_runtime.$$curry(func$1, [a$1, b$1, c]));
+        return Just(Dartea_runtime.$$apply3(func$1, a$1, b$1, c));
       }
     }
   }
@@ -73,7 +73,7 @@ const map4 = (func$2, ma$2, mb$2, mc$1, md) => {
           return Nothing;
         } else {
           const d = md._0;
-          return Just(Dartea_runtime.$$curry(func$2, [a$2, b$2, c$1, d]));
+          return Just(Dartea_runtime.$$apply4(func$2, a$2, b$2, c$1, d));
         }
       }
     }
@@ -100,7 +100,7 @@ const map5 = (func$3, ma$3, mb$3, mc$2, md$1, me) => {
             return Nothing;
           } else {
             const e = me._0;
-            return Just(Dartea_runtime.$$curry(func$3, [a$3, b$3, c$2, d$1, e]));
+            return Just(Dartea_runtime.$$apply5(func$3, a$3, b$3, c$2, d$1, e));
           }
         }
       }

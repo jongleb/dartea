@@ -113,7 +113,7 @@ const fib = n$3 => {
     }
   }
 };
-  return Dartea_runtime.$$curry(go, [n$3, 0, 1]);
+  return Dartea_runtime.$$apply3(go, n$3, 0, 1);
 };
 const fact = n$4 => {
   if (n$4 <= 1) {

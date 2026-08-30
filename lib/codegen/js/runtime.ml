@@ -18,8 +18,10 @@ let tail = "tl"
 let payload index = "_" ^ string_of_int index
 let engine_source = Runtime_source.dartea_engine
 let curry = "$$curry"
-let apply1 = "$$apply1"
-let apply2 = "$$apply2"
+let widest_apply = 9
+let apply index = "$$apply" ^ string_of_int index
+let apply1 = apply 1
+let apply2 = apply 2
 let append = "$$append"
 let equal = "$$eq"
 let compare = "$$cmp"
@@ -38,7 +40,8 @@ let files =
   ]
 
 let all =
-  [
-    curry; apply1; apply2; append; equal; compare; mod_by; char_to_code; char_from_code;
-    string_to_list; string_from_list; string_split;
-  ]
+  (curry :: List.init widest_apply (fun index -> apply (index + 1)))
+  @ [
+      append; equal; compare; mod_by; char_to_code; char_from_code;
+      string_to_list; string_from_list; string_split;
+    ]

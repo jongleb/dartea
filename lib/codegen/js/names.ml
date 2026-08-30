@@ -69,8 +69,7 @@ let runtime_reference helper =
   J.member (J.Identifier runtime_module) helper
 
 let curry_reference = runtime_reference Runtime.curry
-let apply1_reference = runtime_reference Runtime.apply1
-let apply2_reference = runtime_reference Runtime.apply2
+let apply_reference index = runtime_reference (Runtime.apply index)
 let append_reference = runtime_reference Runtime.append
 let equal_reference = runtime_reference Runtime.equal
 let compare_reference = runtime_reference Runtime.compare

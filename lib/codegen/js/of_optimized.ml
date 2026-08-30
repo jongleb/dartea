@@ -116,10 +116,10 @@ let lower_full_call env name ~operand =
 
 
 let curry_call f args =
-  match args with
-  | [ x ] -> J.call Names.apply1_reference [ f; x ]
-  | [ x; y ] -> J.call Names.apply2_reference [ f; x; y ]
-  | [] | _ :: _ :: _ :: _ -> J.call Names.curry_reference [ f; J.Array args ]
+  let count = List.length args in
+  if count >= 1 && count <= Runtime.widest_apply then
+    J.call (Names.apply_reference count) (f :: args)
+  else J.call Names.curry_reference [ f; J.Array args ]
 
 let split_at n lst =
   let rec go i acc = function

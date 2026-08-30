@@ -494,7 +494,7 @@ const foldl = (func, acc, dict$15) => {
       const left$8 = dict$15._3;
       const right$7 = dict$15._4;
       const $s25 = func;
-      const $s26 = Dartea_runtime.$$curry(func, [key$11, value$10, foldl(func, acc, left$8)]);
+      const $s26 = Dartea_runtime.$$apply3(func, key$11, value$10, foldl(func, acc, left$8));
       const $s27 = right$7;
       func = $s25;
       acc = $s26;
@@ -523,7 +523,7 @@ const foldr = (func$1, acc$1, t$1) => {
       const left$9 = t$1._3;
       const right$8 = t$1._4;
       const $s28 = func$1;
-      const $s29 = Dartea_runtime.$$curry(func$1, [key$12, value$11, foldr(func$1, acc$1, right$8)]);
+      const $s29 = Dartea_runtime.$$apply3(func$1, key$12, value$11, foldr(func$1, acc$1, right$8));
       const $s30 = left$9;
       func$1 = $s28;
       acc$1 = $s29;
@@ -539,7 +539,7 @@ const merge = (leftStep, bothStep, rightStep, leftDict, rightDict, initialResult
     const list$1 = $p2[0];
     const result = $p2[1];
     if (list$1 === 0) {
-      return [list$1, Dartea_runtime.$$curry(rightStep, [rKey, rValue, result])];
+      return [list$1, Dartea_runtime.$$apply3(rightStep, rKey, rValue, result)];
     } else {
       const lKey = list$1.hd[0];
       const lValue = list$1.hd[1];
@@ -547,16 +547,16 @@ const merge = (leftStep, bothStep, rightStep, leftDict, rightDict, initialResult
       if (Dartea_runtime.$$cmp(lKey, rKey) < 0) {
         const $s31 = rKey;
         const $s32 = rValue;
-        const $s33 = [rest, Dartea_runtime.$$curry(leftStep, [lKey, lValue, result])];
+        const $s33 = [rest, Dartea_runtime.$$apply3(leftStep, lKey, lValue, result)];
         rKey = $s31;
         rValue = $s32;
         $p2 = $s33;
         continue;
       } else {
         if (Dartea_runtime.$$cmp(lKey, rKey) > 0) {
-          return [list$1, Dartea_runtime.$$curry(rightStep, [rKey, rValue, result])];
+          return [list$1, Dartea_runtime.$$apply3(rightStep, rKey, rValue, result)];
         } else {
-          return [rest, Dartea_runtime.$$curry(bothStep, [lKey, lValue, rValue, result])];
+          return [rest, Dartea_runtime.$$apply4(bothStep, lKey, lValue, rValue, result)];
         }
       }
     }
@@ -568,7 +568,7 @@ const merge = (leftStep, bothStep, rightStep, leftDict, rightDict, initialResult
   return List.foldl(($p0, result$1) => {
   const k$9 = $p0[0];
   const v$8 = $p0[1];
-  return Dartea_runtime.$$curry(leftStep, [k$9, v$8, result$1]);
+  return Dartea_runtime.$$apply3(leftStep, k$9, v$8, result$1);
 }, intermediateResult, leftovers);
 };
 const map = (func$2, dict$18) => {

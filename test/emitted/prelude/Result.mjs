@@ -57,7 +57,7 @@ const map3 = (func$2, ra$2, rb$1, rc) => {
               return Err(x$4);
             case "Ok":
               const c = rc._0;
-              return Ok(Dartea_runtime.$$curry(func$2, [a$3, b$1, c]));
+              return Ok(Dartea_runtime.$$apply3(func$2, a$3, b$1, c));
           }
       }
   }
