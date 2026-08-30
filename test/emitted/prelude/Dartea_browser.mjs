@@ -126,14 +126,14 @@ const $$subscribers = (name) => {
   return found;
 };
 
-const $$Port$named = (name) => ({
+const $$Port$at = (name) => ({
   subscribe: (listener) => $$subscribers(name).add(listener),
   unsubscribe: (listener) => $$subscribers(name).delete(listener),
   send: (value) => $$ports.incoming.get(name)?.(value),
 });
 
 const $$Port$wiring = () =>
-  new Proxy({}, { get: (_holder, name) => $$Port$named(name) });
+  new Proxy({}, { get: (_holder, name) => $$Port$at(name) });
 
 const $$Time$every = (interval, tagger) => ({
   TAG: "Listen",
@@ -164,7 +164,7 @@ const $$Http$notify = (tracker, progress) => {
   for (const send of $$Http$watchers.get(tracker) ?? []) send(progress);
 };
 
-const $$Http$received = async (response, tracker) => {
+const $$Http$receive = async (response, tracker) => {
   if (tracker === undefined || response.body === null) return response.text();
   const size = response.headers.get("content-length");
   const total = size === null ? "Nothing" : { _0: Number(size) };
@@ -224,7 +224,7 @@ const $$Http$send = async (request, outer) => {
       const sent = request.body === null ? 0 : String(request.body.content).length;
       $$Http$notify(tracker, { TAG: "Sending", _0: { sent, size: sent } });
     }
-    const body = await $$Http$received(response, tracker);
+    const body = await $$Http$receive(response, tracker);
     return $$Http$raw(response.ok ? "good" : "bad", request.url, response, body);
   } catch (problem) {
     return $$Http$raw($$Http$kind(problem, controller), request.url, undefined, "");

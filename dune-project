@@ -17,9 +17,9 @@
 
 (package
  (name dartea)
- (synopsis "A compiler for the Elm language, emitting modern JavaScript")
+ (synopsis "Elm compiler. Modern JavaScript output. No virtual DOM.")
  (description
-  "An independent implementation of the Elm language in OCaml, with a target-neutral core and a JavaScript backend. Not affiliated with or endorsed by the Elm project. Contains material derived from elm/core, elm/html, elm/browser, elm/url and elm/http; see the LICENSE file.")
+  "dartea compiles Elm to modern JavaScript. ES modules, async and await, fetch, AbortSignal. Dead code is removed across modules. The compiler owns the Html library and the runtime. It turns the static part of a view into a DOM template and updates only the values that changed. There is no virtual DOM diff. On js-framework-benchmark the output runs at the speed of plain JavaScript. dartea is an independent project and is not endorsed by Elm. See LICENSE for the files that come from elm/core, elm/html, elm/browser, elm/url and elm/http.")
  (depends ocaml dune)
  (tags
   (compiler elm javascript)))
