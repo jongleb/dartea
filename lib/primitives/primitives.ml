@@ -32,7 +32,7 @@ let values : (string * scheme) list =
     Data.Operator.all
 
 type builtin_type = Int | Float | Char | Bool | String | Unit | List
-[@@deriving enumerate, to_string]
+[@@deriving enumerate, to_string, equal]
 
 let builtin_types = all_of_builtin_type
 let name_of_builtin = string_of_builtin_type
@@ -51,6 +51,18 @@ let builtin_of_name written =
   List.find_opt
     (fun builtin -> String.equal (name_of_builtin builtin) written)
     builtin_types
+module Known_type = struct
+  type t = Maybe | List | Value [@@deriving enumerate, to_string, equal]
+
+  let of_name name =
+    List.find_opt
+      (fun known -> String.equal (to_string known) (Data.Name.base name))
+      all
+
+  let fits known name =
+    match of_name name with Some found -> equal found known | None -> false
+end
+
 let true_ = "True"
 let false_ = "False"
 let unit_ = "Unit"

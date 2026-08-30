@@ -34,6 +34,12 @@ type t =
 
 let name = to_string
 
+let of_known (known : Primitives.Known_type.t) =
+  match known with
+  | Primitives.Known_type.Maybe -> Maybe
+  | Primitives.Known_type.List -> List
+  | Primitives.Known_type.Value -> Json_encode
+
 let packages =
   [
     "elm/core"; "elm/json"; "elm/html"; "elm/browser"; "elm/time";

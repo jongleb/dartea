@@ -102,6 +102,6 @@
 
 (library
  (name prelude)
- (libraries canonical)
+ (libraries canonical primitives)
  (preprocess
   (pps ppx_jane)))

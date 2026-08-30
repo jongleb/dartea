@@ -551,8 +551,8 @@ result = addOne 41
   in
   assert_js ~src ~expr:"Main.result" ~expected:"42";
   let js = main_source src in
-  assert_bool "a whole-value var pattern binds directly with no test"
-    (contains ~needle:"const m = n;" js)
+  assert_bool "a whole-value var pattern dissolves into the body"
+    (contains ~needle:"n + 1" js)
 
 let test_shared_default_subtree _ =
   let src =

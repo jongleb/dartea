@@ -1,5 +1,5 @@
 (library
  (name reporting)
- (libraries data diagnostic canonical typed)
+ (libraries data diagnostic canonical typed primitives)
  (preprocess
   (pps ppx_jane ppx_deriving.show)))

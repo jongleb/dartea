@@ -277,7 +277,7 @@ const updateWithStorage = (msg$1, model$1) => {
   const $s2 = update(msg$1, model$1);
   const newModel = $s2[0];
   const cmds = $s2[1];
-  return [newModel, Platform$Cmd.batch({ hd: Dartea_browser.$$Port$outgoing("setStorage", newModel), tl: { hd: cmds, tl: 0 } })];
+  return [newModel, Platform$Cmd.batch({ hd: Dartea_browser.$$Port$outgoing("setStorage", (value => ({ entries: (value => $$portList(given => given, value))(value.entries), field: value.field, uid: value.uid, visibility: value.visibility }))(newModel)), tl: { hd: cmds, tl: 0 } })];
 };
 const viewControlsClear = entriesCompleted => ({ TAG: "block", form: $$form0, refresh: $$r0, args: [entriesCompleted] });
 const viewControlsCount = entriesLeft => {
@@ -321,7 +321,7 @@ const viewEntries = (visibility$4, entries$1) => {
 const viewInput = task$1 => ({ TAG: "block", form: $$form7, refresh: $$r7, args: [task$1] });
 const view = model$2 => ({ TAG: "block", form: $$form8, refresh: $$r8, args: [model$2] });
 const main = Browser.document({ init: init, view: model$3 => ({ title: "Elm • TodoMVC", body: { hd: view(model$3), tl: 0 } }), update: updateWithStorage, subscriptions: $p0$1 => Platform$Sub.none });
-const setStorage = given => Dartea_browser.$$Port$outgoing("setStorage", given);
+const setStorage = given => Dartea_browser.$$Port$outgoing("setStorage", (value => ({ entries: (value => $$portList(given => given, value))(value.entries), field: value.field, uid: value.uid, visibility: value.visibility }))(given));
 const Entry = ($a0, $a1, $a2, $a3) => ({ description: $a0, completed: $a1, editing: $a2, id: $a3 });
 const Model = ($a0$1, $a1$1, $a2$1, $a3$1) => ({ entries: $a0$1, field: $a1$1, uid: $a2$1, visibility: $a3$1 });
 export { Add, ChangeVisibility, Check, CheckAll, Delete, DeleteComplete, EditingEntry, Entry, Model, NoOp, UpdateEntry, UpdateField, emptyModel, init, main, newEntry, onEnter, setStorage, update, updateWithStorage, view, viewControls, viewControlsClear, viewControlsCount, viewControlsFilters, viewEntries, viewEntry, viewInput, viewKeyedEntry, visibilitySwap };

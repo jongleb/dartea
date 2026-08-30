@@ -89,7 +89,7 @@ let told_apart left right =
   | TStr, TFloat -> [ Hint.String_to_float ]
   | _, TBool -> [ Hint.Anything_to_bool ]
   | TCustom (name, [ inside ]), other
-    when String.equal (Data.Name.base name) "Maybe"
+    when Primitives.Known_type.fits Primitives.Known_type.Maybe name
          && could_fit (Type.head inside) other ->
       [ Hint.Anything_from_maybe ]
   | TFun _, TFun _ ->

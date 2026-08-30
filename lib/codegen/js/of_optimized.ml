@@ -382,6 +382,49 @@ and emit_scrutinee env (expr : O.Expr.t) : J.stmt list * J.expr * J.stmt list =
     (s, J.Identifier t, [ J.ConstDecl { name = t; init = e } ])
   else (s, e, [])
 
+and port_kernel (platform : Data.Kernel.platform) direction =
+  Data.Name.equal platform.name
+    (Data.Kernel.written_as Data.Kernel.Port.module_name
+       (Data.Kernel.Port.string_of_direction direction))
+
+and emit_port_outgoing env kernel port_name (payload : O.Expr.t) =
+  let sn, en = emit_value env port_name in
+  let sp, ep = emit_value env payload in
+  let ep =
+    match Flags.encoder payload.O.Expr.typ with
+    | Ok enc -> Flags.encoded enc ep
+    | Error _ -> ep
+  in
+  (sn @ sp, J.call (Of_kernel.value kernel) [ en; ep ])
+
+and emit_port_incoming env kernel (port_name : O.Expr.t) (tagger : O.Expr.t) =
+  let sn, en = emit_value env port_name in
+  let st, et = emit_value env tagger in
+  let decoded decode =
+    let where =
+      match port_name.O.Expr.expr with
+      | O.Expr.Expr_string name -> Runtime.port_where name
+      | _ -> Runtime.port_label
+    in
+    J.Arrow
+      {
+        params = [ Runtime.raw ];
+        body =
+          J.ArrowExpr
+            (J.call et [ J.call decode [ J.Identifier Runtime.raw; J.string where ] ]);
+      }
+  in
+  let et =
+    match O.Type.head tagger.O.Expr.typ with
+    | O.Type.TFun (inside, _) -> begin
+        match Flags.decoder inside with
+        | Ok decode -> decoded decode
+        | Error _ -> et
+      end
+    | _ -> et
+  in
+  (sn @ st, J.call (Of_kernel.value kernel) [ en; et ])
+
 and emit_apply env fn arg =
   if is_record_construction fn then emit_record_apply env fn arg
   else
@@ -404,6 +447,16 @@ and emit_apply env fn arg =
         (sa @ sb @ bindings, lowered)
     | None -> begin
         match (callee.expr, args) with
+        | ( O.Expr.Expr_kernel
+              (Kernel_value (Data.Kernel.Platform platform as kernel)),
+            [ port_name; payload ] )
+          when port_kernel platform Data.Kernel.Port.Outgoing ->
+            emit_port_outgoing env kernel port_name payload
+        | ( O.Expr.Expr_kernel
+              (Kernel_value (Data.Kernel.Platform platform as kernel)),
+            [ port_name; tagger ] )
+          when port_kernel platform Data.Kernel.Port.Incoming ->
+            emit_port_incoming env kernel port_name tagger
         | O.Expr.Expr_kernel (Kernel_value kernel), _ ->
             let arity = Data.Kernel.arity kernel in
             emit_known_call env (Of_kernel.value kernel) ~arity

@@ -360,6 +360,191 @@ let propagate_constants (e : O.Expr.t) : O.Expr.t =
   in
   propagate ~constants:By_name.empty e
 
+type match_verdict =
+  | Bound of (string Data.Located.t * O.Expr.t) list
+  | Refuted
+  | Undecided
+
+let rec match_pattern (scrutinee : O.Expr.t) (p : O.Pattern.t) : match_verdict =
+  let all pairs =
+    List.fold_left
+      (fun verdict (part, pattern) ->
+        match verdict with
+        | Refuted -> Refuted
+        | Undecided -> begin
+            match match_pattern part pattern with
+            | Refuted -> Refuted
+            | Bound _ | Undecided -> Undecided
+          end
+        | Bound seen -> begin
+            match match_pattern part pattern with
+            | Refuted -> Refuted
+            | Undecided -> Undecided
+            | Bound more -> Bound (seen @ more)
+          end)
+      (Bound []) pairs
+  in
+  let rest_of items =
+    { O.Expr.typ = scrutinee.typ; expr = O.Expr.Expr_list items }
+  in
+  match (p.pattern, scrutinee.expr) with
+  | O.Pattern.P_T_anything, _ -> Bound []
+  | O.Pattern.P_T_var name, _ -> Bound [ (Data.Located.dummy name, scrutinee) ]
+  | O.Pattern.P_T_alias _, _ -> Undecided
+  | O.Pattern.P_T_unit, _ -> Bound []
+  | O.Pattern.P_T_ctor (name, subs), O.Expr.Expr_constr { name = found; arguments }
+    when List.length subs = List.length arguments ->
+      if Data.Name.equal name found then all (List.combine arguments subs) else Refuted
+  | O.Pattern.P_T_ctor (name, _), O.Expr.Expr_constr { name = found; _ } ->
+      if Data.Name.equal name found then Undecided else Refuted
+  | O.Pattern.P_T_tuple subs, O.Expr.Expr_tuple items
+    when List.length subs = List.length items ->
+      all (List.combine items subs)
+  | O.Pattern.P_T_int wanted, O.Expr.Expr_int found ->
+      if wanted = found then Bound [] else Refuted
+  | O.Pattern.P_T_str wanted, O.Expr.Expr_string found ->
+      if String.equal wanted found then Bound [] else Refuted
+  | O.Pattern.P_T_chr wanted, O.Expr.Expr_char found ->
+      if String.equal wanted found then Bound [] else Refuted
+  | O.Pattern.P_T_list subs, O.Expr.Expr_list items ->
+      if List.length subs = List.length items then all (List.combine items subs)
+      else Refuted
+  | O.Pattern.P_T_list [], O.Expr.Expr_cons _ -> Refuted
+  | O.Pattern.P_T_list (first :: rest), O.Expr.Expr_cons { head; tail } ->
+      all [ (head, first); (tail, { p with pattern = O.Pattern.P_T_list rest }) ]
+  | O.Pattern.P_T_cons (ph, pt), O.Expr.Expr_cons { head; tail } ->
+      all [ (head, ph); (tail, pt) ]
+  | O.Pattern.P_T_cons _, O.Expr.Expr_list [] -> Refuted
+  | O.Pattern.P_T_cons (ph, pt), O.Expr.Expr_list (first :: rest) ->
+      all [ (first, ph); (rest_of rest, pt) ]
+  | O.Pattern.P_T_record labels, O.Expr.Expr_record rows ->
+      let bind label =
+        List.find_opt
+          (fun (row : O.Expr.expr_record_row) ->
+            String.equal row.name label)
+          rows
+        |> Option.map (fun (row : O.Expr.expr_record_row) ->
+               (Data.Located.dummy label, row.value))
+      in
+      let bound = List.filter_map bind labels in
+      if List.length bound = List.length labels then Bound bound else Undecided
+  | ( ( O.Pattern.P_T_ctor _ | O.Pattern.P_T_tuple _ | O.Pattern.P_T_int _
+      | O.Pattern.P_T_str _ | O.Pattern.P_T_chr _ | O.Pattern.P_T_list _
+      | O.Pattern.P_T_cons _ | O.Pattern.P_T_record _ ),
+      _ ) ->
+      Undecided
+
+let cases_size (cases : O.Expr.expr_pattern_case list) : int =
+  List.fold_left
+    (fun total (case : O.Expr.expr_pattern_case) ->
+      total + pattern_branch_cost + expression_size case.expr)
+    0 cases
+
+let cases_free (cases : O.Expr.expr_pattern_case list) : Names.t =
+  List.fold_left
+    (fun found (case : O.Expr.expr_pattern_case) ->
+      Names.union found
+        (O.Expr.free_variables ~bound:(O.Pattern.bound case.pattern) case.expr))
+    Names.empty cases
+
+let bound_by_cases (cases : O.Expr.expr_pattern_case list) : Names.t =
+  List.fold_left
+    (fun found (case : O.Expr.expr_pattern_case) ->
+      Names.union found (O.Pattern.bound case.pattern))
+    Names.empty cases
+
+let settles (case : O.Expr.expr_pattern_case) : bool =
+  match case.expr.expr with
+  | O.Expr.Expr_constr _ | O.Expr.Expr_int _ | O.Expr.Expr_string _
+  | O.Expr.Expr_char _ | O.Expr.Expr_float _ | O.Expr.Expr_unit
+  | O.Expr.Expr_ident _ | O.Expr.Expr_tuple _ ->
+      true
+  | O.Expr.Expr_binop _ | O.Expr.Expr_let _ | O.Expr.Expr_if_then_else _
+  | O.Expr.Expr_record _ | O.Expr.Expr_record_update _ | O.Expr.Expr_apply _
+  | O.Expr.Expr_pattern _ | O.Expr.Expr_accessor _ | O.Expr.Expr_access _
+  | O.Expr.Expr_record_extend _ | O.Expr.Expr_record_select _
+  | O.Expr.Expr_record_empty | O.Expr.Expr_kernel _ | O.Expr.Expr_list _
+  | O.Expr.Expr_cons _ | O.Expr.Expr_lambda _ ->
+      false
+
+let rec reduce_known_matches (e : O.Expr.t) : O.Expr.t =
+  let e = O.Expr.map_children e ~f:reduce_known_matches in
+  match e.expr with
+  | O.Expr.Expr_pattern { expr = scrutinee; pattern_data_items } ->
+      let matched body =
+        reduce_known_matches
+          { e with expr = O.Expr.Expr_pattern { expr = body; pattern_data_items } }
+      in
+      let fallback () =
+        if is_pure scrutinee then pick_known e scrutinee pattern_data_items else e
+      in
+      begin
+        match scrutinee.expr with
+        | O.Expr.Expr_let { binding; body } ->
+            match_through_let e ~matched ~fallback binding body pattern_data_items
+        | O.Expr.Expr_if_then_else branches ->
+            match_through_if e ~matched ~fallback branches pattern_data_items
+        | O.Expr.Expr_pattern inner ->
+            match_through_match e ~matched ~fallback inner pattern_data_items
+        | _ -> fallback ()
+      end
+  | _ -> e
+
+and match_through_let e ~matched ~fallback (binding : O.Expr.expr_let_binding)
+    (body : O.Expr.t) cases =
+  let bound = Data.Name.local (Data.Located.unwrap binding.bind_body.name) in
+  if Names.mem bound (cases_free cases) then fallback ()
+  else { e with expr = O.Expr.Expr_let { binding; body = matched body } }
+
+and match_through_if e ~matched ~fallback
+    (branches : O.Expr.expr_if_then_else) cases =
+  if cases_size cases > inline_size_limit then fallback ()
+  else
+    {
+      e with
+      expr =
+        O.Expr.Expr_if_then_else
+          {
+            branches with
+            then_exp = matched branches.then_exp;
+            else_exp = matched branches.else_exp;
+          };
+    }
+
+and match_through_match e ~matched ~fallback (inner : O.Expr.expr_pattern) cases =
+  let cheap =
+    List.for_all settles inner.pattern_data_items
+    || cases_size cases <= inline_size_limit
+  in
+  let capture_free =
+    Names.disjoint (bound_by_cases inner.pattern_data_items) (cases_free cases)
+  in
+  if cheap && capture_free then
+    {
+      e with
+      expr =
+        O.Expr.Expr_pattern
+          {
+            expr = inner.expr;
+            pattern_data_items =
+              List.map
+                (fun (case : O.Expr.expr_pattern_case) ->
+                  { case with expr = matched case.expr })
+                inner.pattern_data_items;
+          };
+    }
+  else fallback ()
+
+and pick_known e (scrutinee : O.Expr.t) cases =
+  match cases with
+  | [] -> e
+  | (case : O.Expr.expr_pattern_case) :: rest -> begin
+      match match_pattern scrutinee case.pattern with
+      | Refuted -> pick_known e scrutinee rest
+      | Undecided -> e
+      | Bound bindings -> bind_arguments bindings case.expr
+    end
+
 let rec reduce_beta (e : O.Expr.t) : O.Expr.t =
   let reduce (lambda : O.Expr.t) ~params ~body ~arguments =
     let taken = Int.min (List.length params) (List.length arguments) in
@@ -784,6 +969,7 @@ let optimize ~(imports : Import.t list) (decls : T.Declaration.t list) :
           d.body
           |> inline_calls ~table ~bound
           |> reduce_beta
+          |> reduce_known_matches
           |> propagate_constants
           |> eliminate_dead_lets
         in

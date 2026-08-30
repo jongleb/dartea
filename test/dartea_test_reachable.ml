@@ -19,7 +19,7 @@ let expected =
     "fib 4/4 declarations, 719/719 bytes";
     "http 102/107 declarations, 19221/19527 bytes";
     "spa 120/125 declarations, 32579/32885 bytes";
-    "todomvc 157/157 declarations, 29373/29373 bytes";
+    "todomvc 157/157 declarations, 29679/29679 bytes";
   ]
 
 let test_playgrounds _ =
