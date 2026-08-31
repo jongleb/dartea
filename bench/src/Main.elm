@@ -2,7 +2,7 @@ module Main exposing (main)
 
 import Browser
 import Html exposing (Attribute, Html, a, button, div, h1, span, table, td, text, tr)
-import Html.Attributes exposing (attribute, class, classList, id, type_)
+import Html.Attributes exposing (attribute, class, id, type_)
 import Html.Events exposing (onClick)
 import Html.Keyed
 
@@ -75,23 +75,27 @@ viewButton ( buttonId, labelText, msg ) =
         ]
 
 
-viewKeyedRow : Int -> Row -> ( String, Html Msg )
-viewKeyedRow selectedId row =
-    ( String.fromInt row.id, viewRow (selectedId == row.id) row )
+viewRow : Int -> Row -> ( String, Html Msg )
+viewRow selectedId row =
+    ( String.fromInt row.id
+    , tr
+        [ class
+            (if selectedId == row.id then
+                "danger"
 
-
-viewRow : Bool -> Row -> Html Msg
-viewRow isSelected { id, label } =
-    tr
-        [ classList [ ( "danger", isSelected ) ] ]
-        [ td [ class "col-md-1" ] [ text (String.fromInt id) ]
-        , td [ class "col-md-4" ] [ a [ onClick (Select id) ] [ text label ] ]
+             else
+                ""
+            )
+        ]
+        [ td [ class "col-md-1" ] [ text (String.fromInt row.id) ]
+        , td [ class "col-md-4" ] [ a [ onClick (Select row.id) ] [ text row.label ] ]
         , td [ class "col-md-1" ]
-            [ a [ onClick (Remove id) ]
+            [ a [ onClick (Remove row.id) ]
                 [ span [ class "glyphicon glyphicon-remove", attribute "aria-hidden" "true" ] [] ]
             ]
         , td [ class "col-md-6" ] []
         ]
+    )
 
 
 view : Model -> Html Msg
@@ -104,7 +108,7 @@ view model =
                 ]
             ]
         , table [ class "table table-hover table-striped test-data" ]
-            [ Html.Keyed.node "tbody" [] (List.map (viewKeyedRow model.selectedId) model.rows) ]
+            [ Html.Keyed.node "tbody" [] (List.map (viewRow model.selectedId) model.rows) ]
         , span [ class "preloadicon glyphicon glyphicon-remove", attribute "aria-hidden" "true" ] []
         ]
 

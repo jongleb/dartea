@@ -499,3 +499,42 @@ let rec forms (e : Expr.t) : (t * hole list) list =
   match of_expression e with
   | Some found -> [ found ]
   | None -> List.concat_map forms (Expr.children e)
+
+module Selector = struct
+  type t = { outer : Data.Name.t; item : Data.Name.t; field : string }
+
+  let equality (e : Expr.t) =
+    match e.expr with
+    | Expr.Expr_binop { name = Data.Operator.Equal; operands = one, other } -> Some (one, other)
+    | _ -> begin
+        match Expr.spine e with
+        | { expr = Expr.Expr_ident name; _ }, [ one; other ]
+          when String.equal (Data.Name.base name) (Data.Operator.lexeme Data.Operator.Equal) ->
+            Some (one, other)
+        | _, _ -> None
+      end
+
+  let named (side : Expr.t) =
+    match side.expr with Expr.Expr_ident name -> Some name | _ -> None
+
+  let read (side : Expr.t) =
+    match side.expr with
+    | Expr.Expr_access { expr = { expr = Expr.Expr_ident name; _ }; field } ->
+        Some (name, Data.Located.unwrap field)
+    | _ -> None
+
+  let of_test (e : Expr.t) =
+    match equality e with
+    | None -> None
+    | Some (one, other) -> begin
+        match (named one, read other, read one, named other) with
+        | Some outer, Some (item, field), _, _ -> Some { outer; item; field }
+        | _, _, Some (item, field), Some outer -> Some { outer; item; field }
+        | _, _, _, _ -> None
+      end
+
+  let of_hole (hole : hole) =
+    match (hole.kind, hole.value.expr) with
+    | (Text | Attribute | Slot _), Expr.Expr_if_then_else { if_exp; _ } -> of_test if_exp
+    | (Text | Attribute | Slot _ | Event _ | Children _ | Rows _ | Subtree), _ -> None
+end

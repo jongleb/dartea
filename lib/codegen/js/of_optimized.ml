@@ -696,6 +696,13 @@ let decl_stmts env (decl : O.Declaration.t) : J.stmt list =
           params
       in
       let env, param_names = Env.bind_params env names in
+      let env =
+        {
+          env with
+          Env.home =
+            Some (Data.Name.local (Data.Located.unwrap decl.name), param_names);
+        }
+      in
       let tc =
         {
           fn = Data.Name.local (Data.Located.unwrap decl.name);
@@ -749,7 +756,7 @@ let prepare ~blocks ~arities ~constructors ~siblings ~typedecls decls =
     decls;
   List.iter (fun (name, sibs) -> Names.note_siblings names name sibs) siblings;
   let forms = if blocks then Some (Forms.create ()) else None in
-  { Env.scope = Scope.empty; names; instances = Instances.create typedecls; forms }
+  { Env.scope = Scope.empty; names; instances = Instances.create typedecls; forms; home = None }
 
 let program_with_helpers ~blocks ~arities ~constructors ~built ~siblings
     ~typedecls ~exports (decls : O.Declaration.t list) : J.program =

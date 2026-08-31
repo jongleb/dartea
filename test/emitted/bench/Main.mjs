@@ -65,8 +65,9 @@ const $$r1 = ($$b, $$put, $$a) => {
   $$put($$b, 3, Update);
   $$put($$b, 4, Clear);
   $$put($$b, 5, Swap);
-  $$put($$b, 6, [viewRow, [model$2.selected], model$2.rows]);
+  $$put($$b, 6, [viewRow, [model$2.selected], model$2.rows, $$aim0]);
 };
+const $$aim0 = [{ hole: 0, at: 0, get: $$i => $$i.id }];
 const adjectives = { hd: "pretty", tl: { hd: "large", tl: { hd: "big", tl: { hd: "small", tl: { hd: "tall", tl: { hd: "short", tl: { hd: "long", tl: { hd: "handsome", tl: { hd: "plain", tl: { hd: "quaint", tl: { hd: "clean", tl: { hd: "elegant", tl: { hd: "easy", tl: { hd: "angry", tl: { hd: "crazy", tl: { hd: "helpful", tl: { hd: "mushy", tl: { hd: "odd", tl: { hd: "unsightly", tl: { hd: "adorable", tl: { hd: "important", tl: { hd: "inexpensive", tl: { hd: "cheap", tl: { hd: "expensive", tl: { hd: "fancy", tl: 0 } } } } } } } } } } } } } } } } } } } } } } } } };
 const colours = { hd: "red", tl: { hd: "yellow", tl: { hd: "blue", tl: { hd: "green", tl: { hd: "pink", tl: { hd: "brown", tl: { hd: "purple", tl: { hd: "brown", tl: { hd: "white", tl: { hd: "black", tl: { hd: "orange", tl: 0 } } } } } } } } } } };
 const nouns = { hd: "table", tl: { hd: "chair", tl: { hd: "house", tl: { hd: "bbq", tl: { hd: "desk", tl: { hd: "car", tl: { hd: "pony", tl: { hd: "cookie", tl: { hd: "sandwich", tl: { hd: "burger", tl: { hd: "pizza", tl: { hd: "mouse", tl: { hd: "keyboard", tl: 0 } } } } } } } } } } } } };

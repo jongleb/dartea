@@ -238,6 +238,61 @@ let test_a_let_bound_loop_runs_in_constant_stack _ =
   assert_equal ~printer:Fun.id "200000"
     (printed_by ~program:deep_loop_program ~stub:deep_loop_stub)
 
+let aimed_rows_program =
+  {|module Main exposing (main)
+
+import Browser
+import Html exposing (Html, button, div, li, text, ul)
+import Html.Events exposing (onClick)
+
+
+type Msg
+    = Pick Int
+
+
+viewRow : Int -> Int -> Html Msg
+viewRow selected id =
+    li []
+        [ text
+            (if selected == id then
+                "on"
+
+             else
+                "off"
+            )
+        ]
+
+
+view : Int -> Html Msg
+view model =
+    div []
+        [ button [ onClick (Pick 3) ] []
+        , ul [] (List.map (viewRow model) (List.range 1 5))
+        ]
+
+
+main : Program () Int Msg
+main =
+    Browser.sandbox { init = 1, update = \(Pick id) _ -> id, view = view }
+|}
+
+let aimed_rows_stub =
+  Sample.dom
+  ^ {|const host = await mounted();
+const texts = (node) =>
+  node.tag === undefined ? node.text : node.childNodes.map(texts).join("");
+const list = found(host, "ul");
+const before = texts(list);
+written = 0;
+fired(found(host, "button"), "click");
+await new Promise((settle) => setTimeout(settle));
+console.log(before + " -> " + texts(list) + " writes " + written);
+|}
+
+let test_a_selection_touches_two_rows _ =
+  assert_equal ~printer:Fun.id "onoffoffoffoff -> offoffonoffoff writes 2"
+    (printed_by ~program:aimed_rows_program ~stub:aimed_rows_stub)
+
 let suite =
   [
     "esm_folder_is_one_file_per_module"
@@ -257,6 +312,7 @@ let suite =
     "the_real_todomvc_runs" >:: test_the_real_todomvc_runs;
     "a_let_bound_loop_runs_in_constant_stack"
     >:: test_a_let_bound_loop_runs_in_constant_stack;
+    "a_selection_touches_two_rows" >:: test_a_selection_touches_two_rows;
     "lazy_skips_an_unchanged_subtree" >:: test_lazy_skips_an_unchanged_subtree;
     "a_mapped_subtree_survives_being_replaced"
     >:: test_a_mapped_subtree_survives_being_replaced;

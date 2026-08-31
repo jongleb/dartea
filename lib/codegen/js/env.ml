@@ -6,6 +6,7 @@ type t = {
   names : Names.t;
   instances : Instances.t;
   forms : Forms.t option;
+  home : (Data.Name.t * string list) option;
 }
 
 

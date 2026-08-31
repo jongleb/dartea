@@ -21,6 +21,8 @@ module Key = struct
     | Refresh [@rename "refresh"]
     | Args [@rename "args"]
     | Find [@rename "find"]
+    | At [@rename "at"]
+    | Get [@rename "get"]
   [@@deriving to_string]
 end
 
@@ -49,9 +51,23 @@ end
 let field key value = J.Field (Key.to_string key, value)
 
 type shape = { form : Blocks.t; holes : (int list * Blocks.hole_kind) list }
-type t = { mutable known : (string * shape) list; mutable refreshers : (string * J.expr) list }
+type t = {
+  mutable known : (string * shape) list;
+  mutable refreshers : (string * J.expr) list;
+  mutable aim_consts : (string * J.expr) list;
+  mutable aims : (Data.Name.t * string) list;
+}
 
-let create () = { known = []; refreshers = [] }
+let create () = { known = []; refreshers = []; aim_consts = []; aims = [] }
+
+let aim table ~fn array =
+  let name = Runtime.aim (List.length table.aim_consts) in
+  table.aim_consts <- (name, array) :: table.aim_consts;
+  table.aims <- (fn, name) :: table.aims
+
+let aim_for table fn =
+  List.find_opt (fun (name, _) -> Data.Name.equal name fn) table.aims
+  |> Option.map snd
 
 let refresher table arrow =
   let name = Runtime.refresher (List.length table.refreshers) in
@@ -155,3 +171,4 @@ let declarations table =
   List.rev_map (fun (name, shape) -> J.ConstDecl { name; init = expression shape }) table.known
   @ shared
   @ List.rev_map (fun (name, arrow) -> J.ConstDecl { name; init = arrow }) table.refreshers
+  @ List.rev_map (fun (name, array) -> J.ConstDecl { name; init = array }) table.aim_consts

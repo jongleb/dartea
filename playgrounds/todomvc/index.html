@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>dartea • TodoMVC</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <script src="build/app.js"></script>
+    <script>
+      const stored = localStorage.getItem("todos-dartea");
+      let app;
+      try {
+        app = Dartea.Main.init({ flags: stored ? JSON.parse(stored) : null });
+      } catch (refused) {
+        localStorage.removeItem("todos-dartea");
+        app = Dartea.Main.init({ flags: null });
+      }
+      app.ports.setStorage.subscribe((state) => {
+        localStorage.setItem("todos-dartea", JSON.stringify(state));
+      });
+    </script>
+  </body>
+</html>
