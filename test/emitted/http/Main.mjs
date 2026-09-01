@@ -9,10 +9,9 @@ import * as $$String from "./String.mjs";
 const Fetch = "Fetch";
 const Got = _0 => ({ TAG: "Got", _0: _0 });
 const Posted = _0 => ({ TAG: "Posted", _0: _0 });
-const $$form0 = { tag: "div", attributes: [], children: [{ tag: "p", attributes: [{ key: "id", value: "greeting", way: "property" }], children: [{ hole: 0 }] }, { tag: "p", attributes: [{ key: "id", value: "answer", way: "property" }], children: [{ hole: 1 }] }, { tag: "p", attributes: [{ key: "id", value: "failure", way: "property" }], children: [{ hole: 2 }] }, { tag: "button", attributes: [], children: [{ text: "double" }] }], holes: [{ path: [0, 0], find: $$e => $$e.firstChild.firstChild, kind: "text" }, { path: [1, 0], find: $$e => $$e.firstChild.nextSibling.firstChild, kind: "text" }, { path: [2, 0], find: $$e => $$e.firstChild.nextSibling.nextSibling.firstChild, kind: "text" }, { path: [3], find: $$e => $$e.firstChild.nextSibling.nextSibling.nextSibling, kind: "event", event: "click", plain: true }] };
-const $$noargs = [];
-const $$r0 = ($$b, $$put, $$a) => {
-  const model$1 = $$a[0];
+const $$form0 = { tag: "div", attributes: [], children: [{ tag: "p", attributes: [{ key: "id", value: "greeting", way: "property" }], children: [{ hole: 0 }] }, { tag: "p", attributes: [{ key: "id", value: "answer", way: "property" }], children: [{ hole: 1 }] }, { tag: "p", attributes: [{ key: "id", value: "failure", way: "property" }], children: [{ hole: 2 }] }, { tag: "button", attributes: [], children: [{ text: "double" }] }], holes: [{ path: [0, 0], find: $$e => $$e.firstChild.firstChild, kind: "text" }, { path: [1, 0], find: $$e => $$e.firstChild.nextSibling.firstChild, kind: "text" }, { path: [2, 0], find: $$e => $$e.firstChild.nextSibling.nextSibling.firstChild, kind: "text" }, { path: [3], find: $$e => $$e.firstChild.nextSibling.nextSibling.nextSibling, kind: "event", event: "click", plain: true }], guards: 0 };
+const $$r0 = ($$b, $$put, $$v) => {
+  const model$1 = $$v.a0;
   $$put($$b, 0, model$1.greeting);
   $$put($$b, 1, model$1.answer);
   $$put($$b, 2, model$1.failure);
@@ -66,7 +65,7 @@ const update = (msg, model) => {
     }
   }
 };
-const view = model$1 => ({ TAG: "block", form: $$form0, refresh: $$r0, args: [model$1] });
+const view = model$1 => ({ TAG: "block", form: $$form0, refresh: $$r0, a0: model$1 });
 const main = Browser.element({ init: init, view: view, update: update, subscriptions: $p0$1 => Platform$Sub.none });
 const Model = ($a0, $a1, $a2) => ({ greeting: $a0, answer: $a1, failure: $a2 });
 export { Fetch, Got, Model, Posted, main };

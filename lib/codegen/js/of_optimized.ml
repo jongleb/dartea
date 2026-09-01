@@ -6,6 +6,7 @@ module DS = After_typed.Exhaustive.Share
 module Scope = Data.Name.Map
 
 type env = Env.t
+type arity = Lower.arity = Exactly of int | At_least of int
 
 let runtime_module_name = Names.runtime_module
 let module_ident = Names.module_ident
@@ -34,111 +35,6 @@ let rec list_to_cons_cells = function
   | [] -> J.int 0
   | hd :: tl ->
       J.Object [ J.Field (Runtime.head, hd); J.Field (Runtime.tail, list_to_cons_cells tl) ]
-
-let needs_temp_var = function
-  | J.Identifier _ | J.Literal _ -> false
-  | J.Binary _ | J.Unary _ | J.Call _ | J.New _ | J.Function _ | J.Arrow _
-  | J.Member _ | J.Conditional _ | J.Object _ | J.Array _ | J.Assignment _ ->
-      true
-
-let shared_operand env expression =
-  if needs_temp_var expression then
-    let name = Env.temp env in
-    ([ J.ConstDecl { name; init = expression } ], J.Identifier name)
-  else ([], expression)
-
-let shared_operands env ~when_duplicated left right =
-  if when_duplicated then
-    let left_bindings, left = shared_operand env left in
-    let right_bindings, right = shared_operand env right in
-    (left_bindings @ right_bindings, left, right)
-  else ([], left, right)
-
-let lower_binary env ~(operand : O.Type.t) (operator : Data.Operator.t) left
-    right : J.stmt list * J.expr =
-  let bindings, left, right =
-    shared_operands env
-      ~when_duplicated:
-        (Instances.reads_operands_twice env.Env.instances operand operator)
-      left right
-  in
-  (bindings, Instances.lower env.Env.instances ~operand operator left right)
-
-let lower_method env (method_ : Data.Method.t) ~operand left right =
-  let bindings, left, right =
-    shared_operands env ~when_duplicated:true left right
-  in
-  let pick test =
-    J.Conditional { test; consequent = left; alternate = right }
-  in
-  let extreme operator =
-    Instances.ordering_of env.Env.instances ~budget:Instances.expansion_budget
-      ~operator operand left right
-  in
-  match method_ with
-  | Minimum -> (bindings, pick (extreme J.LessThan))
-  | Maximum -> (bindings, pick (extreme J.GreaterThan))
-  | Compare ->
-      let name = Env.temp env in
-      let sign = J.Identifier name in
-      let result = Data.Method.ordering_result in
-      let nullary ctor = Names.constructor_to_object env.Env.names ctor [] in
-      ( bindings
-        @ [
-            J.ConstDecl
-              {
-                name;
-                init = Instances.three_way_of env.Env.instances operand left right;
-              };
-          ],
-        J.Conditional
-          {
-            test = J.binary J.LessThan sign (J.int 0);
-            consequent = nullary result.less;
-            alternate =
-              J.Conditional
-                {
-                  test = J.binary J.StrictEqual sign (J.int 0);
-                  consequent = nullary result.equal;
-                  alternate = nullary result.greater;
-                };
-          } )
-
-let lower_full_call env name ~operand =
-  if Scope.mem name env.Env.scope then None
-  else
-    match Data.Operator.referred_to_by name with
-    | Some operator -> Some (lower_binary env ~operand operator)
-    | None ->
-        Option.map
-          (fun method_ -> lower_method env method_ ~operand)
-          (Data.Method.referred_to_by name)
-
-
-let curry_call f args =
-  let count = List.length args in
-  if count >= 1 && count <= Runtime.widest_apply then
-    J.call (Names.apply_reference count) (f :: args)
-  else J.call Names.curry_reference [ f; J.Array args ]
-
-let split_at n lst =
-  let rec go i acc = function
-    | rest when i = 0 -> (List.rev acc, rest)
-    | x :: rest -> go (i - 1) (x :: acc) rest
-    | [] -> (List.rev acc, [])
-  in
-  go n [] lst
-
-
-type arity = O.Type.arity = Exactly of int | At_least of int
-
-let arity_of_type = O.Type.arity
-
-let closure_partial env callee args missing =
-  let rparams = List.init missing (fun _ -> Env.temp env) in
-  let rargs = List.map (fun p -> J.Identifier p) rparams in
-  J.Arrow
-    { params = rparams; body = J.ArrowExpr (J.call callee (args @ rargs)) }
 
 let fold_emit (f : 'a -> J.stmt list * 'b) (items : 'a list) :
     J.stmt list * 'b list =
@@ -171,7 +67,7 @@ let rec emit_value env (e : O.Expr.t) : J.stmt list * J.expr =
   let statements, expression = emit_raw env e in
   ( statements,
     coerce env expression
-      ~expected:(arity_of_type e.O.Expr.typ)
+      ~expected:(Lower.arity_of_type e.O.Expr.typ)
       ~actual:(emitted_arity env e) )
 
 and coerce env expression ~expected ~actual =
@@ -181,12 +77,12 @@ and coerce env expression ~expected ~actual =
       let params = List.init wanted (fun _ -> Env.temp env) in
       let arguments = List.map (fun p -> J.Identifier p) params in
       let call_in_two_steps () =
-        let first, extra = split_at given arguments in
+        let first, extra = Lower.split_at given arguments in
         J.call (J.call expression first) extra
       in
       let body =
         if given < wanted then call_in_two_steps ()
-        else closure_partial env expression arguments (given - wanted)
+        else Lower.closure_partial env expression arguments (given - wanted)
       in
       J.Arrow { params; body = J.ArrowExpr body }
   | (Exactly _ | At_least _), (Exactly _ | At_least _) -> expression
@@ -201,7 +97,7 @@ and emitted_arity env (e : O.Expr.t) : arity =
       begin
         match Env.declared_arity env name with
         | Some n when n > given_count -> Exactly (n - given_count)
-        | Some _ | None -> arity_of_type e.typ
+        | Some _ | None -> Lower.arity_of_type e.typ
       end
   | O.Expr.Expr_ident _ -> callee_arity env e
   | O.Expr.Expr_apply { fn; _ } when is_record_construction fn -> Exactly 0
@@ -211,7 +107,7 @@ and emitted_arity env (e : O.Expr.t) : arity =
       begin
         match callee_arity env callee with
         | Exactly n when n > given_count -> Exactly (n - given_count)
-        | Exactly n when n >= 1 -> arity_of_type e.typ
+        | Exactly n when n >= 1 -> Lower.arity_of_type e.typ
         | Exactly _ | At_least _ -> At_least 0
       end
   | O.Expr.Expr_binop _ | O.Expr.Expr_let _ | O.Expr.Expr_if_then_else _
@@ -222,11 +118,11 @@ and emitted_arity env (e : O.Expr.t) : arity =
   | O.Expr.Expr_kernel _ | O.Expr.Expr_char _ | O.Expr.Expr_string _
   | O.Expr.Expr_int _ | O.Expr.Expr_float _ | O.Expr.Expr_list _
   | O.Expr.Expr_cons _ | O.Expr.Expr_tuple _ ->
-      arity_of_type e.typ
+      Lower.arity_of_type e.typ
 
 and callee_arity env (callee : O.Expr.t) : arity =
   Option.bind (O.Expr.ident_of callee) (Env.declared_arity env)
-  |> Option.fold ~none:(arity_of_type callee.typ) ~some:(fun n -> Exactly n)
+  |> Option.fold ~none:(Lower.arity_of_type callee.typ) ~some:(fun n -> Exactly n)
 
 and emit_raw env (e : O.Expr.t) : J.stmt list * J.expr =
   match e.expr with
@@ -258,7 +154,7 @@ and emit_raw env (e : O.Expr.t) : J.stmt list * J.expr =
       let sa, ea = emit_value env a in
       let sb, eb = emit_value env b in
       let bindings, lowered =
-        lower_binary env ~operand:a.O.Expr.typ name ea eb
+        Lower.lower_binary env ~operand:a.O.Expr.typ name ea eb
       in
       (sa @ sb @ bindings, lowered)
   | O.Expr.Expr_constr { name; arguments } ->
@@ -377,7 +273,7 @@ and emit_record_update env typ (record : O.Expr.t) (fields : O.Expr.expr_record_
 
 and emit_scrutinee env (expr : O.Expr.t) : J.stmt list * J.expr * J.stmt list =
   let s, e = emit_value env expr in
-  if needs_temp_var e then
+  if Lower.needs_temp_var e then
     let t = Env.temp env in
     (s, J.Identifier t, [ J.ConstDecl { name = t; init = e } ])
   else (s, e, [])
@@ -397,95 +293,109 @@ and emit_port_outgoing env kernel port_name (payload : O.Expr.t) =
   in
   (sn @ sp, J.call (Of_kernel.value kernel) [ en; ep ])
 
+and port_where (port_name : O.Expr.t) =
+  match port_name.O.Expr.expr with
+  | O.Expr.Expr_string name -> Runtime.port_where name
+  | _ -> Runtime.port_label
+
 and emit_port_incoming env kernel (port_name : O.Expr.t) (tagger : O.Expr.t) =
   let sn, en = emit_value env port_name in
   let st, et = emit_value env tagger in
-  let decoded decode =
-    let where =
-      match port_name.O.Expr.expr with
-      | O.Expr.Expr_string name -> Runtime.port_where name
-      | _ -> Runtime.port_label
-    in
-    J.Arrow
-      {
-        params = [ Runtime.raw ];
-        body =
-          J.ArrowExpr
-            (J.call et [ J.call decode [ J.Identifier Runtime.raw; J.string where ] ]);
-      }
+  let checked =
+    match O.Type.head tagger.O.Expr.typ with
+    | O.Type.TFun (inside, _) -> Result.to_option (Flags.decoder inside)
+    | _ -> None
   in
   let et =
-    match O.Type.head tagger.O.Expr.typ with
-    | O.Type.TFun (inside, _) -> begin
-        match Flags.decoder inside with
-        | Ok decode -> decoded decode
-        | Error _ -> et
-      end
-    | _ -> et
+    match checked with
+    | None -> et
+    | Some decode ->
+        let raw = J.Identifier Runtime.raw in
+        let where = J.string (port_where port_name) in
+        J.Arrow
+          {
+            params = [ Runtime.raw ];
+            body = J.ArrowExpr (J.call et [ J.call decode [ raw; where ] ]);
+          }
   in
   (sn @ st, J.call (Of_kernel.value kernel) [ en; et ])
+
+and emit_operator env callee (args : O.Expr.t list) =
+  match args with
+  | [ left; right ] ->
+      let lowered =
+        Option.bind (O.Expr.ident_of callee) (fun name ->
+            Lower.lower_full_call env name ~operand:left.O.Expr.typ)
+      in
+      Option.map
+        (fun lower ->
+          let sa, ea = emit_value env left in
+          let sb, eb = emit_value env right in
+          let bindings, made = lower ea eb in
+          (sa @ sb @ bindings, made))
+        lowered
+  | _ -> None
+
+and port_call (callee : O.Expr.t) args =
+  match (callee.expr, args) with
+  | ( O.Expr.Expr_kernel (Kernel_value (Data.Kernel.Platform platform as kernel)),
+      [ port_name; carried ] ) ->
+      let directed direction =
+        if port_kernel platform direction then Some (direction, kernel, port_name, carried)
+        else None
+      in
+      begin
+        match directed Data.Kernel.Port.Outgoing with
+        | Some found -> Some found
+        | None -> directed Data.Kernel.Port.Incoming
+      end
+  | _, _ -> None
 
 and emit_apply env fn arg =
   if is_record_construction fn then emit_record_apply env fn arg
   else
     let callee, args = applied_spine ~fn ~arg in
-    let saturated_operator =
-      match args with
-      | [ left; right ] ->
-          let lower_op op =
-            lower_full_call env op ~operand:left.O.Expr.typ
-          in
-          Option.bind (O.Expr.ident_of callee) lower_op
-          |> Option.map (fun lower -> (lower, left, right))
-      | _ -> None
-    in
-    match saturated_operator with
-    | Some (lower, left, right) ->
-        let sa, ea = emit_value env left in
-        let sb, eb = emit_value env right in
-        let bindings, lowered = lower ea eb in
-        (sa @ sb @ bindings, lowered)
+    match emit_operator env callee args with
+    | Some found -> found
     | None -> begin
-        match (callee.expr, args) with
-        | ( O.Expr.Expr_kernel
-              (Kernel_value (Data.Kernel.Platform platform as kernel)),
-            [ port_name; payload ] )
-          when port_kernel platform Data.Kernel.Port.Outgoing ->
+        match port_call callee args with
+        | Some (Data.Kernel.Port.Outgoing, kernel, port_name, payload) ->
             emit_port_outgoing env kernel port_name payload
-        | ( O.Expr.Expr_kernel
-              (Kernel_value (Data.Kernel.Platform platform as kernel)),
-            [ port_name; tagger ] )
-          when port_kernel platform Data.Kernel.Port.Incoming ->
+        | Some (Data.Kernel.Port.Incoming, kernel, port_name, tagger) ->
             emit_port_incoming env kernel port_name tagger
-        | O.Expr.Expr_kernel (Kernel_value kernel), _ ->
-            let arity = Data.Kernel.arity kernel in
-            emit_known_call env (Of_kernel.value kernel) ~arity
-              ~result_type:
-                (O.Type.result_after ~applied:arity callee.O.Expr.typ)
-              args
-        | O.Expr.Expr_ident name, _ -> begin
-            match Env.declared_arity env name with
-            | Some n when n >= 1 ->
-                emit_known_call env (Env.jid_env env name) ~arity:n
-                  ~result_type:
-                    (O.Type.result_after ~applied:n callee.O.Expr.typ)
-                  args
-            | Some _ | None -> emit_generic env callee args
-          end
-        | ( ( O.Expr.Expr_constr _ | O.Expr.Expr_binop _ | O.Expr.Expr_let _
-            | O.Expr.Expr_if_then_else _ | O.Expr.Expr_record _
-            | O.Expr.Expr_record_update _ | O.Expr.Expr_apply _
-            | O.Expr.Expr_pattern _ | O.Expr.Expr_accessor _
-            | O.Expr.Expr_access _ | O.Expr.Expr_record_extend _
-            | O.Expr.Expr_record_select _ | O.Expr.Expr_record_empty
-            | O.Expr.Expr_unit
-            | O.Expr.Expr_kernel (Kernel_unary _ | Kernel_binary _)
-            | O.Expr.Expr_lambda _ | O.Expr.Expr_char _ | O.Expr.Expr_string _
-            | O.Expr.Expr_int _ | O.Expr.Expr_float _ | O.Expr.Expr_list _
-            | O.Expr.Expr_cons _ | O.Expr.Expr_tuple _ ),
-            _ ) ->
-            emit_generic env callee args
+        | None -> emit_call env callee args
       end
+
+and emit_call env (callee : O.Expr.t) args =
+  match (callee.expr, args) with
+  | O.Expr.Expr_kernel (Kernel_value kernel), _ ->
+      let arity = Data.Kernel.arity kernel in
+      emit_known_call env (Of_kernel.value kernel) ~arity
+        ~result_type:
+          (O.Type.result_after ~applied:arity callee.O.Expr.typ)
+        args
+  | O.Expr.Expr_ident name, _ -> begin
+      match Env.declared_arity env name with
+      | Some n when n >= 1 ->
+          emit_known_call env (Env.jid_env env name) ~arity:n
+            ~result_type:
+              (O.Type.result_after ~applied:n callee.O.Expr.typ)
+            args
+      | Some _ | None -> emit_generic env callee args
+    end
+  | ( ( O.Expr.Expr_constr _ | O.Expr.Expr_binop _ | O.Expr.Expr_let _
+      | O.Expr.Expr_if_then_else _ | O.Expr.Expr_record _
+      | O.Expr.Expr_record_update _ | O.Expr.Expr_apply _
+      | O.Expr.Expr_pattern _ | O.Expr.Expr_accessor _
+      | O.Expr.Expr_access _ | O.Expr.Expr_record_extend _
+      | O.Expr.Expr_record_select _ | O.Expr.Expr_record_empty
+      | O.Expr.Expr_unit
+      | O.Expr.Expr_kernel (Kernel_unary _ | Kernel_binary _)
+      | O.Expr.Expr_lambda _ | O.Expr.Expr_char _ | O.Expr.Expr_string _
+      | O.Expr.Expr_int _ | O.Expr.Expr_float _ | O.Expr.Expr_list _
+      | O.Expr.Expr_cons _ | O.Expr.Expr_tuple _ ),
+      _ ) ->
+      emit_generic env callee args
 
 and emit_known_call env callee ~arity ~result_type args =
   let statements, arguments = emit_values env args in
@@ -495,24 +405,24 @@ and apply env callee ~arity ~result_type ~statements ~arguments =
   let given_count = List.length arguments in
   if given_count = arity then (statements, J.call callee arguments)
   else if given_count < arity then
-    (statements, closure_partial env callee arguments (arity - given_count))
+    (statements, Lower.closure_partial env callee arguments (arity - given_count))
   else
-    let first, extra = split_at arity arguments in
+    let first, extra = Lower.split_at arity arguments in
     let head_call = J.call callee first in
-    match arity_of_type result_type with
+    match Lower.arity_of_type result_type with
     | Exactly n when n >= 1 ->
         apply env head_call ~arity:n
           ~result_type:(O.Type.result_after ~applied:n result_type)
           ~statements ~arguments:extra
-    | Exactly _ | At_least _ -> (statements, curry_call head_call extra)
+    | Exactly _ | At_least _ -> (statements, Lower.curry_call head_call extra)
 
 and emit_generic env callee args =
   let sc, ec = emit_value env callee in
   let ss, es = emit_values env args in
-  match arity_of_type callee.O.Expr.typ with
+  match Lower.arity_of_type callee.O.Expr.typ with
   | Exactly arity when arity >= 1 ->
       let bound, target =
-        if List.length es < arity && needs_temp_var ec then
+        if List.length es < arity && Lower.needs_temp_var ec then
           let t = Env.temp env in
           ([ J.ConstDecl { name = t; init = ec } ], J.Identifier t)
         else ([], ec)
@@ -523,7 +433,7 @@ and emit_generic env callee args =
           ~statements:ss ~arguments:es
       in
       (sc @ bound @ statements, expression)
-  | Exactly _ | At_least _ -> (sc @ ss, curry_call ec es)
+  | Exactly _ | At_least _ -> (sc @ ss, Lower.curry_call ec es)
 
 and emit_record_apply env fn arg =
   let apply_expr =

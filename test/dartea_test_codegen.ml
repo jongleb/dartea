@@ -2431,6 +2431,59 @@ swapped = Tuple.second (Tuple.pair 1 "a")
   assert_bool "Tuple.pair no longer needs a kernel primitive"
     (not (contains ~needle:"Kernel" (module_source ~name:"Tuple" src)))
 
+let test_selection_rows_carry_aims _ =
+  let src =
+    {|
+type alias Row =
+    { id : Int
+    , label : String
+    }
+
+
+type Msg
+    = Pick Int
+
+
+viewRow : Int -> Row -> Html.Html Msg
+viewRow selected row =
+    Html.li [ Html.Attributes.classList [ ( "on", selected == row.id ) ] ]
+        [ Html.text row.label ]
+
+
+view : Int -> Html.Html Msg
+view model =
+    Html.ul [] (List.map (viewRow model) [ { id = 1, label = "a" }, { id = 2, label = "b" } ])
+|}
+  in
+  let js = main_source ("import Html\nimport Html.Attributes\n" ^ src) in
+  assert_bool "a selection idiom hands the rows hole its aims"
+    (contains ~needle:"get: $$i => $$i.id" js);
+  assert_bool "the rows value carries the aims" (contains ~needle:", $$aim0]" js)
+
+let test_a_hole_watches_every_field_it_reads _ =
+  let src =
+    {|
+type alias Model =
+    { name : String
+    , count : Int
+    , note : String
+    }
+
+
+view : Model -> Html.Html msg
+view model =
+    Html.div []
+        [ Html.p [] [ Html.text model.note ]
+        , Html.p [] [ Html.text (model.name ++ String.fromInt model.count) ]
+        ]
+|}
+  in
+  let js = main_source ("import Html\n" ^ src) in
+  assert_bool "a hole reading two fields watches both"
+    (contains ~needle:"(($$b.deps[0] !== model.name) || ($$b.deps[1] !== model.count))" js);
+  assert_bool "a hole that is itself a field needs no watch"
+    (contains ~needle:"$$put($$b, 0, model.note);" js)
+
 let test_record_update _ =
   let src =
     {|
@@ -3507,6 +3560,8 @@ let suite =
     "a_polymorphic_definition_still_uses_the_runtime"
     >:: test_a_polymorphic_definition_still_uses_the_runtime;
     "record_update" >:: test_record_update;
+    "selection_rows_carry_aims" >:: test_selection_rows_carry_aims;
+    "a_hole_watches_every_field_it_reads" >:: test_a_hole_watches_every_field_it_reads;
     "record_update_keeps_the_record_type"
     >:: test_record_update_keeps_the_record_type;
     "wildcard_and_unit_parameters" >:: test_wildcard_and_unit_parameters;

@@ -58,6 +58,8 @@ let unary_operation (kernel : Data.Kernel.unary) (subject : J.expr) : J.expr =
   | Char_from_code -> runtime Runtime.char_from_code [ subject ]
   | Char_to_upper -> method_call subject "toUpperCase" []
   | Char_to_lower -> method_call subject "toLowerCase" []
+  | List_reverse -> runtime Runtime.list_reverse [ subject ]
+  | List_length -> runtime Runtime.list_length [ subject ]
 
 let binary_operation (kernel : Data.Kernel.binary) (left : J.expr)
     (right : J.expr) : J.expr =
@@ -68,6 +70,8 @@ let binary_operation (kernel : Data.Kernel.binary) (left : J.expr)
       method_call right "slice" [ J.Literal (J.Int 0); left ]
   | String_drop_left -> method_call right "slice" [ left ]
   | Utils_compare -> runtime Runtime.compare [ left; right ]
+  | List_map -> runtime Runtime.list_map [ left; right ]
+  | List_filter -> runtime Runtime.list_filter [ left; right ]
   | Basics_mod_by -> runtime Runtime.mod_by [ left; right ]
   | Basics_remainder_by -> binary right J.Modulo left
   | Basics_atan2 -> math "atan2" [ left; right ]

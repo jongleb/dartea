@@ -27,45 +27,40 @@ const $append$List = (xs, ys) => {
   }
   return root;
 };
-const $$form0 = { tag: "tr", attributes: [], children: [{ tag: "td", attributes: [{ key: "className", value: "col-md-1", way: "property" }], children: [{ hole: 1 }] }, { tag: "td", attributes: [{ key: "className", value: "col-md-4", way: "property" }], children: [{ tag: "a", attributes: [], children: [{ hole: 3 }] }] }, { tag: "td", attributes: [{ key: "className", value: "col-md-1", way: "property" }], children: [{ tag: "button", attributes: [{ key: "className", value: "remove", way: "property" }], children: [{ text: "x" }] }] }, { tag: "td", attributes: [{ key: "className", value: "col-md-6", way: "property" }], children: [] }], holes: [{ path: [], find: $$e => $$e, kind: "slot", key: "className", way: "property" }, { path: [0, 0], find: $$e => $$e.firstChild.firstChild, kind: "text" }, { path: [1, 0], find: $$e => $$e.firstChild.nextSibling.firstChild, kind: "event", event: "click", plain: true }, { path: [1, 0, 0], find: $$e => $$e.firstChild.nextSibling.firstChild.firstChild, kind: "text" }, { path: [2, 0], find: $$e => $$e.firstChild.nextSibling.nextSibling.firstChild, kind: "event", event: "click", plain: true }] };
-const $$form1 = { tag: "div", attributes: [{ key: "className", value: "container", way: "property" }], children: [{ tag: "div", attributes: [{ key: "className", value: "jumbotron", way: "property" }], children: [{ tag: "h1", attributes: [], children: [{ text: "dartea keyed" }] }, { tag: "button", attributes: [{ key: "id", value: "run", way: "property" }], children: [{ text: "Create 1,000 rows" }] }, { tag: "button", attributes: [{ key: "id", value: "runlots", way: "property" }], children: [{ text: "Create 10,000 rows" }] }, { tag: "button", attributes: [{ key: "id", value: "add", way: "property" }], children: [{ text: "Append 1,000 rows" }] }, { tag: "button", attributes: [{ key: "id", value: "update", way: "property" }], children: [{ text: "Update every 10th row" }] }, { tag: "button", attributes: [{ key: "id", value: "clear", way: "property" }], children: [{ text: "Clear" }] }, { tag: "button", attributes: [{ key: "id", value: "swaprows", way: "property" }], children: [{ text: "Swap Rows" }] }] }, { tag: "table", attributes: [{ key: "className", value: "table", way: "property" }], children: [{ tag: "tbody", attributes: [], children: [] }] }], holes: [{ path: [0, 1], find: $$e => $$e.firstChild.firstChild.nextSibling, kind: "event", event: "click", plain: true }, { path: [0, 2], find: $$e => $$e.firstChild.firstChild.nextSibling.nextSibling, kind: "event", event: "click", plain: true }, { path: [0, 3], find: $$e => $$e.firstChild.firstChild.nextSibling.nextSibling.nextSibling, kind: "event", event: "click", plain: true }, { path: [0, 4], find: $$e => $$e.firstChild.firstChild.nextSibling.nextSibling.nextSibling.nextSibling, kind: "event", event: "click", plain: true }, { path: [0, 5], find: $$e => $$e.firstChild.firstChild.nextSibling.nextSibling.nextSibling.nextSibling.nextSibling, kind: "event", event: "click", plain: true }, { path: [0, 6], find: $$e => $$e.firstChild.firstChild.nextSibling.nextSibling.nextSibling.nextSibling.nextSibling.nextSibling, kind: "event", event: "click", plain: true }, { path: [1, 0], find: $$e => $$e.firstChild.nextSibling.firstChild, kind: "rows", keyed: true }] };
-const $$noargs = [];
-const $$r0 = ($$b, $$put, $$a) => {
-  const row$3 = $$a[0];
-  const selected = $$a[1];
-  $$put($$b, 0, (selected === row$3.id) ? "danger" : "");
-  if ($$b.deps[1] !== row$3.id) {
+const $$form0 = { tag: "tr", attributes: [], children: [{ tag: "td", attributes: [{ key: "className", value: "col-md-1", way: "property" }], children: [{ hole: 1 }] }, { tag: "td", attributes: [{ key: "className", value: "col-md-4", way: "property" }], children: [{ tag: "a", attributes: [], children: [{ hole: 3 }] }] }, { tag: "td", attributes: [{ key: "className", value: "col-md-1", way: "property" }], children: [{ tag: "button", attributes: [{ key: "className", value: "remove", way: "property" }], children: [{ text: "x" }] }] }, { tag: "td", attributes: [{ key: "className", value: "col-md-6", way: "property" }], children: [] }], holes: [{ path: [], find: $$e => $$e, kind: "slot", key: "className", way: "property" }, { path: [0, 0], find: $$e => $$e.firstChild.firstChild, kind: "text" }, { path: [1, 0], find: $$e => $$e.firstChild.nextSibling.firstChild, kind: "event", event: "click", plain: true }, { path: [1, 0, 0], find: $$e => $$e.firstChild.nextSibling.firstChild.firstChild, kind: "text" }, { path: [2, 0], find: $$e => $$e.firstChild.nextSibling.nextSibling.firstChild, kind: "event", event: "click", plain: true }], guards: 5 };
+const $$form1 = { tag: "div", attributes: [{ key: "className", value: "container", way: "property" }], children: [{ tag: "div", attributes: [{ key: "className", value: "jumbotron", way: "property" }], children: [{ tag: "h1", attributes: [], children: [{ text: "dartea keyed" }] }, { tag: "button", attributes: [{ key: "id", value: "run", way: "property" }], children: [{ text: "Create 1,000 rows" }] }, { tag: "button", attributes: [{ key: "id", value: "runlots", way: "property" }], children: [{ text: "Create 10,000 rows" }] }, { tag: "button", attributes: [{ key: "id", value: "add", way: "property" }], children: [{ text: "Append 1,000 rows" }] }, { tag: "button", attributes: [{ key: "id", value: "update", way: "property" }], children: [{ text: "Update every 10th row" }] }, { tag: "button", attributes: [{ key: "id", value: "clear", way: "property" }], children: [{ text: "Clear" }] }, { tag: "button", attributes: [{ key: "id", value: "swaprows", way: "property" }], children: [{ text: "Swap Rows" }] }] }, { tag: "table", attributes: [{ key: "className", value: "table", way: "property" }], children: [{ tag: "tbody", attributes: [], children: [] }] }], holes: [{ path: [0, 1], find: $$e => $$e.firstChild.firstChild.nextSibling, kind: "event", event: "click", plain: true }, { path: [0, 2], find: $$e => $$e.firstChild.firstChild.nextSibling.nextSibling, kind: "event", event: "click", plain: true }, { path: [0, 3], find: $$e => $$e.firstChild.firstChild.nextSibling.nextSibling.nextSibling, kind: "event", event: "click", plain: true }, { path: [0, 4], find: $$e => $$e.firstChild.firstChild.nextSibling.nextSibling.nextSibling.nextSibling, kind: "event", event: "click", plain: true }, { path: [0, 5], find: $$e => $$e.firstChild.firstChild.nextSibling.nextSibling.nextSibling.nextSibling.nextSibling, kind: "event", event: "click", plain: true }, { path: [0, 6], find: $$e => $$e.firstChild.firstChild.nextSibling.nextSibling.nextSibling.nextSibling.nextSibling.nextSibling, kind: "event", event: "click", plain: true }, { path: [1, 0], find: $$e => $$e.firstChild.nextSibling.firstChild, kind: "rows", keyed: true }], guards: 5 };
+const $$r0 = ($$b, $$put, $$v) => {
+  const row$3 = $$v.a0;
+  const selected = $$v.a1;
+  if (($$b.deps[0] !== selected) || ($$b.deps[1] !== row$3.id)) {
+    $$b.deps[0] = selected;
     $$b.deps[1] = row$3.id;
-    $$put($$b, 1, $$String.fromInt(row$3.id));
+    $$put($$b, 0, (selected === row$3.id) ? "danger" : "");
   }
   if ($$b.deps[2] !== row$3.id) {
     $$b.deps[2] = row$3.id;
+    $$put($$b, 1, $$String.fromInt(row$3.id));
     $$put($$b, 2, Select(row$3.id));
-  }
-  $$put($$b, 3, row$3.label);
-  if ($$b.deps[4] !== row$3.id) {
-    $$b.deps[4] = row$3.id;
     $$put($$b, 4, Remove(row$3.id));
   }
+  $$put($$b, 3, row$3.label);
 };
-const $$r1 = ($$b, $$put, $$a) => {
-  const model$2 = $$a[0];
+const $$r1 = ($$b, $$put, $$v) => {
+  const model$2 = $$v.a0;
   if ($$b.deps[0] !== true) {
     $$b.deps[0] = true;
     $$put($$b, 0, Create(1000));
-  }
-  if ($$b.deps[1] !== true) {
-    $$b.deps[1] = true;
     $$put($$b, 1, Create(10000));
-  }
-  if ($$b.deps[2] !== true) {
-    $$b.deps[2] = true;
     $$put($$b, 2, Append(1000));
   }
   $$put($$b, 3, Update);
   $$put($$b, 4, Clear);
   $$put($$b, 5, Swap);
-  $$put($$b, 6, [viewRow, [model$2.selected], model$2.rows, $$aim0]);
+  if (($$b.deps[1] !== model$2.selected) || ($$b.deps[2] !== model$2.rows)) {
+    $$b.deps[1] = model$2.selected;
+    $$b.deps[2] = model$2.rows;
+    $$put($$b, 6, [viewRow, [model$2.selected], model$2.rows, $$aim0]);
+  }
 };
 const $$aim0 = [{ hole: 0, at: 0, get: $$i => $$i.id }];
 const adjectives = { hd: "pretty", tl: { hd: "large", tl: { hd: "big", tl: { hd: "small", tl: { hd: "tall", tl: { hd: "short", tl: { hd: "long", tl: { hd: "handsome", tl: { hd: "plain", tl: { hd: "quaint", tl: { hd: "clean", tl: { hd: "elegant", tl: { hd: "easy", tl: { hd: "angry", tl: { hd: "crazy", tl: { hd: "helpful", tl: { hd: "mushy", tl: { hd: "odd", tl: { hd: "unsightly", tl: { hd: "adorable", tl: { hd: "important", tl: { hd: "inexpensive", tl: { hd: "cheap", tl: { hd: "expensive", tl: { hd: "fancy", tl: 0 } } } } } } } } } } } } } } } } } } } } } } } } };
@@ -167,7 +162,7 @@ const update = (msg, model$1) => {
     }
   }
 };
-const viewRow = (selected, row$3) => [$$String.fromInt(row$3.id), { TAG: "block", form: $$form0, refresh: $$r0, args: [row$3, selected] }];
-const view = model$2 => ({ TAG: "block", form: $$form1, refresh: $$r1, args: [model$2] });
+const viewRow = (selected, row$3) => [$$String.fromInt(row$3.id), { TAG: "block", form: $$form0, refresh: $$r0, a0: row$3, a1: selected }];
+const view = model$2 => ({ TAG: "block", form: $$form1, refresh: $$r1, a0: model$2 });
 const main = Browser.element({ init: init, view: view, update: update, subscriptions: $p0$1 => Platform$Sub.none });
 export { main };

@@ -13,6 +13,37 @@ const $$apply5 = (f, x, y, z, a, b) => (f.length === 5 ? f(x, y, z, a, b) : $$cu
 const $$apply6 = (f, x, y, z, a, b, c) => (f.length === 6 ? f(x, y, z, a, b, c) : $$curry(f, [x, y, z, a, b, c]));
 const $$apply7 = (f, x, y, z, a, b, c, d) => (f.length === 7 ? f(x, y, z, a, b, c, d) : $$curry(f, [x, y, z, a, b, c, d]));
 const $$apply8 = (f, x, y, z, a, b, c, d, e) => (f.length === 8 ? f(x, y, z, a, b, c, d, e) : $$curry(f, [x, y, z, a, b, c, d, e]));
+const $$listMap = (f, xs) => {
+  if (xs === 0) return 0;
+  const root = { hd: $$apply1(f, xs.hd), tl: 0 };
+  let last = root;
+  for (let rest = xs.tl; rest !== 0; rest = rest.tl) {
+    last = last.tl = { hd: $$apply1(f, rest.hd), tl: 0 };
+  }
+  return root;
+};
+
+const $$listFilter = (keep, xs) => {
+  const root = { hd: undefined, tl: 0 };
+  let last = root;
+  for (let rest = xs; rest !== 0; rest = rest.tl) {
+    if ($$apply1(keep, rest.hd)) last = last.tl = { hd: rest.hd, tl: 0 };
+  }
+  return root.tl;
+};
+
+const $$listReverse = (xs) => {
+  let made = 0;
+  for (let rest = xs; rest !== 0; rest = rest.tl) made = { hd: rest.hd, tl: made };
+  return made;
+};
+
+const $$listLength = (xs) => {
+  let count = 0;
+  for (let rest = xs; rest !== 0; rest = rest.tl) count += 1;
+  return count;
+};
+
 const $$eq = (x, y) => {
   const pending = [[x, y]];
   while (pending.length > 0) {
@@ -86,6 +117,10 @@ export {
   $$apply6,
   $$apply7,
   $$apply8,
+  $$listMap,
+  $$listFilter,
+  $$listReverse,
+  $$listLength,
   $$eq,
   $$cmp,
   $$modBy,

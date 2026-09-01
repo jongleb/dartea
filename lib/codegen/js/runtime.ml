@@ -7,13 +7,20 @@ let json_source = Runtime_source.dartea_json
 let mount = "$$mount"
 let tag = "TAG"
 let block = "block"
+let head = "hd"
+let tail = "tl"
+let payload index = "_" ^ string_of_int index
+
 let form index = "$$form" ^ string_of_int index
-let put = "$$put"
 let refresher index = "$$r" ^ string_of_int index
 let aim index = "$$aim" ^ string_of_int index
-let refresh_args = "$$a"
+let carried index = "a" ^ string_of_int index
+let block_state = "$$b"
+let put = "$$put"
+let carrier = "$$v"
 let item = "$$i"
-let no_args = "$$noargs"
+let deps = "deps"
+
 let flag_prim = "$$flagPrim"
 let flag_maybe = "$$flagMaybe"
 let flag_list = "$$flagList"
@@ -23,11 +30,7 @@ let port_list = "$$portList"
 let raw = "$$raw"
 let port_label = "port"
 let port_where name = port_label ^ " " ^ name
-let block_state = "$$b"
-let deps = "deps"
-let head = "hd"
-let tail = "tl"
-let payload index = "_" ^ string_of_int index
+
 let engine_source = Runtime_source.dartea_engine
 let curry = "$$curry"
 let widest_apply = 9
@@ -42,6 +45,10 @@ let char_to_code = "$$charToCode"
 let char_from_code = "$$charFromCode"
 let string_to_list = "$$stringToList"
 let string_from_list = "$$stringFromList"
+let list_map = "$$listMap"
+let list_filter = "$$listFilter"
+let list_reverse = "$$listReverse"
+let list_length = "$$listLength"
 let string_split = "$$stringSplit"
 
 let files =
@@ -55,5 +62,5 @@ let all =
   (curry :: List.init widest_apply (fun index -> apply (index + 1)))
   @ [
       append; equal; compare; mod_by; char_to_code; char_from_code;
-      string_to_list; string_from_list; string_split;
+      string_to_list; string_from_list; string_split; list_map; list_filter; list_reverse; list_length;
     ]

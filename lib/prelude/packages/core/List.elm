@@ -75,12 +75,12 @@ foldr func acc list =
 
 reverse : List a -> List a
 reverse list =
-    foldl cons [] list
+    Elm.Kernel.List.reverse list
 
 
 map : (a -> b) -> List a -> List b
 map f xs =
-    foldr (\x acc -> cons (f x) acc) [] xs
+    Elm.Kernel.List.map f xs
 
 
 indexedMap : (Int -> a -> b) -> List a -> List b
@@ -90,16 +90,7 @@ indexedMap f xs =
 
 filter : (a -> Bool) -> List a -> List a
 filter isGood list =
-    foldr
-        (\x acc ->
-            if isGood x then
-                cons x acc
-
-            else
-                acc
-        )
-        []
-        list
+    Elm.Kernel.List.filter isGood list
 
 
 filterMap : (a -> Maybe b) -> List a -> List b
@@ -119,7 +110,7 @@ maybeCons f mx acc =
 
 length : List a -> Int
 length xs =
-    foldl (\_ count -> count + 1) 0 xs
+    Elm.Kernel.List.length xs
 
 
 member : a -> List a -> Bool

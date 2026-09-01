@@ -29,6 +29,8 @@ type unary =
   | Char_from_code
   | Char_to_upper
   | Char_to_lower
+  | List_reverse
+  | List_length
 [@@deriving show, enumerate]
 
 type binary =
@@ -41,6 +43,8 @@ type binary =
   | Basics_remainder_by
   | Basics_atan2
   | Basics_xor
+  | List_map
+  | List_filter
 [@@deriving show, enumerate]
 
 type language = Nullary of nullary | Unary of unary | Binary of binary
@@ -93,6 +97,8 @@ let origin = function
   | Unary Char_from_code -> char "fromCode"
   | Unary Char_to_upper -> char "toUpper"
   | Unary Char_to_lower -> char "toLower"
+  | Unary List_reverse -> written_as "List" "reverse"
+  | Unary List_length -> written_as "List" "length"
   | Binary String_append -> string "append"
   | Binary String_split -> string "split"
   | Binary String_take_left -> string "takeLeft"
@@ -102,6 +108,8 @@ let origin = function
   | Binary Basics_remainder_by -> basics "remainderBy"
   | Binary Basics_atan2 -> basics "atan2"
   | Binary Basics_xor -> basics "xor"
+  | Binary List_map -> written_as "List" "map"
+  | Binary List_filter -> written_as "List" "filter"
 
 let by_origin =
   Hashtbl.of_seq

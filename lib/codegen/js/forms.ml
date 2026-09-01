@@ -19,9 +19,9 @@ module Key = struct
     | Way [@rename "way"]
     | Form [@rename "form"]
     | Refresh [@rename "refresh"]
-    | Args [@rename "args"]
     | Find [@rename "find"]
     | At [@rename "at"]
+    | Guards [@rename "guards"]
     | Get [@rename "get"]
   [@@deriving to_string]
 end
@@ -50,24 +50,29 @@ end
 
 let field key value = J.Field (Key.to_string key, value)
 
-type shape = { form : Blocks.t; holes : (int list * Blocks.hole_kind) list }
+type shape = {
+  form : Blocks.t;
+  holes : (int list * Blocks.hole_kind) list;
+  guards : int;
+}
+
+type aim = { of_row : Data.Name.t; name : string; entries : J.expr }
+
 type t = {
   mutable known : (string * shape) list;
   mutable refreshers : (string * J.expr) list;
-  mutable aim_consts : (string * J.expr) list;
-  mutable aims : (Data.Name.t * string) list;
+  mutable aims : aim list;
 }
 
-let create () = { known = []; refreshers = []; aim_consts = []; aims = [] }
+let create () = { known = []; refreshers = []; aims = [] }
 
-let aim table ~fn array =
-  let name = Runtime.aim (List.length table.aim_consts) in
-  table.aim_consts <- (name, array) :: table.aim_consts;
-  table.aims <- (fn, name) :: table.aims
+let aim table ~fn entries =
+  let name = Runtime.aim (List.length table.aims) in
+  table.aims <- { of_row = fn; name; entries } :: table.aims
 
 let aim_for table fn =
-  List.find_opt (fun (name, _) -> Data.Name.equal name fn) table.aims
-  |> Option.map snd
+  List.find_opt (fun aim -> Data.Name.equal aim.of_row fn) table.aims
+  |> Option.map (fun aim -> aim.name)
 
 let refresher table arrow =
   let name = Runtime.refresher (List.length table.refreshers) in
@@ -80,8 +85,12 @@ let equal_hole (path, kind) (other_path, other_kind) =
 let equal_shape one other =
   Blocks.equal one.form other.form && List.equal equal_hole one.holes other.holes
 
-let of_form (form : Blocks.t) (holes : Blocks.hole list) =
-  { form; holes = List.map (fun (hole : Blocks.hole) -> (hole.path, hole.kind)) holes }
+let of_form ~guards (form : Blocks.t) (holes : Blocks.hole list) =
+  {
+    form;
+    holes = List.map (fun (hole : Blocks.hole) -> (hole.path, hole.kind)) holes;
+    guards;
+  }
 
 let kind_fields (kind : Blocks.hole_kind) =
   match kind with
@@ -152,7 +161,13 @@ let expression shape =
       @ kind_fields kind)
   in
   match node shape ~path:[] shape.form with
-  | J.Object fields -> J.Object (fields @ [ field Holes (J.Array (List.map hole shape.holes)) ])
+  | J.Object fields ->
+      J.Object
+        (fields
+        @ [
+            field Holes (J.Array (List.map hole shape.holes));
+            field Guards (J.int shape.guards);
+          ])
   | other -> other
 
 let name table shape =
@@ -164,11 +179,6 @@ let name table shape =
       name
 
 let declarations table =
-  let shared =
-    if List.is_empty table.refreshers then []
-    else [ J.ConstDecl { name = Runtime.no_args; init = J.Array [] } ]
-  in
   List.rev_map (fun (name, shape) -> J.ConstDecl { name; init = expression shape }) table.known
-  @ shared
   @ List.rev_map (fun (name, arrow) -> J.ConstDecl { name; init = arrow }) table.refreshers
-  @ List.rev_map (fun (name, array) -> J.ConstDecl { name; init = array }) table.aim_consts
+  @ List.rev_map (fun aim -> J.ConstDecl { name = aim.name; init = aim.entries }) table.aims
