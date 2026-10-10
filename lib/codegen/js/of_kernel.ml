@@ -71,6 +71,7 @@ let binary_operation (kernel : Data.Kernel.binary) (left : J.expr)
   | String_drop_left -> method_call right "slice" [ left ]
   | Utils_compare -> runtime Runtime.compare [ left; right ]
   | List_map -> runtime Runtime.list_map [ left; right ]
+  | List_indexed_map -> runtime Runtime.list_indexed_map [ left; right ]
   | List_filter -> runtime Runtime.list_filter [ left; right ]
   | Basics_mod_by -> runtime Runtime.mod_by [ left; right ]
   | Basics_remainder_by -> binary right J.Modulo left

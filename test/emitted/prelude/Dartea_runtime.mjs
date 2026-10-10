@@ -23,6 +23,17 @@ const $$listMap = (f, xs) => {
   return root;
 };
 
+const $$listIndexedMap = (f, xs) => {
+  const root = { hd: undefined, tl: 0 };
+  let last = root;
+  let at = 0;
+  for (let rest = xs; rest !== 0; rest = rest.tl) {
+    last = last.tl = { hd: $$apply2(f, at, rest.hd), tl: 0 };
+    at += 1;
+  }
+  return root.tl;
+};
+
 const $$listFilter = (keep, xs) => {
   const root = { hd: undefined, tl: 0 };
   let last = root;
@@ -118,6 +129,7 @@ export {
   $$apply7,
   $$apply8,
   $$listMap,
+  $$listIndexedMap,
   $$listFilter,
   $$listReverse,
   $$listLength,

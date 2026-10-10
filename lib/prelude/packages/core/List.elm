@@ -85,7 +85,7 @@ map f xs =
 
 indexedMap : (Int -> a -> b) -> List a -> List b
 indexedMap f xs =
-    map2 f (range 0 (length xs - 1)) xs
+    Elm.Kernel.List.indexedMap f xs
 
 
 filter : (a -> Bool) -> List a -> List a

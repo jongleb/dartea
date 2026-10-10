@@ -3368,6 +3368,27 @@ result =
   in
   assert_js ~src ~expr:"Main.result" ~expected:"50"
 
+let test_list_indexed_map_matches_the_upstream_definition _ =
+  let src =
+    {|
+shift : Int -> Int -> Int -> Int
+shift by i x =
+    by * i + x
+
+
+matches : List Int -> Bool
+matches xs =
+    (List.indexedMap (shift 10) xs == List.map2 (shift 10) (List.range 0 (List.length xs - 1)) xs)
+        && (List.indexedMap (\i x -> ( i, x )) xs == List.map2 Tuple.pair (List.range 0 (List.length xs - 1)) xs)
+
+
+result : Bool
+result =
+    List.all matches [ [], [ 5 ], [ 3, 1, 2 ], List.range 1 300 ]
+|}
+  in
+  assert_js ~src ~expr:"Main.result" ~expected:"true"
+
 let test_list_sort_is_stable_by_key _ =
   let src =
     {|
@@ -3483,6 +3504,7 @@ let suite =
     "string_words_ignores_runs_of_space"
     >:: test_string_words_ignores_runs_of_space;
     "list_folds_and_maps" >:: test_list_folds_and_maps;
+    "list_indexed_map_matches_the_upstream_definition" >:: test_list_indexed_map_matches_the_upstream_definition;
     "list_sort_is_stable_by_key" >:: test_list_sort_is_stable_by_key;
     "list_head_of_empty_is_nothing" >:: test_list_head_of_empty_is_nothing;
     "list_partition_splits_on_the_test"

@@ -46,6 +46,7 @@ let char_from_code = "$$charFromCode"
 let string_to_list = "$$stringToList"
 let string_from_list = "$$stringFromList"
 let list_map = "$$listMap"
+let list_indexed_map = "$$listIndexedMap"
 let list_filter = "$$listFilter"
 let list_reverse = "$$listReverse"
 let list_length = "$$listLength"
@@ -62,5 +63,5 @@ let all =
   (curry :: List.init widest_apply (fun index -> apply (index + 1)))
   @ [
       append; equal; compare; mod_by; char_to_code; char_from_code;
-      string_to_list; string_from_list; string_split; list_map; list_filter; list_reverse; list_length;
+      string_to_list; string_from_list; string_split; list_map; list_indexed_map; list_filter; list_reverse; list_length;
     ]

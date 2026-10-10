@@ -44,6 +44,7 @@ type binary =
   | Basics_atan2
   | Basics_xor
   | List_map
+  | List_indexed_map
   | List_filter
 [@@deriving show, enumerate]
 
@@ -109,6 +110,7 @@ let origin = function
   | Binary Basics_atan2 -> basics "atan2"
   | Binary Basics_xor -> basics "xor"
   | Binary List_map -> written_as "List" "map"
+  | Binary List_indexed_map -> written_as "List" "indexedMap"
   | Binary List_filter -> written_as "List" "filter"
 
 let by_origin =

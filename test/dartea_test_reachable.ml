@@ -9,7 +9,7 @@ let measured folder =
 
 let expected =
   [
-    "bench 56/58 declarations, 13788/14104 bytes";
+    "bench 54/56 declarations, 13032/13348 bytes";
     "browser 2/2 declarations, 92/92 bytes";
     "comparison 92/98 declarations, 8852/9937 bytes";
     "counter 14/14 declarations, 2021/2021 bytes";
