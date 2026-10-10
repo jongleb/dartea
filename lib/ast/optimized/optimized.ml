@@ -202,13 +202,28 @@ module Expr = struct
     { e with expr }
 
   let children (e : t) : t list =
-    let seen = ref [] in
-    let collect child =
-      seen := child :: !seen;
-      child
-    in
-    let (_ : t) = map_children e ~f:collect in
-    List.rev !seen
+    match e.expr with
+    | Expr_constr { arguments; _ } -> arguments
+    | Expr_binop { operands = left, right; _ } -> [ left; right ]
+    | Expr_let { binding; body } -> [ binding.bind_body.body; body ]
+    | Expr_if_then_else { if_exp; then_exp; else_exp } -> [ if_exp; then_exp; else_exp ]
+    | Expr_record rows -> List.map (fun (row : expr_record_row) -> row.value) rows
+    | Expr_apply { fn; arg } -> [ fn; arg ]
+    | Expr_pattern { expr; pattern_data_items } ->
+        expr :: List.map (fun (case : expr_pattern_case) -> case.expr) pattern_data_items
+    | Expr_access { expr; _ } -> [ expr ]
+    | Expr_lambda { body; _ } -> [ body ]
+    | Expr_list items | Expr_tuple items -> items
+    | Expr_cons { head; tail } -> [ head; tail ]
+    | Expr_record_update { record; fields } ->
+        record :: List.map (fun (row : expr_record_row) -> row.value) fields
+    | Expr_kernel (Kernel_unary { argument; _ }) -> [ argument ]
+    | Expr_kernel (Kernel_binary { left; right; _ }) -> [ left; right ]
+    | Expr_ident _ | Expr_accessor _ | Expr_record_extend _ | Expr_record_select _
+    | Expr_record_empty | Expr_unit
+    | Expr_kernel (Kernel_value _)
+    | Expr_char _ | Expr_string _ | Expr_int _ | Expr_float _ ->
+        []
 
   let apply (fn : t) (arguments : t list) : t =
     List.fold_left
@@ -218,11 +233,10 @@ module Expr = struct
 
   let operator_application (e : t) : (Data.Operator.t * t * t) option =
     match spine e with
-    | { expr = Expr_ident name; _ }, [ left; right ] ->
-        Option.map
-          (fun operator -> (operator, left, right))
-          (Data.Operator.referred_to_by name)
-    | _ -> None
+    | head, [ left; right ] ->
+        Option.bind (ident_of head) Data.Operator.referred_to_by
+        |> Option.map (fun operator -> (operator, left, right))
+    | _, ([] | [ _ ] | _ :: _ :: _ :: _) -> None
 
   module Names = Data.Name.Set
 
@@ -271,49 +285,83 @@ module Expr = struct
         map_children e ~f:(f ~binders:Names.empty)
 
   let scoped_children (e : t) : (Names.t * t) list =
-    let seen = ref [] in
-    let collect ~binders child =
-      seen := (binders, child) :: !seen;
-      child
+    match e.expr with
+    | Expr_let { binding; body } ->
+        [
+          (Names.empty, binding.bind_body.body);
+          (Names.singleton (let_name binding), body);
+        ]
+    | Expr_lambda { params; body } -> [ (bound_by_lambda params, body) ]
+    | Expr_pattern { expr; pattern_data_items } ->
+        (Names.empty, expr)
+        :: List.map
+             (fun (case : expr_pattern_case) -> (Pattern.bound case.pattern, case.expr))
+             pattern_data_items
+    | Expr_constr _ | Expr_binop _ | Expr_if_then_else _ | Expr_record _
+    | Expr_record_update _ | Expr_apply _ | Expr_ident _ | Expr_accessor _
+    | Expr_access _ | Expr_record_extend _ | Expr_record_select _
+    | Expr_record_empty | Expr_unit | Expr_kernel _ | Expr_char _ | Expr_string _
+    | Expr_int _ | Expr_float _ | Expr_list _ | Expr_cons _ | Expr_tuple _ ->
+        List.map (fun child -> (Names.empty, child)) (children e)
+
+  let rec substitute_types bindings (e : t) : t =
+    let e = map_children e ~f:(substitute_types bindings) in
+    let expr =
+      match e.expr with
+      | Expr_lambda { params; body } ->
+          Expr_lambda
+            {
+              params =
+                List.map
+                  (fun (p : expr_lambda_param) ->
+                    { p with typ = Type.substitute bindings p.typ })
+                  params;
+              body;
+            }
+      | Expr_pattern pattern ->
+          Expr_pattern
+            {
+              pattern with
+              pattern_data_items =
+                List.map
+                  (fun (case : expr_pattern_case) ->
+                    { case with pattern = Pattern.substitute bindings case.pattern })
+                  pattern.pattern_data_items;
+            }
+      | Expr_constr _ | Expr_binop _ | Expr_let _ | Expr_if_then_else _
+      | Expr_record _ | Expr_record_update _ | Expr_apply _ | Expr_ident _
+      | Expr_accessor _ | Expr_access _ | Expr_record_extend _
+      | Expr_record_select _ | Expr_record_empty | Expr_unit | Expr_kernel _
+      | Expr_char _ | Expr_string _ | Expr_int _ | Expr_float _ | Expr_list _
+      | Expr_cons _ | Expr_tuple _ ->
+          e.expr
     in
-    let (_ : t) = map_scoped e ~f:collect in
-    List.rev !seen
+    { typ = Type.substitute bindings e.typ; expr }
 
   let whole (_ : t) : t list option = None
 
   let rec free_variables ?(through = whole) ~(bound : Names.t) (e : t) : Names.t =
-    let free_variables = free_variables ~through in
+    let below () =
+      through e
+      |> Option.map (List.map (fun child -> (Names.empty, child)))
+      |> Option.value ~default:(scoped_children e)
+      |> union_map (fun (binders, child) ->
+             free_variables ~through ~bound:(Names.union bound binders) child)
+    in
     match e.expr with
     | Expr_ident name ->
         if Names.mem name bound then Names.empty else Names.singleton name
-    | Expr_let { binding; body } ->
-        let bound_in_body = Names.add (let_name binding) bound in
-        Names.union
-          (free_variables ~bound binding.bind_body.body)
-          (free_variables ~bound:bound_in_body body)
-    | Expr_lambda { params; body } ->
-        free_variables ~bound:(Names.union bound (bound_by_lambda params)) body
-    | Expr_pattern { expr; pattern_data_items } ->
-        let free_in_case (case : expr_pattern_case) =
-          let bound = Names.union bound (Pattern.bound case.pattern) in
-          free_variables ~bound case.expr
-        in
-        Names.union
-          (free_variables ~bound expr)
-          (union_map free_in_case pattern_data_items)
-    | Expr_binop { name; operands = left, right } ->
-        let operands =
-          Names.union (free_variables ~bound left) (free_variables ~bound right)
-        in
+    | Expr_binop { name; _ } ->
         let operator = Data.Name.local (Data.Operator.lexeme name) in
+        let operands = below () in
         if Names.mem operator bound then operands else Names.add operator operands
-    | Expr_constr _ | Expr_if_then_else _ | Expr_record _ | Expr_record_update _
-    | Expr_apply _ | Expr_accessor _ | Expr_access _ | Expr_record_extend _
+    | Expr_let _ | Expr_lambda _ | Expr_pattern _ | Expr_constr _
+    | Expr_if_then_else _ | Expr_record _ | Expr_record_update _ | Expr_apply _
+    | Expr_accessor _ | Expr_access _ | Expr_record_extend _
     | Expr_record_select _ | Expr_record_empty | Expr_unit | Expr_kernel _
     | Expr_char _ | Expr_string _ | Expr_int _ | Expr_float _ | Expr_list _
     | Expr_cons _ | Expr_tuple _ ->
-        let below = Option.value ~default:(children e) (through e) in
-        union_map (free_variables ~bound) below
+        below ()
 
   let rec references ?(through = whole) (e : t) : Names.t =
     let below = Option.value ~default:(children e) (through e) in
@@ -505,11 +553,14 @@ module Declaration = struct
       typ = d.typ;
     }
 
-  let unused_names ~taken =
+  let with_fresh_names ~taken items =
     let untaken name = not (Expr.Names.mem (Data.Name.local name) taken) in
-    Seq.ints 1
-    |> Seq.map (fun index -> "eta" ^ string_of_int index)
-    |> Seq.filter untaken
+    let fresh =
+      Seq.ints 1
+      |> Seq.map (fun index -> "eta" ^ string_of_int index)
+      |> Seq.filter untaken
+    in
+    List.of_seq (Seq.zip fresh (List.to_seq items))
 
   let merge_lambdas (decl : t) : t =
     let absorb ({ params; body } : Expr.expr_lambda) =
@@ -548,11 +599,8 @@ module Declaration = struct
           (free decl)
           (bound decl)
       in
-      let gap =
-        Type.result_after ~applied:given decl.typ
-        |> Type.parameters |> List.to_seq
-      in
-      let extra = Seq.zip (unused_names ~taken) gap |> List.of_seq in
+      let gap = Type.parameters (Type.result_after ~applied:given decl.typ) in
+      let extra = with_fresh_names ~taken gap in
       let parameter (name, typ) =
         { name = Data.Located.at decl.name.region name; typ }
       in

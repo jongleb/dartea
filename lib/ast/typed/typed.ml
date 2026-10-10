@@ -178,6 +178,36 @@ module Type = struct
     | TCustom _ | TRecord _ | TRowExtend _ ->
         map_children (substitute bindings) t
 
+  let rec match_types bindings parameter argument =
+    match (parameter, argument) with
+    | TVar variable, _ ->
+        if By_variable.mem variable bindings then bindings
+        else By_variable.add variable argument bindings
+    | TFun (from_parameter, to_parameter), TFun (from_argument, to_argument) ->
+        match_types
+          (match_types bindings from_parameter from_argument)
+          to_parameter to_argument
+    | TTup parameters, TTup arguments -> match_all bindings parameters arguments
+    | TCustom (_, parameters), TCustom (_, arguments) ->
+        match_all bindings parameters arguments
+    | TRecord parameter_row, TRecord argument_row ->
+        match_types bindings parameter_row argument_row
+    | ( TRowExtend (_, parameter_field, parameter_rest),
+        TRowExtend (_, argument_field, argument_rest) ) ->
+        match_types
+          (match_types bindings parameter_field argument_field)
+          parameter_rest argument_rest
+    | ( ( TInt | TFloat | TChar | TBool | TStr | TUnit | TRowEmpty | TFun _
+        | TTup _ | TCustom _ | TRecord _ | TRowExtend _ ),
+        _ ) ->
+        bindings
+
+  and match_all bindings parameters arguments =
+    match (parameters, arguments) with
+    | parameter :: parameters, argument :: arguments ->
+        match_all (match_types bindings parameter argument) parameters arguments
+    | [], _ | _, [] -> bindings
+
   type arity = Exactly of int | At_least of int
 
   let arity typ =
