@@ -210,15 +210,74 @@ module Expr = struct
     let (_ : t) = map_children e ~f:collect in
     List.rev !seen
 
+  let apply (fn : t) (arguments : t list) : t =
+    List.fold_left
+      (fun (fn : t) arg ->
+        { typ = Type.result_after ~applied:1 fn.typ; expr = Expr_apply { fn; arg } })
+      fn arguments
+
+  let operator_application (e : t) : (Data.Operator.t * t * t) option =
+    match spine e with
+    | { expr = Expr_ident name; _ }, [ left; right ] ->
+        Option.map
+          (fun operator -> (operator, left, right))
+          (Data.Operator.referred_to_by name)
+    | _ -> None
+
   module Names = Data.Name.Set
 
   let union_map = Pattern.union_map
+
+  let let_name (binding : expr_let_binding) : Data.Name.t =
+    Data.Name.local (Data.Located.unwrap binding.bind_body.name)
 
   let bound_by_lambda (params : expr_lambda_param list) : Names.t =
     Names.of_list
       (List.map
          (fun (p : expr_lambda_param) -> Data.Name.local (Data.Located.unwrap p.name))
          params)
+
+  let map_scoped (e : t) ~(f : binders:Names.t -> t -> t) : t =
+    match e.expr with
+    | Expr_let { binding; body } ->
+        let bound_value = f ~binders:Names.empty binding.bind_body.body in
+        {
+          e with
+          expr =
+            Expr_let
+              {
+                binding = { bind_body = { binding.bind_body with body = bound_value } };
+                body = f ~binders:(Names.singleton (let_name binding)) body;
+              };
+        }
+    | Expr_lambda { params; body } ->
+        { e with expr = Expr_lambda { params; body = f ~binders:(bound_by_lambda params) body } }
+    | Expr_pattern { expr; pattern_data_items } ->
+        let scrutinee = f ~binders:Names.empty expr in
+        let in_case (case : expr_pattern_case) =
+          { case with expr = f ~binders:(Pattern.bound case.pattern) case.expr }
+        in
+        {
+          e with
+          expr =
+            Expr_pattern
+              { expr = scrutinee; pattern_data_items = List.map in_case pattern_data_items };
+        }
+    | Expr_constr _ | Expr_binop _ | Expr_if_then_else _ | Expr_record _
+    | Expr_record_update _ | Expr_apply _ | Expr_ident _ | Expr_accessor _
+    | Expr_access _ | Expr_record_extend _ | Expr_record_select _
+    | Expr_record_empty | Expr_unit | Expr_kernel _ | Expr_char _ | Expr_string _
+    | Expr_int _ | Expr_float _ | Expr_list _ | Expr_cons _ | Expr_tuple _ ->
+        map_children e ~f:(f ~binders:Names.empty)
+
+  let scoped_children (e : t) : (Names.t * t) list =
+    let seen = ref [] in
+    let collect ~binders child =
+      seen := (binders, child) :: !seen;
+      child
+    in
+    let (_ : t) = map_scoped e ~f:collect in
+    List.rev !seen
 
   let whole (_ : t) : t list option = None
 
@@ -228,11 +287,7 @@ module Expr = struct
     | Expr_ident name ->
         if Names.mem name bound then Names.empty else Names.singleton name
     | Expr_let { binding; body } ->
-        let bound_in_body =
-          Names.add
-            (Data.Name.local (Data.Located.unwrap binding.bind_body.name))
-            bound
-        in
+        let bound_in_body = Names.add (let_name binding) bound in
         Names.union
           (free_variables ~bound binding.bind_body.body)
           (free_variables ~bound:bound_in_body body)
@@ -501,19 +556,13 @@ module Declaration = struct
       let parameter (name, typ) =
         { name = Data.Located.at decl.name.region name; typ }
       in
-      let applied_to (fn : Expr.t) (name, typ) =
-        let argument =
-          { Expr.typ; expr = Expr.Expr_ident (Data.Name.local name) }
-        in
-        {
-          Expr.typ = Type.result_after ~applied:1 fn.typ;
-          expr = Expr.Expr_apply { fn; arg = argument };
-        }
+      let argument (name, typ) =
+        { Expr.typ; expr = Expr.Expr_ident (Data.Name.local name) }
       in
       {
         decl with
         params = decl.params @ List.map parameter extra;
-        body = List.fold_left applied_to decl.body extra;
+        body = Expr.apply decl.body (List.map argument extra);
       }
 
   type error = Bad_recursion of Data.Name.t list
