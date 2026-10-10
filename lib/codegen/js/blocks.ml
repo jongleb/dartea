@@ -3,6 +3,7 @@ module Expr = Optimized.Expr
 type way =
   | Set_attribute [@rename "attribute"]
   | Set_property [@rename "property"]
+  | Set_reflected [@rename "reflected"]
   | Set_style [@rename "style"]
 [@@deriving equal, to_string]
 
@@ -37,14 +38,6 @@ and t = {
   attributes : static list;
   children : child list;
 }
-
-let equal_way one other =
-  match (one, other) with
-  | Set_attribute, Set_attribute | Set_property, Set_property | Set_style, Set_style -> true
-  | Set_attribute, (Set_property | Set_style)
-  | Set_property, (Set_attribute | Set_style)
-  | Set_style, (Set_attribute | Set_property) ->
-      false
 
 let equal_static one other =
   String.equal one.key other.key
@@ -99,7 +92,8 @@ let slot_of name key =
   match name with
   | Html_calls.Known.Attribute when not (guarded_key key) -> Some Set_attribute
   | Html_calls.Known.Style -> Some Set_style
-  | Html_calls.Known.Property when Html_calls.Reflected.holds key || Html_calls.Live.holds key -> Some Set_property
+  | Html_calls.Known.Property when Html_calls.Reflected.holds key -> Some Set_reflected
+  | Html_calls.Known.Property when Html_calls.Live.holds key -> Some Set_property
   | Html_calls.Known.Attribute | Html_calls.Known.Property | Html_calls.Known.Node | Html_calls.Known.Keyed_node | Html_calls.Known.Node_ns
   | Html_calls.Known.Keyed_node_ns | Html_calls.Known.Text | Html_calls.Known.On | Html_calls.Known.Normal | Html_calls.Known.Decode_succeed
   | Html_calls.Known.Encode_string | Html_calls.Known.Json_identity | Html_calls.Known.List_map ->

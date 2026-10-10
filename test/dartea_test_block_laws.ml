@@ -128,4 +128,103 @@ let law_blocks_render_like_the_oracle =
       if String.equal expected actual then true
       else Test.fail_reportf "expected:\n%s\nbut got:\n%s" expected actual)
 
-let suite = QCheck_ounit.to_ounit2_test_list [ law_blocks_render_like_the_oracle ]
+type edit = Swap of int * int | Remove of int | Insert of int | Reverse | Fresh of int list | Rotate
+
+let gen_ids = Gen.(map (List.sort_uniq Int.compare) (list_size (int_range 0 12) (int_range 0 30)) >>= shuffle_list)
+
+let gen_edit =
+  Gen.oneof
+    [
+      Gen.map2 (fun one other -> Swap (one, other)) Gen.nat_small Gen.nat_small;
+      Gen.map (fun at -> Remove at) Gen.nat_small;
+      Gen.map (fun at -> Insert at) Gen.nat_small;
+      Gen.return Reverse;
+      Gen.map (fun ids -> Fresh ids) gen_ids;
+      Gen.return Rotate;
+    ]
+
+let applied ids edit =
+  let size = List.length ids in
+  match edit with
+  | Swap (one, other) when size > 0 ->
+      let one = one mod size and other = other mod size in
+      List.mapi
+        (fun at id ->
+          if at = one then List.nth ids other else if at = other then List.nth ids one else id)
+        ids
+  | Remove at when size > 0 -> List.filteri (fun index _ -> index <> at mod size) ids
+  | Insert at ->
+      let fresh = 1 + List.fold_left max 30 ids in
+      let at = at mod (size + 1) in
+      List.filteri (fun index _ -> index < at) ids @ (fresh :: List.filteri (fun index _ -> index >= at) ids)
+  | Reverse -> List.rev ids
+  | Fresh ids -> ids
+  | Rotate when size > 0 -> List.tl ids @ [ List.hd ids ]
+  | Swap _ | Remove _ | Rotate -> ids
+
+let gen_states =
+  Gen.(
+    map3
+      (fun first one other ->
+        let second = applied first one in
+        [ first; second; applied second other ])
+      gen_ids gen_edit gen_edit)
+
+let keyed_program states =
+  let shown ids = "[ " ^ String.concat ", " (List.map string_of_int ids) ^ " ]" in
+  Printf.sprintf
+    {|module Main exposing (main)
+
+import Browser
+import Html exposing (Html, button, div, li, text)
+import Html.Events exposing (onClick)
+import Html.Keyed
+
+
+type Msg
+    = Bump
+
+
+row : Int -> ( String, Html Msg )
+row id =
+    ( String.fromInt id, li [] [ text (String.fromInt id) ] )
+
+
+states : Int -> List Int
+states model =
+    case model of
+        0 ->
+            %s
+
+        1 ->
+            %s
+
+        _ ->
+            %s
+
+
+view : Int -> Html Msg
+view model =
+    div [] [ button [ onClick Bump ] [], Html.Keyed.node "ul" [] (List.map row (states model)) ]
+
+
+main : Program () Int Msg
+main =
+    Browser.sandbox { init = 0, update = \_ model -> model + 1, view = view }
+|}
+    (shown (List.nth states 0)) (shown (List.nth states 1)) (shown (List.nth states 2))
+
+let law_keyed_rows_follow_every_edit =
+  Test.make ~name:"keyed rows render exactly the oracle through swaps, removals, inserts and replacements"
+    ~count:60 ~print:keyed_program gen_states (fun states ->
+      let page ids =
+        Printf.sprintf "<body><div><button></button><ul>%s</ul></div></body>"
+          (String.concat "" (List.map (fun id -> Printf.sprintf "<li>%d</li>" id) ids))
+      in
+      let expected = String.concat "\n" (List.map page states) in
+      let actual = Dartea_test_delivery.printed_by ~program:(keyed_program states) ~stub in
+      if String.equal expected actual then true
+      else Test.fail_reportf "expected:\n%s\nbut got:\n%s" expected actual)
+
+let suite =
+  QCheck_ounit.to_ounit2_test_list [ law_blocks_render_like_the_oracle; law_keyed_rows_follow_every_edit ]
