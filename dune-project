@@ -44,6 +44,8 @@
   decompress
   ppx_deriving
   ppx_jane
+  non_empty_list
+  base
   (ounit2 :with-test)
   (qcheck-core :with-test)
   (qcheck-ounit :with-test))
