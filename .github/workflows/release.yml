@@ -45,7 +45,7 @@ jobs:
 
       - run: |
           mkdir -p out
-          cp _build/default/bin/main.exe out/dartea-${{ matrix.platform }}
+          install -m 755 _build/default/bin/main.exe out/dartea-${{ matrix.platform }}
           strip out/dartea-${{ matrix.platform }}
 
       - uses: actions/upload-artifact@v5
