@@ -1,3 +1,12 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/jongleb/dartea/main/website/public/brand/dartea-on-dark.svg">
+    <img alt="dartea" src="https://raw.githubusercontent.com/jongleb/dartea/main/website/public/brand/dartea-on-light.svg" width="300">
+  </picture>
+</p>
+
+<p align="center"><a href="https://jongleb.github.io/dartea/">Documentation</a> · <a href="https://www.npmjs.com/package/@dartea/cli">npm</a></p>
+
 # dartea
 
 dartea is a compiler for the Elm language. It is written in OCaml. It takes Elm code and produces modern JavaScript.
@@ -8,7 +17,7 @@ The language is the same Elm. Same syntax, same types, same error messages, same
 
 The output is JavaScript as people write it today. ES modules. `const` and arrow functions. `async` and `await`. `fetch` and `AbortSignal`. One `.mjs` file per Elm module.
 
-Dead code is removed across modules. A counter app compiles to about 2 KB.
+Dead code is removed across modules and packages. Only what your program reaches gets into the output.
 
 If you need old browsers, run the output through any bundler with a target. There is nothing unusual in it.
 

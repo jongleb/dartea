@@ -1,0 +1,170 @@
+---
+const grad = (id: string) => `
+  <linearGradient id="${id}" x1="6" y1="6" x2="58" y2="58" gradientUnits="userSpaceOnUse">
+    <stop stop-color="#3ee0b0"/><stop offset="1" stop-color="#1f8bff"/>
+  </linearGradient>`;
+
+const concepts = [
+  {
+    name: 'Leaf d',
+    idea: 'The bowl of the d is a tea leaf, the stem stands next to it, three dashes give speed.',
+    svg: `<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><defs>${grad('a')}</defs>
+      <rect x="41" y="6" width="10" height="52" rx="5" fill="url(#a)"/>
+      <path d="M12 54C11 36 24 26 44 27C45 46 32 56 12 54Z" fill="url(#a)"/>
+      <path d="M15 51L40 31" stroke-width="2.6" stroke-linecap="round" class="hole-stroke"/>
+      <rect x="2" y="29" width="7" height="3.4" rx="1.7" fill="#3ee0b0" opacity=".55"/>
+      <rect x="0" y="36" width="9" height="3.4" rx="1.7" fill="#3ee0b0" opacity=".8"/>
+      <rect x="3" y="43" width="6" height="3.4" rx="1.7" fill="#3ee0b0" opacity=".55"/>
+    </svg>`,
+  },
+  {
+    name: 'Faceted d',
+    idea: 'A d cut from rhombi and triangles. Geometric like the Elm world, but its own shape and colours.',
+    svg: `<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+      <path d="M41 6H51V32Z" fill="#3ee0b0"/>
+      <path d="M41 6V58H51V32Z" fill="#1f8bff"/>
+      <path d="M9 40L25 24V33L18 40Z" fill="#3ee0b0"/>
+      <path d="M25 24L41 40H32L25 33Z" fill="#22c597"/>
+      <path d="M41 40L25 56V47L32 40Z" fill="#1f8bff"/>
+      <path d="M25 56L9 40H18L25 47Z" fill="#5aa9ff"/>
+    </svg>`,
+  },
+  {
+    name: 'Bolt cup',
+    idea: 'A cup of tea whose steam is a lightning bolt.',
+    svg: `<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><defs>${grad('c')}</defs>
+      <path d="M33 3L21 19H29L24 30L40 13H31.5L36 3Z" fill="#3ee0b0"/>
+      <path d="M12 33H48V41C48 51 40 57 30 57C20 57 12 51 12 41Z" fill="url(#c)"/>
+      <path d="M48 36H51A6 6 0 0 1 51 48H47" fill="none" stroke="#1f8bff" stroke-width="4" stroke-linecap="round"/>
+      <rect x="9" y="59" width="42" height="3.5" rx="1.75" fill="#1f8bff" opacity=".7"/>
+    </svg>`,
+  },
+  {
+    name: 'Leaf with a hole',
+    idea: 'A rhombus leaf in four facets with one cut out: the template with a hole, which is how dartea updates the DOM.',
+    svg: `<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+      <path d="M32 3L32 32L6 32Z" fill="#3ee0b0"/>
+      <path d="M32 3L58 32L32 32Z" fill="#22c597"/>
+      <path d="M6 32L32 32L32 61Z" fill="#1f8bff"/>
+      <path d="M58 32L32 61L32 32Z" fill="#5aa9ff"/>
+      <path d="M41 16L47 22.5L41 29L35 22.5Z" class="hole"/>
+      <path d="M32 6V58" stroke-width="1.6" class="hole-stroke" opacity=".55"/>
+    </svg>`,
+  },
+  {
+    name: 'Dash d',
+    idea: 'A plain round d with speed lines. The calmest one, reads best at 16 pixels.',
+    svg: `<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><defs>${grad('e')}</defs>
+      <circle cx="30" cy="40" r="13.5" fill="none" stroke="url(#e)" stroke-width="9"/>
+      <rect x="40" y="6" width="9" height="52" rx="4.5" fill="url(#e)"/>
+      <rect x="0" y="27" width="9" height="4" rx="2" fill="#3ee0b0" opacity=".5"/>
+      <rect x="0" y="38" width="6" height="4" rx="2" fill="#3ee0b0" opacity=".8"/>
+      <rect x="0" y="49" width="9" height="4" rx="2" fill="#3ee0b0" opacity=".5"/>
+    </svg>`,
+  },
+  {
+    name: 'Steam d',
+    idea: 'The stem of the d rises like steam from a cup.',
+    svg: `<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><defs>${grad('f')}</defs>
+      <circle cx="28" cy="42" r="13" fill="none" stroke="url(#f)" stroke-width="9"/>
+      <path d="M41 56V34C41 27 49 25 49 18C49 11 41 10 41 4" fill="none" stroke="url(#f)" stroke-width="8.5" stroke-linecap="round"/>
+    </svg>`,
+  },
+  {
+    name: 'Block',
+    idea: 'Three rhombi make a cube, a block of DOM. A tea leaf sits on top.',
+    svg: `<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+      <path d="M32 5L56 18L32 31L8 18Z" fill="#3ee0b0"/>
+      <path d="M8 18L32 31V59L8 46Z" fill="#22c597"/>
+      <path d="M32 31L56 18V46L32 59Z" fill="#1f8bff"/>
+      <path d="M22 19C24 12 34 10 42 13C40 20 30 23 22 19Z" class="hole"/>
+      <path d="M24 18.5L39 13.8" stroke-width="1.4" stroke="#3ee0b0" stroke-linecap="round"/>
+    </svg>`,
+  },
+  {
+    name: 'Arrow leaf',
+    idea: 'A leaf that is also an arrow pointing forward. Tea and speed in one stroke.',
+    svg: `<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><defs>${grad('h')}</defs>
+      <path d="M6 50C10 24 32 10 60 8C56 34 38 52 10 54Z" fill="url(#h)"/>
+      <path d="M10 50L50 17" stroke-width="3" stroke-linecap="round" class="hole-stroke"/>
+      <path d="M39 18H51V30" fill="none" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="hole-stroke"/>
+    </svg>`,
+  },
+];
+---
+
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>dartea logo concepts</title>
+		<style is:global>
+			@import '@fontsource-variable/inter';
+			:root {
+				color-scheme: dark;
+				--page: #0b1018;
+				--ink: #e8eef7;
+				--muted: #8a97ab;
+				--line: #232c3b;
+			}
+			* { box-sizing: border-box; }
+			body {
+				margin: 0;
+				background: var(--page);
+				color: var(--ink);
+				font-family: 'Inter Variable', system-ui, sans-serif;
+			}
+			main { max-width: 1180px; margin: 0 auto; padding: 48px 16px 96px; }
+			h1 { font-size: clamp(2rem, 5vw, 3.2rem); letter-spacing: -0.03em; margin: 0 0 8px; }
+			.lead { color: var(--muted); margin: 0 0 40px; max-width: 46rem; line-height: 1.5; }
+			.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 20px; }
+			article { border: 1px solid var(--line); border-radius: 18px; overflow: hidden; background: #0e141e; }
+			.stage { display: grid; grid-template-columns: 1fr 1fr; }
+			.tile { --hole: #0e141e; display: grid; place-items: center; padding: 28px 0; }
+			.tile.light { --hole: #ffffff; background: #ffffff; }
+			.tile svg { width: 112px; height: 112px; }
+			.hole { fill: var(--hole); }
+			.hole-stroke { stroke: var(--hole); fill: none; }
+			.meta { padding: 18px 20px 20px; }
+			.meta h2 { margin: 0 0 6px; font-size: 1.1rem; }
+			.meta p { margin: 0 0 16px; color: var(--muted); font-size: 0.92rem; line-height: 1.45; }
+			.row { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+			.sizes { --hole: #0e141e; display: flex; align-items: center; gap: 10px; }
+			.sizes svg:nth-child(1) { width: 32px; height: 32px; }
+			.sizes svg:nth-child(2) { width: 16px; height: 16px; }
+			.word { --hole: #0e141e; display: flex; align-items: center; gap: 8px; font-weight: 750; font-size: 1.55rem; letter-spacing: -0.04em; }
+			.word svg { width: 34px; height: 34px; }
+			.word .tea {
+				background: linear-gradient(120deg, #3ee0b0, #1f8bff);
+				-webkit-background-clip: text; background-clip: text; color: transparent;
+			}
+			.num { color: var(--muted); font-size: 0.8rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
+		</style>
+	</head>
+	<body>
+		<main>
+			<h1>dartea logo concepts</h1>
+			<p class="lead">Eight directions around tea, speed, the letter d and faceted geometry. Each is shown on dark and light, at favicon sizes and next to the name. Pick one or two and we refine them.</p>
+			<div class="grid">
+				{concepts.map((concept, index) => (
+					<article>
+						<div class="stage">
+							<div class="tile" set:html={concept.svg} />
+							<div class="tile light" set:html={concept.svg} />
+						</div>
+						<div class="meta">
+							<span class="num">{String(index + 1).padStart(2, '0')}</span>
+							<h2>{concept.name}</h2>
+							<p>{concept.idea}</p>
+							<div class="row">
+								<div class="sizes" set:html={concept.svg + concept.svg} />
+								<div class="word"><span set:html={concept.svg} /><span>dar<span class="tea">tea</span></span></div>
+							</div>
+						</div>
+					</article>
+				))}
+			</div>
+		</main>
+	</body>
+</html>

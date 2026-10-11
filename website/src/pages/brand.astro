@@ -1,0 +1,69 @@
+---
+const base = import.meta.env.BASE_URL.replace(/\/?$/, '/');
+const files = [
+	['dartea-on-dark.svg', 'Mark and name, for dark backgrounds', 'dark'],
+	['dartea-on-light.svg', 'Mark and name, for light backgrounds', 'light'],
+	['dartea-plain-on-dark.svg', 'Without the gradient, dark', 'dark'],
+	['dartea-plain-on-light.svg', 'Without the gradient, light', 'light'],
+	['dartea-stacked-on-dark.svg', 'Stacked, dark', 'dark'],
+	['dartea-stacked-on-light.svg', 'Stacked, light', 'light'],
+	['dartea-mono.svg', 'One colour, takes the text colour', 'light'],
+	['dartea-mark.svg', 'Mark only', 'dark'],
+	['dartea-mark-mono.svg', 'Mark only, one colour', 'light'],
+	['dartea-icon.svg', 'App icon', 'dark'],
+	['dartea-icon-512.png', 'App icon, 512 × 512, for GitHub and npm', 'dark'],
+	['dartea-card.png', 'Link preview, 1200 × 630', 'dark'],
+];
+---
+
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>dartea brand</title>
+		<link rel="icon" href={`${base}favicon.svg`} />
+		<style is:global>
+			@import '@fontsource-variable/inter';
+			:root { color-scheme: dark; }
+			* { box-sizing: border-box; }
+			body { margin: 0; background: #0b1018; color: #e8eef7; font-family: 'Inter Variable', system-ui, sans-serif; }
+			main { max-width: 1180px; margin: 0 auto; padding: 48px 16px 96px; }
+			h1 { font-size: clamp(2rem, 5vw, 3.2rem); letter-spacing: -0.03em; margin: 0 0 8px; }
+			.lead { color: #8a97ab; margin: 0 0 32px; max-width: 46rem; line-height: 1.5; }
+			.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px; }
+			a.item { display: block; color: inherit; text-decoration: none; border: 1px solid #232c3b; border-radius: 18px; overflow: hidden; background: #0e141e; transition: border-color 150ms; }
+			a.item:hover { border-color: #22c597; }
+			.shot { height: 170px; display: grid; place-items: center; padding: 24px; }
+			.shot.light { background: #fff; }
+			.shot.mono { background: #1b2230; color: #e8eef7; }
+			.shot img { display: block; width: auto; height: auto; max-width: 100%; max-height: 122px; }
+			.meta { padding: 14px 18px 16px; }
+			.meta strong { display: block; font-size: 0.95rem; }
+			.meta span { color: #8a97ab; font-size: 0.85rem; }
+			.colours { display: flex; flex-wrap: wrap; gap: 12px; margin: 40px 0 0; }
+			.colour { width: 150px; border-radius: 14px; overflow: hidden; border: 1px solid #232c3b; font-size: 0.85rem; }
+			.colour div { height: 70px; }
+			.colour p { margin: 0; padding: 10px 12px; font-family: ui-monospace, monospace; }
+		</style>
+	</head>
+	<body>
+		<main>
+			<h1>dartea brand</h1>
+			<p class="lead">The mark is a faceted d: a rhombus ring and a stem, lit from the top left. The name is set in Inter Extra Bold and turned into outlines, with tea in the gradient. Click a file to open it.</p>
+			<div class="grid">
+				{files.map(([name, label, ground]) => (
+					<a class="item" href={`${base}brand/${name}`}>
+						<div class={`shot ${ground}`}><img src={`${base}brand/${name}`} alt={label} /></div>
+						<div class="meta"><strong>{name}</strong><span>{label}</span></div>
+					</a>
+				))}
+			</div>
+			<div class="colours">
+				{[['#4de8bb', 'Mint'], ['#3ee0b0', 'Tea'], ['#22c597', 'Teal'], ['#1f8bff', 'Blue'], ['#1466d6', 'Deep blue'], ['#0e141e', 'Ink']].map(([hex, label]) => (
+					<div class="colour"><div style={`background:${hex}`}></div><p>{label}<br />{hex}</p></div>
+				))}
+			</div>
+		</main>
+	</body>
+</html>

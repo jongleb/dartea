@@ -1,0 +1,145 @@
+---
+const balanced = `
+  <path d="M41 6H49L41 26Z" fill="#3ee0b0"/>
+  <path d="M49 6V58H41V26Z" fill="#1f8bff"/>
+  <path d="M7 39L24 22V32.5L17.5 39Z" fill="#4de8bb"/>
+  <path d="M24 22L41 39H30.5L24 32.5Z" fill="#22c597"/>
+  <path d="M41 39L24 56V45.5L30.5 39Z" fill="#1466d6"/>
+  <path d="M24 56L7 39H17.5L24 45.5Z" fill="#1f8bff"/>`;
+
+const gem = `
+  <path d="M41 6H49L41 26Z" fill="#5ff0c6"/>
+  <path d="M49 6V58L41 26Z" fill="#1f8bff"/>
+  <path d="M41 26L49 58H41Z" fill="#1670e8"/>
+  <path d="M7 39L24 22L24 32.5Z" fill="#5ff0c6"/>
+  <path d="M7 39L24 32.5L17.5 39Z" fill="#3ee0b0"/>
+  <path d="M24 22L41 39L24 32.5Z" fill="#2fd3a5"/>
+  <path d="M24 32.5L41 39H30.5Z" fill="#22c597"/>
+  <path d="M41 39L24 56L30.5 39Z" fill="#1670e8"/>
+  <path d="M30.5 39L24 56V45.5Z" fill="#1458c0"/>
+  <path d="M24 56L7 39L24 45.5Z" fill="#2f8fff"/>
+  <path d="M7 39H17.5L24 45.5Z" fill="#4aa3ff"/>`;
+
+const tea = `${balanced}
+  <path d="M24 35.5L27.5 39L24 42.5L20.5 39Z" fill="#f5a524"/>`;
+
+const mono = `
+  <g class="mono">
+    <path d="M41 6H49L41 26Z"/>
+    <path d="M49 6V58H41V26Z"/>
+    <path d="M7 39L24 22V32.5L17.5 39Z"/>
+    <path d="M24 22L41 39H30.5L24 32.5Z"/>
+    <path d="M41 39L24 56V45.5L30.5 39Z"/>
+    <path d="M24 56L7 39H17.5L24 45.5Z"/>
+  </g>`;
+
+const mark = (inner: string) =>
+  `<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">${inner}</svg>`;
+
+const icon = (inner: string) =>
+  `<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+     <rect width="64" height="64" rx="15" fill="#0e141e"/>
+     <g transform="translate(8 6.5) scale(.75)">${inner}</g>
+   </svg>`;
+
+const variants = [
+  { name: '2a · Balanced', idea: 'The stem and the ring have the same weight. Light falls from the top left, so each facet has its own tone.', svg: mark(balanced) },
+  { name: '2b · Gem', idea: 'Every facet split once more, like a cut stone. Richer up close, busier at small sizes.', svg: mark(gem) },
+  { name: '2c · Tea in the hole', idea: 'A small amber rhombus in the hole: the tea, and the hole that dartea fills on update.', svg: mark(tea) },
+  { name: '2d · One colour', idea: 'For print, stickers, monochrome icons. The facets are kept as thin gaps.', svg: mark(mono) },
+];
+---
+
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>dartea faceted d</title>
+		<style is:global>
+			@import '@fontsource-variable/inter';
+			:root { color-scheme: dark; --page: #0b1018; --ink: #e8eef7; --muted: #8a97ab; --line: #232c3b; }
+			* { box-sizing: border-box; }
+			body { margin: 0; background: var(--page); color: var(--ink); font-family: 'Inter Variable', system-ui, sans-serif; }
+			main { max-width: 1180px; margin: 0 auto; padding: 48px 16px 96px; }
+			h1 { font-size: clamp(2rem, 5vw, 3.2rem); letter-spacing: -0.03em; margin: 0 0 8px; }
+			h2.section { margin: 56px 0 16px; font-size: 1.3rem; letter-spacing: -0.02em; }
+			.lead { color: var(--muted); margin: 0 0 32px; max-width: 46rem; line-height: 1.5; }
+			.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 20px; }
+			article { --hole: #0e141e; border: 1px solid var(--line); border-radius: 18px; overflow: hidden; background: #0e141e; }
+			.stage { display: grid; grid-template-columns: 1fr 1fr; }
+			.tile { --hole: #0e141e; display: grid; place-items: center; padding: 26px 0; }
+			.tile.light { --hole: #ffffff; background: #ffffff; }
+			.tile svg { width: 96px; height: 96px; }
+			.mono path { fill: #e8eef7; stroke: var(--hole); stroke-width: 1.4; stroke-linejoin: round; }
+			.tile.light .mono path, .panel.light .mono path { fill: #0e141e; }
+			.meta { padding: 16px 18px 18px; }
+			.meta h3 { margin: 0 0 6px; font-size: 1.02rem; }
+			.meta p { margin: 0 0 14px; color: var(--muted); font-size: 0.9rem; line-height: 1.45; }
+			.sizes { display: flex; align-items: end; gap: 12px; }
+			.sizes svg:nth-child(1) { width: 48px; height: 48px; }
+			.sizes svg:nth-child(2) { width: 32px; height: 32px; }
+			.sizes svg:nth-child(3) { width: 16px; height: 16px; }
+			.panel { border: 1px solid var(--line); border-radius: 18px; padding: 36px 28px; display: flex; flex-wrap: wrap; gap: 40px; align-items: center; }
+			.panel.light { background: #ffffff; color: #0e141e; --hole: #ffffff; }
+			.lockup { display: flex; align-items: center; gap: 14px; font-weight: 760; letter-spacing: -0.045em; font-size: 3rem; line-height: 1; }
+			.lockup svg { width: 64px; height: 64px; }
+			.lockup.small { font-size: 1.6rem; gap: 8px; }
+			.lockup.small svg { width: 34px; height: 34px; }
+			.stacked { display: grid; justify-items: center; gap: 10px; font-weight: 760; letter-spacing: -0.045em; font-size: 1.9rem; }
+			.stacked svg { width: 72px; height: 72px; }
+			.tea { background: linear-gradient(120deg, #3ee0b0, #1f8bff); -webkit-background-clip: text; background-clip: text; color: transparent; }
+			.icons { display: flex; flex-wrap: wrap; gap: 28px; align-items: end; }
+			.icons svg:nth-child(1) { width: 128px; height: 128px; }
+			.icons svg:nth-child(2) { width: 64px; height: 64px; }
+			.icons svg:nth-child(3) { width: 32px; height: 32px; }
+			.tab { display: inline-flex; align-items: center; gap: 8px; background: #1b2230; border-radius: 10px 10px 0 0; padding: 8px 14px; font-size: 0.85rem; }
+			.tab svg { width: 16px; height: 16px; }
+		</style>
+	</head>
+	<body>
+		<main>
+			<h1>Faceted d</h1>
+			<p class="lead">Direction 02, worked out. Four takes on the mark, then the lockups with the name, the app icon and how it looks in a browser tab. The header of this site already uses 2a.</p>
+
+			<div class="grid">
+				{variants.map((variant) => (
+					<article>
+						<div class="stage">
+							<div class="tile" set:html={variant.svg} />
+							<div class="tile light" set:html={variant.svg} />
+						</div>
+						<div class="meta">
+							<h3>{variant.name}</h3>
+							<p>{variant.idea}</p>
+							<div class="sizes" set:html={variant.svg + variant.svg + variant.svg} />
+						</div>
+					</article>
+				))}
+			</div>
+
+			<h2 class="section">With the name</h2>
+			<div class="panel">
+				<div class="lockup"><span set:html={mark(balanced)} /><span>dartea</span></div>
+				<div class="lockup"><span set:html={mark(balanced)} /><span>dar<span class="tea">tea</span></span></div>
+				<div class="stacked"><span set:html={mark(balanced)} /><span>dartea</span></div>
+				<div class="lockup small"><span set:html={mark(balanced)} /><span>dartea</span></div>
+			</div>
+			<div class="panel light" style="margin-top: 16px">
+				<div class="lockup"><span set:html={mark(balanced)} /><span>dartea</span></div>
+				<div class="lockup"><span set:html={mark(balanced)} /><span>dar<span class="tea">tea</span></span></div>
+				<div class="stacked"><span set:html={mark(balanced)} /><span>dartea</span></div>
+				<div class="lockup small"><span set:html={mark(mono)} /><span>dartea</span></div>
+			</div>
+
+			<h2 class="section">App icon and favicon</h2>
+			<div class="panel">
+				<div class="icons" set:html={icon(balanced) + icon(balanced) + icon(balanced)} />
+				<div>
+					<div class="tab"><span set:html={mark(balanced)} />dartea — Getting started</div>
+				</div>
+				<div class="icons" set:html={icon(gem) + icon(tea) + icon(gem)} />
+			</div>
+		</main>
+	</body>
+</html>
