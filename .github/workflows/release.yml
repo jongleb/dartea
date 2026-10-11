@@ -18,7 +18,7 @@ jobs:
     env:
       MACOSX_DEPLOYMENT_TARGET: "13.0"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libcurl4-openssl-dev
@@ -27,7 +27,7 @@ jobs:
         with:
           ocaml-compiler: "5.4.0"
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
 
@@ -48,7 +48,7 @@ jobs:
           cp _build/default/bin/main.exe out/dartea-${{ matrix.platform }}
           strip out/dartea-${{ matrix.platform }}
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: dartea-${{ matrix.platform }}
           path: out/dartea-${{ matrix.platform }}
@@ -61,14 +61,14 @@ jobs:
       contents: write
       id-token: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           registry-url: https://registry.npmjs.org
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v5
         with:
           path: binaries
           merge-multiple: true
