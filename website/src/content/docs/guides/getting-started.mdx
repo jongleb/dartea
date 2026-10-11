@@ -1,0 +1,116 @@
+---
+title: Getting started
+description: Install dartea, start a project and build it.
+---
+
+import { Steps, Tabs, TabItem, Aside, FileTree } from '@astrojs/starlight/components';
+
+## Install
+
+dartea ships as an npm package with a native binary inside. You need Node.js 18 or newer.
+
+```sh
+npm install --save-dev @dartea/cli
+```
+
+npm picks the binary for your machine. There are builds for:
+
+- macOS on Apple silicon and Intel
+- Linux on x64 and arm64, with glibc
+
+<Aside type="note">
+On Linux the binary uses the system `libcurl`, which almost every distribution already has. Alpine and other musl systems are not supported yet.
+</Aside>
+
+## Start a project
+
+<Steps>
+
+1. Create the project files.
+
+   ```sh
+   npx dartea init
+   ```
+
+   You get two files:
+
+   <FileTree>
+   - dartea.json
+   - src/
+     - Main.elm a small counter
+   </FileTree>
+
+2. Build a page with the program inside.
+
+   ```sh
+   npx dartea make src/Main.elm --output index.html
+   ```
+
+3. Open `index.html` in a browser. No server needed.
+
+</Steps>
+
+`init` refuses to run where a `dartea.json` or an `elm.json` already exists, so it never overwrites a project.
+
+## Choose an output
+
+The extension of `--output` decides what you get.
+
+<Tabs>
+  <TabItem label="A page">
+    ```sh
+    npx dartea make src/Main.elm --output index.html
+    ```
+    One HTML file with the script inside. Good for trying things out and for small apps.
+  </TabItem>
+  <TabItem label="A script">
+    ```sh
+    npx dartea make src/Main.elm --output app.js
+    ```
+    One JavaScript file. Start the program from your own page:
+
+    ```html
+    <div id="app"></div>
+    <script src="app.js"></script>
+    <script>
+      const app = Dartea.Main.init({
+        node: document.getElementById("app"),
+        flags: null,
+      });
+    </script>
+    ```
+  </TabItem>
+  <TabItem label="ES modules">
+    ```sh
+    npx dartea make src --output build
+    ```
+    One `.mjs` file per Elm module, for bundlers and for setups that load modules natively.
+  </TabItem>
+  <TabItem label="Only check">
+    ```sh
+    npx dartea make src/Main.elm --output /dev/null
+    ```
+    Type checks everything and writes nothing. Handy in CI and in editors.
+  </TabItem>
+</Tabs>
+
+## Ports and flags
+
+They work as in Elm. The global object is called `Dartea`, not `Elm`:
+
+```js
+const app = Dartea.Main.init({ flags: JSON.parse(localStorage.getItem("state")) });
+
+app.ports.save.subscribe((state) => {
+  localStorage.setItem("state", JSON.stringify(state));
+});
+```
+
+## Licences in the output
+
+Some modules of the standard library come from `elm/core`, `elm/html`, `elm/browser`, `elm/url` and `elm/http`. When any of them ends up in your bundle, dartea writes `dartea.LICENSE.txt` next to it and adds a one line banner pointing there. Your own code stays yours to license.
+
+## Next
+
+- [Packages](../packages/): add a dependency, publish your own.
+- [Coming from Elm](../coming-from-elm/): what to change in an existing project.

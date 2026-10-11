@@ -1,0 +1,60 @@
+---
+title: How it works
+description: Templates instead of a diff, reference checks instead of signals, async functions instead of a scheduler.
+---
+
+import { Aside, Card, CardGrid } from '@astrojs/starlight/components';
+
+dartea is a full Elm compiler written in OCaml: parser, type checker, optimiser and code generator. Up to the type checker it does what Elm does. The difference is in what comes after.
+
+## The compiler owns the view
+
+Elm's `Html` is a library, so its compiler cannot see what a `view` builds. Every update builds a new tree of virtual nodes, and a runtime compares it with the previous one.
+
+dartea ships its own `Html`, compiler and runtime together. That lets the compiler read the **shape** of a `view` at compile time.
+
+<CardGrid>
+  <Card title="Template" icon="document">
+    The static part of the view: tags, fixed attributes, fixed text. It becomes one DOM template, created once and cloned.
+  </Card>
+  <Card title="Holes" icon="puzzle">
+    The dynamic spots: a text that depends on the model, an attribute, an event handler. Each hole keeps a direct link to its DOM node.
+  </Card>
+  <Card title="Guards" icon="approve-check">
+    Before a hole is written, the runtime compares the values it depends on with the ones from last time. Unchanged means untouched.
+  </Card>
+</CardGrid>
+
+There is no tree diff and no walk over the whole page. An update costs as many checks as there are holes whose inputs changed.
+
+## Why one check is enough
+
+Elm values never change in place. If `model.items` is the same reference as before, nothing inside it changed. So "did this value change?" is `!==`, not a deep comparison.
+
+A guard covers every input of a hole. When you type into a text box in TodoMVC, the list of todos and the filters are not recomputed at all: their inputs are the same references. You get what `Html.Lazy` gives, without writing `Html.Lazy`.
+
+<Aside type="tip">
+`Html.Lazy` still compiles and still works. In most programs it is no longer needed.
+</Aside>
+
+## Lists and keys
+
+Keyed lists (`Html.Keyed`) move existing DOM nodes instead of recreating them, using a longest increasing subsequence to touch as few nodes as possible. Rendering is batched to the next animation frame.
+
+## Effects
+
+The Elm architecture is unchanged: `init`, `update`, `view`, `subscriptions`, commands and ports. Underneath it is today's platform.
+
+- A `Task` is an `async` function. It receives an `AbortSignal`, so cancelled work really stops.
+- `Http` is `fetch`, with a timeout signal.
+- `Cmd.batch` starts all commands at once and still delivers their messages in order.
+
+## Output
+
+The output is the JavaScript people write today: ES modules, `const`, arrow functions, `async`/`await`. Nothing in it needs a polyfill on a current browser. For old browsers, run it through any bundler with a target.
+
+Dead code is removed across modules and packages. A declaration nobody reaches from your program does not reach the browser.
+
+<Aside type="note" title="How big is it?">
+The counter from `dartea init`, built to a single script, is about 32 KB, or 8 KB gzipped. Most of that is the runtime, which stays the same size as the program grows.
+</Aside>

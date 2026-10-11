@@ -1,0 +1,43 @@
+---
+title: Benchmarks
+description: dartea on js-framework-benchmark, and how to run it yourself.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import { Image } from 'astro:assets';
+import chart from '../../../assets/benchmark.png';
+
+## Result
+
+[js-framework-benchmark](https://github.com/krausest/js-framework-benchmark) is the standard way to compare how fast frameworks create, update, swap and remove rows of a table. The score is the weighted geometric mean of slowdowns against hand written vanilla JavaScript. Lower is better.
+
+<div class="bench not-content">
+  <div class="bench-row"><span>vanilla</span><div class="bench-track"><div class="bench-bar" style="width:63.3%"></div></div><span>1.00</span></div>
+  <div class="bench-row"><span>Solid</span><div class="bench-track"><div class="bench-bar" style="width:70.9%"></div></div><span>1.12</span></div>
+  <div class="bench-row"><span>Svelte</span><div class="bench-track"><div class="bench-bar" style="width:70.9%"></div></div><span>1.12</span></div>
+  <div class="bench-row ours"><span>dartea</span><div class="bench-track"><div class="bench-bar" style="width:74.7%"></div></div><span>1.18</span></div>
+  <div class="bench-row"><span>Elm</span><div class="bench-track"><div class="bench-bar" style="width:96.2%"></div></div><span>1.52</span></div>
+  <div class="bench-row"><span>React</span><div class="bench-track"><div class="bench-bar" style="width:100%"></div></div><span>1.58</span></div>
+</div>
+
+The dartea program is the official Elm implementation from the benchmark repository, with `Array` and `Random` replaced by `List` and a small generator, because dartea does not have those modules yet. Same model, same messages, same `view`. The difference to Elm 0.19.1 comes from the compiler and the runtime.
+
+<Image src={chart} alt="js-framework-benchmark keyed results page with dartea next to vanilla, Solid, Svelte, Elm and React" />
+
+<Aside type="caution" title="Read this before quoting the numbers">
+This is one run on one machine: Apple M5, headless Chrome, August 30, 2026. It is not the official published table. The other frameworks are the official implementations from the benchmark repository. Only the dartea program is ours.
+</Aside>
+
+## Run it yourself
+
+The script uses a dartea built from source, so you need OCaml 5.4 with `dune` first.
+
+```sh
+git clone https://github.com/jongleb/dartea
+cd dartea
+opam install . --deps-only
+dune build
+sh bench/run.sh
+```
+
+The script clones js-framework-benchmark into `_bench`, adds dartea as one more keyed framework, builds the official vanilla, Elm, React, Svelte and Solid implementations and runs the official runner headless. Every measurement is the median of 15 runs, from the click to the end of the last paint in a Chrome trace. The result page is at `_bench/webdriver-ts-results/dist/index.html`.

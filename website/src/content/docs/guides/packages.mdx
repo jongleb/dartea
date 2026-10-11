@@ -1,0 +1,94 @@
+---
+title: Packages
+description: Install packages from npm and publish your own.
+---
+
+import { Steps, Aside, FileTree } from '@astrojs/starlight/components';
+
+dartea packages live on npm. There is no separate registry and no account besides your npm one.
+
+## Use a package
+
+```sh
+npx dartea install @someone/charts
+```
+
+This finds the newest version of `@someone/charts`, checks that it fits with everything else your project depends on, and only then adds it to `dartea.json`:
+
+```json title="dartea.json" ins={4}
+{
+    "source-directories": ["src"],
+    "dependencies": {
+        "@someone/charts": "^1.2.0"
+    }
+}
+```
+
+The exact version of every package, direct or not, goes to `dartea.lock`. Commit both files. Running plain `npx dartea install` later gives everyone the same versions without going to the network for packages already there.
+
+<Aside type="note">
+One version per package, like in Elm. If two packages need incompatible versions of a third one, `install` stops and names everyone who asked.
+</Aside>
+
+### What you can import
+
+Only the modules a package lists in `exposed-modules`. The rest are private to the package. Importing one is reported the same way as importing a module that does not exist.
+
+### What gets downloaded
+
+The tarball from npm, checked against its `sha512`. A tarball that tries to write outside its own folder is refused, and so is a package with no `dartea.json`. No install scripts run: a dartea package is Elm source and nothing else.
+
+Packages are unpacked into `.dartea/packages`, and only the code your program uses ends up in the output.
+
+## Publish a package
+
+<Steps>
+
+1. Lay the package out like this:
+
+   <FileTree>
+   - dartea.json
+   - README.md optional
+   - LICENSE optional
+   - src/
+     - Greeting.elm
+   </FileTree>
+
+2. Describe it in `dartea.json`:
+
+   ```json title="dartea.json"
+   {
+       "type": "package",
+       "name": "@you/greeting",
+       "version": "1.0.0",
+       "summary": "Say hello",
+       "license": "BSD-3-Clause",
+       "exposed-modules": ["Greeting"],
+       "dependencies": {}
+   }
+   ```
+
+3. Log in to npm once.
+
+   ```sh
+   npm login
+   ```
+
+4. Rehearse, then publish.
+
+   ```sh
+   npx dartea publish --dry-run
+   npx dartea publish
+   ```
+
+</Steps>
+
+`publish` compiles the package first and stops on any error. It checks that every module in `exposed-modules` exists in `src`. Then it builds a `package.json` from your `dartea.json`, packs `dartea.json`, `src`, `README.md` and `LICENSE`, and hands them to `npm publish`. Two-factor prompts and trusted publishing from CI are npm's, so they work as usual.
+
+### Names
+
+Publish under your own npm scope, like `@you/greeting`. The `@dartea` scope is kept for the packages of this project. Every published package gets the `dartea-package` keyword, so [a search on npm](https://www.npmjs.com/search?q=keywords:dartea-package) lists them all.
+
+### Versions
+
+You choose the version. Bump the major number when you change or remove something people use, the minor one when you add something, the patch one for fixes.

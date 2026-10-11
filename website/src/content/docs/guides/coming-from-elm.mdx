@@ -1,0 +1,64 @@
+---
+title: Coming from Elm
+description: What stays the same, what changes, and what is not there yet.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+## The same
+
+- The language: syntax, type system, pattern matching, records, custom types, ports.
+- The error messages, written to match Elm's.
+- `Html`, `Html.Attributes`, `Html.Events`, `Html.Keyed`, `Html.Lazy`.
+- `Browser.sandbox`, `element`, `document` and `application`, with `Browser.Navigation`, `Browser.Events` and `Browser.Dom`.
+- The upstream TodoMVC builds and runs without changes.
+
+## What to change
+
+### The global is `Dartea`
+
+```js del={1} ins={2}
+const app = Elm.Main.init({ node: document.getElementById("app") });
+const app = Dartea.Main.init({ node: document.getElementById("app") });
+```
+
+### The command
+
+```sh del={1} ins={2}
+elm make src/Main.elm --output=index.html
+npx dartea make src/Main.elm --output index.html
+```
+
+`dartea make` takes the same shape of arguments as `elm make`, and the extension of `--output` chooses a page, a script or a folder of modules.
+
+### Build tools
+
+`vite-plugin-elm` and `elm-webpack-loader` call the `elm` binary. They do not know about dartea yet. Until they do, build with `dartea make` and point your bundler at the output.
+
+### Projects and packages
+
+dartea reads `dartea.json`. An existing `elm.json` is read too, for its `source-directories`. Dependencies come from npm through `dartea install`. Packages from the Elm package registry are not downloaded yet.
+
+<Aside type="caution">
+Packages from package.elm-lang.org are the next big piece of work. Until then a project that imports one, such as `elm/svg` or `elm/parser`, will not build.
+</Aside>
+
+## Standard library
+
+| Package | Status |
+| --- | --- |
+| `elm/core` | Ready, except `Debug`, `Bitwise`, `Set`, `Array` and `Process` |
+| `elm/html` | Ready |
+| `elm/browser` | Ready |
+| `elm/json` | Ready |
+| `elm/url` | Ready |
+| `elm/http` | Ready, without `Bytes` and `File` bodies |
+| `elm/time` | Partly |
+| `elm/random` | Not yet |
+| `elm/virtual-dom` | Ready, through `Html` |
+
+## Differences you might notice
+
+- A `Task` is an `async` function and can be cancelled through its `AbortSignal`.
+- `Cmd.batch` starts every command at once. Messages still arrive in order.
+- The output is modern JavaScript. It does not run in browsers without ES modules and `async`.

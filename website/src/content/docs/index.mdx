@@ -1,0 +1,133 @@
+---
+title: dartea
+description: An Elm compiler. Modern JavaScript output. No virtual DOM.
+template: splash
+hero:
+  title: Elm, compiled for today's browser.
+  tagline: Same language, same types, same error messages. The output is modern JavaScript, and the view updates without a virtual DOM.
+  image:
+    file: ../../assets/mark.svg
+  actions:
+    - text: Get started
+      link: guides/getting-started/
+      icon: right-arrow
+    - text: How it works
+      link: guides/how-it-works/
+      variant: minimal
+    - text: GitHub
+      link: https://github.com/jongleb/dartea
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid, Tabs, TabItem, Steps, LinkCard } from '@astrojs/starlight/components';
+
+<div class="big-numbers not-content">
+  <div><strong>1.18</strong><span>on js-framework-benchmark, next to Solid and Svelte. Elm scores 1.52.</span></div>
+  <div><strong>0 lines</strong><span>changed in the upstream Elm TodoMVC to build it with dartea.</span></div>
+  <div><strong>No VDOM</strong><span>The view compiles to a DOM template. Only changed values are written.</span></div>
+  <div><strong>npm i</strong><span>One install, macOS and Linux. Packages come from npm too.</span></div>
+</div>
+
+## Same Elm. Different output.
+
+<CardGrid>
+  <Card title="The Elm you know" icon="approve-check">
+    Same syntax, same type system, same friendly errors, same `Html` library. The upstream TodoMVC compiles without a single change.
+  </Card>
+  <Card title="No virtual DOM" icon="rocket">
+    The compiler sees the shape of every `view`. The static part becomes a template that is cloned once. Only the values in the holes are checked and written.
+  </Card>
+  <Card title="JavaScript as people write it now" icon="seti:javascript">
+    ES modules, `const` and arrow functions, `async`/`await`. `Http` is `fetch`, a `Task` gets an `AbortSignal`.
+  </Card>
+  <Card title="Dead code is gone" icon="star">
+    Code nobody calls is removed across all modules, packages included. You ship what your program uses.
+  </Card>
+</CardGrid>
+
+## See it compile
+
+The counter `init` writes, and the code dartea makes from its `view`. This is real compiler output. Only the list of hole paths is shortened.
+
+<Tabs>
+  <TabItem label="Main.elm">
+```elm
+view : Int -> Html Msg
+view model =
+    div []
+        [ button [ onClick Decrement ] [ text "-" ]
+        , text (String.fromInt model)
+        , button [ onClick Increment ] [ text "+" ]
+        ]
+```
+  </TabItem>
+  <TabItem label="Compiled JavaScript">
+```js
+const $$form0 = { tag: "div", attributes: [], children: [
+  { tag: "button", attributes: [], children: [{ text: "-" }] },
+  { hole: 1 },
+  { tag: "button", attributes: [], children: [{ text: "+" }] }
+], holes: [/* direct paths to the three dynamic spots */], guards: 1 };
+
+const $$r0 = ($$b, $$put, $$v) => {
+  const model$1 = $$v.a0;
+  $$put($$b, 0, Decrement);
+  if ($$b.deps[0] !== model$1) {
+    $$b.deps[0] = model$1;
+    $$put($$b, 1, $$String.fromInt(model$1));
+  }
+  $$put($$b, 2, Increment);
+};
+
+const view = model$1 => ({ TAG: "block", form: $$form0, refresh: $$r0, a0: model$1 });
+```
+  </TabItem>
+</Tabs>
+
+The `div` and both buttons are built once. On every update the runtime asks one question, *is `model` the same value as last time?*, and touches the text node only when it is not. Elm values never change in place, so that question is a single reference check.
+
+## Fast where it counts
+
+Weighted geometric mean of slowdowns on [js-framework-benchmark](https://github.com/krausest/js-framework-benchmark), keyed. Lower is better.
+
+<div class="bench not-content">
+  <div class="bench-row"><span>vanilla</span><div class="bench-track"><div class="bench-bar" style="width:63.3%"></div></div><span>1.00</span></div>
+  <div class="bench-row"><span>Solid</span><div class="bench-track"><div class="bench-bar" style="width:70.9%"></div></div><span>1.12</span></div>
+  <div class="bench-row"><span>Svelte</span><div class="bench-track"><div class="bench-bar" style="width:70.9%"></div></div><span>1.12</span></div>
+  <div class="bench-row ours"><span>dartea</span><div class="bench-track"><div class="bench-bar" style="width:74.7%"></div></div><span>1.18</span></div>
+  <div class="bench-row"><span>Elm</span><div class="bench-track"><div class="bench-bar" style="width:96.2%"></div></div><span>1.52</span></div>
+  <div class="bench-row"><span>React</span><div class="bench-track"><div class="bench-bar" style="width:100%"></div></div><span>1.58</span></div>
+  <span class="bench-note">Official runner, official implementations of the other frameworks. Apple M5, headless Chrome, August 30, 2026. One machine, not the published table. <a href="guides/benchmarks/">Details</a>.</span>
+</div>
+
+## Thirty seconds to a running app
+
+<Steps>
+
+1. Add the compiler to a project.
+
+   ```sh
+   npm install --save-dev @dartea/cli
+   ```
+
+2. Start one.
+
+   ```sh
+   npx dartea init
+   ```
+
+3. Build a page and open it.
+
+   ```sh
+   npx dartea make src/Main.elm --output index.html
+   ```
+
+</Steps>
+
+<CardGrid>
+  <LinkCard title="Getting started" description="Install, start a project, choose an output." href="guides/getting-started/" />
+  <LinkCard title="Packages" description="Install packages from npm, publish your own." href="guides/packages/" />
+  <LinkCard title="Coming from Elm" description="What is the same, what differs, what is missing." href="guides/coming-from-elm/" />
+  <LinkCard title="How it works" description="Templates, holes, guards and the effect runtime." href="guides/how-it-works/" />
+</CardGrid>
