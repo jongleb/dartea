@@ -23,6 +23,7 @@ type t =
   | Delivery_needs_entry of { delivery : string }
   | Missing_lock of { file : string; lock : string }
   | Missing_manifest of { file : string }
+  | Existing_project of { file : string }
   | Offline of { file : string; url : string; problem : string }
   | Unknown_package of { file : string; package : string; asked_by : string }
   | No_version of {
@@ -65,6 +66,7 @@ let file_of = function
   | Missing_source_directory { file; _ }
   | Missing_lock { file; _ }
   | Missing_manifest { file }
+  | Existing_project { file }
   | Offline { file; _ }
   | Unknown_package { file; _ }
   | No_version { file; _ }

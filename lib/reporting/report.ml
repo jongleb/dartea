@@ -60,6 +60,7 @@ let title_of_project (problem : Diagnostic.Project_error.t) =
   | Bad_flags _ -> "BAD FLAGS"
   | Missing_lock _ -> "MISSING LOCK FILE"
   | Missing_manifest _ -> "NO MANIFEST"
+  | Existing_project _ -> "EXISTING PROJECT"
   | Offline _ -> "NO CONNECTION"
   | Unknown_package _ -> "UNKNOWN PACKAGE"
   | No_version _ -> "NO VERSION"
@@ -1133,6 +1134,11 @@ let of_project_problem source region (problem : Diagnostic.Project_error.t) =
           Doc.words
             "That file says what your project is called and which packages it needs, and I install from it.";
         ]
+  | Existing_project { file } ->
+      Doc.words
+        (Printf.sprintf
+           "There is a project file here already, %s, so there is nothing for me to initialize!"
+           (quote file))
   | Offline { url; problem } ->
       Doc.stack
         [

@@ -45,6 +45,14 @@ Missing: `Random`, `Process`, `Set`, `Array`, packages from the Elm registry.
 ## Use
 
 ```
+npm install --save-dev @dartea/cli
+npx dartea init
+npx dartea make src/Main.elm --output index.html
+```
+
+`init` writes `dartea.json` and a counter in `src/Main.elm`. Binaries exist for macOS (arm64, x64) and Linux with glibc (x64, arm64). On Linux the binary needs `libcurl`, which most systems already have.
+
+```
 dartea make src/Main.elm --output index.html
 dartea make src/Main.elm --output app.js
 dartea make src

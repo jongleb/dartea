@@ -1,0 +1,26 @@
+{
+  "name": "@dartea/cli",
+  "version": "0.0.0",
+  "description": "Elm compiler. Modern JavaScript output. No virtual DOM.",
+  "keywords": ["elm", "compiler", "javascript"],
+  "homepage": "https://github.com/jongleb/dartea",
+  "bugs": "https://github.com/jongleb/dartea/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jongleb/dartea.git",
+    "directory": "npm/dartea"
+  },
+  "license": "BSD-3-Clause",
+  "type": "module",
+  "bin": {
+    "dartea": "bin/dartea.js"
+  },
+  "files": ["bin", "NOTICE"],
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "optionalDependencies": {}
+}

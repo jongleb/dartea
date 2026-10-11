@@ -10,8 +10,26 @@ tags: ["compiler" "elm" "javascript"]
 homepage: "https://github.com/jongleb/dartea"
 bug-reports: "https://github.com/jongleb/dartea/issues"
 depends: [
-  "ocaml"
+  "ocaml" {>= "5.4.0"}
   "dune" {>= "3.10"}
+  "menhir" {>= "20240715"}
+  "cmdliner" {>= "2.0.0"}
+  "fpath"
+  "bos"
+  "rresult"
+  "yojson" {>= "3.0.0"}
+  "conf-libcurl"
+  "ezcurl"
+  "digestif"
+  "base64"
+  "tar" {>= "3.0.0"}
+  "tar-unix" {>= "3.0.0"}
+  "decompress"
+  "ppx_deriving"
+  "ppx_jane"
+  "ounit2" {with-test}
+  "qcheck-core" {with-test}
+  "qcheck-ounit" {with-test}
   "odoc" {with-doc}
 ]
 build: [

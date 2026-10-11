@@ -13,6 +13,9 @@ let refuse ~seen errors =
   print_reports (List.map (Reporting.Sources.report seen) errors);
   exit 1
 
+let refuse_failure failure =
+  refuse ~seen:Reporting.Sources.empty [ Reporting.Error.of_failure failure ]
+
 let save ~path (file : Dartea.Delivery.file) =
   Files.save path (Fpath.v file.path) file.content
 
@@ -47,19 +50,12 @@ let entry_in sources path =
       sources
   with
   | Some source -> source.name
-  | None ->
-      refuse ~seen:Reporting.Sources.empty
-        [
-          Reporting.Error.of_failure
-            (Diagnostic.Failure.about (Unknown_entry { path }));
-        ]
+  | None -> refuse_failure (Diagnostic.Failure.about (Unknown_entry { path }))
 
 let load path =
   match Project.Sources.load ~provided:Prelude.packages path with
   | Ok sources -> sources
-  | Error failure ->
-      refuse ~seen:Reporting.Sources.empty
-        [ Reporting.Error.of_failure failure ]
+  | Error failure -> refuse_failure failure
 
 let folder_and_entry target =
   if String.ends_with ~suffix:Project.Elm_file.extension target then
@@ -84,8 +80,20 @@ let install folder =
       print_endline
         (Printf.sprintf "I resolved %s and wrote %s." (count_of picked)
            Packages.Lock.file_name)
-  | exception Reporting.Error.Found error ->
-      refuse ~seen:Reporting.Sources.empty [ error ]
+  | exception Diagnostic.Failure.Found failure -> refuse_failure failure
+
+let init folder =
+  match Project.Scaffold.create (Fpath.v folder) with
+  | written ->
+      List.iter
+        (fun path ->
+          print_endline
+            (Printf.sprintf "I wrote %s." (Fpath.to_string Fpath.(v folder // path))))
+        written;
+      print_endline
+        "Run `dartea make src/Main.elm --output=index.html` in the project \
+         folder, then open index.html in a browser."
+  | exception Diagnostic.Failure.Found failure -> refuse_failure failure
 
 let target =
   let doc = "The source folder, or a single $(b,.elm) file to start from." in
@@ -104,8 +112,7 @@ let output =
   Cmdliner.Arg.(
     value & opt string "index.html" & info [ "output" ] ~docv:"FILE" ~doc)
 
-let folder =
-  let doc = "The project folder to install into." in
+let folder doc =
   Cmdliner.Arg.(
     value
     & pos 0 string Filename.current_dir_name
@@ -124,7 +131,21 @@ let install_command =
   in
   Cmdliner.Cmd.v
     (Cmdliner.Cmd.info "install" ~doc ~man)
-    Cmdliner.Term.(const install $ folder)
+    Cmdliner.Term.(const install $ folder "The project folder to install into.")
+
+let init_command =
+  let doc = "Start a new project." in
+  let man =
+    [
+      `S Cmdliner.Manpage.s_description;
+      `P
+        "Writes $(b,dartea.json) and $(b,src/Main.elm) with a small counter \
+         application, ready for $(b,dartea make).";
+    ]
+  in
+  Cmdliner.Cmd.v
+    (Cmdliner.Cmd.info "init" ~doc ~man)
+    Cmdliner.Term.(const init $ folder "The folder to start the project in.")
 
 let make_command =
   let doc = "Compile Elm files into JavaScript." in
@@ -135,6 +156,6 @@ let make_command =
 let dartea =
   let doc = "an independent compiler for the Elm language" in
   Cmdliner.Cmd.group (Cmdliner.Cmd.info "dartea" ~version:"0.1.0" ~doc)
-    [ make_command; install_command ]
+    [ init_command; make_command; install_command ]
 
 let () = exit (Cmdliner.Cmd.eval dartea)

@@ -1,0 +1,4 @@
+-- EXISTING PROJECT --------------------------------------------------- elm.json
+
+There is a project file here already, `elm.json`, so there is nothing for me to
+initialize!

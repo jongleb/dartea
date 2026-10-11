@@ -158,7 +158,7 @@ let sample_of_project (problem : Diagnostic.Project_error.t) =
   | Unknown_folder _ | No_sources _ | Bad_json _ | Missing_field _ | Bad_field _
   | Missing_source_directory _ | Duplicate_module _ | Unknown_entry _
   | No_entry _ | Bad_flags _ | Missing_package _ | Missing_lock _
-  | Missing_manifest _ | Offline _ | Unknown_package _ | No_version _
+  | Missing_manifest _ | Existing_project _ | Offline _ | Unknown_package _ | No_version _
   | Bad_tarball _ | Bad_range _ | Delivery_needs_entry _ ->
       let file = Diagnostic.Project_error.file_of problem in
       Rendered { file; content = ""; region = { Data.Region.nowhere with file } }
@@ -275,6 +275,7 @@ let project_kinds : (string * Diagnostic.Project_error.t) list =
         } );
     ("delivery-needs-entry", Delivery_needs_entry { delivery = "page" });
     ("no-manifest", Missing_manifest { file = "dartea.json" });
+    ("existing-project", Existing_project { file = "elm.json" });
     ( "no-connection",
       Offline
         {
