@@ -63,3 +63,20 @@ let source_directories_of (manifest : t) =
   | Package _ -> [ default_source_directory ]
 
 let of_folder root = Json.load root path decode
+
+let save_dependencies root dependencies =
+  let written = Json.object_of Version.Range.to_yojson dependencies in
+  let rows =
+    match Yojson.Safe.from_string (Files.load root path) with
+    | `Assoc rows -> rows
+    | _ -> []
+  in
+  let rows =
+    if List.mem_assoc "dependencies" rows then
+      List.map
+        (fun (key, value) ->
+          if String.equal key "dependencies" then (key, written) else (key, value))
+        rows
+    else rows @ [ ("dependencies", written) ]
+  in
+  Files.save root path (Yojson.Safe.pretty_to_string (`Assoc rows) ^ "\n")

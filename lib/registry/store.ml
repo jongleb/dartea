@@ -49,8 +49,8 @@ let safe pick ~name segments =
     refuse pick ("the tarball tries to write outside itself: " ^ name)
   else segments
 
-let place root pick (name, content) =
-  match safe pick ~name (strip pick name) with
+let place root pick (segments, content) =
+  match segments with
   | [] -> ()
   | first :: rest ->
       let path = List.fold_left Fpath.add_seg (Fpath.v first) rest in
@@ -64,4 +64,18 @@ let cache root pick content =
 let kept root pick ~integrity content =
   verify pick ~integrity content;
   let native = cache root pick content in
-  List.iter (place root pick) (unpack pick native)
+  let entries =
+    List.map
+      (fun (name, content) -> (safe pick ~name (strip pick name), content))
+      (unpack pick native)
+  in
+  if
+    not
+      (List.exists
+         (fun (segments, _) ->
+           List.equal String.equal segments [ Manifest.file_name ])
+         entries)
+  then
+    refuse pick
+      ("this is not a dartea package, it has no " ^ Manifest.file_name);
+  List.iter (place root pick) entries

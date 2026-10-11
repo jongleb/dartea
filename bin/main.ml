@@ -73,9 +73,14 @@ let count_of picked =
   let count = List.length picked in
   Printf.sprintf "%d package%s" count (if count = 1 then "" else "s")
 
-let install folder =
-  match Registry.Install.run (Fpath.v folder) ~say:print_endline
-  with
+let install package =
+  let root = Fpath.v Filename.current_dir_name in
+  let resolve () =
+    match package with
+    | Some package -> Registry.Install.add root ~package ~say:print_endline
+    | None -> Registry.Install.run root ~say:print_endline
+  in
+  match resolve () with
   | picked ->
       print_endline
         (Printf.sprintf "I resolved %s and wrote %s." (count_of picked)
@@ -147,11 +152,20 @@ let install_command =
         "Reads the dependencies from $(b,dartea.json), works out one \
          version of every package that everyone agrees on, downloads them, \
          and writes the versions it settled on into $(b,dartea.lock).";
+      `P
+        "With a $(i,PACKAGE), adds its newest version to $(b,dartea.json) \
+         first, as $(b,^)$(i,version), but only if it fits with the rest.";
     ]
+  in
+  let package =
+    Cmdliner.Arg.(
+      value
+      & pos 0 (some string) None
+      & info [] ~docv:"PACKAGE" ~doc:"A package to add, like @someone/charts.")
   in
   Cmdliner.Cmd.v
     (Cmdliner.Cmd.info "install" ~doc ~man)
-    Cmdliner.Term.(const install $ folder "The project folder to install into.")
+    Cmdliner.Term.(const install $ package)
 
 let init_command =
   let doc = "Start a new project." in
@@ -202,7 +216,7 @@ let make_command =
 
 let dartea =
   let doc = "an independent compiler for the Elm language" in
-  Cmdliner.Cmd.group (Cmdliner.Cmd.info "dartea" ~version:"0.1.0" ~doc)
+  Cmdliner.Cmd.group (Cmdliner.Cmd.info "dartea" ~version:"0.2.0" ~doc)
     [ init_command; make_command; install_command; publish_command ]
 
 let () = exit (Cmdliner.Cmd.eval dartea)

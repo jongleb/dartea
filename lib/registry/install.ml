@@ -69,23 +69,46 @@ let perform registry root ~say manifest =
   Lock.save root picks;
   picks
 
-let with_registry root ~say manifest =
-  Ezcurl.with_client (fun client ->
-      perform (Npm.open_ client) root ~say manifest)
-
-let resolve root ~say (manifest : Manifest.t) =
-  match with_registry root ~say manifest with
-  | picks -> picks
+let guarded ~file work =
+  match Ezcurl.with_client (fun client -> work (Npm.open_ client)) with
+  | outcome -> outcome
   | exception Npm.Offline { url; problem } ->
-      Diagnostic.Failure.raise_project
-        (Offline { file = manifest.file; url; problem })
+      Diagnostic.Failure.raise_project (Offline { file; url; problem })
   | exception Store.Broken { package; version; problem } ->
       Diagnostic.Failure.raise_project
-        (Bad_tarball { file = manifest.file; package; version; problem })
+        (Bad_tarball { file; package; version; problem })
 
-let run root ~say =
+let manifest_of root =
   match Manifest.of_folder root with
-  | Some manifest -> resolve root ~say manifest
+  | Some manifest -> manifest
   | None ->
       Diagnostic.Failure.raise_project
         (Missing_manifest { file = Manifest.file_name })
+
+let run root ~say =
+  let manifest = manifest_of root in
+  guarded ~file:manifest.file (fun registry ->
+      perform registry root ~say manifest)
+
+let add root ~package ~say =
+  let manifest = manifest_of root in
+  let file = manifest.file in
+  guarded ~file (fun registry ->
+      if List.mem_assoc package manifest.dependencies then
+        perform registry root ~say manifest
+      else
+        match
+          List.sort
+            (fun one other -> Version.compare other one)
+            (Npm.versions registry package)
+        with
+        | [] ->
+            Diagnostic.Failure.raise_project
+              (Unknown_package { file; package; asked_by = "dartea install" })
+        | newest :: _ ->
+            let dependencies =
+              manifest.dependencies @ [ (package, Version.Range.Upward newest) ]
+            in
+            let picks = perform registry root ~say { manifest with dependencies } in
+            Manifest.save_dependencies root dependencies;
+            picks)

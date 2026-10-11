@@ -62,15 +62,13 @@ The first makes a page with the script inside. The second makes a script. The th
 
 ## Packages
 
-Packages live on npm. To use one, add it to `dartea.json` and install:
+Packages live on npm. To use one, install it by name:
 
 ```
-"dependencies": { "@someone/charts": "^1.0.0" }
+npx dartea install @someone/charts
 ```
 
-```
-npx dartea install
-```
+This adds `"@someone/charts": "^1.2.0"` (the newest version) to `dartea.json` and writes the exact versions into `dartea.lock`. Plain `npx dartea install` installs what `dartea.json` already lists. Only the modules a package lists in `exposed-modules` can be imported. The rest stay private to the package.
 
 To publish one, describe it in `dartea.json`, put the modules in `src`, log in to npm and publish:
 

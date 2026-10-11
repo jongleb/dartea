@@ -97,6 +97,12 @@ let test_a_tarball_cannot_write_outside_itself _ =
   assert_bool problem
     (Node_runner.contains ~needle:"outside itself" problem)
 
+let test_a_tarball_without_a_manifest_is_refused _ =
+  let files = [ ("package/index.js", "module.exports = 1\n") ] in
+  let problem = refused ~integrity:(checksum (packed files)) files in
+  assert_bool problem
+    (Node_runner.contains ~needle:"not a dartea package" problem)
+
 let test_a_tarball_must_hold_one_folder _ =
   let files = [ ("elsewhere/dartea.json", "{}") ] in
   let problem = refused ~integrity:(checksum (packed files)) files in
@@ -152,6 +158,8 @@ let suite =
     "a_tarball_cannot_write_outside_itself"
     >:: test_a_tarball_cannot_write_outside_itself;
     "a_tarball_must_hold_one_folder" >:: test_a_tarball_must_hold_one_folder;
+    "a_tarball_without_a_manifest_is_refused"
+    >:: test_a_tarball_without_a_manifest_is_refused;
     "a_release_we_can_read_is_offered"
     >:: test_a_release_we_can_read_is_offered;
     "a_range_we_cannot_read_takes_the_release_out"
