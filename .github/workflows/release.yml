@@ -73,11 +73,11 @@ jobs:
           path: binaries
           merge-multiple: true
 
+      - run: npm install --global npm@latest
+
       - run: node npm/stage.mjs "${GITHUB_REF_NAME#v}" binaries staged
 
-      - name: Publish the platform packages, then dartea
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Publish the platform packages, then @dartea/cli
         run: |
           for platform in darwin-arm64 darwin-x64 linux-x64 linux-arm64; do
             (cd "staged/$platform" && npm publish --access public --provenance)
