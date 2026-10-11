@@ -1,4 +1,4 @@
-type origin = Written | Package
+type origin = Written | Exposed of string | Hidden of string
 
 type t = { path : string; name : string; content : string; origin : origin }
 
@@ -16,7 +16,9 @@ let under ~origin ~directory ~path content =
   }
 
 let written source =
-  match source.origin with Written -> Some source.name | Package -> None
+  match source.origin with
+  | Written -> Some source.name
+  | Exposed _ | Hidden _ -> None
 
 let of_path ~path content =
   under ~origin:Written

@@ -2,6 +2,17 @@ open Packages
 
 type mode = Publish | Rehearse
 
+type package_json = {
+  name : string;
+  version : Version.t;
+  description : string;
+  license : string;
+  keywords : string list;
+  dependencies : (string * Version.Range.t) list;
+      [@to_yojson Json.object_of Version.Range.to_yojson]
+}
+[@@deriving to_yojson]
+
 type outcome =
   | Published of Manifest.listing
   | Rehearsed of Manifest.listing
@@ -29,28 +40,23 @@ let run root ~modules mode =
        (Non_empty_list.to_list listing.exposed_modules));
   let staging = Fpath.v ".dartea/publish" in
   let sources = Fpath.v Manifest.default_source_directory in
-  let package_json =
-    `Assoc
-      [
-        ("name", `String listing.name);
-        ("version", `String (Version.show listing.version));
-        ("description", `String listing.summary);
-        ("license", `String listing.license);
-        ("keywords", `List [ `String "dartea-package" ]);
-        ( "dependencies",
-          `Assoc
-            (List.map
-               (fun (name, range) -> (name, `String (Version.Range.show range)))
-               manifest.dependencies) );
-      ]
-  in
   let copy path =
     Files.save root (Fpath.append staging path) (Files.load root path)
   in
   Files.clear root staging;
   Files.save root
     (Fpath.add_seg staging "package.json")
-    (Yojson.Safe.pretty_to_string package_json ^ "\n");
+    (Yojson.Safe.pretty_to_string
+       (package_json_to_yojson
+          {
+            name = listing.name;
+            version = listing.version;
+            description = listing.summary;
+            license = listing.license;
+            keywords = [ "dartea-package" ];
+            dependencies = manifest.dependencies;
+          })
+    ^ "\n");
   copy Manifest.path;
   List.iter
     (fun path -> copy (Fpath.append sources path))

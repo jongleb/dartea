@@ -435,8 +435,28 @@ module Make (B : BACKEND) = struct
           Prelude.all
     in
     let platform_kernel = B.platform_kernel in
+    let origin_of name =
+      List.find_map
+        (fun (source : Project.Elm_file.t) ->
+          if String.equal source.name name then Some source.origin else None)
+        sources
+    in
+    let visible_to (importer : Canonical.Module.t)
+        (dependency : Canonical.Module.t) =
+      match origin_of dependency.name with
+      | Some (Hidden package) -> begin
+          match origin_of importer.name with
+          | Some (Exposed own | Hidden own) -> String.equal own package
+          | Some Written | None -> false
+        end
+      | Some (Written | Exposed _) | None -> true
+    in
     let compile_one progress module_ =
-      match resolved_against ~platform_kernel progress.dependencies module_ with
+      match
+        resolved_against ~platform_kernel
+          (List.filter (visible_to module_) progress.dependencies)
+          module_
+      with
       | Error found ->
           { progress with errors = List.rev_append found progress.errors }
       | Ok resolved -> (

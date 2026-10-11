@@ -25,6 +25,8 @@ let of_yojson = function
         (of_string written)
   | _ -> Error "a version like `1.2.0`"
 
+let to_yojson version = `String (show version)
+
 let later one other = if compare one other >= 0 then one else other
 let earlier one other = if compare one other <= 0 then one else other
 
@@ -55,6 +57,8 @@ module Range = struct
                written)
           (of_string written)
     | _ -> Error "a version like `1.2.0` or a range like `^1.2.0`"
+
+  let to_yojson range = `String (show range)
 end
 
 module Interval = struct

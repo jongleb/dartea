@@ -20,77 +20,70 @@ let metadata_accept = "application/vnd.npm.install-v1+json"
 let escape package = String.concat "%2f" (String.split_on_char '/' package)
 let address package = home ^ escape package
 
-let text rows field =
-  match List.assoc_opt field rows with
-  | Some (`String written) -> Some written
-  | _ -> None
+type dist = { tarball : string; integrity : string }
+[@@deriving of_yojson { strict = false }]
 
-let parse_range name range =
-  match Version.Range.of_string range with
-  | Some held -> Ok (name, held)
-  | None -> Error (name, range)
+type published = {
+  dependencies : (string * Yojson.Safe.t) list;
+      [@default []] [@of_yojson Json.pairs Result.ok]
+  dist : dist;
+}
+[@@deriving of_yojson { strict = false }]
 
-let range_of_row (name, written) =
-  match written with
-  | `String range -> parse_range name range
-  | _ -> Error (name, Yojson.Safe.to_string written)
+type document = {
+  versions : (string * Yojson.Safe.t) list;
+      [@default []] [@of_yojson Json.pairs Result.ok]
+}
+[@@deriving of_yojson { strict = false }]
 
-let rec ranged_all = function
-  | [] -> Ok []
-  | (name, held) :: rest ->
-      Result.bind (range_of_row (name, held)) (fun range ->
-          Result.map (fun others -> range :: others) (ranged_all rest))
-
-let dependencies_of rows =
-  match List.assoc_opt "dependencies" rows with
-  | None -> Ok []
-  | Some (`Assoc packages) -> ranged_all packages
-  | Some held -> Error ("dependencies", Yojson.Safe.to_string held)
-
-let dist_of rows =
-  match List.assoc_opt "dist" rows with
-  | Some (`Assoc dist) -> Some dist
-  | _ -> None
-
-let built version dependencies dist =
-  match (text dist "tarball", text dist "integrity") with
-  | Some tarball, Some integrity ->
-      Some (Ok { version; dependencies; tarball; integrity })
-  | _ -> None
-
-let assemble version rows =
-  match (dependencies_of rows, dist_of rows) with
-  | Ok dependencies, Some dist -> built version dependencies dist
-  | Error (dependency, range), _ ->
-      Some (Error { at = version; dependency; range })
-  | Ok _, None -> None
-
-let release_of (written, held) =
-  match (Version.of_string written, held) with
-  | Some version, `Assoc rows -> assemble version rows
-  | _ -> None
-
-let refusal_of = function Error refusal -> Some refusal | Ok _ -> None
-
-let sift outcomes =
+let releases content =
+  let range_of (name, written) =
+    match written with
+    | `String range ->
+        Option.to_result ~none:(name, range)
+          (Option.map
+             (fun held -> (name, held))
+             (Version.Range.of_string range))
+    | _ -> Error (name, Yojson.Safe.to_string written)
+  in
+  let assemble version (published : published) =
+    List.fold_right
+      (fun row gathered ->
+        Result.bind (range_of row) (fun range ->
+            Result.map (fun rest -> range :: rest) gathered))
+      published.dependencies (Ok [])
+    |> Result.map (fun dependencies ->
+           {
+             version;
+             dependencies;
+             tarball = published.dist.tarball;
+             integrity = published.dist.integrity;
+           })
+    |> Result.map_error (fun (dependency, range) ->
+           { at = version; dependency; range })
+  in
+  let release_of (written, held) =
+    match (Version.of_string written, published_of_yojson held) with
+    | Some version, Ok published -> Some (assemble version published)
+    | _ -> None
+  in
+  let outcomes =
+    match Yojson.Safe.from_string content with
+    | json ->
+        Result.fold
+          ~ok:(fun document -> List.filter_map release_of document.versions)
+          ~error:(Fun.const []) (document_of_yojson json)
+    | exception Yojson.Json_error _ -> []
+  in
   {
     releases = List.filter_map Result.to_option outcomes;
-    refusals = List.filter_map refusal_of outcomes;
+    refusals =
+      List.filter_map
+        (function Error refusal -> Some refusal | Ok _ -> None)
+        outcomes;
   }
 
 let nothing = { releases = []; refusals = [] }
-
-let releases_of_rows rows =
-  match List.assoc_opt "versions" rows with
-  | Some (`Assoc releases) -> sift (List.filter_map release_of releases)
-  | _ -> nothing
-
-let releases content =
-  match Yojson.Safe.from_string content with
-  | `Assoc rows -> releases_of_rows rows
-  | _ -> nothing
-  | exception Yojson.Json_error _ -> nothing
-
 let anything = "*/*"
 
 let payload registry url =

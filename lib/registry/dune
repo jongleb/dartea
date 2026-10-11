@@ -13,4 +13,6 @@
   packages
   unix
   non_empty_list
-  diagnostic))
+  diagnostic)
+ (preprocess
+  (pps ppx_deriving_yojson)))

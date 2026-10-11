@@ -4,12 +4,14 @@ let elm_files ~origin ~root ~directory =
   let folder = Fpath.append root directory in
   Files.under ~suffix:Elm_file.extension folder
   |> List.map (fun path ->
-         Elm_file.under ~origin ~directory ~path (Files.load folder path))
+         Elm_file.under
+           ~origin:(origin (Elm_file.module_name path))
+           ~directory ~path (Files.load folder path))
 
 let inside root ~file written =
   let directory = Fpath.v written in
   if Files.is_directory root directory then
-    elm_files ~origin:Elm_file.Written ~root ~directory
+    elm_files ~origin:(Fun.const Elm_file.Written) ~root ~directory
   else
     Diagnostic.Failure.raise_project
       (Missing_source_directory { file; folder = written })
@@ -19,7 +21,22 @@ let package root ~file ~provided (pick : Pick.t) =
   else
     let directory = Pick.sources pick in
     if Files.is_directory root directory then
-      elm_files ~origin:Elm_file.Package ~root ~directory
+      let exposed =
+        Option.map
+          (fun (manifest : Manifest.t) ->
+            match manifest.kind with
+            | Package listing -> Non_empty_list.to_list listing.exposed_modules
+            | Application _ -> [])
+          (Manifest.of_folder (Fpath.append root (Pick.folder pick)))
+      in
+      let origin name =
+        Option.fold ~none:(Elm_file.Exposed pick.package)
+          ~some:(fun exposed ->
+            if List.mem name exposed then Elm_file.Exposed pick.package
+            else Elm_file.Hidden pick.package)
+          exposed
+      in
+      elm_files ~origin ~root ~directory
     else
       Diagnostic.Failure.raise_project
         (Missing_package

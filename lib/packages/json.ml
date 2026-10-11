@@ -38,17 +38,14 @@ let pairs item = function
         rows (Ok [])
   | _ -> Error "an object of package names and versions"
 
-let nonempty items =
+let object_of item rows =
+  `Assoc (List.map (fun (name, value) -> (name, item value)) rows)
+
+let nonempty items json =
   let expected = "a non-empty array of " ^ items in
-  function
-  | `List held ->
-      let names =
-        List.filter_map (function `String name -> Some name | _ -> None) held
-      in
-      if List.compare_lengths names held = 0 then
-        Option.to_result ~none:expected (Non_empty_list.of_list names)
-      else Error expected
-  | _ -> Error expected
+  Result.bind
+    (Result.map_error (Fun.const expected) ([%of_yojson: string list] json))
+    (fun names -> Option.to_result ~none:expected (Non_empty_list.of_list names))
 
 let load root path decode =
   if Files.is_file root path then

@@ -270,6 +270,63 @@ let test_a_manifest_and_a_lock_bring_a_package_in _ =
   assert_bool "the project did not compile"
     (List.mem "Deep.Thing" (compiled sources))
 
+let test_a_package_hides_what_it_does_not_expose _ =
+  let folder = Sample.folder () in
+  Sample.written ~folder ~path:Packages.Manifest.file_name
+    (manifest [ ("@dartea/thing", "^1.0.0") ]);
+  Sample.written ~folder ~path:Packages.Lock.file_name
+    (lock [ ("@dartea/thing", "1.2.0") ]);
+  Sample.written ~folder
+    ~path:".dartea/packages/@dartea/thing/1.2.0/dartea.json"
+    {|{ "type": "package", "name": "@dartea/thing", "version": "1.2.0",
+        "summary": "A thing", "license": "BSD-3-Clause",
+        "exposed-modules": ["Deep.Thing"] }|};
+  vendored ~folder ~package:"@dartea/thing/1.2.0" ~path:"Deep/Secret.elm"
+    {|module Deep.Secret exposing (value)
+
+
+value : Int
+value =
+    41
+|};
+  vendored ~folder ~package:"@dartea/thing/1.2.0" ~path:"Deep/Thing.elm"
+    {|module Deep.Thing exposing (answer)
+
+import Deep.Secret
+
+
+answer : Int
+answer =
+    Deep.Secret.value + 1
+|};
+  Sample.written ~folder ~path:"src/Main.elm" main;
+  assert_bool "the exposed module did not compile"
+    (List.mem "Deep.Thing" (compiled (sources_of folder)));
+  Sample.written ~folder ~path:"src/Main.elm"
+    {|module Main exposing (main)
+
+import Deep.Secret
+
+
+main : Int
+main =
+    Deep.Secret.value
+|};
+  let outcome =
+    Dartea.Compiler.compile_modules ~entry:None (sources_of folder)
+  in
+  match outcome.errors with
+  | { problem = Name (Unknown_module { qualifier; near }); _ } :: _ ->
+      assert_equal ~printer:Fun.id "Deep.Secret" qualifier;
+      assert_bool "the hidden module was suggested"
+        (not (List.mem "Deep.Secret" near))
+  | errors ->
+      assert_failure
+        (String.concat "\n"
+           (List.map
+              (Sample.rendered (Reporting.Sources.of_list outcome.sources))
+              errors))
+
 let test_a_manifest_without_a_lock_is_refused _ =
   let folder = Sample.folder () in
   Sample.written ~folder ~path:Packages.Manifest.file_name
@@ -407,6 +464,8 @@ let suite =
     >:: test_a_manifest_and_a_lock_bring_a_package_in;
     "a_manifest_without_a_lock_is_refused"
     >:: test_a_manifest_without_a_lock_is_refused;
+    "a_package_hides_what_it_does_not_expose"
+    >:: test_a_package_hides_what_it_does_not_expose;
     "a_manifest_without_dependencies_needs_no_lock"
     >:: test_a_manifest_without_dependencies_needs_no_lock;
     "the_manifest_wins_over_elm_json" >:: test_the_manifest_wins_over_elm_json;
