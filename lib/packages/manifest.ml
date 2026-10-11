@@ -1,31 +1,65 @@
+type listing = {
+  name : string;
+  version : Version.t;
+  summary : string;
+  license : string;
+  exposed_modules : string Non_empty_list.t;
+      [@key "exposed-modules"] [@of_yojson Json.nonempty "module names"]
+}
+[@@deriving of_yojson { strict = false }]
+
+type kind =
+  | Application of { source_directories : string Non_empty_list.t }
+  | Package of listing
+
 type t = {
   file : string;
-  source_directories : string list;
+  kind : kind;
   dependencies : (string * Version.Range.t) list;
 }
 
 let file_name = "dartea.json"
 let path = Fpath.v file_name
-let folders = "source-directories"
-let field = "dependencies"
 let default_source_directory = "src"
-let an_array_of_strings = "an array of strings"
 
-let source_directories =
-  Json.nonempty "at least one folder"
-    (Json.items an_array_of_strings (Json.text an_array_of_strings))
+type header = {
+  type_ : string; [@key "type"] [@default "application"]
+  dependencies : (string * Version.Range.t) list;
+      [@default []] [@of_yojson Json.pairs Version.Range.of_yojson]
+}
+[@@deriving of_yojson { strict = false }]
 
-let dependencies = Json.pairs "an object of packages and versions" Json.range
+type application = {
+  source_directories : string Non_empty_list.t;
+      [@key "source-directories"]
+      [@default Non_empty_list.(default_source_directory :: [])]
+      [@of_yojson Json.nonempty "folder names"]
+}
+[@@deriving of_yojson { strict = false }]
 
 let decode ~file content =
-  let rows = Json.rows_of ~file content in
-  {
-    file;
-    source_directories =
-      Json.optional ~file rows folders
-        ~default:[ default_source_directory ]
-        source_directories;
-    dependencies = Json.optional ~file rows field ~default:[] dependencies;
-  }
+  let header = Json.decode ~file header_of_yojson content in
+  let kind =
+    match header.type_ with
+    | "application" ->
+        Application
+          {
+            source_directories =
+              (Json.decode ~file application_of_yojson content)
+                .source_directories;
+          }
+    | "package" -> Package (Json.decode ~file listing_of_yojson content)
+    | _ ->
+        Diagnostic.Failure.raise_project
+          (Bad_value
+             { file; expected = {|"application" or "package" as the type|} })
+  in
+  { file; kind; dependencies = header.dependencies }
+
+let source_directories_of (manifest : t) =
+  match manifest.kind with
+  | Application { source_directories } ->
+      Non_empty_list.to_list source_directories
+  | Package _ -> [ default_source_directory ]
 
 let of_folder root = Json.load root path decode

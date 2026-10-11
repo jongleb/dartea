@@ -174,7 +174,7 @@ let test_broken_json _ =
 
 let test_missing_type _ =
   match refused (project_with {|{ "source-directories": ["src"] }|}) with
-  | Missing_field { field; _ } -> assert_equal ~printer:Fun.id "type" field
+  | Bad_field { field; _ } -> assert_equal ~printer:Fun.id "type" field
   | problem -> unexpected (Project problem)
 
 let test_source_directories_must_be_strings _ =
@@ -182,8 +182,8 @@ let test_source_directories_must_be_strings _ =
     refused
       (project_with {|{ "type": "application", "source-directories": [1] }|})
   with
-  | Bad_field { field; _ } ->
-      assert_equal ~printer:Fun.id "source-directories" field
+  | Bad_value { expected; _ } ->
+      assert_equal ~printer:Fun.id "a non-empty array of folder names" expected
   | problem -> unexpected (Project problem)
 
 let test_source_directory_must_exist _ =

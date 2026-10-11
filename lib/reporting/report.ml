@@ -49,8 +49,8 @@ let title_of_project (problem : Diagnostic.Project_error.t) =
   | Unknown_folder _ -> "UNKNOWN FOLDER"
   | No_sources _ -> "NO SOURCE FILES"
   | Bad_json _ -> "BAD JSON"
-  | Missing_field _ -> "MISSING FIELD"
   | Bad_field _ -> "BAD FIELD"
+  | Bad_value _ -> "BAD VALUE"
   | Missing_source_directory _ -> "MISSING DIRECTORY"
   | Duplicate_module _ -> "DUPLICATE MODULE"
   | Unknown_entry _ -> "UNKNOWN ENTRY"
@@ -61,6 +61,9 @@ let title_of_project (problem : Diagnostic.Project_error.t) =
   | Missing_lock _ -> "MISSING LOCK FILE"
   | Missing_manifest _ -> "NO MANIFEST"
   | Existing_project _ -> "EXISTING PROJECT"
+  | Not_a_package _ -> "NOT A PACKAGE"
+  | Missing_exposed _ -> "MISSING EXPOSED MODULE"
+  | No_npm _ -> "NO NPM"
   | Offline _ -> "NO CONNECTION"
   | Unknown_package _ -> "UNKNOWN PACKAGE"
   | No_version _ -> "NO VERSION"
@@ -1052,21 +1055,15 @@ let of_project_problem source region (problem : Diagnostic.Project_error.t) =
           Doc.words
             "JSON wants commas between fields, double quotes around every name, and no trailing comma before a closing brace.";
         ]
-  | Missing_field { field; _ } ->
-      Doc.stack
-        [
-          Doc.words
-            (Printf.sprintf "I need a %s field in this file, but I do not see one."
-               (quote field));
-          Doc.words "Add it, and I will know where to look for your code.";
-        ]
-  | Bad_field { field; expected; _ } ->
-      Doc.stack
-        [
-          Doc.words
-            (Printf.sprintf "The %s field is not what I expected." (quote field));
-          Doc.words (Printf.sprintf "I need %s there." expected);
-        ]
+  | Bad_field { field; _ } ->
+      Doc.words
+        (Printf.sprintf
+           "The %s field is missing from this file, or it is not what I expected."
+           (quote field))
+  | Bad_value { expected; _ } ->
+      Doc.words
+        (Printf.sprintf "Something in this file is not what I expected. I need %s there."
+           expected)
   | Missing_source_directory { folder; _ } ->
       Doc.stack
         [
@@ -1139,6 +1136,26 @@ let of_project_problem source region (problem : Diagnostic.Project_error.t) =
         (Printf.sprintf
            "There is a project file here already, %s, so there is nothing for me to initialize!"
            (quote file))
+  | Not_a_package { file } ->
+      Doc.stack
+        [
+          Doc.words
+            (Printf.sprintf "I can only publish packages, but %s describes an application."
+               (quote file));
+          Doc.words
+            {|Set "type" to "package" and add "name", "version", "summary", "license" and "exposed-modules".|};
+        ]
+  | Missing_exposed { file; module_name } ->
+      Doc.words
+        (Printf.sprintf
+           "%s exposes %s, but there is no such module in src. Add it, or take it out of \"exposed-modules\"."
+           (quote file) (quote module_name))
+  | No_npm _ ->
+      Doc.stack
+        [
+          Doc.words "I publish through npm, but I cannot find the npm command.";
+          Doc.words "Install Node.js, which comes with npm, and try again.";
+        ]
   | Offline { url; problem } ->
       Doc.stack
         [

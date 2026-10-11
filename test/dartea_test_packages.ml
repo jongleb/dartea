@@ -169,7 +169,7 @@ let test_a_manifest_reads_ranges _ =
         , "dependencies": { "@dartea/router": "^1.2.0", "@dartea/ui": "2.0.0" }
         }|}
   in
-  assert_equal ~printer:Sample.names [ "src" ] manifest.source_directories;
+  assert_equal ~printer:Sample.names [ "src" ] (Manifest.source_directories_of manifest);
   assert_equal ~printer:Sample.names
     [ "@dartea/router"; "@dartea/ui" ]
     (List.map fst manifest.dependencies);
@@ -178,7 +178,7 @@ let test_a_manifest_reads_ranges _ =
 
 let test_a_manifest_defaults_to_src _ =
   let manifest = manifest_of {|{ "name": "app" }|} in
-  assert_equal ~printer:Sample.names [ "src" ] manifest.source_directories;
+  assert_equal ~printer:Sample.names [ "src" ] (Manifest.source_directories_of manifest);
   assert_equal ~printer:Sample.names [] (List.map fst manifest.dependencies)
 
 let test_a_manifest_takes_source_directories _ =
@@ -186,14 +186,15 @@ let test_a_manifest_takes_source_directories _ =
     manifest_of {|{ "name": "app", "source-directories": ["app", "vendor"] }|}
   in
   assert_equal ~printer:Sample.names [ "app"; "vendor" ]
-    manifest.source_directories
+    (Manifest.source_directories_of manifest)
 
 let test_a_bad_range_is_refused _ =
   match read_manifest {|{ "dependencies": { "@dartea/ui": "~1.2" } }|} with
   | _ -> assert_failure "the range was accepted"
-  | exception Diagnostic.Failure.Found { problem = Bad_field { field; _ }; _ }
+  | exception Diagnostic.Failure.Found { problem = Bad_value { expected; _ }; _ }
     ->
-      assert_equal ~printer:Fun.id "dependencies" field
+      assert_equal ~printer:Fun.id
+        "a version like `1.2.0` or a range like `^1.2.0`, not `~1.2`" expected
 
 let test_a_lock_round_trips _ =
   let packages =

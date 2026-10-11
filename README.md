@@ -60,6 +60,39 @@ dartea make src
 
 The first makes a page with the script inside. The second makes a script. The third makes one `.mjs` per module.
 
+## Packages
+
+Packages live on npm. To use one, add it to `dartea.json` and install:
+
+```
+"dependencies": { "@someone/charts": "^1.0.0" }
+```
+
+```
+npx dartea install
+```
+
+To publish one, describe it in `dartea.json`, put the modules in `src`, log in to npm and publish:
+
+```
+{
+    "type": "package",
+    "name": "@you/greeting",
+    "version": "1.0.0",
+    "summary": "Say hello",
+    "license": "BSD-3-Clause",
+    "exposed-modules": ["Greeting"]
+}
+```
+
+```
+npm login
+npx dartea publish --dry-run
+npx dartea publish
+```
+
+`publish` checks that the package compiles and that every exposed module exists. Then it hands `dartea.json`, `src` and a generated `package.json` to `npm publish`. Publish under your own npm scope. `@dartea` is kept for the packages of this project.
+
 To build from source you need OCaml 5.4. Run `dune build` and `dune test`.
 
 ## Licence

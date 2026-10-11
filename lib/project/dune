@@ -1,3 +1,5 @@
 (library
  (name project)
- (libraries files fpath yojson diagnostic packages))
+ (libraries files fpath yojson diagnostic packages non_empty_list)
+ (preprocess
+  (pps ppx_deriving_yojson)))

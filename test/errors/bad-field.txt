@@ -1,5 +1,3 @@
 -- BAD FIELD ---------------------------------------------------------- elm.json
 
-The `source-directories` field is not what I expected.
-
-I need an array of strings there.
+The `type` field is missing from this file, or it is not what I expected.

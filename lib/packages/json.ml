@@ -1,21 +1,27 @@
-type rows = (string * Yojson.Safe.t) list
-type 'a decoder = file:string -> field:string -> Yojson.Safe.t -> 'a
-
-let a_version = "a version like `1.2.0`"
-let a_range = "a version like `1.2.0` or a range like `^1.2.0`"
-
-let bad ~file ~field expected =
-  Diagnostic.Failure.raise_project (Bad_field { file; field; expected })
-
-let missing_field ~file ~field =
-  Diagnostic.Failure.raise_project (Missing_field { file; field })
-
-let flatten problem =
-  String.map (function '\n' | '\r' | '\t' -> ' ' | letter -> letter) problem
-
-let rows_of ~file content : rows =
+let decode ~file of_yojson content =
+  let failed ~file message =
+    if String.contains message ' ' then
+      Diagnostic.Failure.raise_project (Bad_value { file; expected = message })
+    else
+      let path = String.split_on_char '.' message in
+      let field = List.nth path (List.length path - 1) in
+      Diagnostic.Failure.raise_project
+        (Bad_field
+           {
+             file;
+             field =
+               String.map
+                 (function '_' -> '-' | letter -> letter)
+                 (if String.ends_with ~suffix:"_" field then
+                    String.sub field 0 (String.length field - 1)
+                  else field);
+           })
+  in
+  let flatten problem =
+    String.map (function '\n' | '\r' | '\t' -> ' ' | letter -> letter) problem
+  in
   match Yojson.Safe.from_string content with
-  | `Assoc rows -> rows
+  | `Assoc _ as json -> Result.fold ~ok:Fun.id ~error:(failed ~file) (of_yojson json)
   | _ ->
       Diagnostic.Failure.raise_project
         (Bad_json { file; problem = "I was expecting a JSON object here." })
@@ -23,46 +29,26 @@ let rows_of ~file content : rows =
       Diagnostic.Failure.raise_project
         (Bad_json { file; problem = flatten problem })
 
-let text expected : string decoder =
- fun ~file ~field -> function
-  | `String written -> written
-  | _ -> bad ~file ~field expected
+let pairs item = function
+  | `Assoc rows ->
+      List.fold_right
+        (fun (name, held) gathered ->
+          Result.bind (item held) (fun value ->
+              Result.map (fun rest -> (name, value) :: rest) gathered))
+        rows (Ok [])
+  | _ -> Error "an object of package names and versions"
 
-let parse expected of_string : 'a decoder =
- fun ~file ~field held ->
-  match of_string (text expected ~file ~field held) with
-  | Some value -> value
-  | None -> bad ~file ~field expected
-
-let version : Version.t decoder = parse a_version Version.of_string
-let range : Version.Range.t decoder = parse a_range Version.Range.of_string
-
-let items expected (item : 'a decoder) : 'a list decoder =
- fun ~file ~field -> function
-  | `List held -> List.map (item ~file ~field) held
-  | _ -> bad ~file ~field expected
-
-let pairs expected (item : 'a decoder) : (string * 'a) list decoder =
- fun ~file ~field -> function
-  | `Assoc held ->
-      List.map (fun (name, value) -> (name, item ~file ~field value)) held
-  | _ -> bad ~file ~field expected
-
-let nonempty expected (listed : 'a list decoder) : 'a list decoder =
- fun ~file ~field held ->
-  match listed ~file ~field held with
-  | [] -> bad ~file ~field expected
-  | found -> found
-
-let require ~file (rows : rows) field (decoder : 'a decoder) =
-  match List.assoc_opt field rows with
-  | Some held -> decoder ~file ~field held
-  | None -> missing_field ~file ~field
-
-let optional ~file (rows : rows) field ~default (decoder : 'a decoder) =
-  match List.assoc_opt field rows with
-  | Some held -> decoder ~file ~field held
-  | None -> default
+let nonempty items =
+  let expected = "a non-empty array of " ^ items in
+  function
+  | `List held ->
+      let names =
+        List.filter_map (function `String name -> Some name | _ -> None) held
+      in
+      if List.compare_lengths names held = 0 then
+        Option.to_result ~none:expected (Non_empty_list.of_list names)
+      else Error expected
+  | _ -> Error expected
 
 let load root path decode =
   if Files.is_file root path then

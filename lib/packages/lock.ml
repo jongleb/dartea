@@ -3,13 +3,17 @@ type t = { file : string; packages : Pick.t list }
 let file_name = "dartea.lock"
 let path = Fpath.v file_name
 let field = "packages"
-let packages = Json.pairs "an object of packages and versions" Json.version
+
+type written = {
+  packages : (string * Version.t) list; [@of_yojson Json.pairs Version.of_yojson]
+}
+[@@deriving of_yojson { strict = false }]
 
 let decode ~file content =
-  let rows = Json.rows_of ~file content in
   {
     file;
-    packages = List.map Pick.of_pair (Json.require ~file rows field packages);
+    packages =
+      List.map Pick.of_pair (Json.decode ~file written_of_yojson content).packages;
   }
 
 let of_folder root = Json.load root path decode

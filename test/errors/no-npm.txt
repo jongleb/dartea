@@ -1,0 +1,5 @@
+-- NO NPM ---------------------------------------------------------- dartea.json
+
+I publish through npm, but I cannot find the npm command.
+
+Install Node.js, which comes with npm, and try again.

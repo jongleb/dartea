@@ -1,0 +1,4 @@
+-- MISSING EXPOSED MODULE ------------------------------------------ dartea.json
+
+`dartea.json` exposes `Chart.Line`, but there is no such module in src. Add it,
+or take it out of "exposed-modules".

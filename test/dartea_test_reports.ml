@@ -155,10 +155,11 @@ let sample_of_project (problem : Diagnostic.Project_error.t) =
           content = entry_sample;
           region = at ~line:5 ~column:1 ~length:4 ~offset:38;
         }
-  | Unknown_folder _ | No_sources _ | Bad_json _ | Missing_field _ | Bad_field _
+  | Unknown_folder _ | No_sources _ | Bad_json _ | Bad_field _ | Bad_value _
   | Missing_source_directory _ | Duplicate_module _ | Unknown_entry _
   | No_entry _ | Bad_flags _ | Missing_package _ | Missing_lock _
-  | Missing_manifest _ | Existing_project _ | Offline _ | Unknown_package _ | No_version _
+  | Missing_manifest _ | Existing_project _ | Not_a_package _
+  | Missing_exposed _ | No_npm _ | Offline _ | Unknown_package _ | No_version _
   | Bad_tarball _ | Bad_range _ | Delivery_needs_entry _ ->
       let file = Diagnostic.Project_error.file_of problem in
       Rendered { file; content = ""; region = { Data.Region.nowhere with file } }
@@ -245,14 +246,9 @@ let project_kinds : (string * Diagnostic.Project_error.t) list =
           file = "elm.json";
           problem = "Line 1, bytes 25-27: Expected string or identifier but found '} '";
         } );
-    ("missing-field", Missing_field { file = "elm.json"; field = "type" });
-    ( "bad-field",
-      Bad_field
-        {
-          file = "elm.json";
-          field = "source-directories";
-          expected = "an array of strings";
-        } );
+    ("bad-field", Bad_field { file = "elm.json"; field = "type" });
+    ( "bad-value",
+      Bad_value { file = "dartea.json"; expected = "a version like `1.2.0`" } );
     ( "missing-source-directory",
       Missing_source_directory { file = "elm.json"; folder = "vendor" } );
     ("unknown-entry", Unknown_entry { path = "src/Nope.elm" });
@@ -276,6 +272,10 @@ let project_kinds : (string * Diagnostic.Project_error.t) list =
     ("delivery-needs-entry", Delivery_needs_entry { delivery = "page" });
     ("no-manifest", Missing_manifest { file = "dartea.json" });
     ("existing-project", Existing_project { file = "elm.json" });
+    ("not-a-package", Not_a_package { file = "dartea.json" });
+    ( "missing-exposed",
+      Missing_exposed { file = "dartea.json"; module_name = "Chart.Line" } );
+    ("no-npm", No_npm { file = "dartea.json" });
     ( "no-connection",
       Offline
         {

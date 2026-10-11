@@ -24,3 +24,6 @@ let under ~suffix root =
   in
   or_fail (Bos.OS.Dir.fold_contents ~elements:`Files note [] inside)
   |> List.sort Fpath.compare
+
+let clear root path =
+  ignore (or_fail (Bos.OS.Dir.delete ~recurse:true (Fpath.append root path)))

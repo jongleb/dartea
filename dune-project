@@ -43,6 +43,7 @@
    (>= 3.0.0))
   decompress
   ppx_deriving
+  ppx_deriving_yojson
   ppx_jane
   non_empty_list
   base

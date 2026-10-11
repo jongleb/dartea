@@ -1,0 +1,4 @@
+-- BAD VALUE ------------------------------------------------------- dartea.json
+
+Something in this file is not what I expected. I need a version like `1.2.0`
+there.

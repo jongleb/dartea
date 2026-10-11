@@ -1,0 +1,6 @@
+-- NOT A PACKAGE --------------------------------------------------- dartea.json
+
+I can only publish packages, but `dartea.json` describes an application.
+
+Set "type" to "package" and add "name", "version", "summary", "license" and
+"exposed-modules".

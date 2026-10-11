@@ -95,6 +95,26 @@ let init folder =
          folder, then open index.html in a browser."
   | exception Diagnostic.Failure.Found failure -> refuse_failure failure
 
+let publish folder mode =
+  let path = Fpath.v folder in
+  let sources = load path in
+  compile ~path ~output:dev_null ~entry:None sources;
+  let modules =
+    List.filter_map Project.Elm_file.written (Project.Sources.files sources)
+  in
+  match Registry.Publish.run path ~modules mode with
+  | Published listing ->
+      print_endline
+        (Printf.sprintf "I published %s %s." listing.name
+           (Packages.Version.show listing.version))
+  | Rehearsed listing ->
+      print_endline
+        (Printf.sprintf "%s %s is ready to publish. Nothing was sent."
+           listing.name
+           (Packages.Version.show listing.version))
+  | Npm_failed code -> exit code
+  | exception Diagnostic.Failure.Found failure -> refuse_failure failure
+
 let target =
   let doc = "The source folder, or a single $(b,.elm) file to start from." in
   Cmdliner.Arg.(
@@ -147,6 +167,33 @@ let init_command =
     (Cmdliner.Cmd.info "init" ~doc ~man)
     Cmdliner.Term.(const init $ folder "The folder to start the project in.")
 
+let publish_command =
+  let doc = "Publish a package to npm." in
+  let man =
+    [
+      `S Cmdliner.Manpage.s_description;
+      `P
+        "Checks that the package compiles and that every module in \
+         $(b,exposed-modules) exists, then hands $(b,dartea.json), \
+         $(b,src) and a generated $(b,package.json) to $(b,npm publish). \
+         Log in with $(b,npm login) first.";
+    ]
+  in
+  let mode =
+    Cmdliner.Arg.(
+      value
+      & vflag Registry.Publish.Publish
+          [
+            ( Registry.Publish.Rehearse,
+              info [ "dry-run" ]
+                ~doc:"Do everything except sending the package to npm." );
+          ])
+  in
+  Cmdliner.Cmd.v
+    (Cmdliner.Cmd.info "publish" ~doc ~man)
+    Cmdliner.Term.(
+      const publish $ folder "The package folder to publish." $ mode)
+
 let make_command =
   let doc = "Compile Elm files into JavaScript." in
   Cmdliner.Cmd.v
@@ -156,6 +203,6 @@ let make_command =
 let dartea =
   let doc = "an independent compiler for the Elm language" in
   Cmdliner.Cmd.group (Cmdliner.Cmd.info "dartea" ~version:"0.1.0" ~doc)
-    [ init_command; make_command; install_command ]
+    [ init_command; make_command; install_command; publish_command ]
 
 let () = exit (Cmdliner.Cmd.eval dartea)

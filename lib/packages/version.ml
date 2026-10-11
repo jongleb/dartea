@@ -18,6 +18,13 @@ let of_string written =
   | [ Some major; Some minor; Some patch ] -> Some { major; minor; patch }
   | _ -> None
 
+let of_yojson = function
+  | `String written ->
+      Option.to_result
+        ~none:(Printf.sprintf "a version like `1.2.0`, not `%s`" written)
+        (of_string written)
+  | _ -> Error "a version like `1.2.0`"
+
 let later one other = if compare one other >= 0 then one else other
 let earlier one other = if compare one other <= 0 then one else other
 
@@ -38,6 +45,16 @@ module Range = struct
       in
       Option.map (fun version -> Upward version) (of_string after)
     else Option.map (fun version -> Exactly version) (of_string written)
+
+  let of_yojson = function
+    | `String written ->
+        Option.to_result
+          ~none:
+            (Printf.sprintf
+               "a version like `1.2.0` or a range like `^1.2.0`, not `%s`"
+               written)
+          (of_string written)
+    | _ -> Error "a version like `1.2.0` or a range like `^1.2.0`"
 end
 
 module Interval = struct

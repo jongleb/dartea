@@ -2,8 +2,8 @@ type t =
   | Unknown_folder of { folder : string }
   | No_sources of { folder : string }
   | Bad_json of { file : string; problem : string }
-  | Missing_field of { file : string; field : string }
-  | Bad_field of { file : string; field : string; expected : string }
+  | Bad_field of { file : string; field : string }
+  | Bad_value of { file : string; expected : string }
   | Missing_source_directory of { file : string; folder : string }
   | Duplicate_module of { name : string; one : string; other : string }
   | Unknown_entry of { path : string }
@@ -24,6 +24,9 @@ type t =
   | Missing_lock of { file : string; lock : string }
   | Missing_manifest of { file : string }
   | Existing_project of { file : string }
+  | Not_a_package of { file : string }
+  | Missing_exposed of { file : string; module_name : string }
+  | No_npm of { file : string }
   | Offline of { file : string; url : string; problem : string }
   | Unknown_package of { file : string; package : string; asked_by : string }
   | No_version of {
@@ -61,12 +64,15 @@ type t =
 let file_of = function
   | Unknown_folder { folder } | No_sources { folder } -> folder
   | Bad_json { file; _ }
-  | Missing_field { file; _ }
   | Bad_field { file; _ }
+  | Bad_value { file; _ }
   | Missing_source_directory { file; _ }
   | Missing_lock { file; _ }
   | Missing_manifest { file }
   | Existing_project { file }
+  | Not_a_package { file }
+  | Missing_exposed { file; _ }
+  | No_npm { file }
   | Offline { file; _ }
   | Unknown_package { file; _ }
   | No_version { file; _ }
