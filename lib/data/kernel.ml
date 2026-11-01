@@ -31,6 +31,7 @@ type unary =
   | Char_to_lower
   | List_reverse
   | List_length
+  | Bitwise_complement
 [@@deriving show, enumerate]
 
 type binary =
@@ -46,6 +47,12 @@ type binary =
   | List_map
   | List_indexed_map
   | List_filter
+  | Bitwise_and
+  | Bitwise_or
+  | Bitwise_xor
+  | Bitwise_shift_left_by
+  | Bitwise_shift_right_by
+  | Bitwise_shift_right_zf_by
 [@@deriving show, enumerate]
 
 type language = Nullary of nullary | Unary of unary | Binary of binary
@@ -66,6 +73,7 @@ let written_as module_name exported_name =
 let basics = written_as "Basics"
 let string = written_as "String"
 let char = written_as "Char"
+let bitwise = written_as "Bitwise"
 
 let origin = function
   | Nullary Basics_pi -> basics "pi"
@@ -100,6 +108,7 @@ let origin = function
   | Unary Char_to_lower -> char "toLower"
   | Unary List_reverse -> written_as "List" "reverse"
   | Unary List_length -> written_as "List" "length"
+  | Unary Bitwise_complement -> bitwise "complement"
   | Binary String_append -> string "append"
   | Binary String_split -> string "split"
   | Binary String_take_left -> string "takeLeft"
@@ -112,6 +121,12 @@ let origin = function
   | Binary List_map -> written_as "List" "map"
   | Binary List_indexed_map -> written_as "List" "indexedMap"
   | Binary List_filter -> written_as "List" "filter"
+  | Binary Bitwise_and -> bitwise "and"
+  | Binary Bitwise_or -> bitwise "or"
+  | Binary Bitwise_xor -> bitwise "xor"
+  | Binary Bitwise_shift_left_by -> bitwise "shiftLeftBy"
+  | Binary Bitwise_shift_right_by -> bitwise "shiftRightBy"
+  | Binary Bitwise_shift_right_zf_by -> bitwise "shiftRightZfBy"
 
 let by_origin =
   Hashtbl.of_seq

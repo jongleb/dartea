@@ -160,7 +160,7 @@ let sample_of_project (problem : Diagnostic.Project_error.t) =
   | No_entry _ | Bad_flags _ | Missing_package _ | Missing_lock _
   | Missing_manifest _ | Existing_project _ | Not_a_package _
   | Missing_exposed _ | No_npm _ | Offline _ | Unknown_package _ | No_version _
-  | Bad_tarball _ | Bad_range _ | Delivery_needs_entry _ ->
+  | Bad_tarball _ | Kernel_package _ | Bad_range _ | Delivery_needs_entry _ ->
       let file = Diagnostic.Project_error.file_of problem in
       Rendered { file; content = ""; region = { Data.Region.nowhere with file } }
 
@@ -315,6 +315,9 @@ let project_kinds : (string * Diagnostic.Project_error.t) list =
           version = "1.0.0";
           problem = "the tarball does not match the checksum in the registry";
         } );
+    ( "kernel-package",
+      Kernel_package
+        { file = "elm.json"; package = "elm/regex"; version = "1.0.0" } );
     ( "missing-lock",
       Missing_lock { file = "dartea.json"; lock = "dartea.lock" } );
     ( "missing-package",

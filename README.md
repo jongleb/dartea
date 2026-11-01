@@ -47,9 +47,9 @@ Screenshot of the result page from that run. Apple M5, headless Chrome, August 3
 
 The upstream TodoMVC runs without changes. A parity test checks module by module against Elm.
 
-Ready: `elm/core`, `elm/html`, `elm/browser` with `sandbox`, `element`, `document` and `application`, `elm/url`, `elm/json`, `elm/http` without Bytes and File, part of `elm/time`.
+Ready: `elm/core` (without `Debug`, `Array`, `Process`), `elm/html`, `elm/browser` with `sandbox`, `element`, `document` and `application`, `elm/url`, `elm/json`, `elm/http` without Bytes and File, `elm/parser`, `elm/random`, `elm/svg`, part of `elm/time`. Pure Elm packages from package.elm-lang.org install with `dartea install` from `elm.json`.
 
-Missing: `Random`, `Process`, `Set`, `Array`, packages from the Elm registry.
+Missing: `Process`, `Array`, `Debug`, packages with kernel code such as `elm/regex`, `elm/file`, `elm/bytes`.
 
 ## Use
 

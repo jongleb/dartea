@@ -11,6 +11,8 @@
   files
   fpath
   packages
+  project
+  zipc
   unix
   non_empty_list
   diagnostic)

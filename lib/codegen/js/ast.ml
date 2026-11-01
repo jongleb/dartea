@@ -16,6 +16,11 @@ type binop =
   | Modulo
   | Exponent
   | BitOr
+  | BitAnd
+  | BitXor
+  | ShiftLeft
+  | ShiftRight
+  | ShiftRightZf
   | Equal
   | NotEqual
   | StrictEqual
@@ -28,7 +33,7 @@ type binop =
   | Or
 [@@deriving show]
 
-type unop = Not | Negative | Typeof [@@deriving show]
+type unop = Not | Negative | Typeof | BitNot [@@deriving show]
 
 type expr =
   | Literal of literal

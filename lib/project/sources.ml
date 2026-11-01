@@ -21,13 +21,13 @@ let package root ~file ~provided (pick : Pick.t) =
   else
     let directory = Pick.sources pick in
     if Files.is_directory root directory then
+      let folder = Fpath.append root (Pick.folder pick) in
       let exposed =
-        Option.map
-          (fun (manifest : Manifest.t) ->
-            match manifest.kind with
-            | Package listing -> Non_empty_list.to_list listing.exposed_modules
-            | Application _ -> [])
-          (Manifest.of_folder (Fpath.append root (Pick.folder pick)))
+        match Manifest.of_folder folder with
+        | Some { kind = Package listing; _ } ->
+            Some (Non_empty_list.to_list listing.exposed_modules)
+        | Some { kind = Application _; _ } -> Some []
+        | None -> Outline.exposed folder
       in
       let origin name =
         Option.fold ~none:(Elm_file.Exposed pick.package)

@@ -1,7 +1,5 @@
 open Packages
 
-exception Offline of { url : string; problem : string }
-
 type release = {
   version : Version.t;
   dependencies : (string * Version.Range.t) list;
@@ -84,24 +82,16 @@ let releases content =
   }
 
 let nothing = { releases = []; refusals = [] }
-let anything = "*/*"
-
-let payload registry url =
-  match Fetch.get registry.client ~accept:anything url with
-  | Fetch.Found content -> Some content
-  | Fetch.Absent -> None
-  | Fetch.Broken problem -> raise (Offline { url; problem })
+let payload registry url = Fetch.body registry.client ~accept:Fetch.anything url
 
 let remember registry package found =
   Hashtbl.replace registry.known package found;
   found
 
 let download registry package =
-  let url = address package in
-  match Fetch.get registry.client ~accept:metadata_accept url with
-  | Fetch.Found content -> remember registry package (releases content)
-  | Fetch.Absent -> remember registry package nothing
-  | Fetch.Broken problem -> raise (Offline { url; problem })
+  remember registry package
+    (Option.fold ~none:nothing ~some:releases
+       (Fetch.body registry.client ~accept:metadata_accept (address package)))
 
 let load registry package =
   match Hashtbl.find_opt registry.known package with

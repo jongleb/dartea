@@ -51,6 +51,11 @@ let binop_to_string = function
   | J.Modulo -> "%"
   | J.Exponent -> "**"
   | J.BitOr -> "|"
+  | J.BitAnd -> "&"
+  | J.BitXor -> "^"
+  | J.ShiftLeft -> "<<"
+  | J.ShiftRight -> ">>"
+  | J.ShiftRightZf -> ">>>"
   | J.Equal -> "=="
   | J.NotEqual -> "!="
   | J.StrictEqual -> "==="
@@ -66,6 +71,7 @@ let unop_to_string = function
   | J.Not -> "!"
   | J.Negative -> "-"
   | J.Typeof -> "typeof "
+  | J.BitNot -> "~"
 
 let rec expr_to_string ?(parens = false) (e : J.expr) : string =
   let wrap_if_needed s = if parens then "(" ^ s ^ ")" else s in

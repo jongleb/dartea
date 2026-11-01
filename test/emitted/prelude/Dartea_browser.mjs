@@ -87,6 +87,15 @@ const $$VirtualDom$lazy8 = (view, x1, x2, x3, x4, x5, x6, x7, x8) =>
 
 const $$Task$succeed = (value) => async () => value;
 
+const $$randomSeed = {};
+
+const $$Random$generate = (initial, generator) => async () => {
+  $$randomSeed.held ??= initial(Date.now());
+  const [value, next] = generator($$randomSeed.held);
+  $$randomSeed.held = next;
+  return value;
+};
+
 const $$Task$fail = (error) => async () => {
   throw error;
 };
@@ -437,6 +446,9 @@ const $$Browser$onAnimationFrame = (toMsg) =>
 const $$Browser$onAnimationFrameDelta = (toMsg) =>
   $$frames("Browser.onAnimationFrameDelta", (now, previous) => toMsg(now - previous));
 
+const $$VirtualDom$noJavaScriptUri = (value) =>
+  /^javascript:/i.test(value.replace(/\s/g, "")) ? "" : value;
+
 const $$Url$percentEncode = (text) => encodeURIComponent(text);
 
 const $$Url$percentDecode = (text) => {
@@ -460,6 +472,7 @@ export {
   $$Browser$on,
   $$Browser$onAnimationFrame,
   $$Browser$onAnimationFrameDelta,
+  $$VirtualDom$noJavaScriptUri,
   $$Url$percentEncode,
   $$Url$percentDecode,
   $$Http$emptyBody,
@@ -470,6 +483,7 @@ export {
   $$Http$cancel,
   $$Http$track,
   $$Http$toTask,
+  $$Random$generate,
   $$Task$succeed,
   $$Task$fail,
   $$Task$andThen,

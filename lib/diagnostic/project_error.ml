@@ -47,6 +47,7 @@ type t =
       version : string;
       problem : string;
     }
+  | Kernel_package of { file : string; package : string; version : string }
   | Missing_package of {
       file : string;
       package : string;
@@ -78,6 +79,7 @@ let file_of = function
   | No_version { file; _ }
   | Bad_range { file; _ }
   | Bad_tarball { file; _ }
+  | Kernel_package { file; _ }
   | Missing_package { file; _ } ->
       file
   | Duplicate_module { one; _ } -> one

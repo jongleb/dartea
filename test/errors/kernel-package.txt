@@ -1,0 +1,7 @@
+-- KERNEL PACKAGE ----------------------------------------------------- elm.json
+
+`elm/regex` `1.0.0` is written against the runtime of Elm, with kernel
+JavaScript or an effect module, and dartea cannot run it.
+
+dartea brings its own versions of packages like this one, and this one is not
+among them yet.

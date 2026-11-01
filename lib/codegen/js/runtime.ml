@@ -4,6 +4,8 @@ let browser_module_name = "Dartea_browser"
 let browser_source = Runtime_source.dartea_browser
 let json_module_name = "Dartea_json"
 let json_source = Runtime_source.dartea_json
+let parser_module_name = "Dartea_parser"
+let parser_source = Runtime_source.dartea_parser
 let mount = "$$mount"
 let tag = "TAG"
 let block = "block"
@@ -57,6 +59,7 @@ let files =
     (module_name, source);
     (browser_module_name, browser_source);
     (json_module_name, json_source);
+    (parser_module_name, parser_source);
   ]
 
 let all =

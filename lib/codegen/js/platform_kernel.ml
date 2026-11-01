@@ -1,4 +1,4 @@
-type home = Browser | Json
+type home = Browser | Json | Parser [@@deriving enumerate]
 
 module Kernel_module = struct
   type t =
@@ -6,7 +6,9 @@ module Kernel_module = struct
     | Dom
     | Http
     | Json
+    | Parser
     | Port
+    | Random
     | Task
     | Time
     | Url
@@ -36,6 +38,7 @@ let table =
     (Browser, Kernel_module.VirtualDom, "lazy8", 9);
     (Browser, Kernel_module.VirtualDom, "map", 2);
     (Browser, Kernel_module.VirtualDom, "mapAttribute", 2);
+    (Browser, Kernel_module.VirtualDom, "noJavaScriptUri", 1);
     (Browser, Kernel_module.Browser, "sandbox", 1);
     (Browser, Kernel_module.Browser, "document", 1);
     (Browser, Kernel_module.Browser, "element", 1);
@@ -58,6 +61,7 @@ let table =
     (Browser, Kernel_module.Http, "cancel", 1);
     (Browser, Kernel_module.Http, "track", 2);
     (Browser, Kernel_module.Http, "toTask", 1);
+    (Browser, Kernel_module.Random, "generate", 2);
     (Browser, Kernel_module.Task, "succeed", 1);
     (Browser, Kernel_module.Task, "fail", 1);
     (Browser, Kernel_module.Task, "andThen", 2);
@@ -87,6 +91,13 @@ let table =
     (Json, Kernel_module.Json, "pushed", 2);
     (Json, Kernel_module.Json, "emptyObject", 0);
     (Json, Kernel_module.Json, "withField", 3);
+    (Parser, Kernel_module.Parser, "isSubString", 5);
+    (Parser, Kernel_module.Parser, "isSubChar", 3);
+    (Parser, Kernel_module.Parser, "isAsciiCode", 3);
+    (Parser, Kernel_module.Parser, "chompBase10", 2);
+    (Parser, Kernel_module.Parser, "consumeBase", 3);
+    (Parser, Kernel_module.Parser, "consumeBase16", 2);
+    (Parser, Kernel_module.Parser, "findSubString", 5);
   ]
 
 let found (name : Data.Name.t) =
@@ -105,6 +116,7 @@ let module_of home =
   match home with
   | Browser -> (Runtime.browser_module_name, Runtime.browser_source)
   | Json -> (Runtime.json_module_name, Runtime.json_source)
+  | Parser -> (Runtime.parser_module_name, Runtime.parser_source)
 
 let homes used =
   List.filter
@@ -115,10 +127,10 @@ let homes used =
           | Some (living, _, _, _) -> living = home
           | None -> false)
         used)
-    [ Browser; Json ]
+    all_of_home
 
 let runtimes used = List.map module_of (homes used)
-let module_names = List.map (fun home -> fst (module_of home)) [ Browser; Json ]
+let module_names = List.map (fun home -> fst (module_of home)) all_of_home
 
 let runtime_name (name : Data.Name.t) =
   match name with

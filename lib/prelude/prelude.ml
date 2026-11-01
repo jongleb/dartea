@@ -21,6 +21,16 @@ type t =
   | Platform_sub [@rename "Platform.Sub"]
   | Result [@rename "Result"]
   | String [@rename "String"]
+  | Random [@rename "Random"]
+  | Parser [@rename "Parser"]
+  | Parser_advanced [@rename "Parser.Advanced"]
+  | Set [@rename "Set"]
+  | Bitwise [@rename "Bitwise"]
+  | Svg [@rename "Svg"]
+  | Svg_attributes [@rename "Svg.Attributes"]
+  | Svg_events [@rename "Svg.Events"]
+  | Svg_keyed [@rename "Svg.Keyed"]
+  | Svg_lazy [@rename "Svg.Lazy"]
   | Task [@rename "Task"]
   | Time [@rename "Time"]
   | Tuple [@rename "Tuple"]
@@ -43,7 +53,7 @@ let of_known (known : Primitives.Known_type.t) =
 let packages =
   [
     "elm/core"; "elm/json"; "elm/html"; "elm/browser"; "elm/time";
-    "elm/virtual-dom"; "elm/url"; "elm/http";
+    "elm/virtual-dom"; "elm/url"; "elm/http"; "elm/svg"; "elm/parser"; "elm/random";
   ]
 
 let derived_from source copyright =
@@ -61,7 +71,12 @@ let derived module_ =
   | Url | Url_builder | Url_parser | Url_parser_internal | Url_parser_query ->
       derived_from "elm/url" "Copyright 2017-present Evan Czaplicki"
   | Http -> derived_from "elm/http" "Copyright 2014-present Evan Czaplicki"
-  | Basics | Char | Dict | List | Maybe | Result | Tuple ->
+  | Random -> derived_from "elm/random" "Copyright (c) 2018-present, Evan Czaplicki"
+  | Parser | Parser_advanced ->
+      derived_from "elm/parser" "Copyright (c) 2017-present, Evan Czaplicki"
+  | Svg | Svg_attributes | Svg_events | Svg_keyed | Svg_lazy ->
+      derived_from "elm/svg" "Copyright (c) 2014-present, Evan Czaplicki"
+  | Basics | Bitwise | Char | Dict | List | Maybe | Result | Set | Tuple ->
       derived_from "elm/core" "Copyright 2014-present Evan Czaplicki"
   | VirtualDom | Html | Html_events | Html_keyed | Html_lazy | Browser_dom
   | Json_decode | Json_encode | Time | Platform | Platform_cmd | Platform_sub
@@ -94,6 +109,16 @@ let source = function
   | Platform_sub -> Prelude_source.platform_sub
   | Result -> Prelude_source.result
   | String -> Prelude_source.string
+  | Random -> Prelude_source.random
+  | Parser -> Prelude_source.parser
+  | Parser_advanced -> Prelude_source.parser_advanced
+  | Set -> Prelude_source.set
+  | Bitwise -> Prelude_source.bitwise
+  | Svg -> Prelude_source.svg
+  | Svg_attributes -> Prelude_source.svg_attributes
+  | Svg_events -> Prelude_source.svg_events
+  | Svg_keyed -> Prelude_source.svg_keyed
+  | Svg_lazy -> Prelude_source.svg_lazy
   | Task -> Prelude_source.task
   | Time -> Prelude_source.time
   | Tuple -> Prelude_source.tuple
@@ -111,7 +136,7 @@ let imported_by_default = function
   | Browser | Browser_dom | Browser_events | Browser_navigation | Dict | Html
   | Html_attributes | Html_events | Html_keyed | Html_lazy | Http | Json_decode
   | Json_encode | Task | Time | Url | Url_builder | Url_parser
-  | Url_parser_internal | Url_parser_query | VirtualDom ->
+  | Url_parser_internal | Url_parser_query | VirtualDom | Set | Bitwise | Parser | Parser_advanced | Random | Svg | Svg_attributes | Svg_events | Svg_keyed | Svg_lazy ->
       false
 
 let exposed_by_default = function
@@ -134,7 +159,8 @@ let exposed_by_default = function
   | Browser | Browser_dom | Browser_events | Browser_navigation | Char | Dict
   | Html | Html_attributes | Html_events | Html_keyed | Html_lazy | Http
   | Json_decode | Json_encode | List | String | Task | Time | Tuple | Url
-  | Url_builder | Url_parser | Url_parser_internal | Url_parser_query | VirtualDom ->
+  | Url_builder | Url_parser | Url_parser_internal | Url_parser_query | VirtualDom
+  | Set | Bitwise | Parser | Parser_advanced | Random | Svg | Svg_attributes | Svg_events | Svg_keyed | Svg_lazy ->
       Canonical.Exposed.Only []
 
 let alias_by_default module_ =
@@ -145,7 +171,7 @@ let alias_by_default module_ =
   | Dict | Html | Html_attributes | Html_events | Html_keyed | Html_lazy | Http
   | Json_decode | Json_encode | List | Maybe | Platform | Result | String | Task
   | Time | Tuple | Url | Url_builder | Url_parser | Url_parser_internal
-  | Url_parser_query | VirtualDom ->
+  | Url_parser_query | VirtualDom | Set | Bitwise | Parser | Parser_advanced | Random | Svg | Svg_attributes | Svg_events | Svg_keyed | Svg_lazy ->
       None
 
 let default_imports : Canonical.Import.t list =

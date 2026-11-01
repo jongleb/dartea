@@ -49,10 +49,28 @@ let decode ~file content =
         (Bad_value
            { file; expected = {|"application" or "package" as the type|} })
 
-let of_elm_json root =
-  match Json.load root path decode with
-  | Some outline -> outline
-  | None -> default root
+let of_elm_json root = Json.load root path decode
+
+type package = {
+  exposed_modules : string list;
+      [@key "exposed-modules"]
+      [@of_yojson
+        function
+        | `Assoc _ as grouped ->
+            Result.map (List.concat_map snd)
+              (Json.pairs [%of_yojson: string list] grouped)
+        | listed -> [%of_yojson: string list] listed]
+}
+[@@deriving of_yojson { strict = false }]
+
+let exposed root =
+  let decode ~file content =
+    match (Json.decode ~file header_of_yojson content).type_ with
+    | "package" ->
+        Some (Json.decode ~file package_of_yojson content).exposed_modules
+    | _ -> None
+  in
+  Option.join (Json.load root path decode)
 
 let from_lock ~file root =
   match Lock.of_folder root with
@@ -76,4 +94,4 @@ let of_manifest root (manifest : Manifest.t) =
 let of_folder root =
   match Manifest.of_folder root with
   | Some manifest -> of_manifest root manifest
-  | None -> of_elm_json root
+  | None -> Option.value ~default:(default root) (of_elm_json root)

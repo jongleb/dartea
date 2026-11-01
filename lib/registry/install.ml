@@ -30,8 +30,7 @@ let store registry root pick (release : Npm.release) =
   | Some content -> Store.kept root pick ~integrity:release.integrity content
   | None -> Store.refuse pick "the registry no longer serves this tarball"
 
-let install registry root ~file ~say pick =
-  say ("  downloading " ^ Pick.shown pick);
+let install registry root ~file pick =
   match Npm.at registry pick with
   | Some release -> store registry root pick release
   | None ->
@@ -39,10 +38,12 @@ let install registry root ~file ~say pick =
         (Unknown_package
            { file; package = pick.package; asked_by = "the registry" })
 
-let taken registry root ~file ~say pick =
+let taken root ~say fetch pick =
   if Files.is_directory root (Pick.folder pick) then
     say ("  keeping " ^ Pick.shown pick)
-  else install registry root ~file ~say pick
+  else (
+    say ("  downloading " ^ Pick.shown pick);
+    fetch pick)
 
 let agrees picks (package, range) =
   match Pick.found package picks with
@@ -65,35 +66,81 @@ let perform registry root ~say manifest =
     | Some packages -> packages
     | None -> solve registry ~file manifest
   in
-  List.iter (taken registry root ~file ~say) picks;
+  List.iter (taken root ~say (install registry root ~file)) picks;
   Lock.save root picks;
   picks
 
 let guarded ~file work =
-  match Ezcurl.with_client (fun client -> work (Npm.open_ client)) with
+  match Ezcurl.with_client work with
   | outcome -> outcome
-  | exception Npm.Offline { url; problem } ->
+  | exception Fetch.Offline { url; problem } ->
       Diagnostic.Failure.raise_project (Offline { file; url; problem })
   | exception Store.Broken { package; version; problem } ->
       Diagnostic.Failure.raise_project
         (Bad_tarball { file; package; version; problem })
 
-let manifest_of root =
-  match Manifest.of_folder root with
-  | Some manifest -> manifest
-  | None ->
-      Diagnostic.Failure.raise_project
-        (Missing_manifest { file = Manifest.file_name })
+let no_manifest () =
+  Diagnostic.Failure.raise_project
+    (Missing_manifest { file = Manifest.file_name })
 
-let run root ~say =
-  let manifest = manifest_of root in
-  guarded ~file:manifest.file (fun registry ->
-      perform registry root ~say manifest)
+type t =
+  | Locked of Pick.t list
+  | Fetched of { file : string; packages : Pick.t list }
+
+let run root ~provided ~say =
+  let from_elm client ~file (pick : Pick.t) =
+    let unpack (endpoint : Elm_registry.endpoint) content =
+      match Zipball.kept root pick ~hash:endpoint.hash content with
+      | Zipball.Placed -> ()
+      | Zipball.Kernel ->
+          Diagnostic.Failure.raise_project
+            (Kernel_package
+               {
+                 file;
+                 package = pick.package;
+                 version = Version.show pick.version;
+               })
+    in
+    let download (endpoint : Elm_registry.endpoint) =
+      match Fetch.body client ~accept:Fetch.anything endpoint.url with
+      | Some content -> unpack endpoint content
+      | None -> Store.refuse pick ("GitHub no longer serves " ^ endpoint.url)
+    in
+    match Elm_registry.endpoint client pick with
+    | Some endpoint -> download endpoint
+    | None ->
+        Diagnostic.Failure.raise_project
+          (Unknown_package { file; package = pick.package; asked_by = file })
+  in
+  let fetch_all = function
+    | None -> no_manifest ()
+    | Some (outline : Project.Outline.t) ->
+        let file = outline.file in
+        let packages =
+          List.filter
+            (fun (pick : Pick.t) -> not (List.mem pick.package provided))
+            outline.dependencies
+        in
+        guarded ~file (fun client ->
+            List.iter (taken root ~say (from_elm client ~file)) packages);
+        Fetched { file; packages }
+  in
+  match Manifest.of_folder root with
+  | Some manifest ->
+      Locked
+        (guarded ~file:manifest.file (fun client ->
+             perform (Npm.open_ client) root ~say manifest))
+  | None -> fetch_all (Project.Outline.of_elm_json root)
 
 let add root ~package ~say =
-  let manifest = manifest_of root in
+  let manifest =
+    match Manifest.of_folder root with
+    | Some manifest -> manifest
+    | None -> no_manifest ()
+  in
   let file = manifest.file in
-  guarded ~file (fun registry ->
+  guarded ~file (fun client ->
+      let registry = Npm.open_ client in
       if List.mem_assoc package manifest.dependencies then
         perform registry root ~say manifest
       else

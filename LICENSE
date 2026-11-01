@@ -32,28 +32,31 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 Third-party material
 
 
-This software contains material derived from five projects by Evan Czaplicki,
-all licensed under the same BSD 3-Clause License reproduced above. Their
-copyright notices are retained here, as clause 1 requires, and apply to the
-files listed under each. Everything not listed -- the compiler, the JavaScript
-runtime and virtual DOM engine, and the remaining prelude modules -- is
-dartea's own work.
+This software contains material derived from eight projects by Evan
+Czaplicki, all licensed under the same BSD 3-Clause License reproduced above.
+Their copyright notices are retained here, as clause 1 requires, and apply to
+the files listed under each. Everything not listed -- the compiler, the
+JavaScript runtime and virtual DOM engine, and the remaining prelude modules --
+is dartea's own work.
 
 
 elm/core -- https://github.com/elm/core
 Copyright 2014-present Evan Czaplicki
 
     lib/prelude/packages/core/Basics.elm
+    lib/prelude/packages/core/Bitwise.elm
     lib/prelude/packages/core/Char.elm
     lib/prelude/packages/core/Dict.elm
     lib/prelude/packages/core/List.elm
     lib/prelude/packages/core/Maybe.elm
     lib/prelude/packages/core/Result.elm
+    lib/prelude/packages/core/Set.elm
     lib/prelude/packages/core/Tuple.elm
 
 A program that imports these modules is compiled alongside Basics.mjs,
-Char.mjs, Dict.mjs, List.mjs, Maybe.mjs, Result.mjs and Tuple.mjs, and
-redistributing that output redistributes material derived from elm/core.
+Bitwise.mjs, Char.mjs, Dict.mjs, List.mjs, Maybe.mjs, Result.mjs, Set.mjs and
+Tuple.mjs, and redistributing that output redistributes material derived from
+elm/core.
 
 
 elm/html -- https://github.com/elm/html
@@ -103,6 +106,46 @@ The types, the request builders and the response resolution are reproduced;
 the transport is dartea's own. A program that imports Http is compiled
 alongside Http.mjs, and redistributing that output redistributes material
 derived from elm/http.
+
+
+elm/svg -- https://github.com/elm/svg
+Copyright (c) 2014-present, Evan Czaplicki
+
+    lib/prelude/packages/svg/Svg.elm
+    lib/prelude/packages/svg/Svg.Attributes.elm
+    lib/prelude/packages/svg/Svg.Events.elm
+    lib/prelude/packages/svg/Svg.Keyed.elm
+    lib/prelude/packages/svg/Svg.Lazy.elm
+
+These modules are reproduced verbatim, without their documentation comments.
+A program that imports them is compiled alongside the matching .mjs files, and
+redistributing that output redistributes material derived from elm/svg.
+
+
+elm/parser -- https://github.com/elm/parser
+Copyright (c) 2017-present, Evan Czaplicki
+
+    lib/prelude/packages/parser/Parser.elm
+    lib/prelude/packages/parser/Parser.Advanced.elm
+    lib/codegen/js/dartea_parser.js
+
+The modules are reproduced verbatim, without their documentation comments.
+dartea_parser.js follows the logic of the kernel of elm/parser line by line.
+A program that imports Parser is compiled alongside Parser.mjs,
+Parser.Advanced.mjs and Dartea_parser.mjs, and redistributing that output
+redistributes material derived from elm/parser.
+
+
+elm/random -- https://github.com/elm/random
+Copyright (c) 2018-present, Evan Czaplicki
+
+    lib/prelude/packages/random/Random.elm
+
+The generators are reproduced verbatim, without their documentation comments.
+The effect manager behind `generate` is replaced by dartea's own: one seed per
+program, taken from the clock on the first command. A program that imports
+Random is compiled alongside Random.mjs, and redistributing that output
+redistributes material derived from elm/random.
 
 
 evancz/elm-todomvc -- https://github.com/evancz/elm-todomvc

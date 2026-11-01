@@ -1,0 +1,9 @@
+custom
+on
+onClick
+onMouseDown
+onMouseOut
+onMouseOver
+onMouseUp
+preventDefaultOn
+stopPropagationOn

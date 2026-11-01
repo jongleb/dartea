@@ -37,28 +37,31 @@ npx dartea make src/Main.elm --output index.html
 
 ### Projects and packages
 
-dartea reads `dartea.json`. An existing `elm.json` is read too, for its `source-directories`. Dependencies come from npm through `dartea install`. Packages from the Elm package registry are not downloaded yet.
+dartea reads `dartea.json`. Without one, it reads `elm.json`: its `source-directories` and the exact versions of its dependencies. `dartea install` downloads those from package.elm-lang.org, the same way `elm` does: the zip from GitHub, checked against the hash the registry gives. Packages dartea brings itself, like `elm/core` or `elm/html`, are not downloaded.
 
 <Aside type="caution">
-Packages from package.elm-lang.org are the next big piece of work. Until then a project that imports one, such as `elm/svg` or `elm/parser`, will not build.
+A package written against the runtime of Elm, with kernel JavaScript or an effect module, cannot run on dartea. `elm/regex`, `elm/file` and `elm/bytes` are such packages, and dartea does not bring its own versions of them yet. `elm/parser`, `elm/svg` and `elm/random` are such packages too, but dartea brings its own. `install` names the package and stops. Packages written in plain Elm, which is most of the community, work.
 </Aside>
 
 ## Standard library
 
 | Package | Status |
 | --- | --- |
-| `elm/core` | Ready, except `Debug`, `Bitwise`, `Set`, `Array` and `Process` |
+| `elm/core` | Ready, except `Debug`, `Array` and `Process` |
 | `elm/html` | Ready |
 | `elm/browser` | Ready |
 | `elm/json` | Ready |
 | `elm/url` | Ready |
 | `elm/http` | Ready, without `Bytes` and `File` bodies |
 | `elm/time` | Partly |
-| `elm/random` | Not yet |
+| `elm/random` | Ready |
+| `elm/parser` | Ready |
+| `elm/svg` | Ready |
 | `elm/virtual-dom` | Ready, through `Html` |
 
 ## Differences you might notice
 
 - A `Task` is an `async` function and can be cancelled through its `AbortSignal`.
 - `Cmd.batch` starts every command at once. Messages still arrive in order.
+- `Random.generate` keeps one seed per program, taken from the clock on the first command, like Elm's effect manager.
 - The output is modern JavaScript. It does not run in browsers without ES modules and `async`.

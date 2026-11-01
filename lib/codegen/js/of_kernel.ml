@@ -58,6 +58,7 @@ let unary_operation (kernel : Data.Kernel.unary) (subject : J.expr) : J.expr =
   | Char_from_code -> runtime Runtime.char_from_code [ subject ]
   | Char_to_upper -> method_call subject "toUpperCase" []
   | Char_to_lower -> method_call subject "toLowerCase" []
+  | Bitwise_complement -> J.Unary { op = J.BitNot; arg = subject }
   | List_reverse -> runtime Runtime.list_reverse [ subject ]
   | List_length -> runtime Runtime.list_length [ subject ]
 
@@ -77,6 +78,12 @@ let binary_operation (kernel : Data.Kernel.binary) (left : J.expr)
   | Basics_remainder_by -> binary right J.Modulo left
   | Basics_atan2 -> math "atan2" [ left; right ]
   | Basics_xor -> binary left J.StrictNotEqual right
+  | Bitwise_and -> binary left J.BitAnd right
+  | Bitwise_or -> binary left J.BitOr right
+  | Bitwise_xor -> binary left J.BitXor right
+  | Bitwise_shift_left_by -> binary right J.ShiftLeft left
+  | Bitwise_shift_right_by -> binary right J.ShiftRight left
+  | Bitwise_shift_right_zf_by -> binary right J.ShiftRightZf left
 
 let value (kernel : Data.Kernel.t) : J.expr =
   let arrow parameters body =

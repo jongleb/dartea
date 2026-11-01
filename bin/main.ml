@@ -34,6 +34,8 @@ let deliver ~path ~seen ~output (outcome : Dartea.Compiler.outcome) =
     match Dartea.Delivery.produce ~delivery ~output outcome with
     | files -> List.iter (save ~path) files
     | exception Reporting.Error.Found error -> refuse ~seen [ error ]
+    | exception Diagnostic.Failure.Found failure ->
+        refuse ~seen [ Reporting.Error.of_failure failure ]
 
 let compile ~path ~output ~entry sources =
   let outcome = Dartea.Compiler.compile_modules ~entry sources in
@@ -75,16 +77,27 @@ let count_of picked =
 
 let install package =
   let root = Fpath.v Filename.current_dir_name in
+  let locked picked =
+    Printf.sprintf "I resolved %s and wrote %s." (count_of picked)
+      Packages.Lock.file_name
+  in
   let resolve () =
     match package with
-    | Some package -> Registry.Install.add root ~package ~say:print_endline
-    | None -> Registry.Install.run root ~say:print_endline
+    | Some package ->
+        locked (Registry.Install.add root ~package ~say:print_endline)
+    | None -> begin
+        match
+          Registry.Install.run root ~provided:Prelude.packages
+            ~say:print_endline
+        with
+        | Locked picked -> locked picked
+        | Fetched { file; packages } ->
+            Printf.sprintf "I have the %s that %s asks for." (count_of packages)
+              (Filename.basename file)
+      end
   in
   match resolve () with
-  | picked ->
-      print_endline
-        (Printf.sprintf "I resolved %s and wrote %s." (count_of picked)
-           Packages.Lock.file_name)
+  | said -> print_endline said
   | exception Diagnostic.Failure.Found failure -> refuse_failure failure
 
 let init folder =

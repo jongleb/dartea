@@ -2937,16 +2937,35 @@ grouped = 0xFF_FF
   assert_js ~src ~expr:"Main.upper" ~expected:"255";
   assert_js ~src ~expr:"Main.grouped" ~expected:"65535"
 
-let test_minus_before_a_number_is_subtraction _ =
+let test_a_minus_against_its_operand_negates_an_argument _ =
   let src = {|
-gap : Int
-gap = 5 -2
+shown : List Int -> String
+shown numbers =
+    String.join "," (List.map String.fromInt numbers)
+
+range : String
+range = shown (List.range -2 1)
 
 spaced : Int
 spaced = 5 - 2
+
+tight : Int
+tight = 5-2
+
+field : { x : Int } -> Int
+field point = negate -point.x
+
+pattern : Int -> String
+pattern n =
+    case n of
+        -1 -> "minus one"
+        _ -> "other"
 |} in
-  assert_js ~src ~expr:"Main.gap" ~expected:"3";
-  assert_js ~src ~expr:"Main.spaced" ~expected:"3"
+  assert_js ~src ~expr:"Main.range" ~expected:{|"-2,-1,0,1"|};
+  assert_js ~src ~expr:"Main.spaced" ~expected:"3";
+  assert_js ~src ~expr:"Main.tight" ~expected:"3";
+  assert_js ~src ~expr:"Main.field({ x: 4 })" ~expected:"4";
+  assert_js ~src ~expr:"Main.pattern(-1)" ~expected:{|"minus one"|}
 
 let test_float_literals_print_as_javascript _ =
   let src = {|
@@ -3400,6 +3419,202 @@ result =
   in
   assert_js ~src ~expr:"Main.result" ~expected:{|"321"|}
 
+let test_bitwise_follows_elm_core _ =
+  let src =
+    {|
+module Main exposing (result)
+
+import Bitwise
+
+
+result : String
+result =
+    String.join ","
+        (List.map String.fromInt
+            [ Bitwise.and 12 10
+            , Bitwise.or 12 10
+            , Bitwise.xor 12 10
+            , Bitwise.complement 5
+            , Bitwise.shiftLeftBy 2 3
+            , Bitwise.shiftRightBy 1 -8
+            , Bitwise.shiftRightZfBy 28 -1
+            ]
+        )
+|}
+  in
+  assert_js ~src ~expr:"Main.result" ~expected:{|"8,14,6,-6,12,-4,15"|}
+
+let test_set_keeps_one_of_each_in_order _ =
+  let src =
+    {|
+module Main exposing (result)
+
+import Set
+
+
+result : String
+result =
+    let
+        both =
+            Set.union (Set.fromList [ 3, 1, 2, 3 ]) (Set.fromList [ 5, 1 ])
+    in
+    String.join ","
+        (List.map String.fromInt (Set.toList both))
+        ++ (if Set.member 5 both then " has 5" else " no 5")
+|}
+  in
+  assert_js ~src ~expr:"Main.result" ~expected:{|"1,2,3,5 has 5"|}
+
+let parser_header = {|
+module Main exposing (result)
+
+import Parser exposing (..)
+import Set
+
+
+shownDead : List DeadEnd -> String
+shownDead dead =
+    String.join ";"
+        (List.map
+            (\end ->
+                String.fromInt end.row ++ ":" ++ String.fromInt end.col ++ " "
+                    ++ (case end.problem of
+                            ExpectingInt -> "int"
+                            ExpectingNumber -> "number"
+                            ExpectingVariable -> "variable"
+                            ExpectingSymbol symbol -> "symbol " ++ symbol
+                            ExpectingEnd -> "end"
+                            Expecting token -> "token " ++ token
+                            _ -> "other"
+                       )
+            )
+            dead
+        )
+
+|}
+
+let test_parser_keeps_and_ignores _ =
+  let src =
+    parser_header
+    ^ {|
+point : Parser ( Int, Int )
+point =
+    succeed Tuple.pair
+        |. symbol "("
+        |. spaces
+        |= int
+        |. spaces
+        |. symbol ","
+        |. spaces
+        |= int
+        |. spaces
+        |. symbol ")"
+
+
+result : String
+result =
+    case run point "( 3,\n  -4 )" of
+        Ok ( x, y ) ->
+            String.fromInt x ++ " " ++ String.fromInt y
+
+        Err dead ->
+            shownDead dead ++ " | " ++ deadEndsToString dead
+|}
+  in
+  assert_js ~src ~expr:"Main.result"
+    ~expected:{|"2:3 int | TODO deadEndsToString"|}
+
+let test_parser_reads_numbers_names_and_comments _ =
+  let src =
+    parser_header
+    ^ {|
+name : Parser String
+name =
+    variable
+        { start = Char.isLower
+        , inner = \c -> Char.isAlphaNum c || c == '_'
+        , reserved = Set.fromList [ "let", "in" ]
+        }
+
+
+item : Parser String
+item =
+    oneOf
+        [ number
+            { int = Just (\n -> String.fromInt (n * 2))
+            , hex = Just (\n -> "h" ++ String.fromInt n)
+            , octal = Nothing
+            , binary = Nothing
+            , float = Just (\f -> "f" ++ String.fromFloat f)
+            }
+        , name
+        ]
+
+
+items : Parser (List String)
+items =
+    sequence
+        { start = "["
+        , separator = ","
+        , end = "]"
+        , spaces = spaces
+        , item = item
+        , trailing = Optional
+        }
+
+
+withComment : Parser (List String)
+withComment =
+    succeed identity
+        |. multiComment "{-" "-}" Nestable
+        |. spaces
+        |= items
+        |. spaces
+        |. lineComment "--"
+        |. end
+
+
+result : String
+result =
+    case run withComment "{- a {- b -} -}\n[ 21, x_1, 0x1F , 2.5, 😀 ] -- done" of
+        Ok found ->
+            String.join "|" found
+
+        Err dead ->
+            shownDead dead
+            ++ (case run withComment "{- a -} [ 21, x_1, 0x1F, 2.5, ] -- done" of
+                    Ok found ->
+                        " / " ++ String.join "|" found
+
+                    Err again ->
+                        " / " ++ shownDead again
+               )
+|}
+  in
+  assert_js ~src ~expr:"Main.result"
+    ~expected:{|"2:24 number;2:24 variable;2:24 token ] / 42|x_1|h31|f2.5"|}
+
+let test_parser_chomps_by_predicate _ =
+  let src =
+    parser_header
+    ^ {|
+word : Parser String
+word =
+    getChompedString (chompIf Char.isUpper |. chompWhile (\c -> c /= ' '))
+
+
+result : String
+result =
+    case run (succeed Tuple.pair |= word |. spaces |= getPosition) "Ab😀c\n  rest" of
+        Ok ( w, ( row, col ) ) ->
+            w ++ " " ++ String.fromInt row ++ ":" ++ String.fromInt col
+
+        Err dead ->
+            shownDead dead
+|}
+  in
+  assert_js ~src ~expr:"Main.result" ~expected:{|"Ab😀c\n 2:3"|}
+
 let test_list_head_of_empty_is_nothing _ =
   let src =
     {|
@@ -3507,6 +3722,12 @@ let suite =
     "list_indexed_map_matches_the_upstream_definition" >:: test_list_indexed_map_matches_the_upstream_definition;
     "list_sort_is_stable_by_key" >:: test_list_sort_is_stable_by_key;
     "list_head_of_empty_is_nothing" >:: test_list_head_of_empty_is_nothing;
+    "bitwise_follows_elm_core" >:: test_bitwise_follows_elm_core;
+    "parser_keeps_and_ignores" >:: test_parser_keeps_and_ignores;
+    "parser_reads_numbers_names_and_comments"
+    >:: test_parser_reads_numbers_names_and_comments;
+    "parser_chomps_by_predicate" >:: test_parser_chomps_by_predicate;
+    "set_keeps_one_of_each_in_order" >:: test_set_keeps_one_of_each_in_order;
     "list_partition_splits_on_the_test"
     >:: test_list_partition_splits_on_the_test;
     "comments_are_skipped" >:: test_comments_are_skipped;
@@ -3603,8 +3824,8 @@ let suite =
     "char_literal_has_char_type" >:: test_char_literal_has_char_type;
     "block_strings" >:: test_block_strings;
     "hexadecimal_literals" >:: test_hexadecimal_literals;
-    "minus_before_a_number_is_subtraction"
-    >:: test_minus_before_a_number_is_subtraction;
+    "a_minus_against_its_operand_negates_an_argument"
+    >:: test_a_minus_against_its_operand_negates_an_argument;
     "float_literals_print_as_javascript"
     >:: test_float_literals_print_as_javascript;
     "float_annotation_is_a_real_type" >:: test_float_annotation_is_a_real_type;

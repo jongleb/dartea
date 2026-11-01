@@ -17,6 +17,7 @@ let shown module_ =
 let expected =
   [
     "Basics 40/60";
+    "Bitwise 7/7";
     "Browser 6/6";
     "Browser.Dom 2/10";
     "Browser.Events 12/12";
@@ -33,11 +34,20 @@ let expected =
     "Json.Encode 9/12";
     "List 37/37";
     "Maybe 8/8";
+    "Parser 44/44";
+    "Parser.Advanced 44/44";
     "Platform 1/7";
     "Platform.Cmd 4/4";
     "Platform.Sub 4/4";
+    "Random 22/22";
     "Result 11/11";
+    "Set 18/18";
     "String 44/45";
+    "Svg 76/76";
+    "Svg.Attributes 253/253";
+    "Svg.Events 9/9";
+    "Svg.Keyed 1/1";
+    "Svg.Lazy 8/8";
     "Task 14/14";
     "Time 4/21";
     "Tuple 6/6";

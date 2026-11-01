@@ -1,0 +1,7 @@
+and
+complement
+or
+shiftLeftBy
+shiftRightBy
+shiftRightZfBy
+xor

@@ -17,6 +17,19 @@
 
   let token_start lexbuf = lexbuf.Lexing.lex_start_p
 
+  let minus lexbuf =
+    let around index =
+      if index >= 0 && index < lexbuf.Lexing.lex_buffer_len then
+        Some (Bytes.get lexbuf.Lexing.lex_buffer index)
+      else None
+    in
+    match
+      (around (lexbuf.Lexing.lex_start_pos - 1), around lexbuf.Lexing.lex_curr_pos)
+    with
+    | Some (' ' | '\n' | '\t' | '\r'), Some (' ' | '\n' | '\t' | '\r') -> MINUS
+    | Some (' ' | '\n' | '\t' | '\r'), Some _ -> NEGATE
+    | _ -> MINUS
+
   let position lexbuf = lexbuf.Lexing.lex_curr_p.Lexing.pos_cnum
 
   let advance_lines lexbuf lexeme =
@@ -118,6 +131,8 @@ rule token = parse
   | "->"            { Token ARROW }
   | "</>"           { Token (SLASH_GT) }
   | "<?>"           { Token (LT_QUESTION) }
+  | "|="            { Token (PIPE_EQ) }
+  | "|."            { Token (PIPE_DOT) }
   | "|>"            { Token (PIPE_GT) }
   | "<|"            { Token (APPLY_L) }
   | "<<"            { Token (COMPOSE_L) }
@@ -126,7 +141,7 @@ rule token = parse
   | "//"            { Token (IDIV) }
   | "^"             { Token (POW) }
   | "+"             { Token (PLUS) }
-  | "-"             { Token (MINUS) }
+  | "-"             { Token (minus lexbuf) }
   | "_"             { Token (WILDCARD) }
   | "*"             { Token (TIMES) }
   | "::"            { Token (CONS) }

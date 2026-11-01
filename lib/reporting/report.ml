@@ -69,6 +69,7 @@ let title_of_project (problem : Diagnostic.Project_error.t) =
   | No_version _ -> "NO VERSION"
   | Bad_range _ -> "RANGE I DO NOT KNOW"
   | Bad_tarball _ -> "BAD TARBALL"
+  | Kernel_package _ -> "KERNEL PACKAGE"
   | Missing_package _ -> "MISSING PACKAGE"
   | Delivery_needs_entry _ -> "NO ENTRY POINT"
 
@@ -1205,6 +1206,16 @@ let of_project_problem source region (problem : Diagnostic.Project_error.t) =
                (quote package) (quote version));
           indent (Doc.words problem);
           Doc.words "I have not unpacked it, so your project is untouched.";
+        ]
+  | Kernel_package { package; version; _ } ->
+      Doc.stack
+        [
+          Doc.words
+            (Printf.sprintf
+               "%s %s is written against the runtime of Elm, with kernel JavaScript or an effect module, and dartea cannot run it."
+               (quote package) (quote version));
+          Doc.words
+            "dartea brings its own versions of packages like this one, and this one is not among them yet.";
         ]
   | Missing_lock { file; lock } ->
       Doc.stack

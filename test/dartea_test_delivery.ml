@@ -293,8 +293,127 @@ let test_a_selection_touches_two_rows _ =
   assert_equal ~printer:Fun.id "onoffoffoffoff -> offoffonoffoff writes 2"
     (printed_by ~program:aimed_rows_program ~stub:aimed_rows_stub)
 
+let svg_program = {|module Main exposing (main)
+
+import Browser
+import Html exposing (Html, div)
+import Svg exposing (circle, svg)
+import Svg.Attributes exposing (cx, fill, from, r, xlinkHref)
+
+
+view : Int -> Html ()
+view model =
+    div []
+        [ svg [ Svg.Attributes.width "40" ]
+            [ circle [ cx "20", r (String.fromInt model), fill "red" ] []
+            , Svg.a [ xlinkHref "javascript:alert(1)", from " java script:x" ] []
+            ]
+        ]
+
+
+main : Program () Int ()
+main =
+    Browser.sandbox { init = 7, update = \_ model -> model, view = view }
+|}
+
+let svg_stub =
+  Sample.dom
+  ^ {|const host = await mounted();
+const circle = found(host, "circle");
+const link = found(host, "a");
+console.log(
+  [
+    found(host, "svg").namespace,
+    circle.namespace,
+    circle.attributes.r,
+    circle.attributes.fill,
+    JSON.stringify(link.attributes["xlink:href"]),
+    JSON.stringify(link.attributes.from),
+  ].join(" "),
+);
+|}
+
+let test_svg_lands_in_its_namespace _ =
+  assert_equal ~printer:Fun.id
+    {|http://www.w3.org/2000/svg http://www.w3.org/2000/svg 7 red "" ""|}
+    (printed_by ~program:svg_program ~stub:svg_stub)
+
+let random_program = {|module Main exposing (main)
+
+import Browser
+import Html exposing (Html, text)
+import Random
+
+
+type Msg
+    = Rolled (List Int)
+
+
+dice : Random.Generator (List Int)
+dice =
+    Random.list 30 (Random.int 1 6)
+
+
+update : Msg -> List (List Int) -> ( List (List Int), Cmd Msg )
+update msg model =
+    case msg of
+        Rolled roll ->
+            ( model ++ [ roll ]
+            , if List.length model < 2 then Random.generate Rolled dice else Cmd.none
+            )
+
+
+view : List (List Int) -> Html Msg
+view model =
+    let
+        seeded =
+            Tuple.first (Random.step dice (Random.initialSeed 42))
+
+        inRange =
+            List.all (\roll -> List.length roll == 30 && List.all (\n -> n >= 1 && n <= 6) roll) model
+    in
+    text
+        (String.join " "
+            [ "rolls " ++ String.fromInt (List.length model)
+            , if inRange then "in range" else "out of range"
+            , if List.head model == Just seeded then "seeded by the clock" else "seeded elsewhere"
+            , case model of
+                one :: two :: three :: _ ->
+                    if one /= two && two /= three then "advancing" else "repeating"
+
+                _ ->
+                    "short"
+            ]
+        )
+
+
+main : Program () (List (List Int)) Msg
+main =
+    Browser.element
+        { init = \_ -> ( [], Random.generate Rolled dice )
+        , view = view
+        , update = update
+        , subscriptions = \_ -> Sub.none
+        }
+|}
+
+let random_stub =
+  Sample.dom
+  ^ {|Date.now = () => 42;
+const host = await mounted();
+await new Promise((settle) => setTimeout(settle));
+console.log(shown(host));
+|}
+
+let test_random_commands_share_one_seed _ =
+  assert_equal ~printer:Fun.id
+    "rolls 3 in range seeded by the clock advancing"
+    (printed_by ~program:random_program ~stub:random_stub)
+
 let suite =
   [
+    "random_commands_share_one_seed" >:: test_random_commands_share_one_seed;
+    "svg_lands_in_its_namespace" >:: test_svg_lands_in_its_namespace;
     "esm_folder_is_one_file_per_module"
     >:: test_esm_folder_is_one_file_per_module;
     "a_page_is_one_file" >:: test_a_page_is_one_file;

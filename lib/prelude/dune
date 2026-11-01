@@ -31,7 +31,17 @@
   packages/core/Task.elm
   packages/time/Time.elm
   packages/core/Tuple.elm
-  packages/virtual-dom/VirtualDom.elm)
+  packages/virtual-dom/VirtualDom.elm
+  packages/core/Set.elm
+  packages/core/Bitwise.elm
+  packages/parser/Parser.elm
+  packages/parser/Parser.Advanced.elm
+  packages/random/Random.elm
+  packages/svg/Svg.elm
+  packages/svg/Svg.Attributes.elm
+  packages/svg/Svg.Events.elm
+  packages/svg/Svg.Keyed.elm
+  packages/svg/Svg.Lazy.elm)
  (action
   (with-stdout-to
    prelude_source.ml
@@ -98,6 +108,26 @@
     (cat packages/core/Tuple.elm)
     (echo "|elm}\n\nlet virtual_dom = {elm|")
     (cat packages/virtual-dom/VirtualDom.elm)
+    (echo "|elm}\n\nlet svg = {elm|")
+    (cat packages/svg/Svg.elm)
+    (echo "|elm}\n\nlet svg_attributes = {elm|")
+    (cat packages/svg/Svg.Attributes.elm)
+    (echo "|elm}\n\nlet svg_events = {elm|")
+    (cat packages/svg/Svg.Events.elm)
+    (echo "|elm}\n\nlet svg_keyed = {elm|")
+    (cat packages/svg/Svg.Keyed.elm)
+    (echo "|elm}\n\nlet svg_lazy = {elm|")
+    (cat packages/svg/Svg.Lazy.elm)
+    (echo "|elm}\n\nlet set = {elm|")
+    (cat packages/core/Set.elm)
+    (echo "|elm}\n\nlet bitwise = {elm|")
+    (cat packages/core/Bitwise.elm)
+    (echo "|elm}\n\nlet parser = {elm|")
+    (cat packages/parser/Parser.elm)
+    (echo "|elm}\n\nlet parser_advanced = {elm|")
+    (cat packages/parser/Parser.Advanced.elm)
+    (echo "|elm}\n\nlet random = {elm|")
+    (cat packages/random/Random.elm)
     (echo "|elm}\n")))))
 
 (library

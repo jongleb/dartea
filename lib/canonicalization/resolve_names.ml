@@ -215,7 +215,10 @@ let environment_of ~(dependencies : Canonical.Module.t list)
           visible =
             List.fold_left
               (fun known name -> Names.add name known)
-              (Exports.declared_terms m) Primitives.term_names;
+              (Names.filter
+                 (fun name -> Option.is_none (Data.Operator.Package.of_lexeme name))
+                 (Exports.declared_terms m))
+              Primitives.term_names;
           sources = By_name.empty;
         };
       type_scope =

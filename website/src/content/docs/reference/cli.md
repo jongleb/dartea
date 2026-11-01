@@ -45,6 +45,8 @@ dartea install [PACKAGE]
 
 Without `PACKAGE`: reads the dependencies from `dartea.json`, works out one version of every package that everyone agrees on, downloads them, and writes the versions it settled on into `dartea.lock`. If `dartea.lock` already satisfies `dartea.json`, nothing is resolved again.
 
+Without `dartea.json` but with `elm.json`: downloads the exact versions `elm.json` lists from package.elm-lang.org into `.dartea/packages`. No lock file is written, because `elm.json` already holds exact versions.
+
 With `PACKAGE`, like `@someone/charts`: finds its newest version and adds it to `dartea.json` as `^version`, but only if it fits with the rest of your dependencies.
 
 ## `dartea publish`

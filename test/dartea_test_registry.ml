@@ -147,8 +147,88 @@ let test_a_range_we_cannot_read_is_remembered _ =
       assert_equal ~printer:Fun.id "~1.1.4" refusal.range
   | _ -> assert_failure "the range was not remembered"
 
+let zipped files =
+  let member (path, written) archive =
+    let file = Result.get_ok (Zipc.File.deflate_of_binary_string written) in
+    Zipc.add (Result.get_ok (Zipc.Member.make ~path (Zipc.Member.File file))) archive
+  in
+  Result.get_ok
+    (Zipc.to_binary_string (List.fold_right member files Zipc.empty))
+
+let sha1 written = Digestif.SHA1.(to_hex (digest_string written))
+let elm_pick = Pick.of_pair ("elm/parser", version "1.1.0")
+
+let landed ?hash files =
+  let folder = Sample.folder () in
+  let written = zipped files in
+  let outcome =
+    Registry.Zipball.kept (Fpath.v folder) elm_pick
+      ~hash:(Option.value ~default:(sha1 written) hash)
+      written
+  in
+  (folder, outcome)
+
+let zip_refused ?hash files =
+  match landed ?hash files with
+  | _ -> assert_failure "the zip was accepted"
+  | exception Registry.Store.Broken { problem; _ } -> problem
+
+let test_a_zip_lands_without_its_own_folder _ =
+  let files =
+    [
+      ("elm-parser-1a09ea3/elm.json", "{}");
+      ("elm-parser-1a09ea3/src/Parser.elm", "module Parser exposing (..)\n");
+    ]
+  in
+  match landed files with
+  | folder, Registry.Zipball.Placed ->
+      assert_equal ~printer:Fun.id "module Parser exposing (..)\n"
+        (inside folder ".dartea/packages/elm/parser/1.1.0/src/Parser.elm")
+  | _, Registry.Zipball.Kernel -> assert_failure "the zip was taken for kernel code"
+
+let test_a_zip_with_the_wrong_hash_is_refused _ =
+  let problem =
+    zip_refused ~hash:(sha1 "something else") [ ("top/elm.json", "{}") ]
+  in
+  assert_bool problem
+    (Node_runner.contains ~needle:"does not match the hash" problem)
+
+let test_a_zip_without_an_outline_is_refused _ =
+  let problem = zip_refused [ ("top/src/A.elm", "module A exposing (a)\n") ] in
+  assert_bool problem
+    (Node_runner.contains ~needle:"not an Elm package" problem)
+
+let test_a_zip_cannot_write_outside_itself _ =
+  let problem =
+    zip_refused [ ("top/elm.json", "{}"); ("top/../../away.elm", "gone\n") ]
+  in
+  assert_bool problem (Node_runner.contains ~needle:"outside itself" problem)
+
+let kernel_kept source =
+  match landed [ ("top/elm.json", "{}"); ("top/src/Lib.elm", source) ] with
+  | folder, Registry.Zipball.Kernel ->
+      assert_bool "kernel code was unpacked"
+        (not (Sys.file_exists (Filename.concat folder ".dartea/packages")))
+  | _, Registry.Zipball.Placed -> assert_failure "kernel code was unpacked"
+
+let test_kernel_imports_are_kept_out _ =
+  kernel_kept "module Lib exposing (a)\n\nimport Elm.Kernel.VirtualDom\n"
+
+let test_effect_modules_are_kept_out _ =
+  kernel_kept "effect module Lib where { command = MyCmd } exposing (a)\n"
+
 let suite =
   [
+    "a_zip_lands_without_its_own_folder"
+    >:: test_a_zip_lands_without_its_own_folder;
+    "a_zip_with_the_wrong_hash_is_refused"
+    >:: test_a_zip_with_the_wrong_hash_is_refused;
+    "a_zip_without_an_outline_is_refused"
+    >:: test_a_zip_without_an_outline_is_refused;
+    "a_zip_cannot_write_outside_itself"
+    >:: test_a_zip_cannot_write_outside_itself;
+    "kernel_imports_are_kept_out" >:: test_kernel_imports_are_kept_out;
+    "effect_modules_are_kept_out" >:: test_effect_modules_are_kept_out;
     "a_tarball_lands_without_its_own_folder"
     >:: test_a_tarball_lands_without_its_own_folder;
     "the_tarball_is_kept" >:: test_the_tarball_is_kept;

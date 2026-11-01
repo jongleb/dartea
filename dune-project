@@ -42,6 +42,7 @@
   (tar-unix
    (>= 3.0.0))
   decompress
+  zipc
   ppx_deriving
   ppx_deriving_yojson
   ppx_jane

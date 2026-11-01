@@ -31,6 +31,7 @@
 %token IN
 %token PLUS
 %token MINUS
+%token NEGATE
 %token TIMES
 %token DIV
 %token IF
@@ -65,6 +66,8 @@
 %token INFIX
 %token SLASH_GT
 %token LT_QUESTION
+%token PIPE_EQ
+%token PIPE_DOT
 
 %nonassoc ELSE IN
 %nonassoc ARROW
@@ -75,8 +78,9 @@
 %right OR
 %right AND
 %nonassoc EQ_EQ NOT_EQ GT LT GT_EQ LT_EQ
+%left PIPE_EQ
 %right CONCAT CONS
-%left PLUS MINUS
+%left PLUS MINUS PIPE_DOT
 %left TIMES DIV IDIV
 %right SLASH_GT
 %right POW
@@ -119,8 +123,10 @@ infix_decl:
 
 %inline
 package_operator:
-    | SLASH_GT { "</>" }
-    | LT_QUESTION { "<?>" }
+    | SLASH_GT { Data.Operator.Package.(to_string Slash) }
+    | LT_QUESTION { Data.Operator.Package.(to_string Query) }
+    | PIPE_EQ { Data.Operator.Package.(to_string Keep) }
+    | PIPE_DOT { Data.Operator.Package.(to_string Ignore) }
 
 upper_possible_dotted:
     | what=UCNAME { what }
@@ -291,9 +297,13 @@ expr_lowered_binop:
     | head=expr CONS tail=expr { at $loc (Expr_cons { head; tail }) }
     | arg=expr PIPE_GT fn=expr { at $loc (Expr_apply { fn; arg }) }
     | left=expr op=SLASH_GT right=expr
-        { make_expr_apply ~args:[left; right] (at $loc(op) (Expr_ident "</>")) }
+        { make_expr_apply ~args:[left; right] (at $loc(op) (Expr_ident Data.Operator.Package.(to_string Slash))) }
     | left=expr op=LT_QUESTION right=expr
-        { make_expr_apply ~args:[left; right] (at $loc(op) (Expr_ident "<?>")) }
+        { make_expr_apply ~args:[left; right] (at $loc(op) (Expr_ident Data.Operator.Package.(to_string Query))) }
+    | left=expr op=PIPE_EQ right=expr
+        { make_expr_apply ~args:[left; right] (at $loc(op) (Expr_ident Data.Operator.Package.(to_string Keep))) }
+    | left=expr op=PIPE_DOT right=expr
+        { make_expr_apply ~args:[left; right] (at $loc(op) (Expr_ident Data.Operator.Package.(to_string Ignore))) }
     | fn=expr APPLY_L arg=expr { at $loc (Expr_apply { fn; arg }) }
     | outer=expr op=COMPOSE_L inner=expr
         { make_expr_apply ~args:[outer; inner]
@@ -334,9 +344,12 @@ case_arm:
         {{ pattern; expr }}    
 
 pattern:
-    | name=upper_possible_dotted args=nonempty_list(pattern_atom) { at $loc (P_ctor(name, args)) }
-    | head=pattern_atom CONS tail=pattern { at $loc (P_cons(head, tail)) }
+    | head=pattern_app CONS tail=pattern { at $loc (P_cons(head, tail)) }
     | p=pattern AS name=LCNAME { at $loc (P_alias(p, name)) }
+    | p=pattern_app { p }
+
+pattern_app:
+    | name=upper_possible_dotted args=nonempty_list(pattern_atom) { at $loc (P_ctor(name, args)) }
     | p=pattern_atom { p }
 
 pattern_atom:
@@ -344,6 +357,7 @@ pattern_atom:
     | i=CHAR { at $loc (P_chr i) }
     | i=INT { at $loc (P_int i) }
     | MINUS i=INT { at $loc (P_int (-i)) }
+    | NEGATE i=INT { at $loc (P_int (-i)) }
     | WILDCARD { at $loc P_anything }
     | UNIT { at $loc P_unit }
     | i=LCNAME { at $loc (P_var i) }
@@ -362,6 +376,8 @@ expr_app:
     | fn=expr_app arg=expr_postfix { at $loc (Expr_apply { fn; arg }) }
 
 expr_postfix:
+    | minus=NEGATE e=expr_postfix
+        { at $loc (Expr_unop { name = at $loc(minus) "-"; operand = e }) }
     | base=expr_applicable fields=list(loc(ACCESS)) {
         List.fold_left
           (fun acc field ->
@@ -374,6 +390,7 @@ expr_applicable:
     | LPAREN e=expr RPAREN { e }
     | LPAREN name=binop RPAREN { make_operator_value ~region:(Region.of_lexing $loc) name }
     | LPAREN PIPE_GT RPAREN { make_qualified ~region:(Region.of_lexing $loc) "Basics.apR" }
+    | LPAREN CONS RPAREN { make_qualified ~region:(Region.of_lexing $loc) "List.cons" }
     | LPAREN op=package_operator RPAREN { at $loc (Expr_ident op) }
     | LPAREN APPLY_L RPAREN { make_qualified ~region:(Region.of_lexing $loc) "Basics.apL" }
     | LPAREN COMPOSE_L RPAREN { make_qualified ~region:(Region.of_lexing $loc) "Basics.composeL" }

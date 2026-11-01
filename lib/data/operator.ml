@@ -18,6 +18,18 @@ type t =
 
 let lexeme = to_string
 
+module Package = struct
+  type t =
+    | Slash [@rename "</>"]
+    | Query [@rename "<?>"]
+    | Keep [@rename "|="]
+    | Ignore [@rename "|."]
+  [@@deriving show, enumerate, to_string]
+
+  let of_lexeme written =
+    List.find_opt (fun operator -> String.equal (to_string operator) written) all
+end
+
 let of_lexeme written =
   List.find_opt (fun operator -> String.equal (lexeme operator) written) all
 

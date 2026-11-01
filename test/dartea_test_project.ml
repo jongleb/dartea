@@ -270,18 +270,8 @@ let test_a_manifest_and_a_lock_bring_a_package_in _ =
   assert_bool "the project did not compile"
     (List.mem "Deep.Thing" (compiled sources))
 
-let test_a_package_hides_what_it_does_not_expose _ =
-  let folder = Sample.folder () in
-  Sample.written ~folder ~path:Packages.Manifest.file_name
-    (manifest [ ("@dartea/thing", "^1.0.0") ]);
-  Sample.written ~folder ~path:Packages.Lock.file_name
-    (lock [ ("@dartea/thing", "1.2.0") ]);
-  Sample.written ~folder
-    ~path:".dartea/packages/@dartea/thing/1.2.0/dartea.json"
-    {|{ "type": "package", "name": "@dartea/thing", "version": "1.2.0",
-        "summary": "A thing", "license": "BSD-3-Clause",
-        "exposed-modules": ["Deep.Thing"] }|};
-  vendored ~folder ~package:"@dartea/thing/1.2.0" ~path:"Deep/Secret.elm"
+let hides_the_secret ~folder ~package =
+  vendored ~folder ~package ~path:"Deep/Secret.elm"
     {|module Deep.Secret exposing (value)
 
 
@@ -289,7 +279,7 @@ value : Int
 value =
     41
 |};
-  vendored ~folder ~package:"@dartea/thing/1.2.0" ~path:"Deep/Thing.elm"
+  vendored ~folder ~package ~path:"Deep/Thing.elm"
     {|module Deep.Thing exposing (answer)
 
 import Deep.Secret
@@ -326,6 +316,28 @@ main =
            (List.map
               (Sample.rendered (Reporting.Sources.of_list outcome.sources))
               errors))
+
+let test_a_package_hides_what_it_does_not_expose _ =
+  let folder = Sample.folder () in
+  Sample.written ~folder ~path:Packages.Manifest.file_name
+    (manifest [ ("@dartea/thing", "^1.0.0") ]);
+  Sample.written ~folder ~path:Packages.Lock.file_name
+    (lock [ ("@dartea/thing", "1.2.0") ]);
+  Sample.written ~folder
+    ~path:".dartea/packages/@dartea/thing/1.2.0/dartea.json"
+    {|{ "type": "package", "name": "@dartea/thing", "version": "1.2.0",
+        "summary": "A thing", "license": "BSD-3-Clause",
+        "exposed-modules": ["Deep.Thing"] }|};
+  hides_the_secret ~folder ~package:"@dartea/thing/1.2.0"
+
+let test_an_elm_package_hides_what_it_does_not_expose _ =
+  let folder = Sample.folder () in
+  Sample.written ~folder ~path:"elm.json"
+    (depending_on [ ("gleb/thing", "1.0.0") ]);
+  Sample.written ~folder ~path:".dartea/packages/gleb/thing/1.0.0/elm.json"
+    {|{ "type": "package", "name": "gleb/thing", "version": "1.0.0",
+        "exposed-modules": { "Things": ["Deep.Thing"] } }|};
+  hides_the_secret ~folder ~package:"gleb/thing/1.0.0"
 
 let test_a_manifest_without_a_lock_is_refused _ =
   let folder = Sample.folder () in
@@ -466,6 +478,8 @@ let suite =
     >:: test_a_manifest_without_a_lock_is_refused;
     "a_package_hides_what_it_does_not_expose"
     >:: test_a_package_hides_what_it_does_not_expose;
+    "an_elm_package_hides_what_it_does_not_expose"
+    >:: test_an_elm_package_hides_what_it_does_not_expose;
     "a_manifest_without_dependencies_needs_no_lock"
     >:: test_a_manifest_without_dependencies_needs_no_lock;
     "the_manifest_wins_over_elm_json" >:: test_the_manifest_wins_over_elm_json;

@@ -35,5 +35,6 @@
   tar-unix
   decompress.gz
   digestif
+  zipc
   base64
   codegen_js))

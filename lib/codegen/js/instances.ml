@@ -145,7 +145,7 @@ let strictly = function
 let operator_admits_equality = function
   | J.LessThanOrEqual | J.GreaterThanOrEqual -> true
   | J.Plus | J.Minus | J.Multiply | J.Divide | J.Modulo | J.Exponent | J.BitOr
-  | J.Equal | J.NotEqual | J.StrictEqual | J.StrictNotEqual | J.LessThan
+  | J.BitAnd | J.BitXor | J.ShiftLeft | J.ShiftRight | J.ShiftRightZf | J.Equal | J.NotEqual | J.StrictEqual | J.StrictNotEqual | J.LessThan
   | J.GreaterThan | J.And | J.Or ->
       false
 

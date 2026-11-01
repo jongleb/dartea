@@ -1,0 +1,12 @@
+import * as Json$Decode from "./Json.Decode.mjs";
+import * as VirtualDom from "./VirtualDom.mjs";
+const onClick = msg => VirtualDom.on("click", VirtualDom.Normal(Json$Decode.succeed(msg)));
+const onMouseDown = msg$1 => VirtualDom.on("mousedown", VirtualDom.Normal(Json$Decode.succeed(msg$1)));
+const onMouseUp = msg$2 => VirtualDom.on("mouseup", VirtualDom.Normal(Json$Decode.succeed(msg$2)));
+const onMouseOver = msg$3 => VirtualDom.on("mouseover", VirtualDom.Normal(Json$Decode.succeed(msg$3)));
+const onMouseOut = msg$4 => VirtualDom.on("mouseout", VirtualDom.Normal(Json$Decode.succeed(msg$4)));
+const on = (eta1, eta2) => VirtualDom.on(eta1, VirtualDom.Normal(eta2));
+const stopPropagationOn = (eta1$1, eta2$1) => VirtualDom.on(eta1$1, VirtualDom.MayStopPropagation(eta2$1));
+const preventDefaultOn = (eta1$2, eta2$2) => VirtualDom.on(eta1$2, VirtualDom.MayPreventDefault(eta2$2));
+const custom = (eta1$3, eta2$3) => VirtualDom.on(eta1$3, VirtualDom.Custom(eta2$3));
+export { custom, on, onClick, onMouseDown, onMouseOut, onMouseOver, onMouseUp, preventDefaultOn, stopPropagationOn };
