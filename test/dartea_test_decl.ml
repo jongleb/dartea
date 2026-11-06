@@ -3639,6 +3639,18 @@ let test_pipe _ =
   let result = input |> Main.parse ~file:"Main.elm" in
   assert_equal expect_data (Utils.dummified result)
 
+let test_case_subject_binop _ =
+  let parse subject =
+    Printf.sprintf "result =\n    case %s of\n        0 -> 0\n        n -> n\n"
+      subject
+    |> Main.parse ~file:"Main.elm"
+    |> Utils.dummified
+  in
+  List.iter
+    (fun subject ->
+      assert_equal (parse ("(" ^ subject ^ ")")) (parse subject))
+    [ "[ 1, 2 ] |> List.length"; "a == b"; "a ++ b" ]
+
 let test_lambda_simple _ =
   let expect_data =
     [
@@ -3920,6 +3932,7 @@ let suite =
     "test_nested_ctor_pm" >:: test_nested_ctor_pm;
     "test_complex_cons_pm" >:: test_complex_cons_pm;
     "test_pipe" >:: test_pipe;
+    "test_case_subject_binop" >:: test_case_subject_binop;
     "test_lambda_simple" >:: test_lambda_simple;
     "test_lambda_multiple_params" >:: test_lambda_multiple_params;
     "test_lambda_in_apply" >:: test_lambda_in_apply;

@@ -286,7 +286,7 @@ expr:
           at $loc (Expr_lambda { params; body }) }
     | IF if_exp=expr THEN then_exp=expr ELSE else_exp=expr
         { at $loc (Expr_if_then_else { if_exp; then_exp; else_exp }) }
-    | CASE expr=scrutinee OF pattern_data_items=indented(list(case_arm))
+    | CASE expr=expr OF pattern_data_items=indented(list(case_arm))
         { at $loc (Expr_pattern { expr; pattern_data_items }) }
     | LET binding=expr_let_name_bind IN e=expr
         { make_expr_let ~bindings:[binding] e }
@@ -334,10 +334,6 @@ destructuring_pattern:
     | LBRACE lst=separated_list(COMMA, LCNAME) RBRACE { at $loc (P_record(lst)) }
 
 expr_let_defs: lst=nonempty_list(expr_let_name_bind) { lst }
-
-scrutinee:
-    | e=expr_app { e }
-    | e=expr_binop { e }
 
 case_arm:
     | pattern=pattern ARROW expr=indented(expr)
