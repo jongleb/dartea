@@ -16,6 +16,7 @@
 
 (library
  (name dartea)
+ (public_name dartea)
  (libraries
   base
   parse

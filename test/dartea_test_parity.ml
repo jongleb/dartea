@@ -32,7 +32,7 @@ let expected =
     "Http 30/37";
     "Json.Decode 32/35";
     "Json.Encode 9/12";
-    "List 37/37";
+    "List 38/37";
     "Maybe 8/8";
     "Parser 44/44";
     "Parser.Advanced 44/44";

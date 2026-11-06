@@ -61,6 +61,28 @@ type language = Nullary of nullary | Unary of unary | Binary of binary
 type platform = { name : Name.t; arity : int } [@@deriving show]
 type t = Language of language | Platform of platform [@@deriving show]
 
+(** Kernels of the agent platform, written [Elm.Kernel.Agent.*] in the prelude. *)
+type agent =
+  | Agent_read
+  | Agent_write
+  | Agent_edit
+  | Agent_grep
+  | Agent_shell
+  | Task_succeed
+  | Task_fail
+  | Task_and_then
+  | Task_map
+  | Task_map_err
+  | Task_on_error
+  | Task_batch
+[@@deriving show, enumerate]
+
+let agent_arity = function
+  | Agent_read | Agent_edit | Agent_grep | Agent_shell | Task_succeed | Task_fail
+  | Task_batch ->
+      1
+  | Agent_write | Task_and_then | Task_map | Task_map_err | Task_on_error -> 2
+
 let language_arity = function Nullary _ -> 0 | Unary _ -> 1 | Binary _ -> 2
 
 let arity = function
@@ -133,6 +155,30 @@ let by_origin =
     (Seq.map
        (fun kernel -> (origin kernel, kernel))
        (List.to_seq all_of_language))
+
+let agent_of_name =
+  let by_origin =
+    Hashtbl.of_seq
+      (Seq.map
+         (fun kernel ->
+           ( written_as "Agent"
+               (match kernel with
+               | Agent_read -> "read"
+               | Agent_write -> "write"
+               | Agent_edit -> "edit"
+               | Agent_grep -> "grep"
+               | Agent_shell -> "shell"
+               | Task_succeed -> "succeed"
+               | Task_fail -> "fail"
+               | Task_and_then -> "andThen"
+               | Task_map -> "map"
+               | Task_map_err -> "mapErr"
+               | Task_on_error -> "onError"
+               | Task_batch -> "batch"),
+             kernel ))
+         (List.to_seq all_of_agent))
+  in
+  fun name -> Hashtbl.find_opt by_origin name
 
 type reference =
   | Not_kernel

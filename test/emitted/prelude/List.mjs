@@ -88,27 +88,34 @@ const any = (isOkay, list$5) => {
   }
 };
 const member = (x$2, xs$6) => any(a => Dartea_runtime.$$eq(a, x$2), xs$6);
-const all = (isOkay$1, list$6) => Basics.not(any(a$1 => Basics.not(isOkay$1(a$1)), list$6));
-const maximum = list$7 => {
-  if (list$7 !== 0) {
-    const x$3 = list$7.hd;
-    const xs$7 = list$7.tl;
-    return Maybe.Just(foldl(Basics.max, x$3, xs$7));
+const unique = list$6 => Dartea_runtime.$$listReverse(foldl((x$3, seen) => {
+  if (any(a$1 => Dartea_runtime.$$eq(a$1, x$3), seen)) {
+    return seen;
   } else {
-    return Maybe.Nothing;
+    return { hd: x$3, tl: seen };
   }
-};
-const minimum = list$8 => {
+}, 0, list$6));
+const all = (isOkay$1, list$7) => Basics.not(any(a$2 => Basics.not(isOkay$1(a$2)), list$7));
+const maximum = list$8 => {
   if (list$8 !== 0) {
     const x$4 = list$8.hd;
-    const xs$8 = list$8.tl;
-    return Maybe.Just(foldl(Basics.min, x$4, xs$8));
+    const xs$7 = list$8.tl;
+    return Maybe.Just(foldl(Basics.max, x$4, xs$7));
   } else {
     return Maybe.Nothing;
   }
 };
-const sum = numbers => foldl((x$5, acc$3) => x$5 + acc$3, 0, numbers);
-const product = numbers$1 => foldl((x$6, acc$4) => x$6 * acc$4, 1, numbers$1);
+const minimum = list$9 => {
+  if (list$9 !== 0) {
+    const x$5 = list$9.hd;
+    const xs$8 = list$9.tl;
+    return Maybe.Just(foldl(Basics.min, x$5, xs$8));
+  } else {
+    return Maybe.Nothing;
+  }
+};
+const sum = numbers => foldl((x$6, acc$3) => x$6 + acc$3, 0, numbers);
+const product = numbers$1 => foldl((x$7, acc$4) => x$7 * acc$4, 1, numbers$1);
 const append = (xs$9, ys) => {
   if (ys === 0) {
     return xs$9;
@@ -117,14 +124,14 @@ const append = (xs$9, ys) => {
   }
 };
 const concat = lists => foldl(append, 0, Dartea_runtime.$$listReverse(lists));
-const concatMap = (f$4, list$9) => foldl(append, 0, Dartea_runtime.$$listReverse(Dartea_runtime.$$listMap(f$4, list$9)));
+const concatMap = (f$4, list$10) => foldl(append, 0, Dartea_runtime.$$listReverse(Dartea_runtime.$$listMap(f$4, list$10)));
 const intersperse = (sep, xs$10) => {
   if (xs$10 === 0) {
     return 0;
   } else {
     const hd = xs$10.hd;
     const tl = xs$10.tl;
-    const step = (x$7, rest$1) => ({ hd: sep, tl: { hd: x$7, tl: rest$1 } });
+    const step = (x$8, rest$1) => ({ hd: sep, tl: { hd: x$8, tl: rest$1 } });
     const spersed = foldl(step, 0, Dartea_runtime.$$listReverse(tl));
     return { hd: hd, tl: spersed };
   }
@@ -134,7 +141,7 @@ const map2Help = (f$5, xs$11, ys$1, acc$5) => {
     if (xs$11 === 0) {
       return acc$5;
     } else {
-      const x$8 = xs$11.hd;
+      const x$9 = xs$11.hd;
       const xrest = xs$11.tl;
       if (ys$1 === 0) {
         return acc$5;
@@ -144,7 +151,7 @@ const map2Help = (f$5, xs$11, ys$1, acc$5) => {
         const $s15 = f$5;
         const $s16 = xrest;
         const $s17 = yrest;
-        const $s18 = { hd: Dartea_runtime.$$apply2(f$5, x$8, y), tl: acc$5 };
+        const $s18 = { hd: Dartea_runtime.$$apply2(f$5, x$9, y), tl: acc$5 };
         f$5 = $s15;
         xs$11 = $s16;
         ys$1 = $s17;
@@ -158,19 +165,19 @@ const map2 = (f$6, xs$12, ys$2) => Dartea_runtime.$$listReverse(map2Help(f$6, xs
 const map3 = (f$7, xs$13, ys$3, zs) => Dartea_runtime.$$listReverse(map2Help((g, z) => Dartea_runtime.$$apply1(g, z), Dartea_runtime.$$listReverse(map2Help(f$7, xs$13, ys$3, 0)), zs, 0));
 const map4 = (f$8, xs$14, ys$4, zs$1, ws) => Dartea_runtime.$$listReverse(map2Help((g$1, w) => Dartea_runtime.$$apply1(g$1, w), map3(f$8, xs$14, ys$4, zs$1), ws, 0));
 const map5 = (f$9, xs$15, ys$5, zs$2, ws$1, vs) => Dartea_runtime.$$listReverse(map2Help((g$2, v) => Dartea_runtime.$$apply1(g$2, v), map4(f$9, xs$15, ys$5, zs$2, ws$1), vs, 0));
-const drop = (n$2, list$10) => {
+const drop = (n$2, list$11) => {
   while (true) {
     if (n$2 <= 0) {
-      return list$10;
+      return list$11;
     } else {
-      if (list$10 === 0) {
-        return list$10;
+      if (list$11 === 0) {
+        return list$11;
       } else {
-        const xs$16 = list$10.tl;
+        const xs$16 = list$11.tl;
         const $s19 = n$2 - 1;
         const $s20 = xs$16;
         n$2 = $s19;
-        list$10 = $s20;
+        list$11 = $s20;
         continue;
       }
     }
@@ -213,21 +220,21 @@ const mergeHelp = (ordering, left, right, acc$6) => {
     }
   }
 };
-const takeHelp = (n$3, list$11, acc$7) => {
+const takeHelp = (n$3, list$12, acc$7) => {
   while (true) {
     if (n$3 <= 0) {
       return acc$7;
     } else {
-      if (list$11 === 0) {
+      if (list$12 === 0) {
         return acc$7;
       } else {
-        const x$9 = list$11.hd;
-        const xs$17 = list$11.tl;
+        const x$10 = list$12.hd;
+        const xs$17 = list$12.tl;
         const $s29 = n$3 - 1;
         const $s30 = xs$17;
-        const $s31 = { hd: x$9, tl: acc$7 };
+        const $s31 = { hd: x$10, tl: acc$7 };
         n$3 = $s29;
-        list$11 = $s30;
+        list$12 = $s30;
         acc$7 = $s31;
         continue;
       }
@@ -247,8 +254,8 @@ const sortWith = (ordering$1, xs$18) => {
   }
 };
 const sort = xs$19 => sortWith(Basics.compare, xs$19);
-const sortBy = (toKey, xs$20) => sortWith((a$2, b) => {
-  const $s32 = Dartea_runtime.$$apply1(toKey, a$2);
+const sortBy = (toKey, xs$20) => sortWith((a$3, b) => {
+  const $s32 = Dartea_runtime.$$apply1(toKey, a$3);
   const $s33 = Dartea_runtime.$$apply1(toKey, b);
   const $s34 = Dartea_runtime.$$cmp($s32, $s33);
   return ($s34 < 0) ? "LT" : ($s34 === 0) ? "EQ" : "GT";
@@ -260,43 +267,43 @@ const isEmpty = xs$21 => {
     return false;
   }
 };
-const head = list$12 => {
-  if (list$12 !== 0) {
-    const x$10 = list$12.hd;
-    return Maybe.Just(x$10);
+const head = list$13 => {
+  if (list$13 !== 0) {
+    const x$11 = list$13.hd;
+    return Maybe.Just(x$11);
   } else {
     return Maybe.Nothing;
   }
 };
-const tail = list$13 => {
-  if (list$13 !== 0) {
-    const xs$22 = list$13.tl;
+const tail = list$14 => {
+  if (list$14 !== 0) {
+    const xs$22 = list$14.tl;
     return Maybe.Just(xs$22);
   } else {
     return Maybe.Nothing;
   }
 };
-const take = (n$4, list$14) => Dartea_runtime.$$listReverse(takeHelp(n$4, list$14, 0));
-const partition = (pred, list$15) => {
-  const step$1 = (x$11, $p1) => {
+const take = (n$4, list$15) => Dartea_runtime.$$listReverse(takeHelp(n$4, list$15, 0));
+const partition = (pred, list$16) => {
+  const step$1 = (x$12, $p1) => {
   const trues = $p1[0];
   const falses = $p1[1];
-  if (pred(x$11)) {
-    return [{ hd: x$11, tl: trues }, falses];
+  if (pred(x$12)) {
+    return [{ hd: x$12, tl: trues }, falses];
   } else {
-    return [trues, { hd: x$11, tl: falses }];
+    return [trues, { hd: x$12, tl: falses }];
   }
 };
-  return foldl(step$1, [0, 0], Dartea_runtime.$$listReverse(list$15));
+  return foldl(step$1, [0, 0], Dartea_runtime.$$listReverse(list$16));
 };
 const unzip = pairs => {
   const step$2 = ($p0, $p1$1) => {
-  const x$12 = $p0[0];
+  const x$13 = $p0[0];
   const y$1 = $p0[1];
   const xs$23 = $p1$1[0];
   const ys$6 = $p1$1[1];
-  return [{ hd: x$12, tl: xs$23 }, { hd: y$1, tl: ys$6 }];
+  return [{ hd: x$13, tl: xs$23 }, { hd: y$1, tl: ys$6 }];
 };
   return foldl(step$2, [0, 0], Dartea_runtime.$$listReverse(pairs));
 };
-export { all, any, append, concat, concatMap, cons, drop, filter, filterMap, foldl, foldr, head, indexedMap, intersperse, isEmpty, length, map, map2, map3, map4, map5, maximum, member, minimum, partition, product, range, repeat, reverse, singleton, sort, sortBy, sortWith, sum, tail, take, unzip };
+export { all, any, append, concat, concatMap, cons, drop, filter, filterMap, foldl, foldr, head, indexedMap, intersperse, isEmpty, length, map, map2, map3, map4, map5, maximum, member, minimum, partition, product, range, repeat, reverse, singleton, sort, sortBy, sortWith, sum, tail, take, unique, unzip };

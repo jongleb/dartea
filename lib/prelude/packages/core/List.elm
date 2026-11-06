@@ -14,6 +14,7 @@ module List exposing
     , append, concat, concatMap, intersperse, map2, map3, map4, map5
     , sort, sortBy, sortWith
     , isEmpty, head, tail, take, drop, partition, unzip
+    , unique
     )
 
 import Basics exposing (..)
@@ -116,6 +117,22 @@ length xs =
 member : a -> List a -> Bool
 member x xs =
     any (\a -> a == x) xs
+
+
+unique : List a -> List a
+unique list =
+    reverse
+        (foldl
+            (\x seen ->
+                if member x seen then
+                    seen
+
+                else
+                    x :: seen
+            )
+            []
+            list
+        )
 
 
 all : (a -> Bool) -> List a -> Bool

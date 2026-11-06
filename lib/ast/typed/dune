@@ -1,5 +1,6 @@
 (library
  (name typed)
+ (public_name dartea.typed)
  (libraries data canonical)
  (preprocess
   (pps ppx_jane ppx_deriving.show ppx_deriving.make)))

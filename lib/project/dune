@@ -1,5 +1,6 @@
 (library
  (name project)
+ (public_name dartea.project)
  (libraries files fpath yojson diagnostic packages non_empty_list)
  (preprocess
   (pps ppx_deriving_yojson)))

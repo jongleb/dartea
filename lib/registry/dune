@@ -1,5 +1,6 @@
 (library
  (name registry)
+ (public_name dartea.registry)
  (libraries
   ezcurl
   yojson

@@ -1,3 +1,4 @@
 (library
  (name after_typed)
+ (public_name dartea.after_typed)
  (libraries infer typed optimized reporting primitives))

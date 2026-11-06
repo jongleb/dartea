@@ -1,5 +1,6 @@
 (library
  (name infer)
+ (public_name dartea.infer)
  (libraries
   primitives
   canonical

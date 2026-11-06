@@ -1,5 +1,6 @@
 (library
  (name diagnostic)
+ (public_name dartea.diagnostic)
  (libraries data)
  (preprocess
   (pps ppx_deriving.show)))

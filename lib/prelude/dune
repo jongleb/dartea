@@ -132,6 +132,7 @@
 
 (library
  (name prelude)
+ (public_name dartea.prelude)
  (libraries canonical primitives)
  (preprocess
   (pps ppx_jane)))

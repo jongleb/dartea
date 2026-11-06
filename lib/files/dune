@@ -1,3 +1,4 @@
 (library
  (name files)
+ (public_name dartea.files)
  (libraries fpath bos rresult))
