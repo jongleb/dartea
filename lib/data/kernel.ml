@@ -68,6 +68,11 @@ type agent =
   | Agent_edit
   | Agent_grep
   | Agent_shell
+  | Agent_hole
+  | Agent_call
+  | Agent_enter
+  | Agent_leave
+  | Agent_merge
   | Task_succeed
   | Task_fail
   | Task_and_then
@@ -78,10 +83,10 @@ type agent =
 [@@deriving show, enumerate]
 
 let agent_arity = function
-  | Agent_read | Agent_edit | Agent_grep | Agent_shell | Task_succeed | Task_fail
-  | Task_batch ->
+  | Agent_read | Agent_edit | Agent_grep | Agent_shell | Agent_hole | Agent_enter | Agent_leave
+  | Agent_merge | Task_succeed | Task_fail | Task_batch ->
       1
-  | Agent_write | Task_and_then | Task_map | Task_map_err | Task_on_error -> 2
+  | Agent_write | Agent_call | Task_and_then | Task_map | Task_map_err | Task_on_error -> 2
 
 let language_arity = function Nullary _ -> 0 | Unary _ -> 1 | Binary _ -> 2
 
@@ -168,6 +173,11 @@ let agent_of_name =
                | Agent_edit -> "edit"
                | Agent_grep -> "grep"
                | Agent_shell -> "shell"
+               | Agent_hole -> "hole"
+               | Agent_call -> "call"
+               | Agent_enter -> "enter"
+               | Agent_leave -> "leave"
+               | Agent_merge -> "merge"
                | Task_succeed -> "succeed"
                | Task_fail -> "fail"
                | Task_and_then -> "andThen"
